@@ -16,10 +16,7 @@ const passwordHash = await bcrypt.hash('Lawyer@123456', 12)
 
 const user = await prisma.user.upsert({
   where: {
-    tenantId_email: {
-      tenantId: tenant.id,
-      email: 'lawyer@example.com',
-    },
+    email: 'lawyer@example.com',
   },
   update: {
     passwordHash,
