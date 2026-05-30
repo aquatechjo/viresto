@@ -30,9 +30,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       return notFound('المستند غير موجود')
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return err('خدمة التلخيص غير مفعلة حاليًا', 503)
-    }
+if (!openai) {
+  return err('خدمة التلخيص غير مفعلة حاليًا', 503)
+}
 
     const prompt = `
 أنت مساعد قانوني.
