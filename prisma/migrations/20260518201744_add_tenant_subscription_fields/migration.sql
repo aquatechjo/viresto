@@ -1,0 +1,9 @@
+-- CreateEnum
+CREATE TYPE "TenantStatus" AS ENUM ('ACTIVE', 'TRIAL', 'EXPIRED', 'SUSPENDED');
+
+-- AlterTable
+ALTER TABLE "Tenant" ADD COLUMN     "isSuspended" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "maxUsers" INTEGER NOT NULL DEFAULT 5,
+ADD COLUMN     "status" "TenantStatus" NOT NULL DEFAULT 'ACTIVE',
+ADD COLUMN     "trialEndsAt" TIMESTAMP(3),
+ALTER COLUMN "plan" SET DEFAULT 'PRO';

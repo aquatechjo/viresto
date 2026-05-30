@@ -1,0 +1,238 @@
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
+import { amiriFont } from './fonts/amiri-font'
+
+export function exportToCSV(filename: string, rows: Record<string, any>[]) {
+  if (!rows.length) return
+
+  const headers = Object.keys(rows[0])
+  const csv = [
+    headers.join(','),
+    ...rows.map((row) =>
+      headers
+        .map((h) => `"${String(row[h] ?? '').replace(/"/g, '""')}"`)
+        .join(',')
+    ),
+  ].join('\n')
+
+  const blob = new Blob(['\uFEFF' + csv], {
+    type: 'text/csv;charset=utf-8;',
+  })
+
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${filename}.csv`
+  link.click()
+}
+
+export function exportToExcel(filename: string, rows: Record<string, any>[]) {
+  const worksheet = XLSX.utils.json_to_sheet(rows)
+  const workbook = XLSX.utils.book_new()
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Report')
+  XLSX.writeFile(workbook, `${filename}.xlsx`)
+}
+
+export function exportToPDF(
+  filename: string,
+  title: string,
+  columns: string[],
+  rows: any[][]
+) {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'pt',
+    format: 'a4',
+  })
+
+  doc.setFontSize(18)
+  doc.text(title, 40, 40)
+
+  autoTable(doc, {
+    head: [columns],
+    body: rows,
+    startY: 65,
+    styles: {
+      fontSize: 11,
+      cellPadding: 8,
+      minCellHeight: 22,
+    },
+    headStyles: {
+      fillColor: [45, 74, 62],
+      textColor: 255,
+    },
+  })
+
+  doc.save(`${filename}.pdf`)
+}
+
+export function exportClientFullPDF(client: any) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4',
+  })
+
+doc.addFileToVFS('Amiri-Regular.ttf', amiriFont)
+doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal')
+doc.setFont('Amiri', 'normal')
+
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+
+  doc.setTextColor(45, 74, 62)
+  doc.setFontSize(22)
+  doc.text('Viresto', pageWidth / 2, 45, { align: 'center' })
+
+  doc.setTextColor(0)
+  doc.setFontSize(14)
+  doc.text(`ملف الموكل - ${client.name || '-'}`, pageWidth / 2, 75, {
+    align: 'center',
+  })
+
+  autoTable(doc, {
+    startY: 105,
+    head: [['البيان', 'القيمة']],
+    body: [
+      ['الاسم', client.name || '-'],
+      ['الهاتف', client.phone || '-'],
+      ['البريد', client.email || '-'],
+      ['العنوان', client.address || '-'],
+      ['رقم الهوية', client.nationalId || '-'],
+      ['ملاحظات', client.notes || '-'],
+    ],
+    theme: 'grid',
+    styles: {
+      font: 'Amiri',
+      fontStyle: 'normal',
+      halign: 'right',
+      fontSize: 11,
+      cellPadding: 8,
+      minCellHeight: 22,
+    },
+    headStyles: {
+      font: 'Amiri',
+      fontStyle: 'normal',
+      fillColor: [45, 74, 62],
+      textColor: 255,
+      halign: 'right',
+    },
+  })
+
+  let y = (doc as any).lastAutoTable.finalY + 25
+
+  doc.setFontSize(13)
+  doc.setTextColor(45, 74, 62)
+  doc.text('القضايا', pageWidth - 40, y, { align: 'right' })
+
+  autoTable(doc, {
+    startY: y + 12,
+    head: [['القضية', 'الحالة', 'المحكمة', 'الأتعاب']],
+    body: (client.cases ?? []).length
+      ? (client.cases ?? []).map((c: any) => [
+          c.title || '-',
+          c.status || '-',
+          c.court || '-',
+          c.feeAmount || 0,
+        ])
+      : [['لا توجد قضايا', '-', '-', '-']],
+    theme: 'grid',
+    styles: {
+      font: 'Amiri',
+      fontStyle: 'normal',
+      halign: 'right',
+      fontSize: 11,
+      cellPadding: 8,
+      minCellHeight: 22,
+    },
+    headStyles: {
+      font: 'Amiri',
+      fontStyle: 'normal',
+      fillColor: [45, 74, 62],
+      textColor: 255,
+      halign: 'right',
+    },
+  })
+
+  y = (doc as any).lastAutoTable.finalY + 25
+
+  doc.setFontSize(13)
+  doc.setTextColor(45, 74, 62)
+  doc.text('المواعيد', pageWidth - 40, y, { align: 'right' })
+
+  autoTable(doc, {
+    startY: y + 12,
+    head: [['الموعد', 'النوع', 'التاريخ', 'المكان']],
+    body: (client.appointments ?? []).length
+      ? (client.appointments ?? []).map((a: any) => [
+          a.title || '-',
+          a.type || '-',
+          a.startTime ? new Date(a.startTime).toLocaleString('ar') : '-',
+          a.location || '-',
+        ])
+      : [['لا توجد مواعيد', '-', '-', '-']],
+    theme: 'grid',
+    styles: {
+      font: 'Amiri',
+      fontStyle: 'normal',
+      halign: 'right',
+      fontSize: 11,
+      cellPadding: 8,
+      minCellHeight: 22,
+    },
+    headStyles: {
+      font: 'Amiri',
+      fontStyle: 'normal',
+      fillColor: [45, 74, 62],
+      textColor: 255,
+      halign: 'right',
+    },
+  })
+
+  y = (doc as any).lastAutoTable.finalY + 25
+
+  doc.setFontSize(13)
+  doc.setTextColor(45, 74, 62)
+  doc.text('المدفوعات', pageWidth - 40, y, { align: 'right' })
+
+  autoTable(doc, {
+    startY: y + 12,
+    head: [['ملاحظات', 'التاريخ', 'الحالة', 'المبلغ']],
+    body: (client.payments ?? []).length
+      ? (client.payments ?? []).map((p: any) => [
+          p.notes || '-',
+          p.createdAt ? new Date(p.createdAt).toLocaleDateString('ar') : '-',
+          p.status || '-',
+          p.amount || 0,
+        ])
+      : [['لا توجد مدفوعات', '-', '-', '-']],
+    theme: 'grid',
+    styles: {
+      font: 'Amiri',
+      fontStyle: 'normal',
+      halign: 'right',
+      fontSize: 11,
+      cellPadding: 8,
+      minCellHeight: 22,
+    },
+    headStyles: {
+      font: 'Amiri',
+      fontStyle: 'normal',
+      fillColor: [45, 74, 62],
+      textColor: 255,
+      halign: 'right',
+    },
+  })
+
+  doc.setFontSize(9)
+  doc.setTextColor(120)
+  doc.text(
+    `Generated by Viresto - ${new Date().toLocaleDateString('ar')}`,
+    pageWidth / 2,
+    pageHeight - 25,
+    { align: 'center' }
+  )
+
+  doc.save(`client-${client.name || 'file'}.pdf`)
+}

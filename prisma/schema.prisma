@@ -1,0 +1,357 @@
+// Viresto — Prisma Schema (Multi-Tenant SaaS)
+// Every row is scoped to a Tenant. A User belongs to one Tenant.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenancy ────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  plan Plan @default(PRO)
+
+  status TenantStatus @default(ACTIVE)
+
+  maxUsers Int @default(5)
+
+  trialEndsAt DateTime?
+
+  activities Activity[]
+
+  notifications Notification[]
+
+  isSuspended Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  clients      Client[]
+  cases        Case[]
+  payments     Payment[]
+  appointments Appointment[]
+  documents    Document[]
+  tasks        Task[]
+  sessions     Session[]
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum TenantStatus {
+  ACTIVE
+  TRIAL
+  EXPIRED
+  SUSPENDED
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model User {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name         String
+  email String @unique
+  passwordHash String
+
+  sessions Session[]
+
+  role UserRole @default(LAWYER)
+
+  isSystemAdmin Boolean @default(false)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
+
+  @@index([tenantId])
+}
+
+enum UserRole {
+  ADMIN
+  LAWYER
+  STAFF
+}
+
+// ─── Clients ─────────────────────────────────────────────────────────────────
+
+model Client {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  email      String?
+  phone      String?
+  nationalId String?
+  address    String?
+  notes      String?
+
+  emailHash      String?
+  phoneHash      String?
+  nationalIdHash String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cases        Case[]
+  appointments Appointment[]
+  documents    Document[]
+  tasks        Task[]
+
+  @@index([tenantId])
+}
+
+// ─── Cases ───────────────────────────────────────────────────────────────────
+
+model Case {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  caseNumber  String?
+  court       String?
+  description String?
+  status      CaseStatus @default(OPEN)
+  feeAgreed   Float      @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  payments     Payment[]
+  appointments Appointment[]
+  documents    Document[]
+  tasks        Task[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+enum CaseStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+  ARCHIVED
+}
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+
+model Payment {
+  id        String        @id @default(cuid())
+  tenantId  String
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caseId    String
+  case      Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  amount    Float
+  method    PaymentMethod @default(CASH)
+  status    PaymentStatus @default(PAID)
+  paidAt    DateTime      @default(now())
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([tenantId])
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  ONLINE
+}
+
+enum PaymentStatus {
+  PAID
+  PENDING
+  OVERDUE
+  CANCELLED
+}
+
+// ─── Appointments ────────────────────────────────────────────────────────────
+
+model Appointment {
+  id          String            @id @default(cuid())
+  tenantId    String
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId    String?
+  client      Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  caseId      String?
+  case        Case?             @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime?
+  location    String?
+  type        AppointmentType   @default(MEETING)
+  status      AppointmentStatus @default(SCHEDULED)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, startTime])
+}
+
+enum AppointmentType {
+  MEETING
+  COURT_SESSION
+  PHONE_CALL
+  DEADLINE
+  OTHER
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+// ─── Documents ───────────────────────────────────────────────────────────────
+
+model Document {
+  aiSummary    String?
+  aiKeyPoints  Json?
+  aiParties    Json?
+  aiDates      Json?
+  aiAmounts    Json?
+  aiAnalyzedAt DateTime?
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId     String?
+  client       Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  caseId       String?
+  case         Case?     @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  fileName     String
+  fileType     String
+  fileUrl      String
+  fileSize     Int?
+  tags         String[]  @default([])
+  publicId     String? // Cloudinary public_id for deletion
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId])
+}
+
+// ─── Tasks ───────────────────────────────────────────────────────────────────
+
+model Task {
+  id          String       @id @default(cuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId    String?
+  client      Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  caseId      String?
+  case        Case?        @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  dueDate     DateTime?
+  priority    TaskPriority @default(MEDIUM)
+  completed   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, completed])
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// ─── Activity ───────────────────────────────────────────────────────────────────
+
+model Activity {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  type    String
+  title   String
+  message String?
+  country String?
+  city    String?
+
+  entityType String?
+  entityId   String?
+
+  ipAddress String?
+  userAgent String?
+  actorId   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  title   String
+  message String?
+  type    String  @default("INFO")
+
+  entityType String?
+  entityId   String?
+
+  read Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, read])
+  @@index([createdAt])
+}
+
+model Session {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  tokenHash String @unique
+
+  ipAddress String?
+  userAgent String?
+  country String?
+  city    String?
+
+  isActive Boolean @default(true)
+
+  lastActivityAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([isActive])
+}
