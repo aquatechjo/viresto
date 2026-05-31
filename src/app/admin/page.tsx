@@ -6,7 +6,12 @@ import {
   activateTenant,
   deactivateUser,
   activateUser,
+  updateTenantBilling,
 } from './actions'
+import { PLAN_META, STATUS_LABELS } from '@/lib/plans'
+
+const planOptions = ['FREE', 'PRO', 'ENTERPRISE'] as const
+const statusOptions = ['ACTIVE', 'TRIAL', 'EXPIRED', 'SUSPENDED'] as const
 
 export default async function AdminPage() {
   try {
@@ -24,6 +29,7 @@ export default async function AdminPage() {
           cases: true,
           payments: true,
           documents: true,
+          invoices: true,
         },
       },
       users: {
@@ -47,18 +53,21 @@ export default async function AdminPage() {
       <div>
         <h1 className="text-3xl font-black mb-2">لوحة إدارة النظام</h1>
         <p className="text-sm opacity-70">
-          إدارة جميع المكاتب، الحسابات، وحالة الاشتراكات.
+          إدارة المكاتب، الحسابات، الخطط، حدود المستخدمين، وحالة الاشتراكات.
         </p>
       </div>
 
       <div className="grid gap-5">
         {tenants.map((tenant) => {
           const hasSystemAdmin = tenant.users.some((user) => user.isSystemAdmin)
+          const trialValue = tenant.trialEndsAt
+            ? tenant.trialEndsAt.toISOString().slice(0, 10)
+            : ''
 
           return (
             <section
               key={tenant.id}
-              className="rounded-2xl border bg-white p-5 shadow-sm space-y-4"
+              className="rounded-2xl border bg-white p-5 shadow-sm space-y-5"
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -72,14 +81,15 @@ export default async function AdminPage() {
                   <p className="text-sm opacity-70">
                     المستخدمون: {tenant._count.users} | الموكلون:{' '}
                     {tenant._count.clients} | القضايا: {tenant._count.cases} |
-                    المدفوعات: {tenant._count.payments} | المستندات:{' '}
+                    المدفوعات: {tenant._count.payments} | الفواتير:{' '}
+                    {tenant._count.invoices} | المستندات:{' '}
                     {tenant._count.documents}
                   </p>
 
                   <p className="text-sm opacity-70">
                     انتهاء التجربة:{' '}
                     {tenant.trialEndsAt
-                      ? tenant.trialEndsAt.toLocaleDateString()
+                      ? tenant.trialEndsAt.toLocaleDateString('ar-JO')
                       : '-'}
                   </p>
                 </div>
@@ -104,6 +114,84 @@ export default async function AdminPage() {
                   )}
                 </div>
               </div>
+
+              <form
+                action={updateTenantBilling.bind(null, tenant.id)}
+                className="rounded-2xl border bg-gray-50 p-4"
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-black">إعدادات الاشتراك</h3>
+                    <p className="text-xs text-gray-500">
+                      عدّل الخطة، حالة الاشتراك، وعدد المستخدمين المسموح لهذا المكتب.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-5">
+                  <label className="space-y-1 text-sm">
+                    <span className="font-bold">الخطة</span>
+                    <select
+                      name="plan"
+                      defaultValue={tenant.plan}
+                      className="w-full rounded-xl border px-3 py-2"
+                    >
+                      {planOptions.map((plan) => (
+                        <option key={plan} value={plan}>
+                          {PLAN_META[plan].nameAr} - {plan}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1 text-sm">
+                    <span className="font-bold">الحالة</span>
+                    <select
+                      name="status"
+                      defaultValue={tenant.status}
+                      className="w-full rounded-xl border px-3 py-2"
+                      disabled={hasSystemAdmin}
+                    >
+                      {statusOptions.map((status) => (
+                        <option key={status} value={status}>
+                          {STATUS_LABELS[status]} - {status}
+                        </option>
+                      ))}
+                    </select>
+                    {hasSystemAdmin && (
+                      <input type="hidden" name="status" value={tenant.status} />
+                    )}
+                  </label>
+
+                  <label className="space-y-1 text-sm">
+                    <span className="font-bold">Max Users</span>
+                    <input
+                      name="maxUsers"
+                      type="number"
+                      min={1}
+                      max={10000}
+                      defaultValue={tenant.maxUsers}
+                      className="w-full rounded-xl border px-3 py-2"
+                    />
+                  </label>
+
+                  <label className="space-y-1 text-sm">
+                    <span className="font-bold">Trial Ends</span>
+                    <input
+                      name="trialEndsAt"
+                      type="date"
+                      defaultValue={trialValue}
+                      className="w-full rounded-xl border px-3 py-2"
+                    />
+                  </label>
+
+                  <div className="flex items-end">
+                    <button className="w-full rounded-xl bg-[#17352b] px-4 py-2 text-sm font-bold text-white">
+                      حفظ الاشتراك
+                    </button>
+                  </div>
+                </div>
+              </form>
 
               <div className="overflow-x-auto rounded-xl border">
                 <table className="w-full text-sm">
@@ -135,7 +223,7 @@ export default async function AdminPage() {
                         </td>
 
                         <td className="p-3">
-                          {user.createdAt.toLocaleDateString()}
+                          {user.createdAt.toLocaleDateString('ar-JO')}
                         </td>
 
                         <td className="p-3">

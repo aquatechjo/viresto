@@ -1,7 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { getApiMessage, isPlanLimitResponse, planLimitMessage } from '@/lib/plan-ui'
 
 type Role = 'ADMIN' | 'LAWYER' | 'STAFF'
 
@@ -20,11 +22,34 @@ const ROLE_AR: Record<Role, string> = {
   STAFF: 'موظف',
 }
 
+function PlanLimitBanner({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-base font-black">وصلت إلى حد الخطة الحالية</h2>
+          <p className="mt-1 text-sm">{message}</p>
+        </div>
+
+        <div className="flex gap-2">
+          <Link href="/dashboard/billing" className="btn btn-primary">
+            عرض الاشتراك
+          </Link>
+          <button type="button" onClick={onClose} className="btn">
+            إغلاق
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TeamPage() {
   const [users, setUsers] = useState<TeamUser[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [role, setRole] = useState('')
+  const [planLimit, setPlanLimit] = useState('')
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -34,13 +59,13 @@ export default function TeamPage() {
 
   async function loadUsers() {
     const res = await fetch('/api/team')
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
 
     if (data.success) {
-    setUsers(Array.isArray(data.data?.users) ? data.data.users : [])
-    setRole(data.data?.currentRole || '')
+      setUsers(Array.isArray(data.data?.users) ? data.data.users : [])
+      setRole(data.data?.currentRole || '')
     } else {
-      toast.error(data.message || 'تعذر تحميل الفريق')
+      toast.error(getApiMessage(data, 'تعذر تحميل الفريق'))
     }
 
     setLoading(false)
@@ -53,6 +78,7 @@ export default function TeamPage() {
   async function addUser(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
+    setPlanLimit('')
 
     const res = await fetch('/api/team', {
       method: 'POST',
@@ -60,7 +86,7 @@ export default function TeamPage() {
       body: JSON.stringify(form),
     })
 
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
 
     if (data.success) {
       toast.success('تمت إضافة المستخدم')
@@ -71,8 +97,10 @@ export default function TeamPage() {
         password: '',
       })
       loadUsers()
+    } else if (isPlanLimitResponse(data)) {
+      setPlanLimit(planLimitMessage(data, 'وصلت إلى الحد المسموح من المستخدمين في خطتك الحالية.'))
     } else {
-      toast.error(data.message || 'حدث خطأ')
+      toast.error(getApiMessage(data, 'حدث خطأ'))
     }
 
     setSaving(false)
@@ -85,44 +113,31 @@ export default function TeamPage() {
       body: JSON.stringify(payload),
     })
 
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
 
     if (data.success) {
       toast.success('تم تحديث المستخدم')
-      setUsers((prev) =>
-        prev.map((u) => (u.id === id ? data.data : u))
-      )
+      setUsers((prev) => prev.map((u) => (u.id === id ? data.data : u)))
     } else {
-      toast.error(data.message || 'تعذر التحديث')
+      toast.error(getApiMessage(data, 'تعذر التحديث'))
     }
   }
 
   if (loading) {
-  return (
-    <div className="card p-10 rounded-3xl text-center">
-      جاري التحميل...
-    </div>
-  )
-}
-
+    return <div className="card p-10 rounded-3xl text-center">جاري التحميل...</div>
+  }
 
   if (role && role !== 'ADMIN') {
-  return (
-    <div className="card p-10 rounded-3xl text-center">
-      <h1 className="text-2xl font-black">
-        غير مصرح
-      </h1>
-
-      <p className="text-gray-500 mt-3">
-         فقط مدير النظام يستطيع إدارة الفريق.
-      </p>
-    </div>
-  )
-}
+    return (
+      <div className="card p-10 rounded-3xl text-center">
+        <h1 className="text-2xl font-black">غير مصرح</h1>
+        <p className="text-gray-500 mt-3">فقط مدير النظام يستطيع إدارة الفريق.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-
       <div>
         <h1 className="text-3xl font-black">إدارة الفريق</h1>
         <p className="text-sm text-gray-500 mt-2">
@@ -130,12 +145,10 @@ export default function TeamPage() {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      {planLimit && <PlanLimitBanner message={planLimit} onClose={() => setPlanLimit('')} />}
 
-        <form
-          onSubmit={addUser}
-          className="card p-6 rounded-3xl space-y-4"
-        >
+      <div className="grid lg:grid-cols-3 gap-6">
+        <form onSubmit={addUser} className="card p-6 rounded-3xl space-y-4">
           <div>
             <h2 className="text-xl font-bold">إضافة مستخدم</h2>
             <p className="text-sm text-gray-500 mt-1">
@@ -147,9 +160,7 @@ export default function TeamPage() {
             className="input"
             placeholder="الاسم الكامل"
             value={form.name}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, name: e.target.value }))
-            }
+            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
           />
 
           <input
@@ -157,9 +168,7 @@ export default function TeamPage() {
             type="email"
             placeholder="البريد الإلكتروني"
             value={form.email}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, email: e.target.value }))
-            }
+            onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
           />
 
           <select
@@ -167,9 +176,7 @@ export default function TeamPage() {
             title="تغيير صلاحية المستخدم"
             className="input"
             value={form.role}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, role: e.target.value as Role }))
-            }
+            onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as Role }))}
           >
             <option value="ADMIN">مدير النظام</option>
             <option value="LAWYER">محامٍ</option>
@@ -181,81 +188,57 @@ export default function TeamPage() {
             type="password"
             placeholder="كلمة المرور المؤقتة"
             value={form.password}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, password: e.target.value }))
-            }
+            onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
           />
 
-          <button
-            disabled={saving}
-            className="btn btn-primary w-full"
-          >
+          <button disabled={saving} className="btn btn-primary w-full">
             {saving ? 'جاري الإضافة...' : 'إضافة المستخدم'}
           </button>
         </form>
 
         <div className="lg:col-span-2 card p-6 rounded-3xl">
           <div className="flex items-center justify-between mb-5">
-            <p className="text-sm text-gray-500">
-              {users.length} مستخدم
-            </p>
+            <p className="text-sm text-gray-500">{users.length} مستخدم</p>
             <h2 className="text-xl font-bold">أعضاء الفريق</h2>
           </div>
 
-          {loading ? (
-            <p className="text-center py-10 text-gray-500">
-              جاري التحميل...
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {Array.isArray(users) && users.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl border bg-white"
-                >
-                  <div>
-                    <p className="font-bold">{user.name}</p>
-                    <p className="text-sm text-gray-500">{user.email}</p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <select
-                     aria-label="تغيير صلاحية المستخدم"
-                     title="تغيير صلاحية المستخدم"
-                      className="input min-w-[140px]"
-                      value={user.role}
-                      onChange={(e) =>
-                        updateUser(user.id, {
-                          role: e.target.value as Role,
-                        })
-                      }
-                    >
-                     <option value="ADMIN">مدير النظام</option>
-                     <option value="LAWYER">محامٍ</option>
-                     <option value="STAFF">موظف</option>
-                    </select>
-
-                    <button
-                      onClick={() =>
-                        updateUser(user.id, {
-                          isActive: !user.isActive,
-                        })
-                      }
-                      className={`px-4 py-2 rounded-xl text-sm font-bold ${
-                        user.isActive
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}
-                    >
-                      {user.isActive ? 'مفعل' : 'معطل'}
-                    </button>
-                  </div>
+          <div className="space-y-3">
+            {Array.isArray(users) && users.map((user) => (
+              <div
+                key={user.id}
+                className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl border bg-white"
+              >
+                <div>
+                  <p className="font-bold">{user.name}</p>
+                  <p className="text-sm text-gray-500">{user.email}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
 
+                <div className="flex items-center gap-3">
+                  <select
+                    aria-label="تغيير صلاحية المستخدم"
+                    title="تغيير صلاحية المستخدم"
+                    className="input min-w-[140px]"
+                    value={user.role}
+                    onChange={(e) => updateUser(user.id, { role: e.target.value as Role })}
+                  >
+                    <option value="ADMIN">مدير النظام</option>
+                    <option value="LAWYER">محامٍ</option>
+                    <option value="STAFF">موظف</option>
+                  </select>
+
+                  <button
+                    onClick={() => updateUser(user.id, { isActive: !user.isActive })}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold ${
+                      user.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {user.isActive ? 'مفعل' : 'معطل'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -1,12 +1,13 @@
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireTenant } from '@/lib/tenant'
 import { ok } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
-import { NextRequest } from 'next/server'
+import { requireRole } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const ctx = await requireTenant(req)
+    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+    if (auth.error || !auth.user) return auth.error
 
     const now = new Date()
     const tomorrow = new Date(now)
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
       await Promise.all([
         prisma.appointment.findMany({
           where: {
-            tenantId: ctx.tenantId,
+            tenantId: auth.user.tenantId,
             startTime: {
               gte: now,
               lte: tomorrow,
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
 
         prisma.payment.findMany({
           where: {
-            tenantId: ctx.tenantId,
+            tenantId: auth.user.tenantId,
             status: 'PENDING',
           },
           take: 5,
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
 
         prisma.task.findMany({
           where: {
-            tenantId: ctx.tenantId,
+            tenantId: auth.user.tenantId,
             completed: false,
             dueDate: {
               lt: now,

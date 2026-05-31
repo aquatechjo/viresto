@@ -1,13 +1,14 @@
 'use client'
+import Link from 'next/link'
 import { useEffect,useState,useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Modal     from '@/components/ui/Modal'
 import FormField from '@/components/ui/FormField'
 import EmptyState from '@/components/ui/EmptyState'
-import PageLoader from '@/components/ui/PageLoader'
 import { formatCurrency } from '@/lib/utils'
 import TableSkeleton from '@/components/ui/TableSkeleton'
+import { getApiMessage, isPlanLimitResponse, planLimitMessage } from '@/lib/plan-ui'
 
 interface Case { id:string;title:string;caseNumber?:string;status:string;feeAgreed:number;client:{name:string};payments:{amount:number;status:string}[];_count:{appointments:number;documents:number} }
 interface ClientOpt { id:string;name:string }
@@ -16,6 +17,23 @@ const STATUS_BADGE:Record<string,string> = { OPEN:'badge badge-green',IN_PROGRES
 const STATUS_AR:Record<string,string>    = { OPEN:'مفتوحة',IN_PROGRESS:'جارية',CLOSED:'مغلقة',ARCHIVED:'مؤرشفة' }
 const STATUS_FILTERS = [['all','الكل'],['OPEN','مفتوحة'],['IN_PROGRESS','جارية'],['CLOSED','مغلقة']]
 const INIT = { clientId:'',title:'',caseNumber:'',court:'',feeAgreed:'',description:'' }
+
+function PlanLimitBanner({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-base font-black">وصلت إلى حد الخطة الحالية</h2>
+          <p className="mt-1 text-sm">{message}</p>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/dashboard/billing" className="btn btn-primary">عرض الاشتراك</Link>
+          <button type="button" onClick={onClose} className="btn">إغلاق</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function CasesPage() {
   const router = useRouter()
@@ -26,40 +44,39 @@ export default function CasesPage() {
   const [open,setOpen]       = useState(false)
   const [form,setForm]       = useState(INIT)
   const [saving,setSaving]   = useState(false)
+  const [planLimit,setPlanLimit] = useState('')
 
   const load = useCallback(async()=>{
+    setLoading(true)
     const [cr, cl] = await Promise.all([
-fetch(
-  `/api/cases?page=1&limit=10${filter !== 'all' ? `&status=${filter}` : ''}`
-),
-fetch('/api/clients?page=1&limit=50'),
-])
+      fetch(`/api/cases?page=1&limit=10${filter !== 'all' ? `&status=${filter}` : ''}`),
+      fetch('/api/clients?page=1&limit=50'),
+    ])
 
-if (!cr.ok || !cl.ok) {
-  console.error('Failed to fetch cases/clients', {
-    casesStatus: cr.status,
-    clientsStatus: cl.status,
-  })
+    if (!cr.ok || !cl.ok) {
+      console.error('Failed to fetch cases/clients', {
+        casesStatus: cr.status,
+        clientsStatus: cl.status,
+      })
+      setCases([])
+      setClients([])
+      setLoading(false)
+      return
+    }
 
-  setCases([])
-  setClients([])
-  setLoading(false)
-  return
-}
+    const [cd, cld] = await Promise.all([
+      cr.json().catch(() => ({ data: [] })),
+      cl.json().catch(() => ({ data: [] })),
+    ])
 
-const [cd, cld] = await Promise.all([
-  cr.json().catch(() => ({ data: [] })),
-  cl.json().catch(() => ({ data: [] })),
-])
-
-setCases(cd.data?.data ?? [])
-setClients(cld.data?.data ?? [])
+    setCases(cd.data?.data ?? [])
+    setClients(cld.data?.data ?? [])
     setLoading(false)
-  },[])
+  },[filter])
 
-useEffect(() => {
-  load()
-}, [load, filter])
+  useEffect(() => {
+    load()
+  }, [load])
 
   const filtered = filter==='all' ? cases : cases.filter(c=>c.status===filter)
   const open2=cases.filter(c=>['OPEN','IN_PROGRESS'].includes(c.status)).length
@@ -73,9 +90,26 @@ useEffect(() => {
     e.preventDefault()
     if(!form.clientId||!form.title) return toast.error('الموكل والعنوان مطلوبان')
     setSaving(true)
-    const r=await fetch('/api/cases',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,feeAgreed:parseFloat(form.feeAgreed)||0})})
-    const d=await r.json()
-    if(d.success){toast.success('تمت إضافة القضية');setOpen(false);setForm(INIT);load()}else toast.error(d.message)
+    setPlanLimit('')
+
+    const r=await fetch('/api/cases',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({...form,feeAgreed:parseFloat(form.feeAgreed)||0}),
+    })
+    const d=await r.json().catch(() => ({}))
+
+    if(d.success){
+      toast.success('تمت إضافة القضية')
+      setOpen(false)
+      setForm(INIT)
+      load()
+    } else if (isPlanLimitResponse(d)) {
+      setOpen(false)
+      setPlanLimit(planLimitMessage(d, 'وصلت إلى حد القضايا المسموح في خطتك الحالية.'))
+    } else {
+      toast.error(getApiMessage(d, 'تعذر إضافة القضية'))
+    }
     setSaving(false)
   }
 
@@ -83,7 +117,8 @@ useEffect(() => {
 
   return (
     <div className="space-y-4 stagger">
-      {/* Summary cards */}
+      {planLimit && <PlanLimitBanner message={planLimit} onClose={() => setPlanLimit('')} />}
+
       <div className="grid grid-cols-3 gap-4">
         {[{label:'نشطة',v:open2,bg:'var(--green-soft)',color:'var(--sidebar)'},{label:'جارية',v:pending,bg:'var(--amber-soft)',color:'#92400e'},{label:'مغلقة',v:closed,bg:'var(--border)',color:'var(--text-2)'}].map(s=>(
           <div key={s.label} className="card p-5 text-center" style={{background:s.bg}}>
@@ -93,7 +128,6 @@ useEffect(() => {
         ))}
       </div>
 
-      {/* Filter + add */}
       <div className="flex items-center gap-2 flex-wrap">
         <button onClick={()=>setOpen(true)} className="btn btn-primary">+ قضية جديدة</button>
         <div className="flex items-center gap-1 mr-2">
@@ -107,11 +141,10 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Table */}
       {loading?<TableSkeleton rows={6} />:filtered.length===0?<EmptyState   icon="⚖️"
        title="لا توجد قضايا"
        sub="قم بإنشاء أول قضية للبدء بإدارة العمل القانوني."
-        action={<button onClick={()=>setOpen(true)} className="btn btn-primary">+ قضية جديدة</button>}/>:(
+        action={<button onClick={()=>setOpen(true)} className="btn btn-primary">+ قضية جديدة</button>}/>: (
         <div className="card overflow-hidden p-0">
           <table className="data-table">
             <thead><tr><th>رقم القضية</th><th>الموكل</th><th>الأتعاب</th><th>المدفوع</th><th>المتبقي</th><th>الحالة</th><th></th></tr></thead>

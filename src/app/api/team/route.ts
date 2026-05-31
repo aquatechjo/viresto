@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { ok, err } from '@/lib/api-response'
 import { requireRole } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-handler'
+import { enforceResourceLimit } from '@/lib/plan-enforcement'
 
 const allowedRoles = ['ADMIN', 'LAWYER', 'STAFF'] as const
 
@@ -69,42 +70,8 @@ export async function POST(req: NextRequest) {
       return err('صلاحية غير صحيحة', 400)
     }
 
-    const tenant = await prisma.tenant.findUnique({
-      where: {
-        id: auth.user.tenantId,
-      },
-      select: {
-        id: true,
-        maxUsers: true,
-        status: true,
-        isSuspended: true,
-      },
-    })
-
-    if (!tenant) {
-      return err('المكتب غير موجود', 404)
-    }
-
-    if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-      return err('لا يمكن إضافة مستخدمين لأن المكتب موقوف', 403)
-    }
-
-    if (tenant.status === 'EXPIRED') {
-      return err('لا يمكن إضافة مستخدمين لأن الاشتراك منتهي', 403)
-    }
-
-    const usersCount = await prisma.user.count({
-      where: {
-        tenantId: auth.user.tenantId,
-      },
-    })
-
-    if (usersCount >= tenant.maxUsers) {
-      return err(
-        `وصلت للحد الأقصى من المستخدمين في خطتك الحالية (${tenant.maxUsers})`,
-        403
-      )
-    }
+    const limitError = await enforceResourceLimit(auth.user.tenantId, 'users')
+    if (limitError) return limitError
 
     const existing = await prisma.user.findUnique({
       where: { email },

@@ -1,13 +1,15 @@
 import { NextRequest } from 'next/server'
-import { requireTenant } from '@/lib/tenant'
 import { prisma } from '@/lib/prisma'
 import { apiHandler } from '@/lib/api-handler'
+import { requireRole } from '@/lib/api-auth'
 import { ok } from '@/lib/api-response'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const ctx = await requireTenant(req)
-    const tid = ctx.tenantId
+    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+    if (auth.error || !auth.user) return auth.error
+
+    const tid = auth.user.tenantId
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)

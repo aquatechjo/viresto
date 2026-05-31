@@ -1,33 +1,32 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/auth'
 import { ok, err } from '@/lib/api-response'
+import { apiHandler } from '@/lib/api-handler'
+import { requireAuth } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
-  const current = await getSession()
+  return apiHandler(async () => {
+    const auth = await requireAuth(req)
+    if (auth.error || !auth.user) return auth.error
 
-  if (!current) {
-    return err('غير مصرح', 401)
-  }
+    const body = await req.json().catch(() => ({}))
+    const sessionId = String(body.sessionId || '')
 
-  const body = await req.json().catch(() => ({}))
+    if (!sessionId) {
+      return err('sessionId مطلوب', 400)
+    }
 
-  const sessionId = String(body.sessionId || '')
+    await prisma.session.updateMany({
+      where: {
+        id: sessionId,
+        tenantId: auth.user.tenantId,
+        userId: auth.user.userId,
+      },
+      data: {
+        isActive: false,
+      },
+    })
 
-  if (!sessionId) {
-    return err('sessionId مطلوب', 400)
-  }
-
-  await prisma.session.updateMany({
-    where: {
-      id: sessionId,
-      tenantId: current.tenantId,
-      userId: current.userId,
-    },
-    data: {
-      isActive: false,
-    },
+    return ok({ revoked: true })
   })
-
-  return ok({ revoked: true })
 }

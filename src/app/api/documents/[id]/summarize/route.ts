@@ -1,21 +1,27 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireTenant } from '@/lib/tenant'
 import { ok, err, notFound } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
+import { requireRole } from '@/lib/api-auth'
+import { enforcePlanFeature } from '@/lib/plan-enforcement'
 import openai from '@/lib/openai'
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
+    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
+    if (auth.error || !auth.user) return auth.error
+
+    const featureError = await enforcePlanFeature(auth.user.tenantId, 'aiSummaries')
+    if (featureError) return featureError
+
     const { id } = await params
-    const ctx = await requireTenant(req)
 
     const doc = await prisma.document.findFirst({
       where: {
         id,
-        tenantId: ctx.tenantId,
+        tenantId: auth.user.tenantId,
       },
       select: {
         id: true,
@@ -30,9 +36,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       return notFound('المستند غير موجود')
     }
 
-if (!openai) {
-  return err('خدمة التلخيص غير مفعلة حاليًا', 503)
-}
+    if (!openai) {
+      return err('خدمة التلخيص غير مفعلة حاليًا', 503)
+    }
 
     const prompt = `
 أنت مساعد قانوني.

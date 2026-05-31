@@ -25,6 +25,7 @@
     "cloudinary": "^2.10.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
+    "html2canvas": "^1.4.1",
     "jose": "^5.9.6",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",

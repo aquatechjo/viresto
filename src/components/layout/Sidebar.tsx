@@ -12,7 +12,9 @@ import {
   Users,
   FileText,
   Wallet,
+  ReceiptText,
   BarChart3,
+  CreditCard,
   Settings,
   LogOut,
   Menu,
@@ -38,13 +40,15 @@ const NAV = [
       { href: '/dashboard/tasks', label: 'المهام', icon: FileText, roles: ['ADMIN', 'LAWYER', 'STAFF'] },
     ],
   },
-  {
-    section: 'الأعمال',
-    items: [
-      { href: '/dashboard/payments', label: 'المدفوعات', icon: Wallet, roles: ['ADMIN', 'LAWYER'] },
-      { href: '/dashboard/reports', label: 'التقارير', icon: BarChart3, roles: ['ADMIN', 'LAWYER'] },
-    ],
-  },
+{
+  section: 'الأعمال',
+  items: [
+    { href: '/dashboard/payments', label: 'المدفوعات', icon: Wallet, roles: ['ADMIN', 'LAWYER'] },
+    { href: '/dashboard/invoices', label: 'الفواتير', icon: ReceiptText, roles: ['ADMIN', 'LAWYER'] },
+    { href: '/dashboard/reports', label: 'التقارير', icon: BarChart3, roles: ['ADMIN', 'LAWYER'] },
+    { href: '/dashboard/billing', label: 'الاشتراك والخطة', icon: CreditCard, roles: ['ADMIN'] },
+  ],
+},
 ] as const
 
 interface User {
@@ -212,13 +216,16 @@ const roleLabel: Record<string, string> = {
 
   return (
     <>
-      {/* mobile trigger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 right-4 z-50 w-11 h-11 rounded-2xl bg-[#17352b] text-white flex items-center justify-center shadow-2xl"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+{/* mobile trigger */}
+<button
+  type="button"
+  aria-label="فتح القائمة الجانبية"
+  title="فتح القائمة"
+  onClick={() => setMobileOpen(true)}
+  className="lg:hidden fixed top-4 right-4 z-50 w-11 h-11 rounded-2xl"
+>
+  <Menu className="w-5 h-5" />
+</button>
 
       {/* mobile */}
       {mobileOpen && (

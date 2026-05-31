@@ -5,6 +5,7 @@ import { ok, err } from '@/lib/api-response'
 import { logActivity } from '@/lib/activity'
 import { requireRole, getRequestMeta } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-handler'
+import { enforceResourceLimit } from '@/lib/plan-enforcement'
 import { Prisma } from '@prisma/client'
 
 const allowedStatuses = [
@@ -25,15 +26,15 @@ export async function GET(req: NextRequest) {
     const clientId = sp.get('clientId')
     const q = sp.get('q')?.trim()
 
-const pageRaw = Number(sp.get('page') || 1)
-const limitRaw = Number(sp.get('limit') || 10)
+    const pageRaw = Number(sp.get('page') || 1)
+    const limitRaw = Number(sp.get('limit') || 10)
 
-const page = Number.isNaN(pageRaw) ? 1 : Math.max(pageRaw, 1)
-const limit = Number.isNaN(limitRaw)
-  ? 10
-  : Math.min(Math.max(limitRaw, 1), 50)
+    const page = Number.isNaN(pageRaw) ? 1 : Math.max(pageRaw, 1)
+    const limit = Number.isNaN(limitRaw)
+      ? 10
+      : Math.min(Math.max(limitRaw, 1), 50)
 
-const skip = (page - 1) * limit
+    const skip = (page - 1) * limit
 
     if (status && !allowedStatuses.includes(status as any)) {
       return err('حالة القضية غير صالحة', 400)
@@ -53,42 +54,38 @@ const skip = (page - 1) * limit
       }
     }
 
-const where: Prisma.CaseWhereInput = {
-  tenantId: auth.user.tenantId,
-
-  ...(status ? { status: status as any } : {}),
-
-  ...(clientId ? { clientId } : {}),
-
-  ...(q
-    ? {
-        OR: [
-          {
-            title: {
-              contains: q,
-              mode: 'insensitive',
-            },
-          },
-
-          {
-            caseNumber: {
-              contains: q,
-              mode: 'insensitive',
-            },
-          },
-
-          {
-            client: {
-              name: {
-                contains: q,
-                mode: 'insensitive',
+    const where: Prisma.CaseWhereInput = {
+      tenantId: auth.user.tenantId,
+      ...(status ? { status: status as any } : {}),
+      ...(clientId ? { clientId } : {}),
+      ...(q
+        ? {
+            OR: [
+              {
+                title: {
+                  contains: q,
+                  mode: 'insensitive',
+                },
               },
-            },
-          },
-        ],
-      }
-    : {}),
-}
+              {
+                caseNumber: {
+                  contains: q,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                client: {
+                  name: {
+                    contains: q,
+                    mode: 'insensitive',
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    }
+
     const [data, total] = await Promise.all([
       prisma.case.findMany({
         where,
@@ -127,29 +124,11 @@ export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
     if (auth.error || !auth.user) return auth.error
+
+    const limitError = await enforceResourceLimit(auth.user.tenantId, 'cases')
+    if (limitError) return limitError
+
     const meta = getRequestMeta(req)
-
-    const tenant = await prisma.tenant.findUnique({
-  where: { id: auth.user.tenantId },
-  select: {
-    isSuspended: true,
-    status: true,
-  },
-})
-
-if (!tenant) {
-  return err('المكتب غير موجود', 404)
-}
-
-if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-  return err('لا يمكن إنشاء قضايا لأن المكتب موقوف', 403)
-}
-
-if (tenant.status === 'EXPIRED') {
-  return err('لا يمكن إنشاء قضايا لأن الاشتراك منتهي', 403)
-}
-
-
     const body = await req.json().catch(() => ({}))
     const parsed = caseSchema.safeParse(body)
 
@@ -165,19 +144,20 @@ if (tenant.status === 'EXPIRED') {
     })
 
     if (!client) return err('الموكل غير موجود', 404)
-      if (parsed.data.caseNumber) {
-  const exists = await prisma.case.findFirst({
-    where: {
-      tenantId: auth.user.tenantId,
-      caseNumber: parsed.data.caseNumber,
-    },
-    select: { id: true },
-  })
 
-  if (exists) {
-    return err('رقم القضية مستخدم مسبقًا', 409)
-  }
-}
+    if (parsed.data.caseNumber) {
+      const exists = await prisma.case.findFirst({
+        where: {
+          tenantId: auth.user.tenantId,
+          caseNumber: parsed.data.caseNumber,
+        },
+        select: { id: true },
+      })
+
+      if (exists) {
+        return err('رقم القضية مستخدم مسبقًا', 409)
+      }
+    }
 
     const newCase = await prisma.case.create({
       data: {

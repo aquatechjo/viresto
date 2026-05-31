@@ -1,11 +1,14 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getApiMessage, isPlanLimitResponse, planLimitMessage } from '@/lib/plan-ui'
 
 export default function NewClientPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const [form, setForm] = useState({
     name: '',
@@ -19,6 +22,7 @@ export default function NewClientPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setError('')
 
     const res = await fetch('/api/clients', {
       method: 'POST',
@@ -26,10 +30,15 @@ export default function NewClientPage() {
       body: JSON.stringify(form),
     })
 
+    const data = await res.json().catch(() => ({}))
     setLoading(false)
 
-    if (!res.ok) {
-      alert('تعذر إضافة الموكل')
+    if (!res.ok || data.success === false) {
+      const message = isPlanLimitResponse(data)
+        ? planLimitMessage(data, 'وصلت إلى حد الموكلين المسموح في خطتك الحالية.')
+        : getApiMessage(data, 'تعذر إضافة الموكل')
+
+      setError(message)
       return
     }
 
@@ -45,6 +54,18 @@ export default function NewClientPage() {
           إضافة بيانات موكل جديد داخل المكتب
         </p>
       </div>
+
+      {error && (
+        <div className="max-w-3xl rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+          <h2 className="font-black">تعذر تنفيذ العملية</h2>
+          <p className="mt-1 text-sm">{error}</p>
+          {isPlanLimitResponse({ message: error }) && (
+            <Link href="/dashboard/billing" className="btn btn-primary mt-4 inline-flex">
+              عرض الاشتراك والخطة
+            </Link>
+          )}
+        </div>
+      )}
 
       <form onSubmit={submit} className="card p-6 space-y-4 max-w-3xl">
         <input

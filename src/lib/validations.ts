@@ -84,3 +84,44 @@ export const updateProfileSchema = z.object({
   currentPassword: z.string().optional(),
   newPassword:     z.string().min(8).optional(),
 })
+const money = z.coerce
+  .number({ invalid_type_error: 'القيمة يجب أن تكون رقمًا' })
+  .finite('القيمة يجب أن تكون رقمًا صالحًا')
+  .min(0, 'القيمة لا يمكن أن تكون سالبة')
+
+const optionalDateString = z
+  .string()
+  .optional()
+  .nullable()
+  .refine((value) => {
+    if (!value) return true
+    return !Number.isNaN(new Date(value).getTime())
+  }, 'التاريخ غير صالح')
+
+export const invoiceItemSchema = z.object({
+  description: z.string().trim().min(1, 'وصف البند مطلوب'),
+  quantity: money.gt(0, 'الكمية يجب أن تكون أكبر من صفر'),
+  unitPrice: money,
+})
+
+export const invoiceCreateSchema = z.object({
+  clientId: z.string().min(1, 'يجب اختيار الموكل'),
+  caseId: z.string().optional().nullable(),
+  dueDate: optionalDateString,
+  tax: money.optional().default(0),
+  discount: money.optional().default(0),
+  notes: z.string().trim().max(2000, 'الملاحظات طويلة جدًا').optional().nullable(),
+  items: z.array(invoiceItemSchema).min(1, 'يجب إضافة بند واحد على الأقل للفاتورة'),
+})
+
+export const invoiceUpdateSchema = z.object({
+  clientId: z.string().min(1, 'يجب اختيار الموكل').optional(),
+  caseId: z.string().optional().nullable(),
+  dueDate: optionalDateString,
+  status: z.enum(['DRAFT', 'UNPAID', 'PAID', 'OVERDUE', 'CANCELLED']).optional(),
+  tax: money.optional(),
+  discount: money.optional(),
+  notes: z.string().trim().max(2000, 'الملاحظات طويلة جدًا').optional().nullable(),
+  items: z.array(invoiceItemSchema).min(1, 'يجب إضافة بند واحد على الأقل للفاتورة').optional(),
+})
+

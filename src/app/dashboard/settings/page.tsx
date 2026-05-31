@@ -5,8 +5,20 @@ import PageLoader from '@/components/ui/PageLoader'
 import FormField  from '@/components/ui/FormField'
 import { initials } from '@/lib/utils'
 
-interface User { name:string;email:string;role:string;tenant:{name:string;slug:string;plan:string} }
-
+interface User {
+  name: string
+  email: string
+  role: string
+  tenant: {
+    name: string
+    slug: string
+    plan: string
+    email?: string | null
+    phone?: string | null
+    address?: string | null
+    logoUrl?: string | null
+  }
+}
 export default function SettingsPage() {
   const [user,setUser]       = useState<User|null>(null)
   const [loading,setLoading] = useState(true)
@@ -21,6 +33,14 @@ export default function SettingsPage() {
   const [qrCode,setQrCode] = useState('')
   const [twoFACode,setTwoFACode] = useState('')
   const [twoFALoading,setTwoFALoading] = useState(false)
+const [company, setCompany] = useState({
+  name: '',
+  email: '',
+  phone: '',
+  address: '',
+  logoUrl: '',
+})
+const [companySaving, setCompanySaving] = useState(false)
 
 useEffect(() => {
   fetch('/api/auth/me')
@@ -36,6 +56,19 @@ useEffect(() => {
         }))
 
         setTwoFAEnabled(!!d.data.twoFactorEnabled)
+        fetch('/api/settings')
+  .then(r => r.json())
+  .then(s => {
+    if (s.success) {
+      setCompany({
+        name: s.data.name || '',
+        email: s.data.email || '',
+        phone: s.data.phone || '',
+        address: s.data.address || '',
+        logoUrl: s.data.logoUrl || '',
+      })
+    }
+  })
       }
 
       setLoading(false)
@@ -62,6 +95,73 @@ useEffect(() => {
     else toast.error(d.message)
     setPwSav(false)
   }
+
+
+  async function saveCompany(e: React.FormEvent) {
+  e.preventDefault()
+  setCompanySaving(true)
+
+  const r = await fetch('/api/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(company),
+  })
+
+  const d = await r.json()
+
+  if (d.success) {
+    toast.success('تم حفظ بيانات الشركة')
+
+    setUser(u =>
+      u
+        ? {
+            ...u,
+            tenant: {
+              ...u.tenant,
+              name: d.data.name,
+              email: d.data.email,
+              phone: d.data.phone,
+              address: d.data.address,
+              logoUrl: d.data.logoUrl,
+            },
+          }
+        : u
+    )
+  } else {
+    toast.error(d.message || 'تعذر حفظ بيانات الشركة')
+  }
+
+  setCompanySaving(false)
+}
+
+async function uploadCompanyLogo(e: React.ChangeEvent<HTMLInputElement>) {
+  const file = e.target.files?.[0]
+  if (!file) return
+
+  const fd = new FormData()
+  fd.append('file', file)
+
+  const r = await fetch('/api/settings/logo', {
+    method: 'POST',
+    body: fd,
+  })
+
+  const d = await r.json()
+
+  if (d.success) {
+    setCompany(p => ({
+      ...p,
+      logoUrl: d.data.logoUrl || '',
+    }))
+
+    toast.success('تم رفع الشعار بنجاح')
+  } else {
+    toast.error(d.message || 'تعذر رفع الشعار')
+  }
+
+  e.target.value = ''
+}
+
 
   if(loading) return <PageLoader/>
   if(!user)   return null
@@ -170,6 +270,108 @@ async function verify2FA() {
           </div>
         )}
       </div>
+
+      {/* Company info */}
+<div className="card p-6">
+  <div className="mb-5">
+    <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
+      بيانات الشركة / المكتب
+    </p>
+    <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+      تظهر هذه البيانات في الفواتير والطباعة
+    </p>
+  </div>
+
+  <form onSubmit={saveCompany} className="space-y-3">
+    <FormField label="اسم المكتب / الشركة">
+      <input
+        value={company.name}
+        onChange={e => setCompany(p => ({ ...p, name: e.target.value }))}
+        className="input"
+        required
+      />
+    </FormField>
+
+    <FormField label="البريد الإلكتروني">
+      <input
+        type="email"
+        value={company.email}
+        onChange={e => setCompany(p => ({ ...p, email: e.target.value }))}
+        className="input"
+        placeholder="company@example.com"
+      />
+    </FormField>
+
+    <FormField label="رقم الهاتف">
+      <input
+        value={company.phone}
+        onChange={e => setCompany(p => ({ ...p, phone: e.target.value }))}
+        className="input"
+        placeholder="+962..."
+      />
+    </FormField>
+
+    <FormField label="العنوان">
+      <input
+        value={company.address}
+        onChange={e => setCompany(p => ({ ...p, address: e.target.value }))}
+        className="input"
+        placeholder="الأردن - عمّان"
+      />
+
+      
+    </FormField>
+<FormField label="شعار الشركة">
+  <div className="space-y-3">
+    {company.logoUrl ? (
+      <div className="flex items-center gap-3 rounded-2xl border p-3">
+        <img
+          src={company.logoUrl}
+          alt="شعار الشركة"
+          className="h-14 w-14 rounded-xl object-contain"
+        />
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold">الشعار الحالي</p>
+          <p
+            className="truncate text-xs"
+            style={{ color: 'var(--text-3)' }}
+          >
+            {company.logoUrl}
+          </p>
+        </div>
+      </div>
+    ) : (
+      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+        لم يتم رفع شعار بعد
+      </p>
+    )}
+
+    <input
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+      onChange={uploadCompanyLogo}
+      className="input"
+    />
+
+    <input
+      value={company.logoUrl}
+      onChange={e => setCompany(p => ({ ...p, logoUrl: e.target.value }))}
+      className="input"
+      placeholder="أو ضع رابط الشعار يدويًا"
+    />
+  </div>
+</FormField>
+
+    <button
+      type="submit"
+      disabled={companySaving}
+      className="btn btn-primary w-full"
+    >
+      {companySaving ? 'جارٍ الحفظ...' : 'حفظ بيانات الشركة'}
+    </button>
+  </form>
+</div>
 
       {/* Settings panel */}
       <div className="card p-6">
