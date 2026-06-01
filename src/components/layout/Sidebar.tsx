@@ -18,6 +18,7 @@ import {
   Settings,
   LogOut,
   Menu,
+  Activity,
 } from 'lucide-react'
 
 import { initials } from '@/lib/utils'
@@ -46,6 +47,7 @@ const NAV = [
     { href: '/dashboard/payments', label: 'المدفوعات', icon: Wallet, roles: ['ADMIN', 'LAWYER'] },
     { href: '/dashboard/invoices', label: 'الفواتير', icon: ReceiptText, roles: ['ADMIN', 'LAWYER'] },
     { href: '/dashboard/reports', label: 'التقارير', icon: BarChart3, roles: ['ADMIN', 'LAWYER'] },
+    { href: '/dashboard/activity', label: 'سجل النشاط', icon: Activity, roles: ['ADMIN', 'LAWYER'] },
     { href: '/dashboard/billing', label: 'الاشتراك والخطة', icon: CreditCard, roles: ['ADMIN'] },
   ],
 },
