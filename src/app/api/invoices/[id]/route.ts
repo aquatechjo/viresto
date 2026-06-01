@@ -274,16 +274,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       })
     })
 
+    const updateActivityCaseId = updated?.caseId ?? invoice.caseId
+
     await logActivity({
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
       type: 'INVOICE_UPDATED',
-      title: 'تم تعديل فاتورة',
+      title: updateActivityCaseId ? 'تم تعديل فاتورة مرتبطة بالقضية' : 'تم تعديل فاتورة',
       message: invoice.invoiceNumber,
-      entityType: 'INVOICE',
-      entityId: invoice.id,
+      entityType: updateActivityCaseId ? 'CASE' : 'INVOICE',
+      entityId: updateActivityCaseId || invoice.id,
     })
 
     return ok(updated)
@@ -318,16 +320,18 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       where: { id: invoice.id },
     })
 
+    const deleteActivityCaseId = invoice.caseId
+
     await logActivity({
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
       type: 'INVOICE_DELETED',
-      title: 'تم حذف فاتورة',
+      title: deleteActivityCaseId ? 'تم حذف فاتورة مرتبطة بالقضية' : 'تم حذف فاتورة',
       message: invoice.invoiceNumber,
-      entityType: 'INVOICE',
-      entityId: invoice.id,
+      entityType: deleteActivityCaseId ? 'CASE' : 'INVOICE',
+      entityId: deleteActivityCaseId || invoice.id,
     })
 
     return ok({ deleted: true })

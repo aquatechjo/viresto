@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { taskSchema } from '@/lib/validations'
 import { ok, err } from '@/lib/api-response'
+import { logActivity } from '@/lib/activity'
 import { apiHandler } from '@/lib/api-handler'
-import { requireRole } from '@/lib/api-auth'
+import { requireRole, getRequestMeta } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -54,6 +55,8 @@ export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
     if (auth.error || !auth.user) return auth.error
+
+    const meta = getRequestMeta(req)
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: auth.user.tenantId },
@@ -140,6 +143,18 @@ export async function POST(req: NextRequest) {
         ...rest,
         ...(dueDate !== undefined ? { dueDate } : {}),
       },
+    })
+
+    await logActivity({
+      actorId: auth.user.userId,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+      tenantId: auth.user.tenantId,
+      type: 'TASK_CREATED',
+      title: 'تم إضافة مهمة',
+      message: task.title,
+      entityType: caseId ? 'CASE' : 'TASK',
+      entityId: caseId || task.id,
     })
 
     return ok(task, 201)

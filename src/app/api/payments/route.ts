@@ -140,8 +140,8 @@ export async function POST(req: NextRequest) {
       type: 'PAYMENT_CREATED',
       title: 'تم تسجيل دفعة جديدة',
       message: `${payment.amount} - ${c.title}`,
-      entityType: 'PAYMENT',
-      entityId: payment.id,
+      entityType: 'CASE',
+      entityId: c.id,
     })
 
     return ok(payment, 201)

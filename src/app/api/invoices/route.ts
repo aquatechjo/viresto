@@ -248,8 +248,8 @@ export async function POST(req: NextRequest) {
       type: 'INVOICE_CREATED',
       title: 'تم إنشاء فاتورة جديدة',
       message: `${invoice.invoiceNumber} - ${client.name}`,
-      entityType: 'INVOICE',
-      entityId: invoice.id,
+      entityType: caseId ? 'CASE' : 'INVOICE',
+      entityId: caseId || invoice.id,
     })
 
     return ok(invoice, 201)

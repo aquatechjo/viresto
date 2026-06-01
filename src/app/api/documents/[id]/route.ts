@@ -35,6 +35,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         fileName: true,
         fileType: true,
         publicId: true,
+        caseId: true,
       },
     })
 
@@ -92,6 +93,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         fileName: true,
         fileType: true,
         publicId: true,
+        caseId: true,
       },
     })
 
@@ -121,10 +123,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
       type: 'DOCUMENT_DELETED',
-      title: 'تم حذف مستند',
+      title: exists.caseId ? 'تم حذف مستند من القضية' : 'تم حذف مستند',
       message: exists.fileName,
-      entityType: 'DOCUMENT',
-      entityId: exists.id,
+      entityType: exists.caseId ? 'CASE' : 'DOCUMENT',
+      entityId: exists.caseId || exists.id,
     })
 
     return ok({ deleted: true })

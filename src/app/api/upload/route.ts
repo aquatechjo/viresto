@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData()
 
     const file = form.get('file') as File | null
-    const clientId = form.get('clientId') as string | null
+    let clientId = form.get('clientId') as string | null
     const caseId = form.get('caseId') as string | null
     const notesRaw = form.get('notes')
     const tagsRaw = form.get('tags')
@@ -115,6 +115,8 @@ export async function POST(req: NextRequest) {
       if (!caseRecord) {
         return err('القضية غير موجودة أو لا تتبع لهذا المكتب', 404)
       }
+
+      if (!clientId) clientId = caseRecord.clientId
     }
 
     const ts = Math.floor(Date.now() / 1000)
@@ -174,8 +176,8 @@ export async function POST(req: NextRequest) {
       type: 'DOCUMENT_UPLOADED',
       title: 'تم رفع مستند',
       message: file.name,
-      entityType: 'DOCUMENT',
-      entityId: doc.id,
+      entityType: caseId ? 'CASE' : 'DOCUMENT',
+      entityId: caseId || doc.id,
     })
 
     return ok({

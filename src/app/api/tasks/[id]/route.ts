@@ -3,7 +3,8 @@ import { TaskPriority } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { ok, err, notFound } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
-import { requireRole } from '@/lib/api-auth'
+import { requireRole, getRequestMeta } from '@/lib/api-auth'
+import { logActivity } from '@/lib/activity'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -35,6 +36,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
     if (auth.error || !auth.user) return auth.error
+    const meta = getRequestMeta(req)
 
     const tenantError = await ensureTenantActive(auth.user.tenantId)
     if (tenantError) return tenantError
@@ -48,6 +50,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
       select: {
         id: true,
+        title: true,
+        caseId: true,
+        completed: true,
       },
     })
 
@@ -117,6 +122,27 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data,
     })
 
+    if (exists.caseId) {
+      const title =
+        'completed' in data
+          ? data.completed
+            ? 'تم إكمال مهمة'
+            : 'تم إعادة فتح مهمة'
+          : 'تم تعديل مهمة'
+
+      await logActivity({
+        actorId: auth.user.userId,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+        tenantId: auth.user.tenantId,
+        type: 'CASE_UPDATED',
+        title,
+        message: updated.title,
+        entityType: 'CASE',
+        entityId: exists.caseId,
+      })
+    }
+
     return ok(updated)
   })
 }
@@ -125,6 +151,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
     if (auth.error || !auth.user) return auth.error
+    const meta = getRequestMeta(req)
 
     const tenantError = await ensureTenantActive(auth.user.tenantId)
     if (tenantError) return tenantError
@@ -138,6 +165,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       },
       select: {
         id: true,
+        title: true,
+        caseId: true,
       },
     })
 
@@ -150,6 +179,20 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         id: exists.id,
       },
     })
+
+    if (exists.caseId) {
+      await logActivity({
+        actorId: auth.user.userId,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+        tenantId: auth.user.tenantId,
+        type: 'CASE_UPDATED',
+        title: 'تم حذف مهمة',
+        message: exists.title,
+        entityType: 'CASE',
+        entityId: exists.caseId,
+      })
+    }
 
     return ok({ deleted: true })
   })

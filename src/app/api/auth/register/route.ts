@@ -16,6 +16,14 @@ export async function POST(req: NextRequest) {
       req.headers.get('x-real-ip') ??
       'unknown'
 
+
+const publicRegisterEnabled = process.env.PUBLIC_REGISTER_ENABLED === 'true'
+
+if (!publicRegisterEnabled) {
+  return err('التسجيل متاح حالياً عبر الإدارة فقط', 403)
+}
+
+
     const rl = checkRateLimit(ip, {
       keyPrefix: 'register',
       max: 3,

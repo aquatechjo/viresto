@@ -45,6 +45,8 @@ if (tenant.status === 'EXPIRED') {
       select: {
         id: true,
         amount: true,
+        caseId: true,
+        invoiceId: true,
       },
     })
 
@@ -104,8 +106,8 @@ const updated = await prisma.payment.update({
       type: 'PAYMENT_UPDATED',
       title: 'تم تعديل دفعة',
       message: String(updated.amount),
-      entityType: 'PAYMENT',
-      entityId: updated.id,
+      entityType: 'CASE',
+      entityId: updated.caseId,
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
@@ -152,11 +154,28 @@ if (tenant.status === 'EXPIRED') {
       select: {
         id: true,
         amount: true,
+        caseId: true,
+        invoiceId: true,
+        invoice: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            status: true,
+          },
+        },
       },
     })
 
     if (!exists) {
       return notFound('الدفعة غير موجودة')
+    }
+
+    if (exists.invoiceId) {
+      return err(
+        'لا يمكن حذف دفعة مرتبطة بفاتورة. افتح الفاتورة وغيّر حالتها أولًا حتى لا يحدث خلل مالي.',
+        409,
+        { invoiceId: exists.invoiceId, invoiceNumber: exists.invoice?.invoiceNumber }
+      )
     }
 
     await prisma.payment.delete({
@@ -168,8 +187,8 @@ if (tenant.status === 'EXPIRED') {
       type: 'PAYMENT_DELETED',
       title: 'تم حذف دفعة',
       message: String(exists.amount),
-      entityType: 'PAYMENT',
-      entityId: exists.id,
+      entityType: 'CASE',
+      entityId: exists.caseId,
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,

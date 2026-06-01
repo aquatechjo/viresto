@@ -169,8 +169,8 @@ export async function POST(req: NextRequest) {
       type: 'APPOINTMENT_CREATED',
       title: 'تم إضافة موعد',
       message: appt.title ?? 'موعد جديد',
-      entityType: 'APPOINTMENT',
-      entityId: appt.id,
+      entityType: caseId ? 'CASE' : 'APPOINTMENT',
+      entityId: caseId || appt.id,
     })
 
     return ok(appt, 201)
