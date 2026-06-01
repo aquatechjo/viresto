@@ -105,9 +105,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const parsed = clientSchema.safeParse(body)
 
-    if (!parsed.success) {
-      return err('بيانات غير صالحة', 400, parsed.error.flatten())
-    }
+if (!parsed.success) {
+  return err(
+    parsed.error.issues
+      .map((i) => `${i.path.join('.')}: ${i.message}`)
+      .join(' | '),
+    400
+  )
+}
 
     const normalizedEmail = normalizeEmail(parsed.data.email)
     const normalizedPhone = normalizePhone(parsed.data.phone)

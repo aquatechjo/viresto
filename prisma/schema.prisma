@@ -18,22 +18,21 @@ model Tenant {
   maxUsers      Int            @default(5)
   status        TenantStatus   @default(ACTIVE)
   trialEndsAt   DateTime?
+  address       String?
+  email         String?
+  logoUrl       String?
+  phone         String?
   activities    Activity[]
   appointments  Appointment[]
   cases         Case[]
   clients       Client[]
   documents     Document[]
+  invoices      Invoice[]
   notifications Notification[]
   payments      Payment[]
   sessions      Session[]
   tasks         Task[]
   users         User[]
-  invoices Invoice[]
-
-    email    String?
-  phone    String?
-  address  String?
-  logoUrl  String?
 }
 
 model User {
@@ -74,8 +73,8 @@ model Client {
   cases          Case[]
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   documents      Document[]
+  invoices       Invoice[]
   tasks          Task[]
-  invoices Invoice[]
 
   @@index([tenantId])
 }
@@ -96,9 +95,9 @@ model Case {
   client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   documents    Document[]
+  invoices     Invoice[]
   payments     Payment[]
   tasks        Task[]
-  invoices Invoice[]
 
   @@index([tenantId])
   @@index([tenantId, status])
@@ -115,11 +114,10 @@ model Payment {
   notes     String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+  invoiceId String?       @unique
   case      Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  invoice   Invoice?      @relation(fields: [invoiceId], references: [id])
   tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-invoiceId String?  @unique
-invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
 }
@@ -250,6 +248,48 @@ model Session {
   @@index([isActive])
 }
 
+model Invoice {
+  id            String        @id @default(cuid())
+  tenantId      String
+  clientId      String
+  caseId        String?
+  invoiceNumber String
+  status        InvoiceStatus @default(UNPAID)
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime?
+  subtotal      Float         @default(0)
+  tax           Float         @default(0)
+  discount      Float         @default(0)
+  total         Float         @default(0)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  case          Case?         @relation(fields: [caseId], references: [id])
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items         InvoiceItem[]
+  payment       Payment?
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([caseId])
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  total       Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
 enum Plan {
   FREE
   PRO
@@ -316,59 +356,4 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
-}
-
-model Invoice {
-  id            String        @id @default(cuid())
-
-  tenantId      String
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  clientId      String
-  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  caseId        String?
-  case          Case?         @relation(fields: [caseId], references: [id], onDelete: SetNull)
-
-  invoiceNumber String
-  status        InvoiceStatus @default(UNPAID)
-
-  issueDate     DateTime      @default(now())
-  dueDate       DateTime?
-
-  subtotal      Float         @default(0)
-  tax           Float         @default(0)
-  discount      Float         @default(0)
-  total         Float         @default(0)
-
-  notes         String?
-
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  items         InvoiceItem[]
-
-  payment Payment?
-
-  @@unique([tenantId, invoiceNumber])
-  @@index([tenantId])
-  @@index([clientId])
-  @@index([caseId])
-}
-
-model InvoiceItem {
-  id          String   @id @default(cuid())
-
-  invoiceId   String
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-
-  description String
-  quantity    Float    @default(1)
-  unitPrice   Float    @default(0)
-  total       Float    @default(0)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([invoiceId])
 }

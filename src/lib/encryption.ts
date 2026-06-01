@@ -9,7 +9,13 @@ function getKey() {
     throw new Error('ENCRYPTION_KEY is missing')
   }
 
-  return Buffer.from(key, 'base64')
+  const buffer = Buffer.from(key, 'base64')
+
+  if (buffer.length !== 32) {
+    throw new Error('ENCRYPTION_KEY must decode to exactly 32 bytes')
+  }
+
+  return buffer
 }
 
 export function encryptText(value?: string | null) {
