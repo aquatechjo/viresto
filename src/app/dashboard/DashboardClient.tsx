@@ -1,14 +1,30 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import PageLoader from '@/components/ui/PageLoader'
 import StatCard from '@/components/ui/StatCard'
 import { formatCurrency, formatTime } from '@/lib/utils'
-import RevenueChart from '@/components/dashboard/RevenueChart'
-import AIAssistant from '@/components/dashboard/AIAssistant'
 
+const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="card p-6 min-h-[360px] flex items-center justify-center">
+      <span className="spinner spinner-sm" />
+    </div>
+  ),
+})
+
+const AIAssistant = dynamic(() => import('@/components/dashboard/AIAssistant'), {
+  ssr: false,
+  loading: () => (
+    <div className="card p-6 min-h-[360px] flex items-center justify-center text-sm" style={{ color: 'var(--text-3)' }}>
+      جاري تحميل المساعد...
+    </div>
+  ),
+})
 
 interface Stats {
   clientCount: number
@@ -66,7 +82,6 @@ function MiniCalendar({ appts }: { appts: { startTime: string }[] }) {
   const today = new Date()
   const year = today.getFullYear()
   const month = today.getMonth()
-  const [todayAppointments, setTodayAppointments] = useState(0)
   const name = new Intl.DateTimeFormat('ar-SA', {
     month: 'long',
     year: 'numeric',
@@ -75,10 +90,14 @@ function MiniCalendar({ appts }: { appts: { startTime: string }[] }) {
   const first = new Date(year, month, 1).getDay()
   const total = new Date(year, month + 1, 0).getDate()
   const days = ['أح', 'إث', 'ثل', 'أر', 'خم', 'جم', 'سب']
-  const busy = new Set(
-  Array.isArray(appts)
-    ? appts.map((a) => new Date(a.startTime).getDate())
-    : []
+const busy = useMemo(
+  () =>
+    new Set(
+      Array.isArray(appts)
+        ? appts.map((a) => new Date(a.startTime).getDate())
+        : []
+    ),
+  [appts]
 )
   
 
@@ -138,8 +157,8 @@ function MiniCalendar({ appts }: { appts: { startTime: string }[] }) {
   )
 }
 
-export default  function DashboardPage() {
-  
+export default function DashboardPage() {
+    
   const [stats, setStats] = useState<Stats | null>(null)
   const [cases, setCases] = useState<CaseItem[]>([])
   const [activities, setActivities] = useState<any[]>([])
@@ -207,34 +226,33 @@ useEffect(() => {
   loadDashboard()
 }, [])
 
-  const documentStats = [
-  {
-    title: 'إجمالي المستندات',
-    value: documents.length,
-    icon: '📁',
-  },
-  {
-    title: 'ملفات PDF',
-    value: documents.filter((d) => d.fileType === 'application/pdf').length,
-    icon: '📄',
-  },
-  {
-    title: 'الصور',
-    value: documents.filter((d) =>
-      d.fileType.startsWith('image/')
-    ).length,
-    icon: '🖼️',
-  },
-  {
-    title: 'العقود',
-    value: documents.filter((d) =>
-      d.tags?.includes('عقد')
-    ).length,
-    icon: '⚖️',
-  },
-]
+const documentStats = useMemo(
+  () => [
+    {
+      title: 'إجمالي المستندات',
+      value: documents.length,
+      icon: '📁',
+    },
+    {
+      title: 'ملفات PDF',
+      value: documents.filter((d) => d.fileType === 'application/pdf').length,
+      icon: '📄',
+    },
+    {
+      title: 'الصور',
+      value: documents.filter((d) => d.fileType?.startsWith('image/')).length,
+      icon: '🖼️',
+    },
+    {
+      title: 'العقود',
+      value: documents.filter((d) => d.tags?.includes('عقد')).length,
+      icon: '⚖️',
+    },
+  ],
+  [documents]
+)
 
-const recentDocuments = documents.slice(0, 5)
+const recentDocuments = useMemo(() => documents.slice(0, 5), [documents])
 
 return (
   <div className="space-y-5 stagger">

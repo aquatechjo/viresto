@@ -1,17 +1,17 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import FullCalendar from '@fullcalendar/react'
-import dayGridPlugin from '@fullcalendar/daygrid'
-import timeGridPlugin from '@fullcalendar/timegrid'
-import interactionPlugin from '@fullcalendar/interaction'
-import arLocale from '@fullcalendar/core/locales/ar'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 
 import Modal from '@/components/ui/Modal'
 import FormField from '@/components/ui/FormField'
 import PageLoader from '@/components/ui/PageLoader'
 
+const AppointmentsCalendar = dynamic(() => import('./AppointmentsCalendar'), {
+  ssr: false,
+  loading: () => <PageLoader />,
+})
 interface Appt {
   id: string
   title: string
@@ -190,15 +190,19 @@ setClients(Array.isArray(cd.data) ? cd.data : [])
     }
   }
 
-  const calendarEvents = appts.map((a) => ({
-    id: a.id,
-    title: a.client?.name ? `${a.title} - ${a.client.name}` : a.title,
-    start: a.startTime,
-    end: a.endTime,
-    backgroundColor: TYPE_COLOR[a.type] || 'var(--sidebar)',
-    borderColor: TYPE_COLOR[a.type] || 'var(--sidebar)',
-    extendedProps: a,
-  }))
+const calendarEvents = useMemo(
+  () =>
+    appts.map((a) => ({
+      id: a.id,
+      title: a.client?.name ? `${a.title} - ${a.client.name}` : a.title,
+      start: a.startTime,
+      end: a.endTime,
+      backgroundColor: TYPE_COLOR[a.type] || 'var(--sidebar)',
+      borderColor: TYPE_COLOR[a.type] || 'var(--sidebar)',
+      extendedProps: a,
+    })),
+  [appts]
+)
 
   return (
     <div className="space-y-5 stagger">
@@ -221,18 +225,9 @@ setClients(Array.isArray(cd.data) ? cd.data : [])
         {loading ? (
           <PageLoader />
         ) : (
-<FullCalendar
-  plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-  initialView="dayGridMonth"
-  locale={arLocale}
-  direction="rtl"
-  height="auto"
-  selectable
-  editable
-  nowIndicator
+<AppointmentsCalendar
   events={calendarEvents}
-
-  eventDrop={async (info) => {
+  onEventDrop={async (info) => {
     const r = await fetch(`/api/appointments/${info.event.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -240,8 +235,6 @@ setClients(Array.isArray(cd.data) ? cd.data : [])
         startTime: info.event.start?.toISOString(),
       }),
     })
-
-    
 
     const d = await r.json()
 
@@ -253,46 +246,34 @@ setClients(Array.isArray(cd.data) ? cd.data : [])
       info.revert()
     }
   }}
-eventResize={async (info) => {
-  const r = await fetch(`/api/appointments/${info.event.id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      startTime: info.event.start?.toISOString(),
-      endTime: info.event.end?.toISOString(),
-    }),
-  })
+  onEventResize={async (info) => {
+    const r = await fetch(`/api/appointments/${info.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startTime: info.event.start?.toISOString(),
+        endTime: info.event.end?.toISOString(),
+      }),
+    })
 
-  const d = await r.json()
+    const d = await r.json()
 
-  if (d.success) {
-    toast.success('تم تحديث مدة الموعد')
-    load()
-  } else {
-    toast.error('فشل تحديث مدة الموعد')
-    info.revert()
-  }
-}}
-
-  headerToolbar={{
-    right: 'prev,next today',
-    center: 'title',
-    left: 'dayGridMonth,timeGridWeek,timeGridDay',
+    if (d.success) {
+      toast.success('تم تحديث مدة الموعد')
+      load()
+    } else {
+      toast.error('فشل تحديث مدة الموعد')
+      info.revert()
+    }
   }}
-  buttonText={{
-    today: 'اليوم',
-    month: 'شهر',
-    week: 'أسبوع',
-    day: 'يوم',
-  }}
-  dateClick={(info) => {
+  onDateClick={(info) => {
     setForm((p) => ({
       ...p,
       startTime: `${info.dateStr}T09:00`,
     }))
     setOpen(true)
   }}
-  eventClick={(info) => {
+  onEventClick={(info) => {
     const a = info.event.extendedProps as Appt
 
     setSelectedAppt(a)
