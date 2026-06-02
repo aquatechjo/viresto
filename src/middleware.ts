@@ -40,7 +40,7 @@ const isDev = process.env.NODE_ENV !== 'production'
 
 const scriptSrc = isDev
   ? "script-src 'self' 'unsafe-inline' 'unsafe-eval';"
-  : "script-src 'self';"
+  : "script-src 'self' 'unsafe-inline';"
 
   
 res.headers.set(
