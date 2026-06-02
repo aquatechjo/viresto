@@ -382,8 +382,6 @@ export default function InvoiceDetailsPage() {
     printInvoiceDocument(invoice)
   }
 
-  if (!mounted || loading) return <PageLoader />
-
   if (!invoice) {
     return (
       <div className="card p-6 text-center">
@@ -400,6 +398,12 @@ export default function InvoiceDetailsPage() {
 
   const tenantName = invoice.tenant?.name || 'Viresto'
   const canEditFinancials = invoice.status !== 'PAID'
+
+
+  if (!mounted) {
+  return <PageLoader />
+}
+
 
   return (
     <div className="space-y-6 print:space-y-4 print:bg-white print:text-black">
