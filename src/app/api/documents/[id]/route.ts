@@ -10,6 +10,7 @@ type Params = { params: Promise<{ id: string }> }
 
 function getResourceType(fileType?: string | null): 'image' | 'raw' | 'video' {
   if (fileType?.startsWith('image/')) return 'image'
+  if (fileType === 'application/pdf') return 'image'
   if (fileType?.startsWith('video/')) return 'video'
   return 'raw'
 }
@@ -103,9 +104,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     if (exists.publicId) {
       try {
-        await cloudinary.uploader.destroy(exists.publicId, {
-          resource_type: getResourceType(exists.fileType),
-        })
+await cloudinary.uploader.destroy(exists.publicId, {
+  resource_type: getResourceType(exists.fileType),
+  type: 'authenticated',
+})
       } catch (e) {
         console.error('Cloudinary delete failed:', e)
       }

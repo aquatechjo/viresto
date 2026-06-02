@@ -74,14 +74,20 @@ git push -u origin main
 
 | المفتاح | القيمة |
 |---------|--------|
-| `DATABASE_URL` | رابط Neon الذي نسخته |
-| `JWT_SECRET` | نص عشوائي طويل (انظر أدناه) |
+| `NODE_ENV` | `production` |
+| `NEXT_PUBLIC_APP_URL` | رابط الموقع على Vercel أو الدومين الرسمي |
+| `PUBLIC_REGISTER_ENABLED` | `false` في الإنتاج |
+| `DATABASE_URL` | رابط Neon pooled connection |
+| `DIRECT_URL` | رابط Neon direct connection للمigrations |
+| `JWT_SECRET` | نص عشوائي طويل |
+| `ENCRYPTION_KEY` | مفتاح base64 بطول 32 bytes |
+| `SEARCH_HASH_SECRET` | نص عشوائي طويل وثابت |
 | `CLOUDINARY_CLOUD_NAME` | من Cloudinary |
 | `CLOUDINARY_API_KEY` | من Cloudinary |
 | `CLOUDINARY_API_SECRET` | من Cloudinary |
 | `UPSTASH_REDIS_REST_URL` | من Upstash |
 | `UPSTASH_REDIS_REST_TOKEN` | من Upstash |
-| `NODE_ENV` | `production` |
+| `OPENAI_API_KEY` | اختياري — اتركه فارغًا إذا لن تستخدم AI |
 
 **لتوليد JWT_SECRET عشوائي:**
 ```bash
@@ -89,6 +95,11 @@ openssl rand -base64 64
 # أو في Node.js:
 node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
 ```
+````md
+**لتوليد ENCRYPTION_KEY:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
 
 5. انقر **Deploy** → انتظر دقيقة أو دقيقتين
 
@@ -155,8 +166,11 @@ CLOUDINARY_API_SECRET="your_api_secret"
 UPSTASH_REDIS_REST_URL="https://xxx.upstash.io"
 UPSTASH_REDIS_REST_TOKEN="your_token"
 
-# البيئة
+# App
 NODE_ENV="production"
+NEXT_PUBLIC_APP_URL="https://your-domain.com"
+PUBLIC_REGISTER_ENABLED="false"
+ALLOWED_SERVER_ACTION_ORIGINS="your-domain.com,www.your-domain.com"
 ```
 
 ---

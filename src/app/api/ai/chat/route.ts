@@ -7,15 +7,46 @@ import { requireRole } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAiInput, detectPromptInjection } from '@/lib/ai-security'
 import { logActivity } from '@/lib/log-activity'
+import { verifySameOrigin } from '@/lib/csrf'
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+  const csrf = verifySameOrigin(req)
+  if (csrf) return csrf
 
-    if (auth.error || !auth.user) {
-      return auth.error
-    }
-    const rl = checkRateLimit(
+  const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+
+if (auth.error || !auth.user) {
+  return auth.error
+}
+
+const tenant = await prisma.tenant.findUnique({
+  where: { id: auth.user.tenantId },
+  select: {
+    aiEnabled: true,
+    isSuspended: true,
+    status: true,
+  },
+})
+
+if (!tenant) {
+  return err('المكتب غير موجود', 404)
+}
+
+if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
+  return err('المكتب موقوف', 403)
+}
+
+if (tenant.status === 'EXPIRED') {
+  return err('لا يمكن استخدام المساعد الذكي لأن الاشتراك منتهي', 403)
+}
+
+if (!tenant.aiEnabled) {
+  return err('ميزة الذكاء الاصطناعي غير مفعلة لهذا المكتب', 403)
+}
+
+const rl = await checkRateLimit( 
+
   `${auth.user.tenantId}:${auth.user.userId}`,
   {
     keyPrefix: 'ai-chat',
@@ -66,67 +97,72 @@ const openai = new OpenAI({ apiKey })
   return err('تم حظر الرسالة لأنها تحتوي على تعليمات غير آمنة', 400)
 }
 
-    const [cases, appointments, clients] = await Promise.all([
-      prisma.case.findMany({
-        where: { tenantId: auth.user.tenantId },
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          caseNumber: true,
-          title: true,
-          court: true,
-          client: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      }),
+const [casesCount, openCasesCount, appointmentsCount, clientsCount, upcomingAppointments] =
+  await Promise.all([
+    prisma.case.count({
+      where: { tenantId: auth.user.tenantId },
+    }),
 
-      prisma.appointment.findMany({
-        where: { tenantId: auth.user.tenantId },
-        take: 10,
-        orderBy: { startTime: 'asc' },
-        select: {
-          title: true,
-          type: true,
-          startTime: true,
-          endTime: true,
-          location: true,
+    prisma.case.count({
+      where: {
+        tenantId: auth.user.tenantId,
+        status: {
+          in: ['OPEN', 'IN_PROGRESS'],
         },
-      }),
+      },
+    }),
 
-prisma.client.findMany({
-  where: { tenantId: auth.user.tenantId },
-  take: 10,
-  orderBy: { createdAt: 'desc' },
+    prisma.appointment.count({
+      where: { tenantId: auth.user.tenantId },
+    }),
+
+    prisma.client.count({
+      where: { tenantId: auth.user.tenantId },
+    }),
+
+prisma.appointment.findMany({
+  where: {
+    tenantId: auth.user.tenantId,
+    startTime: {
+      gte: new Date(),
+    },
+  },
+  take: 5,
+  orderBy: { startTime: 'asc' },
   select: {
-    name: true,
+    title: true,
+    type: true,
+    startTime: true,
+    endTime: true,
+    location: true,
   },
 }),
-    ])
+  ])
 
-    const systemPrompt = `
+
+const systemPrompt = `
 أنت مساعد ذكي داخل نظام Viresto لإدارة مكاتب المحاماة.
 
 القواعد:
 - أجب بالعربية فقط.
 - أجب باختصار وبشكل مهني.
-- اعتمد فقط على البيانات الموجودة أدناه.
+- اعتمد فقط على البيانات العامة الموجودة أدناه.
 - لا تخترع قضايا أو مواعيد أو موكلين غير موجودين.
+- لا تطلب أو تكشف بيانات حساسة عن الموكلين.
 - إذا لم تجد المعلومة، قل: لا توجد بيانات كافية داخل النظام.
 - لا تقدم استشارة قانونية نهائية، فقط ساعد في التنظيم والشرح والمتابعة.
 
-بيانات المكتب:
+ملاحظة خصوصية:
+لا توجد أسماء موكلين أو تفاصيل حساسة ضمن السياق المرسل لك.
 
-القضايا:
-${JSON.stringify(cases, null, 2)}
+ملخص المكتب:
+- عدد الموكلين: ${clientsCount}
+- عدد القضايا الكلي: ${casesCount}
+- عدد القضايا المفتوحة أو قيد التنفيذ: ${openCasesCount}
+- عدد المواعيد الكلي: ${appointmentsCount}
 
-المواعيد:
-${JSON.stringify(appointments, null, 2)}
-
-الموكلون:
-${JSON.stringify(clients, null, 2)}
+المواعيد القادمة/الأقرب:
+${JSON.stringify(upcomingAppointments, null, 2)}
 `
 
     const completion = await openai.chat.completions.create({

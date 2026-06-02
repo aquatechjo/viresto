@@ -39,8 +39,11 @@ const [company, setCompany] = useState({
   phone: '',
   address: '',
   logoUrl: '',
+  aiEnabled: false,
+  aiConsentAt: null as string | null,
 })
 const [companySaving, setCompanySaving] = useState(false)
+const [aiSaving, setAiSaving] = useState(false)
 
 useEffect(() => {
   fetch('/api/auth/me')
@@ -60,13 +63,15 @@ useEffect(() => {
   .then(r => r.json())
   .then(s => {
     if (s.success) {
-      setCompany({
-        name: s.data.name || '',
-        email: s.data.email || '',
-        phone: s.data.phone || '',
-        address: s.data.address || '',
-        logoUrl: s.data.logoUrl || '',
-      })
+setCompany({
+  name: s.data.name || '',
+  email: s.data.email || '',
+  phone: s.data.phone || '',
+  address: s.data.address || '',
+  logoUrl: s.data.logoUrl || '',
+  aiEnabled: !!s.data.aiEnabled,
+  aiConsentAt: s.data.aiConsentAt || null,
+})
     }
   })
       }
@@ -101,11 +106,16 @@ useEffect(() => {
   e.preventDefault()
   setCompanySaving(true)
 
-  const r = await fetch('/api/settings', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(company),
-  })
+const r = await fetch('/api/settings', {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: company.name,
+    email: company.email,
+    phone: company.phone,
+    address: company.address,
+  }),
+})
 
   const d = await r.json()
 
@@ -134,32 +144,48 @@ useEffect(() => {
   setCompanySaving(false)
 }
 
-async function uploadCompanyLogo(e: React.ChangeEvent<HTMLInputElement>) {
-  const file = e.target.files?.[0]
-  if (!file) return
+async function toggleAi() {
+  const nextValue = !company.aiEnabled
 
-  const fd = new FormData()
-  fd.append('file', file)
+  if (nextValue) {
+    const confirmed = window.confirm(
+      'سيتم تفعيل المساعد الذكي لهذا المكتب. قد يتم إرسال السؤال وبيانات عامة محدودة إلى مزود ذكاء اصطناعي خارجي. هل تريد المتابعة؟'
+    )
 
-  const r = await fetch('/api/settings/logo', {
-    method: 'POST',
-    body: fd,
+    if (!confirmed) return
+  }
+
+  setAiSaving(true)
+
+  const r = await fetch('/api/settings/ai', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      enabled: nextValue,
+    }),
   })
 
   const d = await r.json()
 
   if (d.success) {
-    setCompany(p => ({
+    setCompany((p) => ({
       ...p,
-      logoUrl: d.data.logoUrl || '',
+      aiEnabled: d.data.aiEnabled,
+      aiConsentAt: d.data.aiConsentAt,
     }))
 
-    toast.success('تم رفع الشعار بنجاح')
+    toast.success(
+      nextValue
+        ? 'تم تفعيل المساعد الذكي'
+        : 'تم تعطيل المساعد الذكي'
+    )
   } else {
-    toast.error(d.message || 'تعذر رفع الشعار')
+    toast.error(d.message || 'تعذر تحديث إعدادات المساعد الذكي')
   }
 
-  e.target.value = ''
+  setAiSaving(false)
 }
 
 
@@ -271,6 +297,32 @@ async function verify2FA() {
         )}
       </div>
 
+      <div className="card p-5 space-y-3">
+  <div>
+    <h2 className="text-lg font-black">المساعد الذكي</h2>
+    <p className="text-sm text-gray-500">
+      عند التفعيل، قد يتم إرسال السؤال وبيانات عامة محدودة عن المكتب إلى مزود ذكاء اصطناعي خارجي لمعالجة الطلب.
+    </p>
+  </div>
+
+  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+    لا يتم إرسال أسماء الموكلين أو تفاصيل القضايا الحساسة افتراضيًا. استخدم المساعد فقط للمهام التنظيمية والمتابعة.
+  </div>
+
+  <button
+    type="button"
+    onClick={toggleAi}
+    disabled={aiSaving}
+    className="btn btn-primary"
+  >
+    {aiSaving
+      ? 'جارٍ الحفظ...'
+      : company.aiEnabled
+        ? 'تعطيل المساعد الذكي'
+        : 'تفعيل المساعد الذكي'}
+  </button>
+</div>
+
       {/* Company info */}
 <div className="card p-6">
   <div className="mb-5">
@@ -321,47 +373,6 @@ async function verify2FA() {
 
       
     </FormField>
-<FormField label="شعار الشركة">
-  <div className="space-y-3">
-    {company.logoUrl ? (
-      <div className="flex items-center gap-3 rounded-2xl border p-3">
-        <img
-          src={company.logoUrl}
-          alt="شعار الشركة"
-          className="h-14 w-14 rounded-xl object-contain"
-        />
-
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">الشعار الحالي</p>
-          <p
-            className="truncate text-xs"
-            style={{ color: 'var(--text-3)' }}
-          >
-            {company.logoUrl}
-          </p>
-        </div>
-      </div>
-    ) : (
-      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-        لم يتم رفع شعار بعد
-      </p>
-    )}
-
-    <input
-      type="file"
-      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-      onChange={uploadCompanyLogo}
-      className="input"
-    />
-
-    <input
-      value={company.logoUrl}
-      onChange={e => setCompany(p => ({ ...p, logoUrl: e.target.value }))}
-      className="input"
-      placeholder="أو ضع رابط الشعار يدويًا"
-    />
-  </div>
-</FormField>
 
     <button
       type="submit"

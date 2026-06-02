@@ -3,6 +3,7 @@ import { ok, err } from '@/lib/api-response'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity'
 import { apiHandler } from '@/lib/api-handler'
+import { verifySameOrigin } from '@/lib/csrf'
 import { requireRole, getRequestMeta } from '@/lib/api-auth'
 import {
   enforceResourceLimit,
@@ -119,9 +120,11 @@ export async function POST(req: NextRequest) {
       if (!clientId) clientId = caseRecord.clientId
     }
 
-    const ts = Math.floor(Date.now() / 1000)
-    const folder = `Viresto/${auth.user.tenantId}`
-    const str = `folder=${folder}&timestamp=${ts}${SECRET}`
+const ts = Math.floor(Date.now() / 1000)
+const folder = `Viresto/${auth.user.tenantId}`
+const uploadType = 'authenticated'
+
+const str = `folder=${folder}&timestamp=${ts}&type=${uploadType}${SECRET}`
 
     const buf = await crypto.subtle.digest(
       'SHA-256',
@@ -138,6 +141,7 @@ export async function POST(req: NextRequest) {
     fd.append('timestamp', String(ts))
     fd.append('signature', sig)
     fd.append('folder', folder)
+    fd.append('type', uploadType)
 
     const res = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`,

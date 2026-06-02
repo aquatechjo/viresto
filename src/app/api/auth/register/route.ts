@@ -8,9 +8,12 @@ import { err } from '@/lib/api-response'
 import { slugify } from '@/lib/utils'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { apiHandler } from '@/lib/api-handler'
+import { verifySameOrigin } from '@/lib/csrf'
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req)
+     if (csrf) return csrf
     const publicRegisterEnabled = process.env.PUBLIC_REGISTER_ENABLED === 'true'
 
     if (!publicRegisterEnabled) {
@@ -23,11 +26,11 @@ export async function POST(req: NextRequest) {
       'unknown'
 
 
-    const rl = checkRateLimit(ip, {
-      keyPrefix: 'register',
-      max: 3,
-      windowMs: 60 * 60 * 1000,
-    })
+const rl = await checkRateLimit(ip, {
+  keyPrefix: 'register',
+  max: 3,
+  windowMs: 60 * 60 * 1000,
+})
 
     if (!rl.allowed) {
       return err('تم تجاوز عدد محاولات إنشاء الحساب. حاول لاحقاً.', 429)

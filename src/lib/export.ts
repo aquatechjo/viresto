@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { amiriFont } from './fonts/amiri-font'
 
 export function exportToCSV(filename: string, rows: Record<string, any>[]) {
@@ -26,12 +26,56 @@ export function exportToCSV(filename: string, rows: Record<string, any>[]) {
   link.click()
 }
 
-export function exportToExcel(filename: string, rows: Record<string, any>[]) {
-  const worksheet = XLSX.utils.json_to_sheet(rows)
-  const workbook = XLSX.utils.book_new()
+export async function exportToExcel(filename: string, rows: Record<string, any>[]) {
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Report')
 
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Report')
-  XLSX.writeFile(workbook, `${filename}.xlsx`)
+  if (!rows.length) {
+    worksheet.addRow(['لا توجد بيانات'])
+  } else {
+    const columns = Object.keys(rows[0])
+
+    worksheet.columns = columns.map((key) => ({
+      header: key,
+      key,
+      width: 20,
+    }))
+
+    rows.forEach((row) => {
+      worksheet.addRow(row)
+    })
+
+    worksheet.getRow(1).font = { bold: true }
+
+    worksheet.columns.forEach((column) => {
+      let maxLength = 12
+
+      column.eachCell?.({ includeEmpty: true }, (cell) => {
+        const value = cell.value ? String(cell.value) : ''
+        maxLength = Math.max(maxLength, value.length)
+      })
+
+      column.width = Math.min(Math.max(maxLength + 2, 12), 40)
+    })
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer()
+
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`
+
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+
+  window.URL.revokeObjectURL(url)
 }
 
 export function exportToPDF(
@@ -68,23 +112,64 @@ export function exportToPDF(
 }
 
 
-export function exportSheetsExcel(
+export async function exportSheetsToExcel(
   filename: string,
   sheets: { name: string; rows: Record<string, any>[] }[]
 ) {
-  const workbook = XLSX.utils.book_new()
+  const workbook = new ExcelJS.Workbook()
 
   sheets.forEach((sheet) => {
     const safeName = sheet.name.slice(0, 31) || 'Report'
-    const rows = sheet.rows.length ? sheet.rows : [{ ملاحظة: 'لا توجد بيانات' }]
-    const worksheet = XLSX.utils.json_to_sheet(rows)
+    const worksheet = workbook.addWorksheet(safeName)
 
-    worksheet['!cols'] = Object.keys(rows[0] || {}).map(() => ({ wch: 22 }))
+    if (!sheet.rows.length) {
+      worksheet.addRow(['لا توجد بيانات'])
+      return
+    }
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, safeName)
+    const columns = Object.keys(sheet.rows[0])
+
+    worksheet.columns = columns.map((key) => ({
+      header: key,
+      key,
+      width: 20,
+    }))
+
+    sheet.rows.forEach((row) => {
+      worksheet.addRow(row)
+    })
+
+    worksheet.getRow(1).font = { bold: true }
+
+    worksheet.columns.forEach((column) => {
+      let maxLength = 12
+
+      column.eachCell?.({ includeEmpty: true }, (cell) => {
+        const value = cell.value ? String(cell.value) : ''
+        maxLength = Math.max(maxLength, value.length)
+      })
+
+      column.width = Math.min(Math.max(maxLength + 2, 12), 40)
+    })
   })
 
-  XLSX.writeFile(workbook, `${filename}.xlsx`)
+  const buffer = await workbook.xlsx.writeBuffer()
+
+  const blob = new Blob([buffer as BlobPart], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`
+
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+
+  window.URL.revokeObjectURL(url)
 }
 
 export function exportReportPDF(
@@ -365,3 +450,5 @@ doc.setFont('Amiri', 'normal')
 
   doc.save(`client-${client.name || 'file'}.pdf`)
 }
+
+export const exportSheetsExcel = exportSheetsToExcel

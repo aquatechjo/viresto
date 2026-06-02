@@ -6,6 +6,7 @@ interface Props {
   fileUrl: string
   fileType: string
   fileName: string
+  documentId: string
   aiSummary?: string | null
   aiKeyPoints?: string[] | null
   aiParties?: string[] | null
@@ -16,6 +17,7 @@ interface Props {
 export default function DocumentPreviewModal({
   open,
   onClose,
+  documentId,
   fileUrl,
   fileType,
   fileName,
@@ -29,6 +31,7 @@ export default function DocumentPreviewModal({
 
   const isImage = fileType.startsWith('image/')
   const isPdf = fileType === 'application/pdf'
+  const previewUrl = `/api/documents/${documentId}/preview`
 
   return (
     <div
@@ -60,33 +63,34 @@ export default function DocumentPreviewModal({
               />
             )}
 
-            {isPdf && (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-black text-white">
-                <p className="text-lg font-bold">تعذر عرض PDF داخل النظام</p>
-                <p className="text-sm text-white/70">
-                  يمكنك فتح الملف في تبويب جديد أو تحميله.
-                </p>
+{isPdf && (
+  <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-black text-white">
+    <p className="text-lg font-bold">تعذر عرض PDF داخل النظام</p>
+    <p className="text-sm text-white/70">
+      يمكنك فتح الملف في تبويب جديد أو تحميله.
+    </p>
 
-                <div className="flex gap-3">
-                  <a
-                    href={fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-xl bg-green-700 px-4 py-2 text-sm text-white"
-                  >
-                    فتح في تبويب جديد
-                  </a>
+    <div className="flex gap-3">
+      <a
+        href={previewUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="rounded-xl bg-green-700 px-4 py-2 text-sm text-white"
+      >
+        فتح في تبويب جديد
+      </a>
 
-                  <a
-                    href={fileUrl}
-                    download
-                    className="rounded-xl bg-white px-4 py-2 text-sm text-black"
-                  >
-                    تحميل الملف
-                  </a>
-                </div>
-              </div>
-            )}
+      <a
+        href={previewUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="rounded-xl bg-white px-4 py-2 text-sm text-black"
+      >
+        تحميل الملف
+      </a>
+    </div>
+  </div>
+)}
 
             {!isImage && !isPdf && (
               <div className="text-sm text-white">

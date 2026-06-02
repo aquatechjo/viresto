@@ -436,18 +436,21 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <DocumentPreviewModal
-        open={!!preview}
-        onClose={() => setPreview(null)}
-        fileUrl={preview?.fileUrl || ''}
-        fileType={preview?.fileType || ''}
-        fileName={preview?.fileName || ''}
-        aiSummary={preview?.aiSummary}
-        aiKeyPoints={preview?.aiKeyPoints}
-        aiParties={preview?.aiParties}
-        aiDates={preview?.aiDates}
-        aiAmounts={preview?.aiAmounts}
-      />
+{preview && (
+  <DocumentPreviewModal
+    open={!!preview}
+    onClose={() => setPreview(null)}
+    documentId={preview.id}
+    fileUrl={`/api/documents/${preview.id}/preview`}
+    fileType={preview.fileType}
+    fileName={preview.fileName}
+    aiSummary={preview.aiSummary}
+    aiKeyPoints={preview.aiKeyPoints}
+    aiParties={preview.aiParties}
+    aiDates={preview.aiDates}
+    aiAmounts={preview.aiAmounts}
+  />
+)}
     </div>
   )
 }

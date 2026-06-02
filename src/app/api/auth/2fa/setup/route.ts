@@ -5,9 +5,13 @@ import { prisma } from '@/lib/prisma'
 import { ok, err } from '@/lib/api-response'
 import { requireRole } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-handler'
+import { encryptText } from '@/lib/encryption'
+import { verifySameOrigin } from '@/lib/csrf'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req)
+     if (csrf) return csrf
     const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
     if (auth.error || !auth.user) return auth.error
 
@@ -41,13 +45,13 @@ export async function GET(req: NextRequest) {
       return err('فشل إنشاء رمز التحقق الثنائي', 500)
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        twoFactorSecret: secret.base32,
-        twoFactorEnabled: false,
-      },
-    })
+await prisma.user.update({
+  where: { id: user.id },
+  data: {
+    twoFactorSecret: encryptText(secret.base32),
+    twoFactorEnabled: false,
+  },
+})
 
     const qrCode = await QRCode.toDataURL(secret.otpauth_url)
 

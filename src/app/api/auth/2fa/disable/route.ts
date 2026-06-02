@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import bcrypt from 'bcryptjs'
 import speakeasy from 'speakeasy'
-
+import { verifySameOrigin } from '@/lib/csrf'
 import { prisma } from '@/lib/prisma'
 import { ok, err } from '@/lib/api-response'
 import { requireRole } from '@/lib/api-auth'
@@ -9,6 +9,8 @@ import { apiHandler } from '@/lib/api-handler'
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req)
+     if (csrf) return csrf
     const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
 
     if (auth.error || !auth.user) {

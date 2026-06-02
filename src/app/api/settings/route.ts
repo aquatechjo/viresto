@@ -13,6 +13,8 @@ const tenantSelect = {
   logoUrl: true,
   slug: true,
   plan: true,
+  aiEnabled: true,
+  aiConsentAt: true,
 } as const
 
 export async function GET(req: NextRequest) {

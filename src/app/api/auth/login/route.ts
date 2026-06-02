@@ -10,19 +10,22 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { logActivity } from '@/lib/log-activity'
 import { getLocationFromIp } from '@/lib/geo'
 import { apiHandler } from '@/lib/api-handler'
+import { verifySameOrigin } from '@/lib/csrf'
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req)
+      if (csrf) return csrf
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
       req.headers.get('x-real-ip') ??
       'unknown'
 
-    const rl = checkRateLimit(ip, {
-      keyPrefix: 'login',
-      max: 5,
-      windowMs: 15 * 60 * 1000,
-    })
+const rl = await checkRateLimit(ip, {
+  keyPrefix: 'login',
+  max: 5,
+  windowMs: 15 * 60 * 1000,
+})
 
     if (!rl.allowed) {
       return err('محاولات كثيرة لتسجيل الدخول. حاول بعد 15 دقيقة.', 429)
