@@ -11,17 +11,16 @@ import { apiHandler } from '@/lib/api-handler'
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const publicRegisterEnabled = process.env.PUBLIC_REGISTER_ENABLED === 'true'
+
+    if (!publicRegisterEnabled) {
+      return err('إنشاء الحسابات غير متاح حالياً', 403)
+    }
+
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
       req.headers.get('x-real-ip') ??
       'unknown'
-
-
-const publicRegisterEnabled = process.env.PUBLIC_REGISTER_ENABLED === 'true'
-
-if (!publicRegisterEnabled) {
-  return err('التسجيل متاح حالياً عبر الإدارة فقط', 403)
-}
 
 
     const rl = checkRateLimit(ip, {

@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { verifyToken } from '@/lib/auth'
 
-export function middleware(req: NextRequest) {
-  const res = NextResponse.next()
+const publicPaths = [
+  '/login',
+  '/api/auth/login',
+  '/api/auth/logout',
+]
 
+function isPublicPath(pathname: string) {
+  return publicPaths.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  )
+}
+
+function applySecurityHeaders(res: NextResponse) {
   const isProd = process.env.NODE_ENV === 'production'
 
   if (isProd) {
@@ -46,6 +57,71 @@ export function middleware(req: NextRequest) {
   )
 
   return res
+}
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl
+
+  const isAsset =
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon') ||
+    pathname.startsWith('/images') ||
+    pathname.startsWith('/assets') ||
+    pathname.includes('.')
+
+  if (isAsset) {
+    return applySecurityHeaders(NextResponse.next())
+  }
+
+  const token = req.cookies.get('ld_token')?.value
+
+  if (!token && !isPublicPath(pathname)) {
+    const loginUrl = new URL('/login', req.url)
+    return applySecurityHeaders(NextResponse.redirect(loginUrl))
+  }
+
+  if (!token && isPublicPath(pathname)) {
+    return applySecurityHeaders(NextResponse.next())
+  }
+
+  if (token) {
+    try {
+      const payload = await verifyToken(token)
+
+if (!payload) {
+  const loginUrl = new URL('/login', req.url)
+  const res = NextResponse.redirect(loginUrl)
+  res.cookies.delete('ld_token')
+  return applySecurityHeaders(res)
+}
+
+      const requestHeaders = new Headers(req.headers)
+      requestHeaders.set('x-user-id', String(payload.userId))
+      requestHeaders.set('x-tenant-id', String(payload.tenantId))
+      requestHeaders.set('x-user-role', String(payload.role))
+
+      if (pathname === '/login' || pathname === '/') {
+        return applySecurityHeaders(
+          NextResponse.redirect(new URL('/dashboard', req.url))
+        )
+      }
+
+      return applySecurityHeaders(
+        NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        })
+      )
+    } catch {
+      const loginUrl = new URL('/login', req.url)
+      const res = NextResponse.redirect(loginUrl)
+      res.cookies.delete('ld_token')
+      return applySecurityHeaders(res)
+    }
+  }
+
+  return applySecurityHeaders(NextResponse.next())
 }
 
 export const config = {

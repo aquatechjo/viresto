@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import PageLoader from '@/components/ui/PageLoader'
 import StatCard from '@/components/ui/StatCard'
 import { formatCurrency, formatTime } from '@/lib/utils'
@@ -256,12 +255,132 @@ const recentDocuments = useMemo(() => documents.slice(0, 5), [documents])
 
 return (
   <div className="space-y-5 stagger">
-    <div className="relative z-[99999]">
-      <DashboardHeader />
 
+    <div
+  className="relative overflow-hidden rounded-[28px] border p-6 md:p-7"
+  style={{
+    background:
+      'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 55%, var(--sidebar-dark) 100%)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    boxShadow: '0 22px 60px rgba(45, 74, 62, 0.22)',
+  }}
+>
+  <div
+    className="absolute -left-16 -top-16 h-44 w-44 rounded-full"
+    style={{ background: 'rgba(245, 200, 66, 0.18)' }}
+  />
+  <div
+    className="absolute -bottom-20 right-12 h-56 w-56 rounded-full"
+    style={{ background: 'rgba(255, 255, 255, 0.08)' }}
+  />
+
+  <div className="relative z-10 grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_.8fr] lg:items-center">
+    <div>
+      <div
+        className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black"
+        style={{
+          background: 'rgba(255,255,255,0.13)',
+          color: '#fff',
+          border: '1px solid rgba(255,255,255,0.18)',
+        }}
+      >
+        <span>⚖️</span>
+        <span>لوحة إدارة المكتب القانوني</span>
+      </div>
+
+      <h1 className="text-2xl font-black leading-relaxed text-white md:text-3xl">
+        إدارة القضايا والموكلين من مكان واحد
+      </h1>
+
+      <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/75">
+        تابع القضايا، المواعيد، المستندات، الدفعات والفواتير بسهولة مع لوحة موحدة
+        تساعد مكتبك على اتخاذ قرارات أسرع وتنظيم العمل اليومي.
+      </p>
+
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Link
+          href="/dashboard/clients/new"
+          className="btn"
+          style={{
+            background: '#fff',
+            color: 'var(--sidebar)',
+            borderColor: 'rgba(255,255,255,0.35)',
+          }}
+        >
+          + إضافة موكل
+        </Link>
+
+        <Link
+          href="/dashboard/cases"
+          className="btn"
+          style={{
+            background: 'rgba(255,255,255,0.12)',
+            color: '#fff',
+            borderColor: 'rgba(255,255,255,0.24)',
+          }}
+        >
+          عرض القضايا
+        </Link>
+
+        <Link
+          href="/dashboard/reports"
+          className="btn"
+          style={{
+            background: 'rgba(245,200,66,0.18)',
+            color: '#fff',
+            borderColor: 'rgba(245,200,66,0.35)',
+          }}
+        >
+          التقارير
+        </Link>
+      </div>
     </div>
 
+    <div
+      className="rounded-3xl p-5"
+      style={{
+        background: 'rgba(255,255,255,0.12)',
+        border: '1px solid rgba(255,255,255,0.18)',
+        backdropFilter: 'blur(10px)',
+      }}
+    >
+      <p className="text-sm font-black text-white">ملخص اليوم</p>
 
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div
+          className="rounded-2xl p-4"
+          style={{ background: 'rgba(255,255,255,0.12)' }}
+        >
+<p className="text-xs font-bold text-white/65">مواعيد اليوم</p>
+<p className="mt-1 text-2xl font-black text-white">
+  {stats?.todayApptCount ?? 0}
+</p>
+        </div>
+
+        <div
+          className="rounded-2xl p-4"
+          style={{ background: 'rgba(255,255,255,0.12)' }}
+        >
+<p className="text-xs font-bold text-white/65">قضايا نشطة</p>
+<p className="mt-1 text-2xl font-black text-white">
+  {stats?.activeCaseCount ?? 0}
+</p>
+        </div>
+      </div>
+
+      <div
+        className="mt-3 rounded-2xl p-4 text-sm font-bold leading-7"
+        style={{
+          background: 'rgba(255,255,255,0.1)',
+          color: 'rgba(255,255,255,0.78)',
+        }}
+      >
+        ابدأ العرض من إضافة موكل، ثم اربطه بقضية، بعدها اعرض المواعيد والمستندات
+        والتقارير المالية.
+      </div>
+    </div>
+  </div>
+</div>
       {/* Main Stats */}
       <div className="relative z-0 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
