@@ -101,6 +101,7 @@ export default function InvoiceDetailsPage() {
   const [pdfLoading, setPdfLoading] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const [editDueDate, setEditDueDate] = useState('')
   const [editTax, setEditTax] = useState(0)
@@ -130,6 +131,10 @@ export default function InvoiceDetailsPage() {
     setInvoice(data.data ?? null)
     setLoading(false)
   }
+
+  useEffect(() => {
+  setMounted(true)
+}, [])
 
   useEffect(() => {
     if (id) load()
@@ -377,7 +382,7 @@ export default function InvoiceDetailsPage() {
     printInvoiceDocument(invoice)
   }
 
-  if (loading) return <PageLoader />
+  if (!mounted || loading) return <PageLoader />
 
   if (!invoice) {
     return (

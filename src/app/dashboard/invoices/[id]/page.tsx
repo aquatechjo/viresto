@@ -92,6 +92,8 @@ export default function InvoicesPage() {
   const [cases, setCases] = useState<CaseOption[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
 
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
@@ -143,6 +145,10 @@ export default function InvoicesPage() {
         return
       }
 
+      if (!mounted || loading) {
+  return <PageLoader />
+}
+
       if (!invoiceRes.ok || !clientRes.ok || !caseRes.ok) {
         setInvoices([])
         setClients([])
@@ -175,6 +181,10 @@ export default function InvoicesPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+  setMounted(true)
+}, [])
 
   useEffect(() => {
     load()
