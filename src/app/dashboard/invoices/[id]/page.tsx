@@ -3,6 +3,7 @@
 import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+
 import PageLoader from '@/components/ui/PageLoader'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import {
@@ -75,11 +76,11 @@ const statusLabels: Record<InvoiceStatus, string> = {
 }
 
 const statusClasses: Record<InvoiceStatus, string> = {
-  DRAFT: 'bg-slate-100 text-slate-700',
-  UNPAID: 'bg-amber-100 text-amber-700',
-  PAID: 'bg-emerald-100 text-emerald-700',
-  OVERDUE: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-zinc-100 text-zinc-600',
+  DRAFT: 'badge badge-gray',
+  UNPAID: 'badge badge-amber',
+  PAID: 'badge badge-green',
+  OVERDUE: 'badge badge-red',
+  CANCELLED: 'badge badge-gray',
 }
 
 function toDateInput(value?: string | null) {
@@ -89,6 +90,17 @@ function toDateInput(value?: string | null) {
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function paymentStatusLabel(status?: string | null) {
+  const map: Record<string, string> = {
+    PAID: 'مدفوعة',
+    PENDING: 'معلّقة',
+    OVERDUE: 'متأخرة',
+    CANCELLED: 'ملغاة',
+  }
+
+  return status ? map[status] ?? status : '-'
 }
 
 export default function InvoiceDetailsPage() {
@@ -111,50 +123,50 @@ export default function InvoiceDetailsPage() {
 
   const invoiceRef = useRef<HTMLDivElement | null>(null)
 
-async function load() {
-  if (!id || id === 'undefined' || id === 'null') {
-    setInvoice(null)
-    setLoading(false)
-    return
-  }
-
-  try {
-    setLoading(true)
-
-    const res = await fetch(`/api/invoices/${id}`, {
-      cache: 'no-store',
-    })
-
-    if (res.status === 401) {
-      window.location.href = '/login'
+  async function load() {
+    if (!id || id === 'undefined' || id === 'null') {
+      setInvoice(null)
+      setLoading(false)
       return
     }
 
-    const data = await res.json().catch(() => ({}))
+    try {
+      setLoading(true)
 
-    if (!res.ok) {
-      console.error('Invoice load failed:', {
-        id,
-        status: res.status,
-        data,
+      const res = await fetch(`/api/invoices/${id}`, {
+        cache: 'no-store',
       })
 
-      setInvoice(null)
-      return
-    }
+      if (res.status === 401) {
+        window.location.href = '/login'
+        return
+      }
 
-    setInvoice(data.data?.invoice ?? data.data ?? data.invoice ?? null)
-  } catch (error) {
-    console.error('Invoice load error:', error)
-    setInvoice(null)
-  } finally {
-    setLoading(false)
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        console.error('Invoice load failed:', {
+          id,
+          status: res.status,
+          data,
+        })
+
+        setInvoice(null)
+        return
+      }
+
+      setInvoice(data.data?.invoice ?? data.data ?? data.invoice ?? null)
+    } catch (error) {
+      console.error('Invoice load error:', error)
+      setInvoice(null)
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   useEffect(() => {
-  setMounted(true)
-}, [])
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (id) load()
@@ -197,7 +209,14 @@ async function load() {
   }
 
   function addEditItem() {
-    setEditItems((prev) => [...prev, { description: '', quantity: 1, unitPrice: 0 }])
+    setEditItems((prev) => [
+      ...prev,
+      {
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+      },
+    ])
   }
 
   function removeEditItem(index: number) {
@@ -211,7 +230,10 @@ async function load() {
       return sum + quantity * unitPrice
     }, 0)
   )
-  const editTotal = roundMoney(editSubtotal + Number(editTax || 0) - Number(editDiscount || 0))
+
+  const editTotal = roundMoney(
+    editSubtotal + Number(editTax || 0) - Number(editDiscount || 0)
+  )
 
   async function submitEdit(e: FormEvent) {
     e.preventDefault()
@@ -245,30 +267,33 @@ async function load() {
       return
     }
 
-    setSaving(true)
+    try {
+      setSaving(true)
 
-    const res = await fetch(`/api/invoices/${invoice.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        dueDate: editDueDate || null,
-        tax: Number(editTax || 0),
-        discount: Number(editDiscount || 0),
-        notes: editNotes,
-        items: cleanItems,
-      }),
-    })
+      const res = await fetch(`/api/invoices/${invoice.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dueDate: editDueDate || null,
+          tax: Number(editTax || 0),
+          discount: Number(editDiscount || 0),
+          notes: editNotes,
+          items: cleanItems,
+        }),
+      })
 
-    const data = await res.json().catch(() => ({}))
-    setSaving(false)
+      const data = await res.json().catch(() => ({}))
 
-    if (!res.ok) {
-      alert(data.message || data.error || 'تعذر تعديل الفاتورة')
-      return
+      if (!res.ok) {
+        alert(data.message || data.error || 'تعذر تعديل الفاتورة')
+        return
+      }
+
+      setEditOpen(false)
+      await load()
+    } finally {
+      setSaving(false)
     }
-
-    setEditOpen(false)
-    await load()
   }
 
   async function updateStatus(nextStatus: InvoiceStatus) {
@@ -344,11 +369,6 @@ async function load() {
     )
   }
 
-  if (!mounted || loading) {
-  return <PageLoader />
-}
-
-
   async function downloadInvoicePDF() {
     if (!invoiceRef.current || !invoice) return
 
@@ -406,13 +426,49 @@ async function load() {
     printInvoiceDocument(invoice)
   }
 
+  if (!mounted || loading) {
+    return <PageLoader />
+  }
 
+  if (!invoice) {
+    return (
+      <div className="space-y-5 stagger">
+        <div
+          className="relative overflow-hidden rounded-[28px] border p-6"
+          style={{
+            background:
+              'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
+            borderColor: 'rgba(255,255,255,0.12)',
+            boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+          }}
+        >
+          <h1 className="text-2xl font-black text-white">الفاتورة غير موجودة</h1>
 
-if (!invoice) {
+          <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
+            تعذر العثور على الفاتورة المطلوبة، أو أنها حُذفت، أو أن الرابط غير صحيح.
+          </p>
+        </div>
+
+        <div className="card p-8 text-center">
+          <button
+            onClick={() => router.push('/dashboard/invoices')}
+            className="btn btn-primary"
+          >
+            رجوع للفواتير
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const tenantName = invoice.tenant?.name || 'Viresto'
+  const canEditFinancials = invoice.status !== 'PAID'
+
   return (
-    <div className="space-y-5 stagger">
+    <div className="space-y-5 stagger print:space-y-4 print:bg-white print:text-black">
+      {/* Hero */}
       <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
+        className="relative overflow-hidden rounded-[28px] border p-6 print:hidden"
         style={{
           background:
             'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
@@ -420,269 +476,425 @@ if (!invoice) {
           boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
         }}
       >
-        <h1 className="text-2xl font-black text-white">الفاتورة غير موجودة</h1>
+        <div
+          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
+          style={{ background: 'rgba(245, 200, 66, 0.16)' }}
+        />
 
-        <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-          تعذر العثور على الفاتورة المطلوبة، أو أنها حُذفت، أو أن الرابط غير صحيح.
-        </p>
-      </div>
+        <div
+          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
+          style={{ background: 'rgba(255,255,255,0.08)' }}
+        />
 
-      <div className="card p-8 text-center">
-        <button
-          onClick={() => router.push('/dashboard/invoices')}
-          className="btn btn-primary"
-        >
-          رجوع للفواتير
-        </button>
-      </div>
-    </div>
-  )
-}
+        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <button
+              onClick={() => router.push('/dashboard/invoices')}
+              className="mb-3 rounded-full px-3 py-1 text-xs font-black text-white/80 transition hover:bg-white/10"
+            >
+              ← رجوع للفواتير
+            </button>
 
-const tenantName = invoice.tenant?.name || 'Viresto'
-const canEditFinancials = invoice.status !== 'PAID'
-
-
-  return (
-    <div className="space-y-6 print:space-y-4 print:bg-white print:text-black">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center print:hidden">
-        <div>
-          <button
-            onClick={() => router.push('/dashboard/invoices')}
-            className="mb-3 text-sm font-bold hover:underline"
-            style={{ color: 'var(--muted)' }}
-          >
-            ← رجوع للفواتير
-          </button>
-
-          <h1 className="text-2xl font-black">فاتورة {formatInvoiceNumber(invoice.invoiceNumber)}</h1>
-
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            تفاصيل الفاتورة والبنود والمدفوعات المرتبطة
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button onClick={openEditModal} className="btn btn-primary">
-            تعديل الفاتورة
-          </button>
-
-          <button onClick={printInvoice} className="btn btn-secondary">
-            🖨️ طباعة
-          </button>
-
-          <button
-            onClick={downloadInvoicePDF}
-            disabled={pdfLoading}
-            className="btn btn-primary"
-          >
-            {pdfLoading ? 'جارٍ إنشاء PDF...' : '⬇️ تحميل PDF'}
-          </button>
-
-          <button onClick={sendInvoiceWhatsApp} className="btn btn-secondary">
-            واتساب
-          </button>
-
-          <button
-            onClick={deleteInvoice}
-            className="rounded-xl px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50"
-          >
-            حذف
-          </button>
-        </div>
-      </div>
-
-      <div ref={invoiceRef} className="rounded-[28px] border border-slate-200 bg-white p-7 text-black shadow-sm print:rounded-none print:border-0 print:shadow-none">
-        <div className="mb-6 block">
-          <div className="mb-6 flex items-start justify-between rounded-3xl bg-[#12382d] p-6 text-white">
-            <div>
-              {invoice.tenant?.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={invoice.tenant.logoUrl}
-                  alt={tenantName}
-                  className="mb-3 h-14 w-auto rounded-2xl bg-white/10 object-contain p-2"
-                />
-              ) : null}
-              <h1 className="text-3xl font-black">{tenantName}</h1>
-              <p className="mt-1 text-sm text-white/80">{invoice.tenant?.email || 'نظام إدارة مكاتب المحاماة'}</p>
-              <p className="mt-1 text-sm text-white/80">{invoice.tenant?.phone || ''}</p>
-              <p className="mt-1 text-sm text-white/80">{invoice.tenant?.address || ''}</p>
+            <div
+              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
+              style={{
+                background: 'rgba(255,255,255,0.14)',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.18)',
+              }}
+            >
+              تفاصيل الفاتورة
             </div>
 
-            <div className="text-left">
-              <h2 className="text-3xl font-black">فاتورة</h2>
-              <p className="mt-1 text-sm">رقم الفاتورة: {formatInvoiceNumber(invoice.invoiceNumber)}</p>
-              <p className="mt-1 text-sm">تاريخ الإصدار: {formatDate(invoice.issueDate)}</p>
-              <p className="mt-1 text-sm">
-                تاريخ الاستحقاق: {invoice.dueDate ? formatDate(invoice.dueDate) : '-'}
-              </p>
-            </div>
-          </div>
-        </div>
+            <h1 className="text-2xl font-black text-white">
+              فاتورة {formatInvoiceNumber(invoice.invoiceNumber)}
+            </h1>
 
-        <div className="card overflow-hidden p-0">
-          <div className="flex flex-col justify-between gap-4 p-6 md:flex-row md:items-start">
-            <div>
-              <p className="text-sm font-bold" style={{ color: 'var(--muted)' }}>
-                رقم الفاتورة
-              </p>
-              <h2 className="mt-1 text-3xl font-black">{formatInvoiceNumber(invoice.invoiceNumber)}</h2>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
+              عرض بيانات الفاتورة، البنود، الموكل، القضية، الدفعة المرتبطة، وإجراءات الطباعة والإرسال.
+            </p>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClasses[invoice.status]}`}>
-                  {statusLabels[invoice.status]}
-                </span>
-
-                {invoice.payment && (
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                    مرتبطة بدفعة
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="print:hidden">
-              <p className="mb-2 text-sm font-bold">تغيير الحالة</p>
-              <select
-                value={invoice.status}
-                onChange={(e) => updateStatus(e.target.value as InvoiceStatus)}
-                className="input min-w-[170px]"
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span
+                className="rounded-full px-3 py-1 text-xs font-black"
+                style={{
+                  background: 'rgba(255,255,255,0.14)',
+                  color: '#fff',
+                }}
               >
-                <option value="DRAFT">مسودة</option>
-                <option value="UNPAID">غير مدفوعة</option>
-                <option value="PAID">مدفوعة</option>
-                <option value="OVERDUE">متأخرة</option>
-                <option value="CANCELLED">ملغاة</option>
-              </select>
+                الحالة: {statusLabels[invoice.status]}
+              </span>
+
+              <span
+                className="rounded-full px-3 py-1 text-xs font-black"
+                style={{
+                  background: 'rgba(245,200,66,0.18)',
+                  color: '#fff',
+                }}
+              >
+                الإجمالي: {formatCurrency(invoice.total)}
+              </span>
             </div>
           </div>
 
-          <div className="grid border-t md:grid-cols-3">
-            <div className="border-b p-5 md:border-b-0 md:border-l">
-              <p className="text-sm font-bold" style={{ color: 'var(--muted)' }}>
-                الموكل
-              </p>
-              <p className="mt-1 font-black">{invoice.client?.name || '-'}</p>
-              <p className="mt-1 text-sm">{invoice.client?.phone || '-'}</p>
-              <p className="mt-1 text-sm">{invoice.client?.email || '-'}</p>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={openEditModal}
+              className="btn"
+              style={{
+                background: '#fff',
+                color: 'var(--sidebar)',
+                borderColor: 'rgba(255,255,255,0.32)',
+              }}
+            >
+              تعديل
+            </button>
 
-            <div className="border-b p-5 md:border-b-0 md:border-l">
-              <p className="text-sm font-bold" style={{ color: 'var(--muted)' }}>
-                القضية
-              </p>
-              <p className="mt-1 font-black">{invoice.case ? invoice.case.title : 'بدون قضية'}</p>
-              <p className="mt-1 text-sm">{invoice.case?.caseNumber || '-'}</p>
-            </div>
+            <button
+              onClick={printInvoice}
+              className="btn"
+              style={{
+                background: 'rgba(255,255,255,0.14)',
+                color: '#fff',
+                borderColor: 'rgba(255,255,255,0.22)',
+              }}
+            >
+              طباعة
+            </button>
 
-            <div className="p-5">
-              <p className="text-sm font-bold" style={{ color: 'var(--muted)' }}>
-                التواريخ
-              </p>
-              <p className="mt-1 text-sm">تاريخ الإصدار: {formatDate(invoice.issueDate)}</p>
-              <p className="mt-1 text-sm">
-                تاريخ الاستحقاق: {invoice.dueDate ? formatDate(invoice.dueDate) : '-'}
-              </p>
-            </div>
+            <button
+              onClick={downloadInvoicePDF}
+              disabled={pdfLoading}
+              className="btn"
+              style={{
+                background: 'rgba(255,255,255,0.14)',
+                color: '#fff',
+                borderColor: 'rgba(255,255,255,0.22)',
+              }}
+            >
+              {pdfLoading ? 'جاري إنشاء PDF...' : 'PDF'}
+            </button>
+
+            <button
+              onClick={sendInvoiceWhatsApp}
+              className="btn"
+              style={{
+                background: 'rgba(34,197,94,0.18)',
+                color: '#fff',
+                borderColor: 'rgba(34,197,94,0.32)',
+              }}
+            >
+              واتساب
+            </button>
+
+            <button
+              onClick={deleteInvoice}
+              className="btn"
+              style={{
+                background: 'rgba(239,68,68,0.18)',
+                color: '#fff',
+                borderColor: 'rgba(239,68,68,0.32)',
+              }}
+            >
+              حذف
+            </button>
           </div>
         </div>
-
-        <div className="card overflow-hidden p-0">
-          <div className="border-b p-5">
-            <h2 className="text-xl font-black">بنود الفاتورة</h2>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>الوصف</th>
-                  <th>الكمية</th>
-                  <th>سعر الوحدة</th>
-                  <th>الإجمالي</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {invoice.items.map((item, index) => (
-                  <tr key={item.id}>
-                    <td>{index + 1}</td>
-                    <td className="font-bold">{item.description}</td>
-                    <td>{item.quantity}</td>
-                    <td>{formatCurrency(item.unitPrice)}</td>
-                    <td className="font-bold">{formatCurrency(item.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex justify-end border-t p-5">
-            <div className="w-full max-w-sm space-y-3">
-              <div className="flex justify-between">
-                <span>المجموع الفرعي</span>
-                <strong>{formatCurrency(invoice.subtotal)}</strong>
-              </div>
-
-              <div className="flex justify-between">
-                <span>الضريبة</span>
-                <strong>{formatCurrency(invoice.tax)}</strong>
-              </div>
-
-              <div className="flex justify-between">
-                <span>الخصم</span>
-                <strong>{formatCurrency(invoice.discount)}</strong>
-              </div>
-
-              <div className="flex justify-between border-t pt-3 text-xl font-black">
-                <span>الإجمالي النهائي</span>
-                <span>{formatCurrency(invoice.total)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {invoice.payment && (
-          <div className="card p-5">
-            <h2 className="text-xl font-black">الدفعة المرتبطة</h2>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <div>
-                <p className="text-sm font-bold" style={{ color: 'var(--muted)' }}>
-                  المبلغ
-                </p>
-                <p className="mt-1 font-black">{formatCurrency(invoice.payment.amount)}</p>
-              </div>
-
-              <div>
-                <p className="text-sm font-bold" style={{ color: 'var(--muted)' }}>
-                  الحالة
-                </p>
-                <p className="mt-1 font-black">{invoice.payment.status}</p>
-              </div>
-
-              <div>
-                <p className="text-sm font-bold" style={{ color: 'var(--muted)' }}>
-                  تاريخ الدفع
-                </p>
-                <p className="mt-1 font-black">
-                  {invoice.payment.paidAt ? formatDate(invoice.payment.paidAt) : '-'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {invoice.notes && (
-          <div className="card p-5">
-            <h2 className="text-xl font-black">ملاحظات</h2>
-            <p className="mt-3 leading-8">{invoice.notes}</p>
-          </div>
-        )}
       </div>
 
+      {/* Stats */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
+        <InfoCard
+          label="إجمالي الفاتورة"
+          value={formatCurrency(invoice.total)}
+          hint="المبلغ النهائي"
+          tone="green"
+        />
+
+        <InfoCard
+          label="المجموع الفرعي"
+          value={formatCurrency(invoice.subtotal)}
+          hint="قبل الضريبة والخصم"
+        />
+
+        <InfoCard
+          label="الضريبة"
+          value={formatCurrency(invoice.tax)}
+          hint="قيمة الضريبة"
+          tone="amber"
+        />
+
+        <InfoCard
+          label="الخصم"
+          value={formatCurrency(invoice.discount)}
+          hint="إجمالي الخصم"
+          tone="red"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12 print:block">
+        {/* Sidebar */}
+        <div className="space-y-5 xl:col-span-4 print:hidden">
+          <div className="card p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-black" style={{ color: 'var(--text)' }}>
+                  حالة الفاتورة
+                </h2>
+
+                <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+                  غيّر حالة الفاتورة حسب التحصيل
+                </p>
+              </div>
+
+              <span className={statusClasses[invoice.status]}>
+                {statusLabels[invoice.status]}
+              </span>
+            </div>
+
+            <select
+              value={invoice.status}
+              onChange={(e) => updateStatus(e.target.value as InvoiceStatus)}
+              className="input"
+              aria-label="تغيير حالة الفاتورة"
+            >
+              <option value="DRAFT">مسودة</option>
+              <option value="UNPAID">غير مدفوعة</option>
+              <option value="PAID">مدفوعة</option>
+              <option value="OVERDUE">متأخرة</option>
+              <option value="CANCELLED">ملغاة</option>
+            </select>
+
+            {invoice.payment && (
+              <div
+                className="mt-4 rounded-2xl border p-4 text-sm font-bold"
+                style={{
+                  borderColor: 'var(--border)',
+                  background: 'var(--green-soft)',
+                  color: 'var(--sidebar)',
+                }}
+              >
+                هذه الفاتورة مرتبطة بدفعة.
+              </div>
+            )}
+          </div>
+
+          <div className="card p-5">
+            <h2 className="font-black" style={{ color: 'var(--text)' }}>
+              بيانات الموكل
+            </h2>
+
+            <div className="mt-4 space-y-3">
+              <MiniLine label="الاسم" value={invoice.client?.name} />
+              <MiniLine label="الهاتف" value={invoice.client?.phone} />
+              <MiniLine label="البريد" value={invoice.client?.email} />
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <h2 className="font-black" style={{ color: 'var(--text)' }}>
+              بيانات القضية
+            </h2>
+
+            <div className="mt-4 space-y-3">
+              <MiniLine label="القضية" value={invoice.case?.title || 'بدون قضية'} />
+              <MiniLine label="رقم القضية" value={invoice.case?.caseNumber} />
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <h2 className="font-black" style={{ color: 'var(--text)' }}>
+              التواريخ
+            </h2>
+
+            <div className="mt-4 space-y-3">
+              <MiniLine label="تاريخ الإصدار" value={formatDate(invoice.issueDate)} />
+              <MiniLine
+                label="تاريخ الاستحقاق"
+                value={invoice.dueDate ? formatDate(invoice.dueDate) : '-'}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Invoice Printable Area */}
+        <div className="space-y-5 xl:col-span-8 print:block">
+          <div
+            ref={invoiceRef}
+            className="rounded-[28px] border bg-white p-6 text-black shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            {/* Print Header */}
+            <div className="mb-6 rounded-3xl bg-[#12382d] p-6 text-white print:rounded-none">
+              <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+                <div>
+                  {invoice.tenant?.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={invoice.tenant.logoUrl}
+                      alt={tenantName}
+                      className="mb-3 h-14 w-auto rounded-2xl bg-white/10 object-contain p-2"
+                    />
+                  ) : null}
+
+                  <h1 className="text-3xl font-black">{tenantName}</h1>
+                  <p className="mt-1 text-sm text-white/80">
+                    {invoice.tenant?.email || 'نظام إدارة مكاتب المحاماة'}
+                  </p>
+                  <p className="mt-1 text-sm text-white/80">
+                    {invoice.tenant?.phone || ''}
+                  </p>
+                  <p className="mt-1 text-sm text-white/80">
+                    {invoice.tenant?.address || ''}
+                  </p>
+                </div>
+
+                <div className="text-left">
+                  <h2 className="text-3xl font-black">فاتورة</h2>
+                  <p className="mt-1 text-sm">
+                    رقم الفاتورة: {formatInvoiceNumber(invoice.invoiceNumber)}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    تاريخ الإصدار: {formatDate(invoice.issueDate)}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    تاريخ الاستحقاق:{' '}
+                    {invoice.dueDate ? formatDate(invoice.dueDate) : '-'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Invoice Meta */}
+            <div
+              className="mb-5 overflow-hidden rounded-3xl border"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <div className="grid md:grid-cols-3">
+                <div className="border-b p-5 md:border-b-0 md:border-l">
+                  <p className="text-sm font-bold text-slate-500">الموكل</p>
+                  <p className="mt-1 font-black">{invoice.client?.name || '-'}</p>
+                  <p className="mt-1 text-sm">{invoice.client?.phone || '-'}</p>
+                  <p className="mt-1 text-sm">{invoice.client?.email || '-'}</p>
+                </div>
+
+                <div className="border-b p-5 md:border-b-0 md:border-l">
+                  <p className="text-sm font-bold text-slate-500">القضية</p>
+                  <p className="mt-1 font-black">
+                    {invoice.case ? invoice.case.title : 'بدون قضية'}
+                  </p>
+                  <p className="mt-1 text-sm">{invoice.case?.caseNumber || '-'}</p>
+                </div>
+
+                <div className="p-5">
+                  <p className="text-sm font-bold text-slate-500">الحالة</p>
+                  <p className="mt-1 font-black">{statusLabels[invoice.status]}</p>
+                  <p className="mt-1 text-sm">
+                    {invoice.payment
+                      ? `دفعة: ${paymentStatusLabel(invoice.payment.status)}`
+                      : 'لا توجد دفعة مرتبطة'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Items */}
+            <div
+              className="overflow-hidden rounded-3xl border"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <div className="border-b p-5">
+                <h2 className="text-xl font-black">بنود الفاتورة</h2>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>الوصف</th>
+                      <th>الكمية</th>
+                      <th>سعر الوحدة</th>
+                      <th>الإجمالي</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {invoice.items.map((item, index) => (
+                      <tr key={item.id}>
+                        <td>{index + 1}</td>
+                        <td className="font-bold">{item.description}</td>
+                        <td>{item.quantity}</td>
+                        <td>{formatCurrency(item.unitPrice)}</td>
+                        <td className="font-bold">{formatCurrency(item.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end border-t p-5">
+                <div className="w-full max-w-sm space-y-3">
+                  <MoneyLine label="المجموع الفرعي" value={invoice.subtotal} />
+                  <MoneyLine label="الضريبة" value={invoice.tax} />
+                  <MoneyLine label="الخصم" value={invoice.discount} />
+
+                  <div className="flex justify-between border-t pt-3 text-xl font-black">
+                    <span>الإجمالي النهائي</span>
+                    <span>{formatCurrency(invoice.total)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {invoice.payment && (
+              <div
+                className="mt-5 rounded-3xl border p-5"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <h2 className="text-xl font-black">الدفعة المرتبطة</h2>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-500">المبلغ</p>
+                    <p className="mt-1 font-black">
+                      {formatCurrency(invoice.payment.amount)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-bold text-slate-500">الحالة</p>
+                    <p className="mt-1 font-black">
+                      {paymentStatusLabel(invoice.payment.status)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-bold text-slate-500">تاريخ الدفع</p>
+                    <p className="mt-1 font-black">
+                      {invoice.payment.paidAt
+                        ? formatDate(invoice.payment.paidAt)
+                        : '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {invoice.notes && (
+              <div
+                className="mt-5 rounded-3xl border p-5"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <h2 className="text-xl font-black">ملاحظات</h2>
+                <p className="mt-3 leading-8">{invoice.notes}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Edit Modal */}
       {editOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
@@ -695,8 +907,11 @@ const canEditFinancials = invoice.status !== 'PAID'
           >
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black">تعديل الفاتورة</h2>
-                <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
+                <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>
+                  تعديل الفاتورة
+                </h2>
+
+                <p className="mt-1 text-sm" style={{ color: 'var(--text-3)' }}>
                   تعديل التواريخ والبنود والضريبة والخصم. لا يمكن تعديل فاتورة مدفوعة.
                 </p>
               </div>
@@ -711,7 +926,14 @@ const canEditFinancials = invoice.status !== 'PAID'
             </div>
 
             {!canEditFinancials && (
-              <div className="mb-4 rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">
+              <div
+                className="mb-4 rounded-2xl border p-4 text-sm font-bold"
+                style={{
+                  borderColor: '#fbbf24',
+                  background: 'var(--amber-soft)',
+                  color: '#92400e',
+                }}
+              >
                 هذه الفاتورة مدفوعة، لذلك تم منع تعديل البيانات المالية لحماية السجلات.
               </div>
             )}
@@ -757,11 +979,14 @@ const canEditFinancials = invoice.status !== 'PAID'
 
             <div className="mt-5">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="font-black">البنود</h3>
+                <h3 className="font-black" style={{ color: 'var(--text)' }}>
+                  البنود
+                </h3>
+
                 <button
                   type="button"
                   onClick={addEditItem}
-                  className="btn btn-secondary"
+                  className="btn btn-ghost"
                   disabled={!canEditFinancials}
                 >
                   + إضافة بند
@@ -770,10 +995,16 @@ const canEditFinancials = invoice.status !== 'PAID'
 
               <div className="space-y-3">
                 {editItems.map((item, index) => (
-                  <div key={index} className="grid gap-3 rounded-2xl border p-3 md:grid-cols-[1fr_120px_140px_90px]">
+                  <div
+                    key={index}
+                    className="grid gap-3 rounded-2xl border p-3 md:grid-cols-[1fr_120px_140px_90px]"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
                     <input
                       value={item.description}
-                      onChange={(e) => updateEditItem(index, 'description', e.target.value)}
+                      onChange={(e) =>
+                        updateEditItem(index, 'description', e.target.value)
+                      }
                       placeholder="وصف البند"
                       className="input"
                       disabled={!canEditFinancials}
@@ -784,7 +1015,9 @@ const canEditFinancials = invoice.status !== 'PAID'
                       min="0.01"
                       step="0.01"
                       value={item.quantity}
-                      onChange={(e) => updateEditItem(index, 'quantity', e.target.value)}
+                      onChange={(e) =>
+                        updateEditItem(index, 'quantity', e.target.value)
+                      }
                       placeholder="الكمية"
                       className="input"
                       disabled={!canEditFinancials}
@@ -795,7 +1028,9 @@ const canEditFinancials = invoice.status !== 'PAID'
                       min="0"
                       step="0.01"
                       value={item.unitPrice}
-                      onChange={(e) => updateEditItem(index, 'unitPrice', e.target.value)}
+                      onChange={(e) =>
+                        updateEditItem(index, 'unitPrice', e.target.value)
+                      }
                       placeholder="سعر الوحدة"
                       className="input"
                       disabled={!canEditFinancials}
@@ -804,7 +1039,7 @@ const canEditFinancials = invoice.status !== 'PAID'
                     <button
                       type="button"
                       onClick={() => removeEditItem(index)}
-                      className="rounded-xl px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50"
+                      className="rounded-xl px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-40"
                       disabled={!canEditFinancials || editItems.length === 1}
                     >
                       حذف
@@ -816,6 +1051,7 @@ const canEditFinancials = invoice.status !== 'PAID'
 
             <label className="mt-5 block space-y-2">
               <span className="text-sm font-bold">ملاحظات</span>
+
               <textarea
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
@@ -826,19 +1062,14 @@ const canEditFinancials = invoice.status !== 'PAID'
             </label>
 
             <div className="mt-5 flex justify-end">
-              <div className="w-full max-w-sm space-y-2 rounded-2xl border p-4">
-                <div className="flex justify-between text-sm">
-                  <span>المجموع الفرعي</span>
-                  <strong>{formatCurrency(editSubtotal)}</strong>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>الضريبة</span>
-                  <strong>{formatCurrency(Number(editTax || 0))}</strong>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>الخصم</span>
-                  <strong>{formatCurrency(Number(editDiscount || 0))}</strong>
-                </div>
+              <div
+                className="w-full max-w-sm space-y-2 rounded-2xl border p-4"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <MoneyLine label="المجموع الفرعي" value={editSubtotal} />
+                <MoneyLine label="الضريبة" value={Number(editTax || 0)} />
+                <MoneyLine label="الخصم" value={Number(editDiscount || 0)} />
+
                 <div className="flex justify-between border-t pt-2 text-lg font-black">
                   <span>الإجمالي</span>
                   <span>{formatCurrency(editTotal)}</span>
@@ -850,7 +1081,7 @@ const canEditFinancials = invoice.status !== 'PAID'
               <button
                 type="button"
                 onClick={() => setEditOpen(false)}
-                className="btn btn-secondary"
+                className="btn btn-ghost"
               >
                 إلغاء
               </button>
@@ -866,6 +1097,105 @@ const canEditFinancials = invoice.status !== 'PAID'
           </form>
         </div>
       )}
+    </div>
+  )
+}
+
+function InfoCard({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string
+  value: string | number
+  hint: string
+  tone?: 'green' | 'amber' | 'red'
+}) {
+  const style =
+    tone === 'green'
+      ? {
+          background: 'var(--green-soft)',
+          color: 'var(--sidebar)',
+        }
+      : tone === 'amber'
+        ? {
+            background: 'var(--amber-soft)',
+            color: '#92400e',
+          }
+        : tone === 'red'
+          ? {
+              background: 'var(--red-soft)',
+              color: '#dc2626',
+            }
+          : {
+              background: 'var(--card)',
+              color: 'var(--text)',
+            }
+
+  return (
+    <div
+      className="card p-5"
+      style={{
+        background: style.background,
+        borderColor: 'var(--border)',
+      }}
+    >
+      <p className="text-xs font-black" style={{ color: style.color }}>
+        {label}
+      </p>
+
+      <p className="mt-2 text-2xl font-black" style={{ color: style.color }}>
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs font-bold" style={{ color: 'var(--text-3)' }}>
+        {hint}
+      </p>
+    </div>
+  )
+}
+
+function MiniLine({
+  label,
+  value,
+}: {
+  label: string
+  value?: string | null
+}) {
+  return (
+    <div
+      className="rounded-2xl border p-3"
+      style={{
+        borderColor: 'var(--border)',
+        background: 'var(--card)',
+      }}
+    >
+      <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+        {label}
+      </p>
+
+      <p
+        className="mt-1 break-words text-sm font-bold"
+        style={{ color: value ? 'var(--text)' : 'var(--text-3)' }}
+      >
+        {value || 'غير محدد'}
+      </p>
+    </div>
+  )
+}
+
+function MoneyLine({
+  label,
+  value,
+}: {
+  label: string
+  value: number
+}) {
+  return (
+    <div className="flex justify-between text-sm">
+      <span>{label}</span>
+      <strong>{formatCurrency(value)}</strong>
     </div>
   )
 }
