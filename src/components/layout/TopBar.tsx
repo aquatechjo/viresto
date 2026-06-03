@@ -1,6 +1,7 @@
 'use client'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import ThemeToggle from '@/components/ThemeToggle'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import ProfileMenu from './ProfileMenu'
@@ -79,41 +80,51 @@ export default function TopBar() {
   const dateStr = new Intl.DateTimeFormat('ar-SA', { day:'numeric', month:'long', year:'numeric' }).format(new Date())
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 gap-4 lg:gap-6"
-      style={{ background:'rgba(255,255,255,.75)',
-               backdropFilter:'blur(18px)', borderBottom:'1px solid var(--border)' }}>
+<header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-slate-200 bg-white/75 px-6 py-4 backdrop-blur-[18px] transition-colors dark:border-[#244638] dark:bg-[#07140f]/90 lg:gap-6">
+
       {/* Search */}
       <div ref={ref} className="relative flex-1 max-w-md">
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm" style={{ color:'var(--text-3)' }}><Search className="w-4 h-4" /></span>
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 dark:text-slate-500">
+  <Search className="h-4 w-4" />
+</span>
         <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
-          placeholder="بحث في القضايا والموكلين..."
-          className="
+className="
   w-full
   rounded-2xl
   border
-  border-black/5
-  bg-white/70
-  backdrop-blur-xl
+  border-slate-200
+  bg-white/80
   pr-10
   pl-4
   py-3
   text-sm
+  text-slate-800
+  placeholder:text-slate-400
   outline-none
   transition-all
+  focus:border-emerald-500
   focus:ring-4
   focus:ring-emerald-500/10
-  focus:border-emerald-500
+  dark:border-[#2d4a3e]
+  dark:bg-[#0b1f16]/90
+  dark:text-emerald-50
+  dark:placeholder:text-emerald-200/50
 "
+
           style={{ fontSize:'.8rem', paddingTop:'.4rem', paddingBottom:'.4rem' }} />
         {loading && <span className="spinner-sm absolute left-3 top-1/2 -translate-y-1/2 spinner" />}
         {/* Dropdown */}
         {open && query.length >= 2 && (
           <div className="absolute top-full right-0 mt-2 w-80 card shadow-2xl overflow-hidden z-50 border" style={{ borderColor:'var(--border)' }}>
-            {!hasResults && !loading && <p className="text-sm text-center py-4" style={{ color:'var(--text-3)' }}>لا نتائج لـ "{query}"</p>}
+            {!hasResults && !loading && (
+  <p className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">
+    لا نتائج لـ "{query}"
+  </p>
+)}
             {results?.clients?.map(c => (
               <button key={c.id} onClick={() => { router.push(`/dashboard/clients/${c.id}`); setOpen(false); setQuery('') }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right hover:bg-gray-50 transition-colors">
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 <span className="text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background:'var(--green-soft)', color:'var(--sidebar)' }}>
                   {c.name[0]}
                 </span>
@@ -123,7 +134,7 @@ export default function TopBar() {
             ))}
             {results?.cases?.map(c => (
               <button key={c.id} onClick={() => { router.push(`/dashboard/cases/${c.id}`); setOpen(false); setQuery('') }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right hover:bg-gray-50 transition-colors border-t" style={{ borderColor:'var(--border)' }}>
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t" style={{ borderColor:'var(--border)' }}>
                 <span className="text-xs"><Scale className="w-4 h-4 text-emerald-600" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate" style={{ color:'var(--text)' }}>{c.title}</p>
@@ -133,7 +144,7 @@ export default function TopBar() {
             ))}
             {results?.tasks?.map(t => (
               <button key={t.id} onClick={() => { router.push('/dashboard/tasks'); setOpen(false); setQuery('') }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right hover:bg-gray-50 transition-colors border-t" style={{ borderColor:'var(--border)' }}>
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t" style={{ borderColor:'var(--border)' }}>
                 <span className="text-xs">{PRIORITY_DOT[t.priority]}</span>
                 <p className="text-sm" style={{ color:'var(--text)', textDecoration: t.completed ? 'line-through' : 'none' }}>{t.title}</p>
               </button>
@@ -146,7 +157,7 @@ export default function TopBar() {
       setOpen(false)
       setQuery('')
     }}
-    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right hover:bg-gray-50 transition-colors border-t"
+    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t"
     style={{ borderColor: 'var(--border)' }}
   >
     <span className="text-xs">📄</span>
@@ -168,30 +179,20 @@ export default function TopBar() {
 
       {/* Right: date + icons + page title */}
 {/* Right: date + profile */}
-<div className="flex items-center gap-2 shrink-0">
-
+<div className="flex shrink-0 items-center gap-2">
   {/* Date */}
-  <span
-    className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
-    style={{
-      background:'var(--input-bg)',
-      color:'var(--text-2)',
-      border:'1px solid var(--border)'
-    }}
-  >
-    📅 {dateStr}
-  </span>
+<span className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 dark:border-[#2d4a3e] dark:bg-[#10291d] dark:text-emerald-100 sm:flex">
+  📅 {dateStr}
+</span>
+
+  <ThemeToggle />
 
   <ProfileMenu />
 
   {/* Page title */}
-  <h1
-    className="text-sm font-black hidden md:block pr-2"
-    style={{ color:'var(--text)' }}
-  >
-    {title}
-  </h1>
-
+<h1 className="hidden pr-2 text-sm font-black text-slate-800 dark:text-emerald-50 md:block">
+  {title}
+</h1>
 </div>
     </header>
   )

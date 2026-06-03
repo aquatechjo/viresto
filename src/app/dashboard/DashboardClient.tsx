@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import PageLoader from '@/components/ui/PageLoader'
 import StatCard from '@/components/ui/StatCard'
 import { formatCurrency, formatTime } from '@/lib/utils'
+import ThemeToggle from '@/components/ThemeToggle'
 
 const AIAssistant = dynamic(() => import('@/components/dashboard/AIAssistant'), {
   ssr: false,
@@ -209,20 +210,25 @@ export default function DashboardPage() {
           style={{ background: 'rgba(255, 255, 255, 0.08)' }}
         />
 
-        <div className="relative z-10 grid grid-cols-1 gap-6 lg:grid-cols-[1.45fr_.75fr] lg:items-center">
-          <div>
-            <div
-              className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: 'rgba(255,255,255,0.13)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
-              }}
-            >
-              <span>⚖️</span>
-              <span>لوحة إدارة المكتب القانوني</span>
-            </div>
+<div className="relative z-10">
+  <div className="mb-5 flex items-center justify-between gap-3">
+    <div
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black"
+      style={{
+        background: 'rgba(255,255,255,0.13)',
+        color: '#fff',
+        border: '1px solid rgba(255,255,255,0.18)',
+      }}
+    >
+      <span>⚖️</span>
+      <span>لوحة إدارة المكتب القانوني</span>
+    </div>
 
+    <ThemeToggle />
+  </div>
+
+  <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.45fr_.75fr] lg:items-center">
+    <div>
             <h1 className="text-2xl font-black leading-relaxed text-white md:text-3xl">
               إدارة القضايا والموكلين من مكان واحد
             </h1>
@@ -266,6 +272,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Main Stats */}

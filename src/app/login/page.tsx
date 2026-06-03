@@ -31,6 +31,8 @@ const floatingCards = [
 ]
 
 const features = [
+
+  
   {
     icon: '⚖️',
     title: 'إدارة القضايا',
@@ -46,6 +48,28 @@ const features = [
     title: 'الفواتير والتقارير',
     desc: 'تحصيل، فواتير، تقارير مالية، ومؤشرات واضحة.',
   },
+]
+
+const ambientIcons = [
+  { icon: '⚖️', left: '7%', top: '14%', delay: 0 },
+  { icon: '📜', left: '18%', top: '44%', delay: 0.4 },
+  { icon: '🧾', left: '10%', top: '76%', delay: 0.8 },
+  { icon: '📅', left: '48%', top: '82%', delay: 1.2 },
+  { icon: '🔐', left: '72%', top: '24%', delay: 1.6 },
+  { icon: '💼', left: '88%', top: '72%', delay: 2 },
+  { icon: '📁', left: '38%', top: '22%', delay: 2.4 },
+  { icon: '✍️', left: '62%', top: '58%', delay: 2.8 },
+
+  { icon: '🏛️', left: '30%', top: '12%', delay: 3.2 },
+  { icon: '📌', left: '4%', top: '38%', delay: 3.6 },
+  { icon: '🕒', left: '24%', top: '68%', delay: 4 },
+  { icon: '📊', left: '36%', top: '64%', delay: 4.4 },
+  { icon: '🖋️', left: '54%', top: '16%', delay: 4.8 },
+  { icon: '📎', left: '58%', top: '74%', delay: 5.2 },
+  { icon: '✅', left: '80%', top: '46%', delay: 5.6 },
+  { icon: '🗂️', left: '92%', top: '34%', delay: 6 },
+  { icon: '🔎', left: '68%', top: '84%', delay: 6.4 },
+  { icon: '📑', left: '44%', top: '42%', delay: 6.8 },
 ]
 
 export default function LoginPage() {
@@ -154,9 +178,46 @@ export default function LoginPage() {
             backgroundSize: '44px 44px',
           }}
         />
+
+        {ambientIcons.map((item, index) => (
+  <motion.div
+    key={`${item.icon}-${index}`}
+    className="pointer-events-none absolute hidden h-12 w-12 items-center justify-center rounded-2xl text-2xl backdrop-blur-xl lg:flex"
+    style={{
+      left: item.left,
+      top: item.top,
+      background: 'rgba(255,255,255,.08)',
+      border: '1px solid rgba(255,255,255,.12)',
+      boxShadow: '0 18px 45px rgba(0,0,0,.12)',
+      zIndex: 2,
+    }}
+    initial={{
+      opacity: 0,
+      scale: 0.7,
+      rotate: -10,
+    }}
+    animate={{
+      opacity: [0.25, 0.6, 0.25],
+      y: [0, -18, 0],
+      x: [0, index % 2 === 0 ? 10 : -10, 0],
+      rotate: [-4, 6, -4],
+      scale: [1, 1.08, 1],
+    }}
+    transition={{
+      duration: 5 + index * 0.4,
+      repeat: Infinity,
+      ease: 'easeInOut',
+      delay: item.delay,
+    }}
+  >
+    {item.icon}
+  </motion.div>
+))}  
+
+
       </div>
 
-      <div className="relative z-10 grid min-h-screen grid-cols-1 lg:grid-cols-[1.05fr_.95fr]">
+      <div className="relative z-20 grid min-h-screen grid-cols-1 lg:grid-cols-[1.05fr_.95fr]">
         {/* Brand / motion side */}
         <section className="relative hidden overflow-hidden p-10 lg:flex lg:flex-col lg:justify-between">
 <motion.div
@@ -190,22 +251,13 @@ export default function LoginPage() {
   </div>
 </motion.div>
           <div className="relative flex flex-1 items-center">
+
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.15 }}
               className="relative z-20 max-w-xl"
             >
-              <div
-                className="mb-5 inline-flex rounded-full px-4 py-2 text-xs font-black"
-                style={{
-                  background: 'rgba(255,255,255,.12)',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,.18)',
-                }}
-              >
-                Legal SaaS Dashboard
-              </div>
 
               <h1 className="text-5xl font-black leading-[1.25] text-white">
                 أدر مكتبك القانوني
