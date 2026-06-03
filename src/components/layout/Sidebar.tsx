@@ -205,13 +205,21 @@ const roleLabel: Record<string, string> = {
           <Settings className="w-4 h-4 text-white/40" />
         </Link>
 
-        <button
-          onClick={logout}
-          className="w-full mt-3 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/5 hover:bg-white/10 transition text-sm font-semibold text-white/70"
-        >
-          <LogOut className="w-4 h-4" />
-          تسجيل الخروج
-        </button>
+<div
+  role="button"
+  tabIndex={0}
+  onClick={logout}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      logout()
+    }
+  }}
+  className="w-full mt-3 flex cursor-pointer items-center justify-center gap-2 py-3 rounded-2xl bg-white/5 hover:bg-white/10 transition text-sm font-semibold text-white/70"
+>
+  <LogOut className="w-4 h-4" />
+  تسجيل الخروج
+</div>
       </div>
     </div>
   )
