@@ -2,24 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
 import PageLoader from '@/components/ui/PageLoader'
 import StatCard from '@/components/ui/StatCard'
 import { formatCurrency, formatTime } from '@/lib/utils'
 
-const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart'), {
-  ssr: false,
-  loading: () => (
-    <div className="card p-6 min-h-[360px] flex items-center justify-center">
-      <span className="spinner spinner-sm" />
-    </div>
-  ),
-})
-
 const AIAssistant = dynamic(() => import('@/components/dashboard/AIAssistant'), {
   ssr: false,
   loading: () => (
-    <div className="card p-6 min-h-[360px] flex items-center justify-center text-sm" style={{ color: 'var(--text-3)' }}>
+    <div
+      className="card p-6 min-h-[300px] h-full flex items-center justify-center text-sm"
+      style={{ color: 'var(--text-3)' }}
+    >
       جاري تحميل المساعد...
     </div>
   ),
@@ -50,9 +43,25 @@ interface CaseItem {
   title: string
   caseNumber?: string
   status: string
-  client: { name: string }
+  client?: {
+    name: string
+  }
+}
 
+interface DocumentItem {
+  id: string
+  fileName: string
+  fileType?: string
+  createdAt: string
+  tags?: string[]
+}
 
+interface ActivityItem {
+  id: string
+  type: string
+  title: string
+  message?: string
+  createdAt: string
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -63,8 +72,8 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 const STATUS_AR: Record<string, string> = {
-  OPEN: 'مفتوحة',
-  IN_PROGRESS: 'جارية',
+  OPEN: 'نشطة',
+  IN_PROGRESS: 'قيد المتابعة',
   CLOSED: 'مغلقة',
   ARCHIVED: 'مؤرشفة',
 }
@@ -77,312 +86,190 @@ const TYPE_COLOR: Record<string, string> = {
   OTHER: 'var(--text-3)',
 }
 
-function MiniCalendar({ appts }: { appts: { startTime: string }[] }) {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = today.getMonth()
-  const name = new Intl.DateTimeFormat('ar-SA', {
-    month: 'long',
-    year: 'numeric',
-  }).format(today)
+const ACTIVITY_CONFIG: Record<
+  string,
+  {
+    icon: string
+    color: string
+  }
+> = {
+  CLIENT_CREATED: {
+    icon: '👤',
+    color: 'bg-blue-500/20 text-blue-700 border-blue-500/30',
+  },
+  CASE_CREATED: {
+    icon: '⚖️',
+    color: 'bg-emerald-500/20 text-emerald-700 border-emerald-500/30',
+  },
+  APPOINTMENT_CREATED: {
+    icon: '📅',
+    color: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30',
+  },
+  PAYMENT_CREATED: {
+    icon: '💰',
+    color: 'bg-green-500/20 text-green-700 border-green-500/30',
+  },
+  DOCUMENT_UPLOADED: {
+    icon: '📄',
+    color: 'bg-purple-500/20 text-purple-700 border-purple-500/30',
+  },
+  USER_CREATED: {
+    icon: '👥',
+    color: 'bg-cyan-500/20 text-cyan-700 border-cyan-500/30',
+  },
+}
 
-  const first = new Date(year, month, 1).getDay()
-  const total = new Date(year, month + 1, 0).getDate()
-  const days = ['أح', 'إث', 'ثل', 'أر', 'خم', 'جم', 'سب']
-const busy = useMemo(
-  () =>
-    new Set(
-      Array.isArray(appts)
-        ? appts.map((a) => new Date(a.startTime).getDate())
-        : []
-    ),
-  [appts]
-)
-  
+function getDocumentIcon(fileType?: string) {
+  if (fileType === 'application/pdf') return '📄'
+  if (fileType?.startsWith('image/')) return '🖼️'
+  return '📁'
+}
 
-  const cells: (number | null)[] = [
-    ...Array(first).fill(null),
-    ...Array.from({ length: total }, (_, i) => i + 1),
-  ]
-
-  return (
-    <div>
-      <p className="text-center font-bold text-sm mb-3" style={{ color: 'var(--text)' }}>
-        {name}
-      </p>
-
-      <div className="grid grid-cols-7 mb-1">
-        {days.map((d) => (
-          <div
-            key={d}
-            className="text-center text-xs font-bold py-1"
-            style={{ color: 'var(--text-3)' }}
-          >
-            {d}
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((d, i) => (
-          <div key={i} className="aspect-square flex flex-col items-center justify-center relative">
-            {d && (
-              <>
-                <span
-                  className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold ${
-                    d === today.getDate() ? 'text-white font-black' : ''
-                  }`}
-                  style={
-                    d === today.getDate()
-                      ? { background: 'var(--sidebar)' }
-                      : { color: 'var(--text)' }
-                  }
-                >
-                  {d}
-                </span>
-
-                {busy.has(d) && d !== today.getDate() && (
-                  <span
-                    className="absolute bottom-0 w-1 h-1 rounded-full"
-                    style={{ background: 'var(--sidebar)' }}
-                  />
-                )}
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+function formatDate(date: string) {
+  return new Date(date).toLocaleDateString('ar-JO')
 }
 
 export default function DashboardPage() {
-    
   const [stats, setStats] = useState<Stats | null>(null)
   const [cases, setCases] = useState<CaseItem[]>([])
-  const [activities, setActivities] = useState<any[]>([])
+  const [activities, setActivities] = useState<ActivityItem[]>([])
+  const [documents, setDocuments] = useState<DocumentItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [documents, setDocuments] = useState<any[]>([])
-  
-useEffect(() => {
-  async function loadDashboard() {
-    try {
-      const rs = await Promise.all([
-        fetch('/api/dashboard-stats'),
-        fetch('/api/cases?limit=4'),
-        fetch('/api/activity?limit=8'),
-        fetch('/api/documents?limit=5'),
-      ])
 
-      const json = await Promise.all(
-        rs.map(async (r) => {
-          if (!r.ok) {
-            console.warn('Dashboard API failed:', r.url, r.status)
-            return { data: [] }
-          }
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        const responses = await Promise.all([
+          fetch('/api/dashboard-stats'),
+          fetch('/api/cases?limit=4'),
+          fetch('/api/activity?limit=5'),
+          fetch('/api/documents?limit=5'),
+        ])
 
-          try {
-            return await r.json()
-          } catch {
-            return { data: [] }
-          }
-        })
-      )
+        const json = await Promise.all(
+          responses.map(async (response) => {
+            if (!response.ok) {
+              console.warn('Dashboard API failed:', response.url, response.status)
+              return { data: [] }
+            }
 
-      const [s, c, a, d] = json
+            try {
+              return await response.json()
+            } catch {
+              return { data: [] }
+            }
+          })
+        )
 
-      setStats(s.data || null)
+        const [statsData, casesData, activitiesData, documentsData] = json
 
-      setCases(
-        Array.isArray(c.data)
-          ? c.data.slice(0, 4)
-          : []
-      )
+        setStats(statsData.data || null)
+        setCases(Array.isArray(casesData.data) ? casesData.data.slice(0, 4) : [])
+        setActivities(Array.isArray(activitiesData.data) ? activitiesData.data.slice(0, 5) : [])
+        setDocuments(Array.isArray(documentsData.data) ? documentsData.data.slice(0, 5) : [])
+      } catch (error) {
+        console.error('Dashboard load failed:', error)
 
-      setActivities(
-        Array.isArray(a.data)
-          ? a.data
-          : []
-      )
-
-      setDocuments(
-        Array.isArray(d.data)
-          ? d.data.slice(0, 5)
-          : []
-      )
-    } catch (err) {
-      console.error('Dashboard load failed:', err)
-
-      setStats(null)
-      setCases([])
-      setActivities([])
-      setDocuments([])
-    } finally {
-      setLoading(false)
+        setStats(null)
+        setCases([])
+        setActivities([])
+        setDocuments([])
+      } finally {
+        setLoading(false)
+      }
     }
-  }
 
-  loadDashboard()
-}, [])
+    loadDashboard()
+  }, [])
 
-const documentStats = useMemo(
-  () => [
-    {
-      title: 'إجمالي المستندات',
-      value: documents.length,
-      icon: '📁',
-    },
-    {
-      title: 'ملفات PDF',
-      value: documents.filter((d) => d.fileType === 'application/pdf').length,
-      icon: '📄',
-    },
-    {
-      title: 'الصور',
-      value: documents.filter((d) => d.fileType?.startsWith('image/')).length,
-      icon: '🖼️',
-    },
-    {
-      title: 'العقود',
-      value: documents.filter((d) => d.tags?.includes('عقد')).length,
-      icon: '⚖️',
-    },
-  ],
-  [documents]
-)
+  const recentDocuments = useMemo(() => documents.slice(0, 5), [documents])
+  const firstAppointment = stats?.todayAppts?.[0]
 
-const recentDocuments = useMemo(() => documents.slice(0, 5), [documents])
+  if (loading) return <PageLoader />
 
-return (
-  <div className="space-y-5 stagger">
-
-    <div
-  className="relative overflow-hidden rounded-[28px] border p-6 md:p-7"
-  style={{
-    background:
-      'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 55%, var(--sidebar-dark) 100%)',
-    borderColor: 'rgba(255,255,255,0.12)',
-    boxShadow: '0 22px 60px rgba(45, 74, 62, 0.22)',
-  }}
->
-  <div
-    className="absolute -left-16 -top-16 h-44 w-44 rounded-full"
-    style={{ background: 'rgba(245, 200, 66, 0.18)' }}
-  />
-  <div
-    className="absolute -bottom-20 right-12 h-56 w-56 rounded-full"
-    style={{ background: 'rgba(255, 255, 255, 0.08)' }}
-  />
-
-  <div className="relative z-10 grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_.8fr] lg:items-center">
-    <div>
+  return (
+    <div className="space-y-5 stagger">
+      {/* Hero */}
       <div
-        className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black"
+        className="relative overflow-hidden rounded-[28px] border p-6 md:p-7"
         style={{
-          background: 'rgba(255,255,255,0.13)',
-          color: '#fff',
-          border: '1px solid rgba(255,255,255,0.18)',
+          background:
+            'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 55%, var(--sidebar-dark) 100%)',
+          borderColor: 'rgba(255,255,255,0.12)',
+          boxShadow: '0 22px 60px rgba(45, 74, 62, 0.22)',
         }}
       >
-        <span>⚖️</span>
-        <span>لوحة إدارة المكتب القانوني</span>
-      </div>
-
-      <h1 className="text-2xl font-black leading-relaxed text-white md:text-3xl">
-        إدارة القضايا والموكلين من مكان واحد
-      </h1>
-
-      <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-        تابع القضايا، المواعيد، المستندات، الدفعات والفواتير بسهولة مع لوحة موحدة
-        تساعد مكتبك على اتخاذ قرارات أسرع وتنظيم العمل اليومي.
-      </p>
-
-      <div className="mt-5 flex flex-wrap gap-3">
-        <Link
-          href="/dashboard/clients/new"
-          className="btn"
-          style={{
-            background: '#fff',
-            color: 'var(--sidebar)',
-            borderColor: 'rgba(255,255,255,0.35)',
-          }}
-        >
-          + إضافة موكل
-        </Link>
-
-        <Link
-          href="/dashboard/cases"
-          className="btn"
-          style={{
-            background: 'rgba(255,255,255,0.12)',
-            color: '#fff',
-            borderColor: 'rgba(255,255,255,0.24)',
-          }}
-        >
-          عرض القضايا
-        </Link>
-
-        <Link
-          href="/dashboard/reports"
-          className="btn"
-          style={{
-            background: 'rgba(245,200,66,0.18)',
-            color: '#fff',
-            borderColor: 'rgba(245,200,66,0.35)',
-          }}
-        >
-          التقارير
-        </Link>
-      </div>
-    </div>
-
-    <div
-      className="rounded-3xl p-5"
-      style={{
-        background: 'rgba(255,255,255,0.12)',
-        border: '1px solid rgba(255,255,255,0.18)',
-        backdropFilter: 'blur(10px)',
-      }}
-    >
-      <p className="text-sm font-black text-white">ملخص اليوم</p>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
         <div
-          className="rounded-2xl p-4"
-          style={{ background: 'rgba(255,255,255,0.12)' }}
-        >
-<p className="text-xs font-bold text-white/65">مواعيد اليوم</p>
-<p className="mt-1 text-2xl font-black text-white">
-  {stats?.todayApptCount ?? 0}
-</p>
-        </div>
+          className="absolute -left-16 -top-16 h-44 w-44 rounded-full"
+          style={{ background: 'rgba(245, 200, 66, 0.18)' }}
+        />
 
         <div
-          className="rounded-2xl p-4"
-          style={{ background: 'rgba(255,255,255,0.12)' }}
-        >
-<p className="text-xs font-bold text-white/65">قضايا نشطة</p>
-<p className="mt-1 text-2xl font-black text-white">
-  {stats?.activeCaseCount ?? 0}
+          className="absolute -bottom-20 right-12 h-56 w-56 rounded-full"
+          style={{ background: 'rgba(255, 255, 255, 0.08)' }}
+        />
+
+        <div className="relative z-10 grid grid-cols-1 gap-6 lg:grid-cols-[1.45fr_.75fr] lg:items-center">
+          <div>
+            <div
+              className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black"
+              style={{
+                background: 'rgba(255,255,255,0.13)',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.18)',
+              }}
+            >
+              <span>⚖️</span>
+              <span>لوحة إدارة المكتب القانوني</span>
+            </div>
+
+            <h1 className="text-2xl font-black leading-relaxed text-white md:text-3xl">
+              إدارة القضايا والموكلين من مكان واحد
+            </h1>
+
+<p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/75">
+  مركز تحكم شامل لمتابعة أداء المكتب القانوني، من القضايا والمواعيد إلى
+  المستندات والموكلين والمؤشرات المالية، بواجهة واضحة تساعدك على إدارة العمل بثقة.
 </p>
+          </div>
+
+          <div
+            className="rounded-3xl p-5"
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              backdropFilter: 'blur(10px)',
+            }}
+          >
+            <p className="text-sm font-black text-white">ملخص اليوم</p>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div
+                className="rounded-2xl p-4"
+                style={{ background: 'rgba(255,255,255,0.12)' }}
+              >
+                <p className="text-xs font-bold text-white/65">مواعيد اليوم</p>
+                <p className="mt-1 text-2xl font-black text-white">
+                  {stats?.todayApptCount ?? 0}
+                </p>
+              </div>
+
+              <div
+                className="rounded-2xl p-4"
+                style={{ background: 'rgba(255,255,255,0.12)' }}
+              >
+                <p className="text-xs font-bold text-white/65">قضايا نشطة</p>
+                <p className="mt-1 text-2xl font-black text-white">
+                  {stats?.activeCaseCount ?? 0}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div
-        className="mt-3 rounded-2xl p-4 text-sm font-bold leading-7"
-        style={{
-          background: 'rgba(255,255,255,0.1)',
-          color: 'rgba(255,255,255,0.78)',
-        }}
-      >
-        ابدأ العرض من إضافة موكل، ثم اربطه بقضية، بعدها اعرض المواعيد والمستندات
-        والتقارير المالية.
-      </div>
-    </div>
-  </div>
-</div>
       {/* Main Stats */}
-      <div className="relative z-0 grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="relative z-0 grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
           label="الموكلون"
           value={stats?.clientCount ?? 0}
@@ -390,206 +277,121 @@ return (
         />
 
         <StatCard
-          label="القضايا النشطة"
-          value={stats?.activeCaseCount ?? 0}
-          sub="قيد المتابعة"
+          label="أقرب موعد"
+          value={firstAppointment ? firstAppointment.title : 'لا يوجد'}
+          sub={
+            firstAppointment
+              ? `${formatTime(firstAppointment.startTime)}`
+              : 'لا توجد مواعيد قادمة'
+          }
         />
-        
-        
-
-<StatCard
-  label="مواعيد اليوم"
-  value={stats?.todayApptCount ?? 0}
-  sub={
-    stats?.todayAppts?.[0]
-      ? `أقرب موعد: ${formatTime(stats.todayAppts[0].startTime)}`
-      : 'لا مواعيد اليوم'
-  }
-/>
-<StatCard
-  label="أقرب موعد"
-  value={
-    stats?.todayAppts?.[0]
-      ? stats.todayAppts[0].title
-      : 'لا يوجد'
-  }
-  sub={
-    stats?.todayAppts?.[0]
-      ? `${formatTime(stats.todayAppts[0].startTime)}`
-      : 'لا توجد مواعيد قادمة'
-  }
-/>
 
         <StatCard
           label="المستحقات"
           value={formatCurrency(stats?.pendingAmount ?? 0)}
           sub="غير محصلة"
-          bg="var(--red-soft)"
-          color="#dc2626"
+          bg={(stats?.pendingAmount ?? 0) > 0 ? 'var(--red-soft)' : undefined}
+          color={(stats?.pendingAmount ?? 0) > 0 ? '#dc2626' : undefined}
         />
       </div>
 
-      <div className="card p-5 mb-4">
-  <div className="flex items-center justify-between mb-4">
-    <h3 className="font-bold text-lg" style={{ color: 'var(--text)' }}>
-      آخر المستندات
-    </h3>
-    <span className="text-sm" style={{ color: 'var(--text-2)' }}>
-      آخر 5 ملفات مرفوعة
-    </span>
-  </div>
+      {/* AI + Cases + Appointments */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+        <div className="min-h-[300px] h-full [&>*]:h-full">
+          <AIAssistant />
+        </div>
 
-  <div className="space-y-3">
-    {recentDocuments.length === 0 ? (
-      <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-        لا يوجد مستندات بعد
-      </p>
-    ) : (
-      recentDocuments.map((doc) => (
-        <div
-          key={doc.id}
-          className="flex items-center justify-between rounded-2xl border p-3"
-          style={{
-            borderColor: 'var(--border)',
-            background: 'var(--card)',
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-xl"
-              style={{ background: 'var(--green-soft)' }}
-            >
-              {doc.fileType === 'application/pdf'
-                ? '📄'
-                : doc.fileType?.startsWith('image/')
-                ? '🖼️'
-                : '📁'}
-            </div>
+        {/* Recent Cases */}
+        <div className="card p-5 min-h-[300px] h-full">
+          <div className="mb-4">
+            <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
+              آخر القضايا
+            </p>
 
-            <div>
-              <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>
-                {doc.fileName}
-              </p>
-
-              <div className="mt-1 flex flex-wrap gap-1">
-                {doc.tags?.slice(0, 3).map((tag: string) => (
-                  <span
-                    key={tag}
-                    className={`rounded-full border px-2 py-1 text-[10px] `}
-                    style={{
-                      background: 'var(--green-soft)',
-                      color: 'var(--sidebar)',
-                    }}
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+              أحدث القضايا المسجلة في المكتب
+            </p>
           </div>
 
-          <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-            {new Date(doc.createdAt).toLocaleDateString('ar-JO')}
-          </span>
+          {cases.length === 0 ? (
+            <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>
+              لا توجد قضايا
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {cases.map((c) => (
+                <div
+                  key={c.id}
+                  className="rounded-2xl border p-3"
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--card)',
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={STATUS_BADGE[c.status] ?? 'badge badge-gray'}>
+                      {STATUS_AR[c.status] ?? c.status}
+                    </span>
+
+                    <p className="text-sm font-black truncate" style={{ color: 'var(--text)' }}>
+                      {c.title}
+                    </p>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>
+                      {c.client?.name ?? 'بدون موكل'}
+                    </p>
+
+                    <p className="text-xs font-mono" style={{ color: 'var(--text-3)' }}>
+                      #{c.caseNumber?.split('/').pop() ?? c.id.slice(-4)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      ))
-    )}
-  </div>
-</div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
-  {documentStats.map((item) => (
-    <div
-      key={item.title}
-      className="card p-5 flex items-center justify-between"
-    >
-      <div>
-        <p
-          className="text-sm mb-1"
-          style={{ color: 'var(--text-2)' }}
-        >
-          {item.title}
-        </p>
-
-        <h3
-          className="text-3xl font-black"
-          style={{ color: 'var(--text)' }}
-        >
-          {item.value}
-        </h3>
-      </div>
-
-      <div
-        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
-        style={{
-          background: 'var(--green-soft)',
-        }}
-      >
-        {item.icon}
-      </div>
-    </div>
-  ))}
-</div>
-
-      {/* Revenue + AI */}
-<div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-  <div className="xl:col-span-2 min-h-[360px]">
-    <RevenueChart />
-  </div>
-
-  <AIAssistant />
-</div>
-
-      {/* Daily Work */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Today's Appointments */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <Link
-              href="/dashboard/appointments"
-              className="btn btn-primary"
-              style={{ fontSize: '.72rem', padding: '.25rem .75rem' }}
-            >
-              + إضافة
-            </Link>
-
+        <div className="card p-5 min-h-[300px] h-full">
+          <div className="mb-4">
             <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
               مواعيد اليوم
+            </p>
+
+            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+              جدول مواعيد اليوم فقط
             </p>
           </div>
 
           {!stats?.todayAppts?.length ? (
-            <p className="text-center py-6 text-sm" style={{ color: 'var(--text-3)' }}>
+            <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>
               لا مواعيد اليوم
             </p>
           ) : (
-            <div className="space-y-3">
-              {Array.isArray(stats?.todayAppts) && stats.todayAppts.map((a) => (
+            <div className="space-y-4">
+              {stats.todayAppts.map((a) => (
                 <div key={a.id} className="flex gap-3">
                   <div
                     className="w-1 rounded-full shrink-0 self-stretch"
                     style={{
                       background: TYPE_COLOR[a.type] ?? 'var(--text-3)',
-                      minHeight: 40,
+                      minHeight: 44,
                     }}
                   />
 
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-black text-sm" style={{ color: 'var(--text)' }}>
                       {formatTime(a.startTime)}
                     </p>
 
-<div className="flex items-center gap-2">
-  <p
-    className="text-sm font-medium"
-    style={{ color: 'var(--text)' }}
-  >
-    {a.title}
-  </p>
-</div>
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+                      {a.title}
+                    </p>
 
                     {a.location && (
-                      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                      <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>
                         {a.location}
                       </p>
                     )}
@@ -599,208 +401,224 @@ return (
             </div>
           )}
         </div>
+      </div>
 
-        {/* Calendar */}
-        <div className="card p-5">
-          <MiniCalendar appts={stats?.todayAppts ?? []} />
-        </div>
+      {/* Documents + Office Summary */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {/* Documents */}
+        <div className="card p-5 xl:col-span-2">
+          <div className="mb-4">
+            <h3 className="font-bold text-lg" style={{ color: 'var(--text)' }}>
+              آخر المستندات
+            </h3>
 
-        {/* Recent Cases */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <Link
-              href="/dashboard/cases"
-              className="btn btn-ghost"
-              style={{ fontSize: '.72rem', padding: '.2rem .7rem' }}
-            >
-              عرض الكل
-            </Link>
-
-            <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
-              آخر القضايا
+            <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
+              آخر 5 ملفات مرفوعة في النظام
             </p>
           </div>
 
-          {cases.length === 0 ? (
-            <p className="text-center py-6 text-sm" style={{ color: 'var(--text-3)' }}>
-              لا توجد قضايا
+          <div className="space-y-3">
+            {recentDocuments.length === 0 ? (
+              <p className="text-sm py-6 text-center" style={{ color: 'var(--text-3)' }}>
+                لا يوجد مستندات بعد
+              </p>
+            ) : (
+              recentDocuments.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between gap-3 rounded-2xl border p-3"
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--card)',
+                  }}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0"
+                      style={{ background: 'var(--green-soft)' }}
+                    >
+                      {getDocumentIcon(doc.fileType)}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p
+                        className="text-sm font-bold truncate"
+                        style={{ color: 'var(--text)' }}
+                      >
+                        {doc.fileName}
+                      </p>
+
+                      {!!doc.tags?.length && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {doc.tags.slice(0, 3).map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full border px-2 py-1 text-[10px]"
+                              style={{
+                                background: 'var(--green-soft)',
+                                color: 'var(--sidebar)',
+                                borderColor: 'transparent',
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <span className="text-xs shrink-0" style={{ color: 'var(--text-3)' }}>
+                    {formatDate(doc.createdAt)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Office Summary */}
+        <div className="card p-5">
+          <div className="mb-5">
+            <h3 className="font-bold text-lg" style={{ color: 'var(--text)' }}>
+              ملخص المكتب
+            </h3>
+
+            <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
+              نظرة رقمية مختصرة على الأداء
             </p>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="text-xs" style={{ color: 'var(--text-3)' }}>
-                  <th className="text-right pb-2 font-bold">الحالة</th>
-                  <th className="text-right pb-2 font-bold">الموكل</th>
-                  <th className="text-right pb-2 font-bold">رقم</th>
-                </tr>
-              </thead>
+          </div>
 
-              <tbody>
-                {cases.map((c) => (
-                  <tr key={c.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
-                    <td className="py-2.5">
-                      <span className={STATUS_BADGE[c.status]}>
-                        {STATUS_AR[c.status]}
-                      </span>
-                    </td>
+          <div className="space-y-3">
+            <div
+              className="rounded-2xl border p-4"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+                إجمالي القضايا
+              </p>
 
-                    <td className="py-2.5 font-semibold text-sm" style={{ color: 'var(--text)' }}>
-                      {c.client.name.split(' ').slice(0, 2).join(' ')}
-                    </td>
+              <p className="text-2xl font-black mt-1" style={{ color: 'var(--text)' }}>
+                {stats?.totalCasesCount ?? 0}
+              </p>
+            </div>
 
-                    <td className="py-2.5 text-xs font-mono" style={{ color: 'var(--text-3)' }}>
-                      #{c.caseNumber?.split('/').pop() ?? c.id.slice(-4)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>       
+            <div
+              className="rounded-2xl border p-4"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+                القضايا المغلقة
+              </p>
+
+              <div className="mt-1 flex items-end justify-between gap-3">
+                <p className="text-2xl font-black" style={{ color: 'var(--text)' }}>
+                  {stats?.closedCasesCount ?? 0}
+                </p>
+
+                <span className="text-xs font-bold" style={{ color: 'var(--text-3)' }}>
+                  {stats?.closedCaseRate ?? 0}%
+                </span>
+              </div>
+            </div>
+
+            <div
+              className="rounded-2xl border p-4"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+                إيرادات الشهر
+              </p>
+
+              <p className="text-2xl font-black mt-1" style={{ color: 'var(--sidebar)' }}>
+                {formatCurrency(stats?.monthlyRevenue ?? 0)}
+              </p>
+            </div>
+
+            <div
+  className="rounded-2xl border p-4"
+  style={{ borderColor: 'var(--border)' }}
+>
+  <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+    إجمالي الإيرادات
+  </p>
+
+  <p className="text-2xl font-black mt-1" style={{ color: 'var(--sidebar)' }}>
+    {formatCurrency(stats?.totalRevenue ?? 0)}
+  </p>
+</div>
+
+          </div>
+        </div>
       </div>
 
-      {/* Activity Timeline */}
+{/* Activity Timeline */}
 <div className="card p-5">
-  <div className="flex items-center justify-between mb-5">
-    <h3 className="text-lg font-black">
+  <div className="mb-4">
+    <h3 className="text-lg font-black" style={{ color: 'var(--text)' }}>
       آخر النشاطات
     </h3>
 
-    <Link
-      href="/dashboard/activity"
-      className="text-sm font-semibold hover:underline"
-      style={{ color: 'var(--sidebar)' }}
-    >
-      عرض الكل
-    </Link>
+    <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
+      آخر 5 عمليات مسجلة داخل المكتب
+    </p>
   </div>
 
-  <div className="space-y-3">
+  {activities.length === 0 ? (
+    <div
+      className="rounded-2xl border border-dashed p-6 text-center text-sm"
+      style={{
+        borderColor: 'var(--border)',
+        color: 'var(--text-3)',
+      }}
+    >
+      لا توجد نشاطات حالياً
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {activities.slice(0, 5).map((activity) => {
+        const config = ACTIVITY_CONFIG[activity.type] ?? {
+          icon: '✨',
+          color: '',
+        }
 
-    {activities.length === 0 && (
-      <div
-        className="rounded-2xl border border-dashed p-6 text-center text-sm"
-        style={{
-          borderColor: 'var(--border)',
-          color: 'var(--text-3)',
-        }}
-      >
-        لا توجد نشاطات حالياً
-      </div>
-    )}
-
-    {Array.isArray(activities) && activities.map((a) => {
-const configMap = {
-  CLIENT_CREATED: {
-    icon: '👤',
-    color: 'bg-blue-500/20 text-blue-700 border-blue-500/30',
-    link: '/dashboard/clients',
-    label: 'موكل',
-  },
-
-  CASE_CREATED: {
-    icon: '⚖️',
-    color: 'bg-emerald-500/20 text-emerald-700 border-emerald-500/30',
-    link: '/dashboard/cases',
-    label: 'قضية',
-  },
-
-  APPOINTMENT_CREATED: {
-    icon: '📅',
-    color: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30',
-    link: '/dashboard/appointments',
-    label: 'موعد',
-  },
-
-  PAYMENT_CREATED: {
-    icon: '💰',
-    color: 'bg-green-500/20 text-green-700 border-green-500/30',
-    link: '/dashboard/payments',
-    label: 'دفعة',
-  },
-
-  DOCUMENT_UPLOADED: {
-    icon: '📄',
-    color: 'bg-purple-500/20 text-purple-700 border-purple-500/30',
-    link: '/dashboard/documents',
-    label: 'مستند',
-  },
-
-  USER_CREATED: {
-    icon: '👥',
-    color: 'bg-cyan-500/20 text-cyan-700 border-cyan-500/30',
-    link: '/dashboard/team',
-    label: 'مستخدم',
-  },
-}
-
-const config = configMap[a.type as keyof typeof configMap] ?? {
-  icon: '✨',
-  color: 'bg-white/10 text-white border-white/10',
-  link: '#',
-}
-
-      return (
-        <Link
-          key={a.id}
-          href={config.link}
-          className={`flex items-start gap-3 rounded-2xl border p-4 transition-all hover:scale-[1.01] ${config.color}`}
-        >
-          <div className="text-2xl">
-            {config.icon}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-bold truncate">
-                {a.title}
-              </p>
-
-              <span className="text-xs opacity-70 whitespace-nowrap">
-                {new Date(a.createdAt).toLocaleDateString('ar-SA')}
-              </span>
+        return (
+          <div
+            key={activity.id}
+            className="flex items-start gap-3 rounded-2xl border p-4"
+            style={{
+              borderColor: 'var(--border)',
+              background: 'var(--green-soft)',
+              color: 'var(--text)',
+            }}
+          >
+            <div className="text-xl shrink-0">
+              {config.icon}
             </div>
 
-            {a.message && (
-              <p className="text-sm opacity-80 mt-1 truncate">
-                {a.message}
-              </p>
-            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-bold truncate">
+                  {activity.title}
+                </p>
+
+                <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-3)' }}>
+                  {formatDate(activity.createdAt)}
+                </span>
+              </div>
+
+              {activity.message && (
+                <p className="text-sm mt-1 truncate" style={{ color: 'var(--text-2)' }}>
+                  {activity.message}
+                </p>
+              )}
+            </div>
           </div>
-        </Link>
-      )
-    })}
-  </div>
+        )
+      })}
+    </div>
+  )}
 </div>
-
-      {/* Reports Summary */}
-      <div className="card p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex gap-6">
-          <div>
-            <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
-              إجمالي الإيرادات
-            </p>
-
-            <p className="text-2xl font-black mt-0.5" style={{ color: 'var(--sidebar)' }}>
-              {formatCurrency(stats?.totalRevenue ?? 0)}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
-              المستحق
-            </p>
-
-            <p className="text-2xl font-black mt-0.5 text-red-500">
-              {formatCurrency(stats?.pendingAmount ?? 0)}
-            </p>
-          </div>
-        </div>
-
-        <Link href="/dashboard/reports" className="btn btn-ghost">
-          عرض التقارير الكاملة
-        </Link>
-      </div>
     </div>
   )
 }

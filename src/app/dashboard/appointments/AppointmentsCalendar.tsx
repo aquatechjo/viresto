@@ -22,31 +22,45 @@ export default function AppointmentsCalendar({
   onEventClick,
 }: AppointmentsCalendarProps) {
   return (
-    <FullCalendar
-      plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-      initialView="dayGridMonth"
-      locale={arLocale}
-      direction="rtl"
-      height="auto"
-      selectable
-      editable
-      nowIndicator
-      events={events}
-      eventDrop={onEventDrop}
-      eventResize={onEventResize}
-      dateClick={onDateClick}
-      eventClick={onEventClick}
-      headerToolbar={{
-        right: 'prev,next today',
-        center: 'title',
-        left: 'dayGridMonth,timeGridWeek,timeGridDay',
-      }}
-      buttonText={{
-        today: 'اليوم',
-        month: 'شهر',
-        week: 'أسبوع',
-        day: 'يوم',
-      }}
-    />
+    <div className="appointments-calendar">
+      <FullCalendar
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        initialView="dayGridMonth"
+        locale={arLocale}
+        direction="rtl"
+        height="auto"
+        selectable
+        editable
+        nowIndicator
+        events={events}
+        eventDrop={onEventDrop}
+        eventResize={onEventResize}
+        dateClick={onDateClick}
+        eventClick={onEventClick}
+        headerToolbar={{
+          right: 'prev,next today',
+          center: 'title',
+          left: 'dayGridMonth,timeGridWeek,timeGridDay',
+        }}
+        buttonText={{
+          today: 'اليوم',
+          month: 'شهر',
+          week: 'أسبوع',
+          day: 'يوم',
+        }}
+        eventTimeFormat={{
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }}
+        slotLabelFormat={{
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }}
+        dayMaxEvents={3}
+        moreLinkText={(count) => `+${count} أخرى`}
+      />
+    </div>
   )
 }
