@@ -1,9 +1,10 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
-import { toast } from 'sonner'
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import type { ElementType } from "react";
+import { toast } from "sonner";
 
 import {
   LayoutDashboard,
@@ -19,89 +20,192 @@ import {
   LogOut,
   Menu,
   Activity,
-} from 'lucide-react'
+} from "lucide-react";
 
-import { initials } from '@/lib/utils'
+import { initials } from "@/lib/utils";
+import { translations } from "@/lib/i18n";
+import { useLocale } from "@/lib/useLocale";
 
-const NAV = [
+type Role = "ADMIN" | "LAWYER" | "STAFF";
+
+type NavLabelKey =
+  | "dashboard"
+  | "clients"
+  | "cases"
+  | "documents"
+  | "appointments"
+  | "tasks"
+  | "team"
+  | "payments"
+  | "invoices"
+  | "reports"
+  | "activity"
+  | "billing";
+
+type SectionKey = "main" | "management" | "business";
+
+type NavItem = {
+  href: string;
+  labelKey: NavLabelKey;
+  icon: ElementType;
+  roles: Role[];
+};
+
+type NavGroup = {
+  sectionKey: SectionKey;
+  items: NavItem[];
+};
+
+const NAV: NavGroup[] = [
   {
-    section: 'الرئيسية',
+    sectionKey: "main",
     items: [
-      { href: '/dashboard', label: 'لوحة التحكم', icon: LayoutDashboard, roles: ['ADMIN', 'LAWYER', 'STAFF'] },
+      {
+        href: "/dashboard",
+        labelKey: "dashboard",
+        icon: LayoutDashboard,
+        roles: ["ADMIN", "LAWYER", "STAFF"],
+      },
     ],
   },
   {
-    section: 'الإدارة',
+    sectionKey: "management",
     items: [
-      { href: '/dashboard/clients', label: 'الموكلون', icon: Users, roles: ['ADMIN', 'LAWYER', 'STAFF'] },
-      { href: '/dashboard/cases', label: 'القضايا', icon: Briefcase, roles: ['ADMIN', 'LAWYER', 'STAFF'] },
-      { href: '/dashboard/documents', label: 'المستندات', icon: FileText, roles: ['ADMIN', 'LAWYER', 'STAFF'] },
-      { href: '/dashboard/appointments', label: 'المواعيد', icon: CalendarDays, roles: ['ADMIN', 'LAWYER', 'STAFF'] },
-      { href: '/dashboard/tasks', label: 'المهام', icon: FileText, roles: ['ADMIN', 'LAWYER', 'STAFF'] },
-      { href: '/dashboard/team', label: 'الفريق', icon: Users, roles: ['ADMIN'] },
+      {
+        href: "/dashboard/clients",
+        labelKey: "clients",
+        icon: Users,
+        roles: ["ADMIN", "LAWYER", "STAFF"],
+      },
+      {
+        href: "/dashboard/cases",
+        labelKey: "cases",
+        icon: Briefcase,
+        roles: ["ADMIN", "LAWYER", "STAFF"],
+      },
+      {
+        href: "/dashboard/documents",
+        labelKey: "documents",
+        icon: FileText,
+        roles: ["ADMIN", "LAWYER", "STAFF"],
+      },
+      {
+        href: "/dashboard/appointments",
+        labelKey: "appointments",
+        icon: CalendarDays,
+        roles: ["ADMIN", "LAWYER", "STAFF"],
+      },
+      {
+        href: "/dashboard/tasks",
+        labelKey: "tasks",
+        icon: FileText,
+        roles: ["ADMIN", "LAWYER", "STAFF"],
+      },
+      {
+        href: "/dashboard/team",
+        labelKey: "team",
+        icon: Users,
+        roles: ["ADMIN"],
+      },
     ],
   },
   {
-    section: 'الأعمال',
+    sectionKey: "business",
     items: [
-      { href: '/dashboard/payments', label: 'المدفوعات', icon: Wallet, roles: ['ADMIN', 'LAWYER'] },
-      { href: '/dashboard/invoices', label: 'الفواتير', icon: ReceiptText, roles: ['ADMIN', 'LAWYER'] },
-      { href: '/dashboard/reports', label: 'التقارير', icon: BarChart3, roles: ['ADMIN', 'LAWYER'] },
-      { href: '/dashboard/activity', label: 'سجل النشاط', icon: Activity, roles: ['ADMIN', 'LAWYER'] },
-      { href: '/dashboard/billing', label: 'الاشتراك والخطة', icon: CreditCard, roles: ['ADMIN'] },
+      {
+        href: "/dashboard/payments",
+        labelKey: "payments",
+        icon: Wallet,
+        roles: ["ADMIN", "LAWYER"],
+      },
+      {
+        href: "/dashboard/invoices",
+        labelKey: "invoices",
+        icon: ReceiptText,
+        roles: ["ADMIN", "LAWYER"],
+      },
+      {
+        href: "/dashboard/reports",
+        labelKey: "reports",
+        icon: BarChart3,
+        roles: ["ADMIN", "LAWYER"],
+      },
+      {
+        href: "/dashboard/activity",
+        labelKey: "activity",
+        icon: Activity,
+        roles: ["ADMIN", "LAWYER"],
+      },
+      {
+        href: "/dashboard/billing",
+        labelKey: "billing",
+        icon: CreditCard,
+        roles: ["ADMIN"],
+      },
     ],
   },
-] as const
+];
 
 interface User {
-  name: string
-  email: string
-  role: string
+  name: string;
+  email: string;
+  role: Role;
 }
 
-const roleLabel: Record<string, string> = {
-  ADMIN: 'مدير النظام',
-  LAWYER: 'محامٍ',
-  STAFF: 'موظف',
+function isRole(value: unknown): value is Role {
+  return value === "ADMIN" || value === "LAWYER" || value === "STAFF";
 }
 
 export default function Sidebar() {
-  const pathname = usePathname()
-  const router = useRouter()
+  const pathname = usePathname();
+  const router = useRouter();
+  const { locale, isRtl } = useLocale();
+  const t = translations[locale];
 
-  const [user, setUser] = useState<User | null>(null)
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [user, setUser] = useState<User | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => {
-        if (d.success) setUser(d.data)
+        const userData = d?.data;
+
+        if (d.success && userData && isRole(userData.role)) {
+          setUser({
+            name: userData.name,
+            email: userData.email,
+            role: userData.role,
+          });
+        }
       })
-      .catch(() => {})
-  }, [])
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
-    setMobileOpen(false)
-  }, [pathname])
+    setMobileOpen(false);
+  }, [pathname]);
 
   async function logout() {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-    })
+    await fetch("/api/auth/logout", {
+      method: "POST",
+    });
 
-    toast.success('تم تسجيل الخروج')
-    router.push('/login')
+    toast.success(t.sidebar.logoutSuccess);
+    router.push("/login");
   }
 
   function isActive(href: string) {
-    return href === '/dashboard'
-      ? pathname === '/dashboard'
-      : pathname.startsWith(href)
+    return href === "/dashboard"
+      ? pathname === "/dashboard"
+      : pathname.startsWith(href);
   }
 
   const Inner = () => (
-    <div className="flex h-full flex-col bg-[#0f2b21] text-emerald-50">
+    <div
+      dir={isRtl ? "rtl" : "ltr"}
+      className="flex h-full flex-col bg-[#0f2b21] text-emerald-50"
+    >
       {/* Brand */}
       <div className="border-b border-emerald-100/10 px-5 py-5">
         <div className="flex items-center gap-3">
@@ -124,45 +228,50 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-4 py-4">
         {NAV.map((group) => (
-          <div key={group.section} className="mb-5">
-            <p className="mb-2 px-3 text-xs font-black tracking-wide text-emerald-100/55">
-              {group.section}
+          <div key={group.sectionKey} className="mb-5">
+            <p className="mb-2 px-3 text-start text-xs font-black tracking-wide text-emerald-100/55">
+              {t.sidebar.sections[group.sectionKey]}
             </p>
 
             <div className="space-y-1.5">
               {group.items
-                .filter((item) => !user || item.roles.includes(user.role as any))
+                .filter((item) => {
+                  if (!user) return true;
+                  return item.roles.includes(user.role);
+                })
                 .map((item) => {
-                  const active = isActive(item.href)
-                  const Icon = item.icon
+                  const active = isActive(item.href);
+                  const Icon = item.icon;
 
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
                       className={`
-                        group flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-black transition-all duration-200
+                        group flex h-12 items-center gap-3 rounded-2xl px-4 text-sm font-black transition-all duration-200
                         ${
                           active
-                            ? 'bg-[#294d3c] text-emerald-50 shadow-sm ring-1 ring-emerald-100/10'
-                            : 'text-emerald-100/70 hover:bg-[#173827] hover:text-emerald-50'
+                            ? "bg-[#294d3c] text-emerald-50 shadow-sm ring-1 ring-emerald-100/10"
+                            : "text-emerald-100/70 hover:bg-[#173827] hover:text-emerald-50"
                         }
                       `}
                     >
-                      <span className="truncate">{item.label}</span>
-
                       <Icon
                         className={`
                           h-5 w-5 shrink-0 transition-all
                           ${
                             active
-                              ? 'text-emerald-300'
-                              : 'text-emerald-100/55 group-hover:text-emerald-200'
+                              ? "text-emerald-300"
+                              : "text-emerald-100/55 group-hover:text-emerald-200"
                           }
                         `}
                       />
+
+                      <span className="min-w-0 flex-1 truncate text-start">
+                        {t.sidebar.nav[item.labelKey]}
+                      </span>
                     </Link>
-                  )
+                  );
                 })}
             </div>
           </div>
@@ -176,16 +285,16 @@ export default function Sidebar() {
           className="flex items-center gap-3 rounded-2xl bg-emerald-50/5 p-3 transition hover:bg-emerald-50/10"
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#294d3c] text-sm font-black text-emerald-50">
-            {user ? initials(user.name) : 'L'}
+            {user ? initials(user.name) : "L"}
           </div>
 
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 text-start">
             <p className="truncate text-sm font-black text-emerald-50">
-              {user?.name ?? '...'}
+              {user?.name ?? "..."}
             </p>
 
             <p className="mt-0.5 truncate text-xs font-medium text-emerald-100/65">
-              {user ? roleLabel[user.role] ?? user.role : ''}
+              {user ? (t.sidebar.roles[user.role] ?? user.role) : ""}
             </p>
           </div>
 
@@ -198,28 +307,38 @@ export default function Sidebar() {
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#1f4d35] px-4 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#276342]"
         >
           <LogOut className="h-4 w-4" />
-          تسجيل الخروج
+          {t.sidebar.logout}
         </button>
       </div>
     </div>
-  )
+  );
 
   return (
     <>
       {/* Mobile trigger */}
       <button
         type="button"
-        aria-label="فتح القائمة الجانبية"
-        title="فتح القائمة"
+        aria-label={t.sidebar.openMenu}
+        title={t.sidebar.openMenu}
         onClick={() => setMobileOpen(true)}
-        className="fixed right-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-400/20 bg-[#10291d] text-emerald-50 shadow-lg lg:hidden"
+        className={`
+          fixed top-4 z-50 flex h-11 w-11 items-center justify-center
+          rounded-2xl border border-emerald-400/20 bg-[#10291d]
+          text-emerald-50 shadow-lg lg:hidden
+          ${isRtl ? "right-4" : "left-4"}
+        `}
       >
         <Menu className="h-5 w-5" />
       </button>
 
       {/* Mobile */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 flex justify-end lg:hidden">
+        <div
+          className={`
+            fixed inset-0 z-40 flex lg:hidden
+            ${isRtl ? "justify-end" : "justify-start"}
+          `}
+        >
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
@@ -232,9 +351,14 @@ export default function Sidebar() {
       )}
 
       {/* Desktop */}
-      <aside className="fixed right-0 top-0 z-30 hidden h-full w-64 shadow-2xl lg:block">
+      <aside
+        className={`
+          fixed top-0 z-30 hidden h-full w-64 shadow-2xl lg:block
+          ${isRtl ? "right-0" : "left-0"}
+        `}
+      >
         <Inner />
       </aside>
     </>
-  )
+  );
 }

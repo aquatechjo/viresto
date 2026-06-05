@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { useLocale } from '@/lib/useLocale'
 
 interface Props {
   open: boolean
@@ -20,6 +21,8 @@ export default function Modal({
   size = 'md',
   closeOnOverlay = true,
 }: Props) {
+  const { isRtl } = useLocale()
+
   useEffect(() => {
     if (!open) return
 
@@ -52,6 +55,7 @@ export default function Modal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
+      dir={isRtl ? 'rtl' : 'ltr'}
     >
       <div
         className={cn(
@@ -66,10 +70,20 @@ export default function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between gap-4">
+          <h2
+            id="modal-title"
+            className={`text-base font-black ${
+              isRtl ? 'text-right' : 'text-left'
+            }`}
+            style={{ color: 'var(--text)' }}
+          >
+            {title}
+          </h2>
+
           <button
             type="button"
             onClick={onClose}
-            aria-label="إغلاق النافذة"
+            aria-label={isRtl ? 'إغلاق النافذة' : 'Close modal'}
             className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-all hover:scale-105"
             style={{
               background: 'var(--input-bg)',
@@ -78,14 +92,6 @@ export default function Modal({
           >
             ✕
           </button>
-
-          <h2
-            id="modal-title"
-            className="text-right text-base font-black"
-            style={{ color: 'var(--text)' }}
-          >
-            {title}
-          </h2>
         </div>
 
         {children}

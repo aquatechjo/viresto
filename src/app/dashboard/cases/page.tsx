@@ -1,19 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+
 import Modal from '@/components/ui/Modal'
 import FormField from '@/components/ui/FormField'
 import EmptyState from '@/components/ui/EmptyState'
 import TableSkeleton from '@/components/ui/TableSkeleton'
-import { formatCurrency } from '@/lib/utils'
 import {
   getApiMessage,
   isPlanLimitResponse,
   planLimitMessage,
 } from '@/lib/plan-ui'
+import { useLocale } from '@/lib/useLocale'
 
 interface Case {
   id: string
@@ -41,6 +43,9 @@ interface ClientOpt {
   name: string
 }
 
+const STATUS_KEYS = ['all', 'OPEN', 'IN_PROGRESS', 'CLOSED', 'ARCHIVED'] as const
+type StatusFilter = (typeof STATUS_KEYS)[number]
+
 const STATUS_BADGE: Record<string, string> = {
   OPEN: 'badge badge-green',
   IN_PROGRESS: 'badge badge-blue',
@@ -48,20 +53,152 @@ const STATUS_BADGE: Record<string, string> = {
   ARCHIVED: 'badge badge-gray',
 }
 
-const STATUS_AR: Record<string, string> = {
-  OPEN: 'نشطة',
-  IN_PROGRESS: 'قيد المتابعة',
-  CLOSED: 'مغلقة',
-  ARCHIVED: 'مؤرشفة',
-}
-
-const STATUS_FILTERS: [string, string][] = [
-  ['all', 'الكل'],
-  ['OPEN', 'نشطة'],
-  ['IN_PROGRESS', 'قيد المتابعة'],
-  ['CLOSED', 'مغلقة'],
-  ['ARCHIVED', 'مؤرشفة'],
-]
+const COPY = {
+  ar: {
+    loadError: 'فشل تحميل القضايا',
+    requiredError: 'الموكل وعنوان القضية مطلوبان',
+    created: 'تمت إضافة القضية',
+    addError: 'تعذر إضافة القضية',
+    addUnexpected: 'حدث خطأ أثناء إضافة القضية',
+    planLimitTitle: 'وصلت إلى حد الخطة الحالية',
+    planLimitFallback: 'وصلت إلى حد القضايا المسموح في خطتك الحالية.',
+    viewBilling: 'عرض الاشتراك',
+    close: 'إغلاق',
+    hero: {
+      badge: 'إدارة القضايا',
+      title: 'القضايا',
+      subtitle:
+        'تابع ملفات القضايا، الموكلين، الأتعاب، المدفوعات والمستحقات من واجهة واحدة تساعدك على إدارة العمل القانوني بوضوح.',
+      newCase: '+ قضية جديدة',
+    },
+    stats: {
+      active: 'نشطة',
+      inProgress: 'قيد المتابعة',
+      closed: 'مغلقة',
+      archived: 'مؤرشفة',
+      totalFees: 'إجمالي الأتعاب',
+      paid: 'المدفوع',
+      remaining: 'المتبقي',
+    },
+    filters: {
+      searchAria: 'البحث في القضايا',
+      searchPlaceholder: 'ابحث في رقم القضية، العنوان أو اسم الموكل...',
+      clientAria: 'فلترة حسب الموكل',
+      allClients: 'جميع الموكلين',
+      filter: 'تصفية',
+      clear: 'مسح الفلاتر',
+      statuses: {
+        all: 'الكل',
+        OPEN: 'نشطة',
+        IN_PROGRESS: 'قيد المتابعة',
+        CLOSED: 'مغلقة',
+        ARCHIVED: 'مؤرشفة',
+      },
+    },
+    empty: {
+      title: 'لا توجد قضايا',
+      noCases: 'قم بإنشاء أول قضية للبدء بإدارة العمل القانوني.',
+      noResults: 'لا توجد قضايا مطابقة للفلاتر الحالية.',
+      add: '+ قضية جديدة',
+    },
+    table: {
+      case: 'القضية',
+      client: 'الموكل',
+      fees: 'الأتعاب',
+      paid: 'المدفوع',
+      remaining: 'المتبقي',
+      appointments: 'المواعيد',
+      documents: 'المستندات',
+      status: 'الحالة',
+      openClient: 'فتح الملف',
+      openClientTitle: 'فتح ملف الموكل',
+    },
+    modal: {
+      title: 'إضافة قضية جديدة',
+      client: 'الموكل',
+      chooseClient: 'اختر موكلاً...',
+      caseTitle: 'عنوان القضية',
+      caseNumber: 'رقم القضية',
+      fees: 'الأتعاب',
+      court: 'المحكمة',
+      description: 'الوصف',
+      cancel: 'إلغاء',
+      save: 'حفظ',
+    },
+  },
+  en: {
+    loadError: 'Failed to load cases',
+    requiredError: 'Client and case title are required',
+    created: 'Case added successfully',
+    addError: 'Could not add case',
+    addUnexpected: 'Something went wrong while adding the case',
+    planLimitTitle: 'Current plan limit reached',
+    planLimitFallback: 'You have reached the case limit allowed by your current plan.',
+    viewBilling: 'View billing',
+    close: 'Close',
+    hero: {
+      badge: 'Case management',
+      title: 'Cases',
+      subtitle:
+        'Track case files, clients, fees, payments, and receivables from one clear legal workspace.',
+      newCase: '+ New case',
+    },
+    stats: {
+      active: 'Active',
+      inProgress: 'In progress',
+      closed: 'Closed',
+      archived: 'Archived',
+      totalFees: 'Total fees',
+      paid: 'Paid',
+      remaining: 'Remaining',
+    },
+    filters: {
+      searchAria: 'Search cases',
+      searchPlaceholder: 'Search by case number, title, or client name...',
+      clientAria: 'Filter by client',
+      allClients: 'All clients',
+      filter: 'Filter',
+      clear: 'Clear filters',
+      statuses: {
+        all: 'All',
+        OPEN: 'Active',
+        IN_PROGRESS: 'In progress',
+        CLOSED: 'Closed',
+        ARCHIVED: 'Archived',
+      },
+    },
+    empty: {
+      title: 'No cases found',
+      noCases: 'Create the first case to start managing legal work.',
+      noResults: 'No cases match the current filters.',
+      add: '+ New case',
+    },
+    table: {
+      case: 'Case',
+      client: 'Client',
+      fees: 'Fees',
+      paid: 'Paid',
+      remaining: 'Remaining',
+      appointments: 'Appointments',
+      documents: 'Documents',
+      status: 'Status',
+      openClient: 'Open client',
+      openClientTitle: 'Open client file',
+    },
+    modal: {
+      title: 'Add new case',
+      client: 'Client',
+      chooseClient: 'Choose a client...',
+      caseTitle: 'Case title',
+      caseNumber: 'Case number',
+      fees: 'Fees',
+      court: 'Court',
+      description: 'Description',
+      cancel: 'Cancel',
+      save: 'Save',
+    },
+  },
+} as const
 
 const INIT = {
   clientId: '',
@@ -72,28 +209,39 @@ const INIT = {
   description: '',
 }
 
+function formatMoney(value: number) {
+  const amount = Number(value || 0).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+  return `JOD ${amount}`
+}
+
 function PlanLimitBanner({
   message,
   onClose,
+  text,
 }: {
   message: string
   onClose: () => void
+  text: (typeof COPY)['ar'] | (typeof COPY)['en']
 }) {
   return (
     <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-base font-black">وصلت إلى حد الخطة الحالية</h2>
-          <p className="mt-1 text-sm">{message}</p>
+          <h2 className="text-base font-black">{text.planLimitTitle}</h2>
+          <p className="mt-1 text-sm font-semibold">{message}</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href="/dashboard/billing" className="btn btn-primary">
-            عرض الاشتراك
+            {text.viewBilling}
           </Link>
 
           <button type="button" onClick={onClose} className="btn">
-            إغلاق
+            {text.close}
           </button>
         </div>
       </div>
@@ -103,11 +251,12 @@ function PlanLimitBanner({
 
 export default function CasesPage() {
   const router = useRouter()
+  const { locale, isRtl } = useLocale()
+  const text = COPY[locale === 'ar' ? 'ar' : 'en']
 
   const [cases, setCases] = useState<Case[]>([])
   const [clients, setClients] = useState<ClientOpt[]>([])
-  const [filter, setFilter] = useState('all')
-  const [clientFilter, setClientFilter] = useState('all')
+  const [filter, setFilter] = useState<StatusFilter>('all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -125,11 +274,6 @@ export default function CasesPage() {
       ])
 
       if (!casesRes.ok || !clientsRes.ok) {
-        console.error('Failed to fetch cases/clients', {
-          casesStatus: casesRes.status,
-          clientsStatus: clientsRes.status,
-        })
-
         setCases([])
         setClients([])
         return
@@ -141,15 +285,17 @@ export default function CasesPage() {
       ])
 
       setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : [])
-      setClients(Array.isArray(clientsData.data?.data) ? clientsData.data.data : [])
+      setClients(
+        Array.isArray(clientsData.data?.data) ? clientsData.data.data : []
+      )
     } catch {
-      toast.error('فشل تحميل القضايا')
+      toast.error(text.loadError)
       setCases([])
       setClients([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [text.loadError])
 
   useEffect(() => {
     load()
@@ -163,37 +309,40 @@ export default function CasesPage() {
   function paid(item: Case) {
     return item.payments
       .filter((payment) => payment.status === 'PAID')
-      .reduce((sum, payment) => sum + payment.amount, 0)
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
   }
 
   function remaining(item: Case) {
-    return Math.max(0, item.feeAgreed - paid(item))
+    return Math.max(0, Number(item.feeAgreed || 0) - paid(item))
   }
 
-  const totalFees = cases.reduce((sum, item) => sum + (item.feeAgreed || 0), 0)
+  const totalFees = cases.reduce(
+    (sum, item) => sum + Number(item.feeAgreed || 0),
+    0
+  )
   const totalPaid = cases.reduce((sum, item) => sum + paid(item), 0)
   const totalRemaining = Math.max(0, totalFees - totalPaid)
 
-  const filtered = cases.filter((item) => {
+  const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
 
-    const matchesStatus = filter === 'all' || item.status === filter
-    const matchesClient = clientFilter === 'all' || item.client?.name === clientFilter
+    return cases.filter((item) => {
+      const matchesStatus = filter === 'all' || item.status === filter
+      const matchesSearch =
+        !query ||
+        item.title?.toLowerCase().includes(query) ||
+        item.caseNumber?.toLowerCase().includes(query) ||
+        item.client?.name?.toLowerCase().includes(query)
 
-    const matchesSearch =
-      !query ||
-      item.title?.toLowerCase().includes(query) ||
-      item.caseNumber?.toLowerCase().includes(query) ||
-      item.client?.name?.toLowerCase().includes(query)
+      return matchesStatus && matchesSearch
+    })
+  }, [cases, filter, search])
 
-    return matchesStatus && matchesClient && matchesSearch
-  })
-
-  async function handleAdd(event: React.FormEvent) {
+  async function handleAdd(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!form.clientId || !form.title.trim()) {
-      toast.error('الموكل وعنوان القضية مطلوبان')
+      toast.error(text.requiredError)
       return
     }
 
@@ -213,31 +362,24 @@ export default function CasesPage() {
       const data = await response.json().catch(() => ({}))
 
       if (data.success) {
-        toast.success('تمت إضافة القضية')
+        toast.success(text.created)
         setOpen(false)
         setForm(INIT)
         load()
       } else if (isPlanLimitResponse(data)) {
         setOpen(false)
-        setPlanLimit(
-          planLimitMessage(
-            data,
-            'وصلت إلى حد القضايا المسموح في خطتك الحالية.'
-          )
-        )
+        setPlanLimit(planLimitMessage(data, text.planLimitFallback))
       } else {
-        toast.error(getApiMessage(data, 'تعذر إضافة القضية'))
+        toast.error(getApiMessage(data, text.addError))
       }
     } catch {
-      toast.error('حدث خطأ أثناء إضافة القضية')
+      toast.error(text.addUnexpected)
     } finally {
       setSaving(false)
     }
   }
 
-  function f(
-    key: keyof typeof INIT
-  ) {
+  function f(key: keyof typeof INIT) {
     return (
       event: React.ChangeEvent<
         HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -252,16 +394,19 @@ export default function CasesPage() {
 
   function clearFilters() {
     setSearch('')
-    setClientFilter('all')
     setFilter('all')
   }
 
   return (
-    <div className="space-y-5 stagger">
+    <div
+      className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
+      dir={isRtl ? 'rtl' : 'ltr'}
+    >
       {planLimit && (
         <PlanLimitBanner
           message={planLimit}
           onClose={() => setPlanLimit('')}
+          text={text}
         />
       )}
 
@@ -276,17 +421,21 @@ export default function CasesPage() {
         }}
       >
         <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
+          className={`absolute -top-14 h-40 w-40 rounded-full ${
+            isRtl ? '-right-14' : '-left-14'
+          }`}
           style={{ background: 'rgba(245, 200, 66, 0.16)' }}
         />
 
         <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
+          className={`absolute -bottom-20 h-52 w-52 rounded-full ${
+            isRtl ? 'left-16' : 'right-16'
+          }`}
           style={{ background: 'rgba(255,255,255,0.08)' }}
         />
 
         <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
+          <div className="min-w-0">
             <div
               className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
               style={{
@@ -295,54 +444,56 @@ export default function CasesPage() {
                 border: '1px solid rgba(255,255,255,0.18)',
               }}
             >
-              إدارة القضايا
+              {text.hero.badge}
             </div>
 
-            <h1 className="text-2xl font-black text-white">القضايا</h1>
+            <h1 className="text-2xl font-black text-white">
+              {text.hero.title}
+            </h1>
 
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              تابع ملفات القضايا، الموكلين، الأتعاب، المدفوعات والمستحقات من
-              واجهة واحدة تساعدك على إدارة العمل القانوني بوضوح.
+              {text.hero.subtitle}
             </p>
           </div>
 
           <button
+            type="button"
             onClick={() => setOpen(true)}
-            className="btn shrink-0"
+            className="btn h-11 shrink-0 px-5"
             style={{
               background: '#fff',
               color: 'var(--sidebar)',
               borderColor: 'rgba(255,255,255,0.32)',
             }}
           >
-            + قضية جديدة
+            {text.hero.newCase}
           </button>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Status Stats */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
-            label: 'نشطة',
+            label: text.stats.active,
             value: activeCount,
             color: 'var(--sidebar)',
             bg: 'var(--green-soft)',
           },
           {
-            label: 'قيد المتابعة',
+            label: text.stats.inProgress,
             value: progressCount,
             color: '#92400e',
             bg: 'var(--amber-soft)',
           },
           {
-            label: 'مغلقة',
+            label: text.stats.closed,
             value: closedCount,
             color: '#6b7280',
             bg: 'var(--card)',
           },
           {
-            label: 'مؤرشفة',
+            label: text.stats.archived,
             value: archivedCount,
             color: 'var(--text-2)',
             bg: 'var(--card)',
@@ -360,110 +511,96 @@ export default function CasesPage() {
               {item.label}
             </p>
 
-            <p className="mt-2 text-3xl font-black" style={{ color: item.color }}>
+            <p className="mt-2 text-2xl font-black leading-tight" style={{ color: item.color }}>
               {item.value}
             </p>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto]">
-          <input
-            aria-label="البحث في القضايا"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="ابحث في رقم القضية، العنوان أو اسم الموكل..."
-            className="input"
-          />
+{/* Filters */}
+<div className="card p-4" dir={isRtl ? 'rtl' : 'ltr'}>
+  <div className="grid grid-cols-1 gap-3">
+    <input
+      dir={isRtl ? 'rtl' : 'ltr'}
+      aria-label={text.filters.searchAria}
+      value={search}
+      onChange={(event) => setSearch(event.target.value)}
+      placeholder={text.filters.searchPlaceholder}
+      className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
+      style={{
+        textAlign: isRtl ? 'right' : 'left',
+        direction: isRtl ? 'rtl' : 'ltr',
+      }}
+    />
+  </div>
 
-          <select
-            aria-label="فلترة حسب الموكل"
-            value={clientFilter}
-            onChange={(event) => setClientFilter(event.target.value)}
-            className="input"
-          >
-            <option value="all">جميع الموكلين</option>
-
-            {clients.map((client) => (
-              <option key={client.id} value={client.name}>
-                {client.name}
-              </option>
-            ))}
-          </select>
-
-          <button onClick={clearFilters} className="btn btn-ghost whitespace-nowrap">
-            تصفية
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {STATUS_FILTERS.map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={
-                filter === key
-                  ? {
-                      background: 'var(--sidebar)',
-                      color: '#fff',
-                    }
-                  : {
-                      background: 'var(--green-soft)',
-                      color: 'var(--text-2)',
-                    }
+<div
+  className="mt-4 flex w-full flex-wrap gap-2"
+  dir={isRtl ? 'rtl' : 'ltr'}
+  style={{
+    justifyContent: 'flex-start',
+    direction: isRtl ? 'rtl' : 'ltr',
+  }}
+>
+    {STATUS_KEYS.map((key) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => setFilter(key)}
+        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+        style={
+          filter === key
+            ? {
+                background: 'var(--sidebar)',
+                color: '#fff',
               }
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+            : {
+                background: 'var(--green-soft)',
+                color: 'var(--text-2)',
+              }
+        }
+      >
+        {text.filters.statuses[key]}
+      </button>
+    ))}
+
+    {(search || filter !== 'all') && (
+      <button
+        type="button"
+        onClick={clearFilters}
+        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+        style={{
+          background: 'var(--card)',
+          color: 'var(--text-2)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        {text.filters.clear}
+      </button>
+    )}
+  </div>
+</div>
 
       {/* Financial Summary */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="card p-5">
-          <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
-            إجمالي الأتعاب
-          </p>
-
-          <p className="mt-2 text-2xl font-black" style={{ color: 'var(--text)' }}>
-            {formatCurrency(totalFees)}
-          </p>
-        </div>
-
-        <div className="card p-5">
-          <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
-            المدفوع
-          </p>
-
-          <p className="mt-2 text-2xl font-black" style={{ color: 'var(--sidebar)' }}>
-            {formatCurrency(totalPaid)}
-          </p>
-        </div>
-
-        <div
-          className="card p-5"
-          style={{
-            background: totalRemaining > 0 ? 'var(--red-soft)' : 'var(--card)',
-          }}
-        >
-          <p
-            className="text-xs font-black"
-            style={{ color: totalRemaining > 0 ? '#dc2626' : 'var(--text-3)' }}
-          >
-            المتبقي
-          </p>
-
-          <p
-            className="mt-2 text-2xl font-black"
-            style={{ color: totalRemaining > 0 ? '#dc2626' : 'var(--text)' }}
-          >
-            {formatCurrency(totalRemaining)}
-          </p>
-        </div>
+        <FinancialCard
+          label={text.stats.totalFees}
+          value={formatMoney(totalFees)}
+          isRtl={isRtl}
+        />
+        <FinancialCard
+          label={text.stats.paid}
+          value={formatMoney(totalPaid)}
+          color="var(--sidebar)"
+          isRtl={isRtl}
+        />
+        <FinancialCard
+          label={text.stats.remaining}
+          value={formatMoney(totalRemaining)}
+          danger={totalRemaining > 0}
+          isRtl={isRtl}
+        />
       </div>
 
       {/* Content */}
@@ -473,20 +610,16 @@ export default function CasesPage() {
         <div className="card p-8">
           <EmptyState
             icon="⚖️"
-            title="لا توجد قضايا"
-            sub={
-              cases.length === 0
-                ? 'قم بإنشاء أول قضية للبدء بإدارة العمل القانوني.'
-                : 'لا توجد قضايا مطابقة للفلاتر الحالية.'
-            }
+            title={text.empty.title}
+            sub={cases.length === 0 ? text.empty.noCases : text.empty.noResults}
             action={
               cases.length === 0 ? (
                 <button onClick={() => setOpen(true)} className="btn btn-primary">
-                  + قضية جديدة
+                  {text.empty.add}
                 </button>
               ) : (
                 <button onClick={clearFilters} className="btn btn-ghost">
-                  مسح الفلاتر
+                  {text.filters.clear}
                 </button>
               )
             }
@@ -494,18 +627,18 @@ export default function CasesPage() {
         </div>
       ) : (
         <div className="card overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="data-table">
+          <div className="max-w-full overflow-x-auto">
+            <table className="data-table min-w-[980px]">
               <thead>
                 <tr>
-                  <th>القضية</th>
-                  <th>الموكل</th>
-                  <th>الأتعاب</th>
-                  <th>المدفوع</th>
-                  <th>المتبقي</th>
-                  <th>المواعيد</th>
-                  <th>المستندات</th>
-                  <th>الحالة</th>
+                  <th>{text.table.case}</th>
+                  <th>{text.table.client}</th>
+                  <th>{text.table.fees}</th>
+                  <th>{text.table.paid}</th>
+                  <th>{text.table.remaining}</th>
+                  <th>{text.table.appointments}</th>
+                  <th>{text.table.documents}</th>
+                  <th>{text.table.status}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -522,13 +655,13 @@ export default function CasesPage() {
                       className="cursor-pointer"
                     >
                       <td>
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-mono text-sm font-bold">
                             {item.caseNumber ?? `#${item.id.slice(-6)}`}
                           </p>
 
                           <p
-                            className="max-w-[190px] truncate text-xs"
+                            className="max-w-[220px] truncate text-xs"
                             style={{ color: 'var(--text-3)' }}
                           >
                             {item.title}
@@ -536,47 +669,70 @@ export default function CasesPage() {
                         </div>
                       </td>
 
-                      <td className="font-semibold">{item.client?.name}</td>
-
-                      <td>{formatCurrency(item.feeAgreed)}</td>
-
-                      <td className="font-bold" style={{ color: 'var(--sidebar)' }}>
-                        {formatCurrency(paidAmount)}
+                      <td className="whitespace-nowrap font-semibold">
+                        {item.client?.name}
                       </td>
 
                       <td
-                        className={`font-bold ${
-                          remainingAmount > 0 ? 'text-red-500' : ''
-                        }`}
+                        dir="ltr"
+                        className={`whitespace-nowrap ${isRtl ? 'text-right' : 'text-left'}`}
                       >
-                        {formatCurrency(remainingAmount)}
+                        {formatMoney(item.feeAgreed)}
                       </td>
 
-                      <td>{item._count?.appointments ?? 0}</td>
+                      <td
+                        dir="ltr"
+                        className={`whitespace-nowrap font-bold ${
+                          isRtl ? 'text-right' : 'text-left'
+                        }`}
+                        style={{ color: 'var(--sidebar)' }}
+                      >
+                        {formatMoney(paidAmount)}
+                      </td>
 
-                      <td>{item._count?.documents ?? 0}</td>
+                      <td
+                        dir="ltr"
+                        className={`whitespace-nowrap font-bold ${
+                          isRtl ? 'text-right' : 'text-left'
+                        }`}
+                        style={{
+                          color: remainingAmount > 0 ? '#dc2626' : 'var(--text)',
+                        }}
+                      >
+                        {formatMoney(remainingAmount)}
+                      </td>
+
+                      <td className="whitespace-nowrap">
+                        {item._count?.appointments ?? 0}
+                      </td>
+
+                      <td className="whitespace-nowrap">
+                        {item._count?.documents ?? 0}
+                      </td>
 
                       <td>
                         <span className={STATUS_BADGE[item.status] ?? 'badge badge-gray'}>
-                          {STATUS_AR[item.status] ?? item.status}
+                          {text.filters.statuses[
+                            item.status as keyof typeof text.filters.statuses
+                          ] ?? item.status}
                         </span>
                       </td>
 
-<td>
-  <Link
-    href={`/dashboard/clients/${item.clientId}`}
-    className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition-all hover:-translate-y-0.5 hover:shadow-md"
-    style={{
-      borderColor: 'var(--border)',
-      background: 'var(--green-soft)',
-      color: 'var(--sidebar)',
-    }}
-    title="فتح ملف الموكل"
-  >
-    فتح الملف
-    <span>←</span>
-  </Link>
-</td>
+                      <td onClick={(event) => event.stopPropagation()}>
+                        <Link
+                          href={`/dashboard/clients/${item.clientId}`}
+                          className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition-all hover:-translate-y-0.5 hover:shadow-md"
+                          style={{
+                            borderColor: 'var(--border)',
+                            background: 'var(--green-soft)',
+                            color: 'var(--sidebar)',
+                          }}
+                          title={text.table.openClientTitle}
+                        >
+                          {text.table.openClient}
+                          <span>{isRtl ? '←' : '→'}</span>
+                        </Link>
+                      </td>
                     </tr>
                   )
                 })}
@@ -593,12 +749,21 @@ export default function CasesPage() {
           setOpen(false)
           setForm(INIT)
         }}
-        title="إضافة قضية جديدة"
+        title={text.modal.title}
       >
-        <form onSubmit={handleAdd} className="space-y-3">
-          <FormField label="الموكل" required>
-            <select value={form.clientId} onChange={f('clientId')} className="input">
-              <option value="">اختر موكلاً...</option>
+        <form onSubmit={handleAdd} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+          <FormField label={text.modal.client} required>
+            <select
+              dir={isRtl ? 'rtl' : 'ltr'}
+              value={form.clientId}
+              onChange={f('clientId')}
+              className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+              style={{
+                textAlign: isRtl ? 'right' : 'left',
+                direction: isRtl ? 'rtl' : 'ltr',
+              }}
+            >
+              <option value="">{text.modal.chooseClient}</option>
 
               {clients.map((client) => (
                 <option key={client.id} value={client.id}>
@@ -608,50 +773,79 @@ export default function CasesPage() {
             </select>
           </FormField>
 
-          <FormField label="عنوان القضية" required>
+          <FormField label={text.modal.caseTitle} required>
             <input
+              dir={isRtl ? 'rtl' : 'ltr'}
               value={form.title}
               onChange={f('title')}
-              className="input"
+              className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+              style={{
+                textAlign: isRtl ? 'right' : 'left',
+                direction: isRtl ? 'rtl' : 'ltr',
+              }}
               autoFocus
             />
           </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="رقم القضية">
+            <FormField label={text.modal.caseNumber}>
               <input
+                dir={isRtl ? 'rtl' : 'ltr'}
                 value={form.caseNumber}
                 onChange={f('caseNumber')}
-                className="input"
+                className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+              style={{
+                textAlign: isRtl ? 'right' : 'left',
+                direction: isRtl ? 'rtl' : 'ltr',
+              }}
               />
             </FormField>
 
-            <FormField label="الأتعاب">
+            <FormField label={text.modal.fees}>
               <input
+                dir="ltr"
                 type="number"
                 value={form.feeAgreed}
                 onChange={f('feeAgreed')}
-                className="input"
+                className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+                style={{
+                  textAlign: isRtl ? 'right' : 'left',
+                  direction: 'ltr',
+                }}
                 min="0"
               />
             </FormField>
           </div>
 
-          <FormField label="المحكمة">
-            <input value={form.court} onChange={f('court')} className="input" />
-          </FormField>
-
-          <FormField label="الوصف">
-            <textarea
-              value={form.description}
-              onChange={f('description')}
-              className="input"
-              rows={2}
-              style={{ resize: 'none' }}
+          <FormField label={text.modal.court}>
+            <input
+              dir={isRtl ? 'rtl' : 'ltr'}
+              value={form.court}
+              onChange={f('court')}
+              className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+              style={{
+                textAlign: isRtl ? 'right' : 'left',
+                direction: isRtl ? 'rtl' : 'ltr',
+              }}
             />
           </FormField>
 
-          <div className="flex gap-2 pt-1">
+          <FormField label={text.modal.description}>
+<textarea
+  dir={isRtl ? 'rtl' : 'ltr'}
+  value={form.description}
+  onChange={f('description')}
+  className={`input min-h-[105px] resize-none ${
+    isRtl ? '!text-right' : '!text-left'
+  }`}
+  style={{
+    textAlign: isRtl ? 'right' : 'left',
+    direction: isRtl ? 'rtl' : 'ltr',
+  }}
+/>
+          </FormField>
+
+          <div className={`flex gap-2 pt-1 ${isRtl ? 'flex-row' : 'flex-row-reverse'}`}>
             <button
               type="button"
               onClick={() => {
@@ -660,7 +854,7 @@ export default function CasesPage() {
               }}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {text.modal.cancel}
             </button>
 
             <button
@@ -668,11 +862,52 @@ export default function CasesPage() {
               disabled={saving}
               className="btn btn-primary flex-1"
             >
-              {saving ? <span className="spinner spinner-sm" /> : 'حفظ'}
+              {saving ? <span className="spinner spinner-sm" /> : text.modal.save}
             </button>
           </div>
         </form>
       </Modal>
+    </div>
+  )
+}
+
+function FinancialCard({
+  label,
+  value,
+  color = 'var(--text)',
+  danger,
+  isRtl,
+}: {
+  label: string
+  value: string
+  color?: string
+  danger?: boolean
+  isRtl?: boolean
+}) {
+  return (
+    <div
+      className="card p-5"
+      style={{
+        background: danger ? 'var(--red-soft)' : 'var(--card)',
+        borderColor: 'var(--border)',
+      }}
+    >
+      <p
+        className="text-xs font-black"
+        style={{ color: danger ? '#dc2626' : 'var(--text-3)' }}
+      >
+        {label}
+      </p>
+
+      <p
+        dir="ltr"
+        className={`mt-2 whitespace-nowrap text-xl font-black leading-tight ${
+          isRtl ? 'text-right' : 'text-left'
+        }`}
+        style={{ color: danger ? '#dc2626' : color }}
+      >
+        {value}
+      </p>
     </div>
   )
 }

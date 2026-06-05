@@ -5,12 +5,14 @@ import dynamic from 'next/dynamic'
 import PageLoader from '@/components/ui/PageLoader'
 import StatCard from '@/components/ui/StatCard'
 import { formatCurrency, formatTime } from '@/lib/utils'
+import type { Locale } from '@/lib/i18n'
+import { useLocale } from '@/lib/useLocale'
 
 const AIAssistant = dynamic(() => import('@/components/dashboard/AIAssistant'), {
   ssr: false,
   loading: () => (
     <div
-      className="card p-6 min-h-[300px] h-full flex items-center justify-center text-sm"
+      className="card flex h-full min-h-[300px] items-center justify-center p-6 text-sm"
       style={{ color: 'var(--text-3)' }}
     >
       جاري تحميل المساعد...
@@ -71,11 +73,19 @@ const STATUS_BADGE: Record<string, string> = {
   ARCHIVED: 'badge badge-gray',
 }
 
-const STATUS_AR: Record<string, string> = {
-  OPEN: 'نشطة',
-  IN_PROGRESS: 'قيد المتابعة',
-  CLOSED: 'مغلقة',
-  ARCHIVED: 'مؤرشفة',
+const STATUS_LABELS: Record<Locale, Record<string, string>> = {
+  ar: {
+    OPEN: 'نشطة',
+    IN_PROGRESS: 'قيد المتابعة',
+    CLOSED: 'مغلقة',
+    ARCHIVED: 'مؤرشفة',
+  },
+  en: {
+    OPEN: 'Active',
+    IN_PROGRESS: 'In progress',
+    CLOSED: 'Closed',
+    ARCHIVED: 'Archived',
+  },
 }
 
 const TYPE_COLOR: Record<string, string> = {
@@ -119,17 +129,180 @@ const ACTIVITY_CONFIG: Record<
   },
 }
 
+const TEXT = {
+  ar: {
+    assistantLoading: 'جاري تحميل المساعد...',
+    heroBadge: 'لوحة إدارة المكتب القانوني',
+    heroTitle: 'إدارة القضايا والموكلين من مكان واحد',
+    heroDescription:
+      'مركز تحكم شامل لمتابعة أداء المكتب القانوني، من القضايا والمواعيد إلى المستندات والموكلين والمؤشرات المالية، بواجهة واضحة تساعدك على إدارة العمل بثقة.',
+    todaySummary: 'ملخص اليوم',
+    todayAppointments: 'مواعيد اليوم',
+    activeCases: 'قضايا نشطة',
+    clients: 'الموكلون',
+    thisMonth: 'هذا الشهر',
+    nextAppointment: 'أقرب موعد',
+    noAppointment: 'لا يوجد',
+    noUpcomingAppointments: 'لا توجد مواعيد قادمة',
+    receivables: 'المستحقات',
+    unpaid: 'غير محصلة',
+    recentCases: 'آخر القضايا',
+    recentCasesSub: 'أحدث القضايا المسجلة في المكتب',
+    noCases: 'لا توجد قضايا',
+    noClient: 'بدون موكل',
+    todayScheduleOnly: 'جدول مواعيد اليوم فقط',
+    noAppointmentsToday: 'لا مواعيد اليوم',
+    recentDocuments: 'آخر المستندات',
+    recentDocumentsSub: 'آخر 5 ملفات مرفوعة في النظام',
+    noDocuments: 'لا يوجد مستندات بعد',
+    officeSummary: 'ملخص المكتب',
+    officeSummarySub: 'نظرة رقمية مختصرة على الأداء',
+    totalCases: 'إجمالي القضايا',
+    closedCases: 'القضايا المغلقة',
+    monthlyRevenue: 'إيرادات الشهر',
+    totalRevenue: 'إجمالي الإيرادات',
+    recentActivities: 'آخر النشاطات',
+    recentActivitiesSub: 'آخر 5 عمليات مسجلة داخل المكتب',
+    noActivities: 'لا توجد نشاطات حالياً',
+  },
+  en: {
+    assistantLoading: 'Loading assistant...',
+    heroBadge: 'Legal office management dashboard',
+    heroTitle: 'Manage cases and clients from one place',
+    heroDescription:
+      'A complete control center for monitoring your law office performance, from cases and appointments to documents, clients, and financial indicators.',
+    todaySummary: 'Today summary',
+    todayAppointments: 'Today appointments',
+    activeCases: 'Active cases',
+    clients: 'Clients',
+    thisMonth: 'this month',
+    nextAppointment: 'Next appointment',
+    noAppointment: 'None',
+    noUpcomingAppointments: 'No upcoming appointments',
+    receivables: 'Receivables',
+    unpaid: 'Unpaid',
+    recentCases: 'Recent cases',
+    recentCasesSub: 'Latest cases registered in the office',
+    noCases: 'No cases found',
+    noClient: 'No client',
+    todayScheduleOnly: "Today's schedule only",
+    noAppointmentsToday: 'No appointments today',
+    recentDocuments: 'Recent documents',
+    recentDocumentsSub: 'Latest 5 uploaded files in the system',
+    noDocuments: 'No documents yet',
+    officeSummary: 'Office summary',
+    officeSummarySub: 'A quick numerical view of performance',
+    totalCases: 'Total cases',
+    closedCases: 'Closed cases',
+    monthlyRevenue: 'Monthly revenue',
+    totalRevenue: 'Total revenue',
+    recentActivities: 'Recent activities',
+    recentActivitiesSub: 'Latest 5 logged actions in the office',
+    noActivities: 'No activities yet',
+  },
+} as const
+
+const ACTIVITY_TEXT: Record<
+  Locale,
+  Record<string, { title: string; message?: string }>
+> = {
+  ar: {
+    LOGIN_SUCCESS: { title: 'تم تسجيل الدخول بنجاح' },
+    LOGIN_NEW_IP: { title: 'تسجيل دخول من جهاز أو IP جديد' },
+    NEW_IP_LOGIN: { title: 'تسجيل دخول من جهاز أو IP جديد' },
+    NEW_DEVICE_LOGIN: { title: 'تسجيل دخول من جهاز أو IP جديد' },
+    SECURITY_LOGIN: { title: 'تسجيل دخول من جهاز أو IP جديد' },
+    SUSPICIOUS_LOGIN: { title: 'تسجيل دخول من جهاز أو IP جديد' },
+    CLIENT_CREATED: { title: 'تم إنشاء موكل جديد' },
+    CASE_CREATED: { title: 'تم إنشاء قضية جديدة' },
+    APPOINTMENT_CREATED: { title: 'تم إنشاء موعد جديد' },
+    PAYMENT_CREATED: { title: 'تم تسجيل دفعة جديدة' },
+    PAYMENT_ADDED: { title: 'تم تسجيل دفعة جديدة' },
+    DOCUMENT_UPLOADED: { title: 'تم رفع مستند جديد' },
+    USER_CREATED: { title: 'تم إنشاء مستخدم جديد' },
+  },
+  en: {
+    LOGIN_SUCCESS: { title: 'Signed in successfully' },
+    LOGIN_NEW_IP: { title: 'New device or IP sign-in' },
+    NEW_IP_LOGIN: { title: 'New device or IP sign-in' },
+    NEW_DEVICE_LOGIN: { title: 'New device or IP sign-in' },
+    SECURITY_LOGIN: { title: 'New device or IP sign-in' },
+    SUSPICIOUS_LOGIN: { title: 'New device or IP sign-in' },
+    CLIENT_CREATED: { title: 'New client created' },
+    CASE_CREATED: { title: 'New case created' },
+    APPOINTMENT_CREATED: { title: 'New appointment created' },
+    PAYMENT_CREATED: { title: 'New payment recorded' },
+    PAYMENT_ADDED: { title: 'New payment recorded' },
+    DOCUMENT_UPLOADED: { title: 'New document uploaded' },
+    USER_CREATED: { title: 'New user created' },
+  },
+}
+
+function normalizeActivityType(activity: ActivityItem) {
+  const source = `${activity.type ?? ''} ${activity.title ?? ''} ${activity.message ?? ''}`
+
+  if (
+    source.includes('LOGIN_SUCCESS') ||
+    source.includes('تم تسجيل الدخول بنجاح') ||
+    source.toLowerCase().includes('signed in successfully')
+  ) {
+    return 'LOGIN_SUCCESS'
+  }
+
+  if (
+    source.includes('LOGIN_NEW_IP') ||
+    source.includes('NEW_IP_LOGIN') ||
+    source.includes('NEW_DEVICE_LOGIN') ||
+    source.includes('SECURITY_LOGIN') ||
+    source.includes('SUSPICIOUS_LOGIN') ||
+    source.includes('جديد IP') ||
+    source.includes('IP جديد') ||
+    source.toLowerCase().includes('new device') ||
+    source.toLowerCase().includes('new ip')
+  ) {
+    return 'LOGIN_NEW_IP'
+  }
+
+  return activity.type
+}
+
+function getActivityText(activity: ActivityItem, locale: Locale) {
+  const activityType = normalizeActivityType(activity)
+  const translated = ACTIVITY_TEXT[locale][activityType]
+
+  return {
+    title: translated?.title ?? activity.title,
+    message: translated?.message ?? activity.message,
+  }
+}
+
+function formatMoney(value: number, locale: Locale) {
+  if (locale === 'en') {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'JOD',
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
+
+  return formatCurrency(value)
+}
+
 function getDocumentIcon(fileType?: string) {
   if (fileType === 'application/pdf') return '📄'
   if (fileType?.startsWith('image/')) return '🖼️'
   return '📁'
 }
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('ar-JO')
+function formatDate(date: string, locale: Locale) {
+  return new Date(date).toLocaleDateString(locale === 'ar' ? 'ar-JO' : 'en-US')
 }
 
 export default function DashboardPage() {
+  const { locale, isRtl } = useLocale()
+  const t = TEXT[locale]
+  const statusLabels = STATUS_LABELS[locale]
+
   const [stats, setStats] = useState<Stats | null>(null)
   const [cases, setCases] = useState<CaseItem[]>([])
   const [activities, setActivities] = useState<ActivityItem[]>([])
@@ -188,7 +361,7 @@ export default function DashboardPage() {
   if (loading) return <PageLoader />
 
   return (
-    <div className="space-y-5 stagger">
+    <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 text-start stagger">
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6 md:p-7"
@@ -200,126 +373,121 @@ export default function DashboardPage() {
         }}
       >
         <div
-          className="absolute -left-16 -top-16 h-44 w-44 rounded-full"
+          className="absolute -start-16 -top-16 h-44 w-44 rounded-full"
           style={{ background: 'rgba(245, 200, 66, 0.18)' }}
         />
 
         <div
-          className="absolute -bottom-20 right-12 h-56 w-56 rounded-full"
+          className="absolute -bottom-20 end-12 h-56 w-56 rounded-full"
           style={{ background: 'rgba(255, 255, 255, 0.08)' }}
         />
 
-<div className="relative z-10">
-  <div className="mb-5 flex items-center justify-between gap-3">
-    <div
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black"
-      style={{
-        background: 'rgba(255,255,255,0.13)',
-        color: '#fff',
-        border: '1px solid rgba(255,255,255,0.18)',
-      }}
-    >
-      <span>⚖️</span>
-      <span>لوحة إدارة المكتب القانوني</span>
-    </div>
-  </div>
-
-  <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.45fr_.75fr] lg:items-center">
-    <div>
-            <h1 className="text-2xl font-black leading-relaxed text-white md:text-3xl">
-              إدارة القضايا والموكلين من مكان واحد
-            </h1>
-
-<p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-  مركز تحكم شامل لمتابعة أداء المكتب القانوني، من القضايا والمواعيد إلى
-  المستندات والموكلين والمؤشرات المالية، بواجهة واضحة تساعدك على إدارة العمل بثقة.
-</p>
+        <div className="relative z-10">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black"
+              style={{
+                background: 'rgba(255,255,255,0.13)',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.18)',
+              }}
+            >
+              <span>⚖️</span>
+              <span>{t.heroBadge}</span>
+            </div>
           </div>
 
-          <div
-            className="rounded-3xl p-5"
-            style={{
-              background: 'rgba(255,255,255,0.12)',
-              border: '1px solid rgba(255,255,255,0.18)',
-              backdropFilter: 'blur(10px)',
-            }}
-          >
-            <p className="text-sm font-black text-white">ملخص اليوم</p>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.45fr_.75fr] lg:items-center">
+            <div>
+              <h1 className="text-2xl font-black leading-relaxed text-white md:text-3xl">
+                {t.heroTitle}
+              </h1>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div
-                className="rounded-2xl p-4"
-                style={{ background: 'rgba(255,255,255,0.12)' }}
-              >
-                <p className="text-xs font-bold text-white/65">مواعيد اليوم</p>
-                <p className="mt-1 text-2xl font-black text-white">
-                  {stats?.todayApptCount ?? 0}
-                </p>
-              </div>
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/75">
+                {t.heroDescription}
+              </p>
+            </div>
 
-              <div
-                className="rounded-2xl p-4"
-                style={{ background: 'rgba(255,255,255,0.12)' }}
-              >
-                <p className="text-xs font-bold text-white/65">قضايا نشطة</p>
-                <p className="mt-1 text-2xl font-black text-white">
-                  {stats?.activeCaseCount ?? 0}
-                </p>
+            <div
+              className="rounded-3xl p-5"
+              style={{
+                background: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                backdropFilter: 'blur(10px)',
+              }}
+            >
+              <p className="text-sm font-black text-white">{t.todaySummary}</p>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div
+                  className="rounded-2xl p-4"
+                  style={{ background: 'rgba(255,255,255,0.12)' }}
+                >
+                  <p className="text-xs font-bold text-white/65">{t.todayAppointments}</p>
+                  <p className="mt-1 text-2xl font-black text-white">
+                    {stats?.todayApptCount ?? 0}
+                  </p>
+                </div>
+
+                <div
+                  className="rounded-2xl p-4"
+                  style={{ background: 'rgba(255,255,255,0.12)' }}
+                >
+                  <p className="text-xs font-bold text-white/65">{t.activeCases}</p>
+                  <p className="mt-1 text-2xl font-black text-white">
+                    {stats?.activeCaseCount ?? 0}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      </div>
 
       {/* Main Stats */}
-      <div className="relative z-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="relative z-0 grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard
-          label="الموكلون"
+          label={t.clients}
           value={stats?.clientCount ?? 0}
-          sub={`+${stats?.newClientsThisMonth ?? 0} هذا الشهر`}
+          sub={`+${stats?.newClientsThisMonth ?? 0} ${t.thisMonth}`}
         />
 
         <StatCard
-          label="أقرب موعد"
-          value={firstAppointment ? firstAppointment.title : 'لا يوجد'}
-          sub={
-            firstAppointment
-              ? `${formatTime(firstAppointment.startTime)}`
-              : 'لا توجد مواعيد قادمة'
-          }
+          label={t.nextAppointment}
+          value={firstAppointment ? firstAppointment.title : t.noAppointment}
+          sub={firstAppointment ? `${formatTime(firstAppointment.startTime)}` : t.noUpcomingAppointments}
         />
 
         <StatCard
-          label="المستحقات"
-          value={formatCurrency(stats?.pendingAmount ?? 0)}
-          sub="غير محصلة"
+          label={t.receivables}
+          value={formatMoney(stats?.pendingAmount ?? 0, locale)}
+          sub={t.unpaid}
           bg={(stats?.pendingAmount ?? 0) > 0 ? 'var(--red-soft)' : undefined}
           color={(stats?.pendingAmount ?? 0) > 0 ? '#dc2626' : undefined}
         />
       </div>
 
       {/* AI + Cases + Appointments */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-        <div className="min-h-[300px] h-full [&>*]:h-full">
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
+        <div className="h-full min-h-[300px] [&>*]:h-full">
           <AIAssistant />
         </div>
 
         {/* Recent Cases */}
-        <div className="card p-5 min-h-[300px] h-full">
+        <div className="card h-full min-h-[300px] p-5">
           <div className="mb-4">
-            <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
-              آخر القضايا
+            <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>
+              {t.recentCases}
             </p>
 
-            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
-              أحدث القضايا المسجلة في المكتب
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+              {t.recentCasesSub}
             </p>
           </div>
 
           {cases.length === 0 ? (
-            <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>
-              لا توجد قضايا
+            <p className="py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>
+              {t.noCases}
             </p>
           ) : (
             <div className="space-y-3">
@@ -333,21 +501,21 @@ export default function DashboardPage() {
                   }}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className={STATUS_BADGE[c.status] ?? 'badge badge-gray'}>
-                      {STATUS_AR[c.status] ?? c.status}
-                    </span>
-
-                    <p className="text-sm font-black truncate" style={{ color: 'var(--text)' }}>
+                    <p className="truncate text-sm font-black" style={{ color: 'var(--text)' }}>
                       {c.title}
                     </p>
+
+                    <span className={STATUS_BADGE[c.status] ?? 'badge badge-gray'}>
+                      {statusLabels[c.status] ?? c.status}
+                    </span>
                   </div>
 
                   <div className="mt-2 flex items-center justify-between gap-3">
-                    <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>
-                      {c.client?.name ?? 'بدون موكل'}
+                    <p className="truncate text-xs" style={{ color: 'var(--text-3)' }}>
+                      {c.client?.name ?? t.noClient}
                     </p>
 
-                    <p className="text-xs font-mono" style={{ color: 'var(--text-3)' }}>
+                    <p className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>
                       #{c.caseNumber?.split('/').pop() ?? c.id.slice(-4)}
                     </p>
                   </div>
@@ -358,27 +526,27 @@ export default function DashboardPage() {
         </div>
 
         {/* Today's Appointments */}
-        <div className="card p-5 min-h-[300px] h-full">
+        <div className="card h-full min-h-[300px] p-5">
           <div className="mb-4">
-            <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
-              مواعيد اليوم
+            <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>
+              {t.todayAppointments}
             </p>
 
-            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
-              جدول مواعيد اليوم فقط
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+              {t.todayScheduleOnly}
             </p>
           </div>
 
           {!stats?.todayAppts?.length ? (
-            <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>
-              لا مواعيد اليوم
+            <p className="py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>
+              {t.noAppointmentsToday}
             </p>
           ) : (
             <div className="space-y-4">
               {stats.todayAppts.map((a) => (
                 <div key={a.id} className="flex gap-3">
                   <div
-                    className="w-1 rounded-full shrink-0 self-stretch"
+                    className="w-1 shrink-0 self-stretch rounded-full"
                     style={{
                       background: TYPE_COLOR[a.type] ?? 'var(--text-3)',
                       minHeight: 44,
@@ -386,16 +554,16 @@ export default function DashboardPage() {
                   />
 
                   <div className="min-w-0">
-                    <p className="font-black text-sm" style={{ color: 'var(--text)' }}>
+                    <p className="text-sm font-black" style={{ color: 'var(--text)' }}>
                       {formatTime(a.startTime)}
                     </p>
 
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+                    <p className="truncate text-sm font-medium" style={{ color: 'var(--text)' }}>
                       {a.title}
                     </p>
 
                     {a.location && (
-                      <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>
+                      <p className="truncate text-xs" style={{ color: 'var(--text-3)' }}>
                         {a.location}
                       </p>
                     )}
@@ -408,23 +576,23 @@ export default function DashboardPage() {
       </div>
 
       {/* Documents + Office Summary */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Documents */}
         <div className="card p-5 xl:col-span-2">
           <div className="mb-4">
-            <h3 className="font-bold text-lg" style={{ color: 'var(--text)' }}>
-              آخر المستندات
+            <h3 className="text-lg font-bold" style={{ color: 'var(--text)' }}>
+              {t.recentDocuments}
             </h3>
 
-            <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
-              آخر 5 ملفات مرفوعة في النظام
+            <p className="mt-1 text-sm" style={{ color: 'var(--text-2)' }}>
+              {t.recentDocumentsSub}
             </p>
           </div>
 
           <div className="space-y-3">
             {recentDocuments.length === 0 ? (
-              <p className="text-sm py-6 text-center" style={{ color: 'var(--text-3)' }}>
-                لا يوجد مستندات بعد
+              <p className="py-6 text-center text-sm" style={{ color: 'var(--text-3)' }}>
+                {t.noDocuments}
               </p>
             ) : (
               recentDocuments.map((doc) => (
@@ -436,19 +604,16 @@ export default function DashboardPage() {
                     background: 'var(--card)',
                   }}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl"
                       style={{ background: 'var(--green-soft)' }}
                     >
                       {getDocumentIcon(doc.fileType)}
                     </div>
 
                     <div className="min-w-0">
-                      <p
-                        className="text-sm font-bold truncate"
-                        style={{ color: 'var(--text)' }}
-                      >
+                      <p className="truncate text-sm font-bold" style={{ color: 'var(--text)' }}>
                         {doc.fileName}
                       </p>
 
@@ -472,8 +637,8 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <span className="text-xs shrink-0" style={{ color: 'var(--text-3)' }}>
-                    {formatDate(doc.createdAt)}
+                  <span className="shrink-0 text-xs" style={{ color: 'var(--text-3)' }}>
+                    {formatDate(doc.createdAt, locale)}
                   </span>
                 </div>
               ))
@@ -484,35 +649,29 @@ export default function DashboardPage() {
         {/* Office Summary */}
         <div className="card p-5">
           <div className="mb-5">
-            <h3 className="font-bold text-lg" style={{ color: 'var(--text)' }}>
-              ملخص المكتب
+            <h3 className="text-lg font-bold" style={{ color: 'var(--text)' }}>
+              {t.officeSummary}
             </h3>
 
-            <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
-              نظرة رقمية مختصرة على الأداء
+            <p className="mt-1 text-sm" style={{ color: 'var(--text-2)' }}>
+              {t.officeSummarySub}
             </p>
           </div>
 
           <div className="space-y-3">
-            <div
-              className="rounded-2xl border p-4"
-              style={{ borderColor: 'var(--border)' }}
-            >
+            <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)' }}>
               <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
-                إجمالي القضايا
+                {t.totalCases}
               </p>
 
-              <p className="text-2xl font-black mt-1" style={{ color: 'var(--text)' }}>
+              <p className="mt-1 text-2xl font-black" style={{ color: 'var(--text)' }}>
                 {stats?.totalCasesCount ?? 0}
               </p>
             </div>
 
-            <div
-              className="rounded-2xl border p-4"
-              style={{ borderColor: 'var(--border)' }}
-            >
+            <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)' }}>
               <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
-                القضايا المغلقة
+                {t.closedCases}
               </p>
 
               <div className="mt-1 flex items-end justify-between gap-3">
@@ -526,103 +685,93 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div
-              className="rounded-2xl border p-4"
-              style={{ borderColor: 'var(--border)' }}
-            >
+            <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)' }}>
               <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
-                إيرادات الشهر
+                {t.monthlyRevenue}
               </p>
 
-              <p className="text-2xl font-black mt-1" style={{ color: 'var(--sidebar)' }}>
-                {formatCurrency(stats?.monthlyRevenue ?? 0)}
+              <p className="mt-1 text-2xl font-black" style={{ color: 'var(--sidebar)' }}>
+                {formatMoney(stats?.monthlyRevenue ?? 0, locale)}
               </p>
             </div>
 
-            <div
-  className="rounded-2xl border p-4"
-  style={{ borderColor: 'var(--border)' }}
->
-  <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
-    إجمالي الإيرادات
-  </p>
+            <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+                {t.totalRevenue}
+              </p>
 
-  <p className="text-2xl font-black mt-1" style={{ color: 'var(--sidebar)' }}>
-    {formatCurrency(stats?.totalRevenue ?? 0)}
-  </p>
-</div>
-
+              <p className="mt-1 text-2xl font-black" style={{ color: 'var(--sidebar)' }}>
+                {formatMoney(stats?.totalRevenue ?? 0, locale)}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-{/* Activity Timeline */}
-<div className="card p-5">
-  <div className="mb-4">
-    <h3 className="text-lg font-black" style={{ color: 'var(--text)' }}>
-      آخر النشاطات
-    </h3>
+      {/* Activity Timeline */}
+      <div className="card p-5">
+        <div className="mb-4">
+          <h3 className="text-lg font-black" style={{ color: 'var(--text)' }}>
+            {t.recentActivities}
+          </h3>
 
-    <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
-      آخر 5 عمليات مسجلة داخل المكتب
-    </p>
-  </div>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-2)' }}>
+            {t.recentActivitiesSub}
+          </p>
+        </div>
 
-  {activities.length === 0 ? (
-    <div
-      className="rounded-2xl border border-dashed p-6 text-center text-sm"
-      style={{
-        borderColor: 'var(--border)',
-        color: 'var(--text-3)',
-      }}
-    >
-      لا توجد نشاطات حالياً
-    </div>
-  ) : (
-    <div className="space-y-3">
-      {activities.slice(0, 5).map((activity) => {
-        const config = ACTIVITY_CONFIG[activity.type] ?? {
-          icon: '✨',
-          color: '',
-        }
-
-        return (
+        {activities.length === 0 ? (
           <div
-            key={activity.id}
-            className="flex items-start gap-3 rounded-2xl border p-4"
+            className="rounded-2xl border border-dashed p-6 text-center text-sm"
             style={{
               borderColor: 'var(--border)',
-              background: 'var(--green-soft)',
-              color: 'var(--text)',
+              color: 'var(--text-3)',
             }}
           >
-            <div className="text-xl shrink-0">
-              {config.icon}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-bold truncate">
-                  {activity.title}
-                </p>
-
-                <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-3)' }}>
-                  {formatDate(activity.createdAt)}
-                </span>
-              </div>
-
-              {activity.message && (
-                <p className="text-sm mt-1 truncate" style={{ color: 'var(--text-2)' }}>
-                  {activity.message}
-                </p>
-              )}
-            </div>
+            {t.noActivities}
           </div>
-        )
-      })}
-    </div>
-  )}
-</div>
+        ) : (
+          <div className="space-y-3">
+            {activities.slice(0, 5).map((activity) => {
+              const config = ACTIVITY_CONFIG[activity.type] ?? {
+                icon: '✨',
+                color: '',
+              }
+              const activityText = getActivityText(activity, locale)
+
+              return (
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-3 rounded-2xl border p-4"
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--green-soft)',
+                    color: 'var(--text)',
+                  }}
+                >
+                  <div className="shrink-0 text-xl">{config.icon}</div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate font-bold">{activityText.title}</p>
+
+                      <span className="whitespace-nowrap text-xs" style={{ color: 'var(--text-3)' }}>
+                        {formatDate(activity.createdAt, locale)}
+                      </span>
+                    </div>
+
+                    {activityText.message && (
+                      <p className="mt-1 truncate text-sm" style={{ color: 'var(--text-2)' }}>
+                        {activityText.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

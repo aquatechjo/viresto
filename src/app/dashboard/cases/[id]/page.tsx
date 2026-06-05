@@ -2,14 +2,15 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 import PageLoader from '@/components/ui/PageLoader'
 import Modal from '@/components/ui/Modal'
 import FormField from '@/components/ui/FormField'
-import { fileSizeLabel, formatCurrency, formatDate, formatTime } from '@/lib/utils'
+import { fileSizeLabel, formatDate, formatTime } from '@/lib/utils'
+import { useLocale } from '@/lib/useLocale'
 
 interface Payment {
   id: string
@@ -218,6 +219,50 @@ const ACTIVITY_ICON: Record<string, string> = {
   USER_CREATED: '👥',
 }
 
+
+const ACTIVITY_TITLE_EN: Record<string, string> = {
+  CLIENT_CREATED: 'New client was created',
+  CASE_CREATED: 'New case was created',
+  APPOINTMENT_CREATED: 'New appointment was created',
+  PAYMENT_CREATED: 'New payment was recorded',
+  DOCUMENT_UPLOADED: 'New document was uploaded',
+  TASK_CREATED: 'New task was created',
+  INVOICE_CREATED: 'New invoice was created',
+  USER_CREATED: 'New user was created',
+}
+
+const ACTIVITY_ENTITY_EN: Record<string, string> = {
+  CLIENT_CREATED: 'Client',
+  CASE_CREATED: 'Case',
+  APPOINTMENT_CREATED: 'Appointment',
+  PAYMENT_CREATED: 'Payment',
+  DOCUMENT_UPLOADED: 'Document',
+  TASK_CREATED: 'Task',
+  INVOICE_CREATED: 'Invoice',
+  USER_CREATED: 'User',
+}
+
+function activityTitle(activity: Activity, isArabic: boolean) {
+  if (isArabic) return activity.title
+  return ACTIVITY_TITLE_EN[activity.type] || activity.title
+}
+
+function activityMessage(activity: Activity, isArabic: boolean) {
+  if (isArabic) return activity.message
+  return ACTIVITY_ENTITY_EN[activity.type] || activity.entityType || activity.message
+}
+
+function activityDate(value: string, isArabic: boolean) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat(isArabic ? 'ar-JO' : 'en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date)
+}
+
 const DOCUMENT_TAGS = ['عقد', 'قضية', 'هوية', 'حكم', 'إثبات', 'لائحة', 'مالية']
 
 const PMT_INIT = {
@@ -267,6 +312,15 @@ function safeNumber(value: string) {
   return Number.isFinite(number) ? number : 0
 }
 
+function formatMoney(value: number) {
+  const amount = Number(value || 0).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+  return `JOD ${amount}`
+}
+
 function documentIcon(fileType?: string | null) {
   if (fileType === 'application/pdf') return '📄'
   if (fileType?.startsWith('image/')) return '🖼️'
@@ -274,9 +328,172 @@ function documentIcon(fileType?: string | null) {
   return '📁'
 }
 
+function displayDate(value?: string | null, isArabic = true) {
+  if (!value) return '-'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+
+  return new Intl.DateTimeFormat(isArabic ? 'ar-JO' : 'en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date)
+}
+
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { locale, isRtl } = useLocale()
+  const isArabic = locale === 'ar'
+  const pageText = {
+    back: isArabic ? 'رجوع' : 'Back',
+    caseFile: isArabic ? 'ملف القضية' : 'Case file',
+    caseNumber: isArabic ? 'رقم القضية' : 'Case number',
+    noCourt: isArabic ? 'بدون محكمة محددة' : 'No court selected',
+    added: isArabic ? 'أُضيفت' : 'Added',
+    payment: isArabic ? '+ دفعة' : '+ Payment',
+    invoice: isArabic ? '+ فاتورة' : '+ Invoice',
+    appointment: isArabic ? '+ موعد' : '+ Appointment',
+    task: isArabic ? '+ مهمة' : '+ Task',
+    document: isArabic ? '+ مستند' : '+ Document',
+    agreedFees: isArabic ? 'الأتعاب المتفق عليها' : 'Agreed fees',
+    collected: isArabic ? 'المحصّل' : 'Collected',
+    remaining: isArabic ? 'المتبقي' : 'Remaining',
+    collectionRate: isArabic ? 'نسبة التحصيل' : 'Collection rate',
+    client: isArabic ? 'الموكل' : 'Client',
+    openClient: isArabic ? 'فتح ملف الموكل' : 'Open client file',
+    phone: isArabic ? 'الهاتف' : 'Phone',
+    email: isArabic ? 'البريد الإلكتروني' : 'Email',
+    nationalId: isArabic ? 'الرقم الوطني / الهوية' : 'National ID',
+    address: isArabic ? 'العنوان' : 'Address',
+    notAdded: isArabic ? 'غير مضاف' : 'Not added',
+    invoices: isArabic ? 'الفواتير' : 'Invoices',
+    unpaid: isArabic ? 'غير مدفوع' : 'Unpaid',
+    changeStatus: isArabic ? 'تغيير حالة القضية' : 'Change case status',
+    appointmentsSection: isArabic ? 'المواعيد والجلسات' : 'Appointments and sessions',
+    tasksSection: isArabic ? 'المهام' : 'Tasks',
+    invoicesSection: isArabic ? 'الفواتير' : 'Invoices',
+    paymentsSection: isArabic ? 'المدفوعات' : 'Payments',
+    documentsSection: isArabic ? 'المستندات' : 'Documents',
+    latestActivities: isArabic ? 'آخر النشاطات' : 'Latest activities',
+    latestActivitiesHint: isArabic ? 'أحدث العمليات على هذه القضية' : 'Recent actions on this case',
+    noActivities: isArabic ? 'لا توجد نشاطات مسجلة.' : 'No activities recorded.',
+    item: isArabic ? 'عنصر' : 'item',
+    delete: isArabic ? 'حذف' : 'Delete',
+    open: isArabic ? 'فتح' : 'Open',
+    preview: isArabic ? 'معاينة' : 'Preview',
+    cancel: isArabic ? 'إلغاء' : 'Cancel',
+    save: isArabic ? 'حفظ' : 'Save',
+    amount: isArabic ? 'المبلغ' : 'Amount',
+    status: isArabic ? 'الحالة' : 'Status',
+    method: isArabic ? 'طريقة الدفع' : 'Payment method',
+    notes: isArabic ? 'ملاحظات' : 'Notes',
+    description: isArabic ? 'الوصف' : 'Description',
+    title: isArabic ? 'العنوان' : 'Title',
+    type: isArabic ? 'النوع' : 'Type',
+    location: isArabic ? 'المكان' : 'Location',
+    noLocation: isArabic ? 'بدون موقع' : 'No location',
+    dueDate: isArabic ? 'تاريخ الاستحقاق' : 'Due date',
+    noDate: isArabic ? 'بدون تاريخ' : 'No date',
+    priority: isArabic ? 'الأولوية' : 'Priority',
+    paymentDate: isArabic ? 'تاريخ الدفع' : 'Payment date',
+    startTime: isArabic ? 'وقت البداية' : 'Start time',
+    endTime: isArabic ? 'وقت الانتهاء' : 'End time',
+    itemDescription: isArabic ? 'وصف البند' : 'Item description',
+    tax: isArabic ? 'الضريبة' : 'Tax',
+    discount: isArabic ? 'الخصم' : 'Discount',
+    documentCategory: isArabic ? 'تصنيف المستند' : 'Document category',
+    invoiceNumber: isArabic ? 'رقم الفاتورة' : 'Invoice number',
+    total: isArabic ? 'الإجمالي' : 'Total',
+    date: isArabic ? 'التاريخ' : 'Date',
+    savePayment: isArabic ? 'حفظ الدفعة' : 'Save payment',
+    saveAppointment: isArabic ? 'حفظ الموعد' : 'Save appointment',
+    saveTask: isArabic ? 'حفظ المهمة' : 'Save task',
+    createInvoice: isArabic ? 'إنشاء الفاتورة' : 'Create invoice',
+    saving: isArabic ? 'جاري الحفظ...' : 'Saving...',
+    creating: isArabic ? 'جاري الإنشاء...' : 'Creating...',
+    deleting: isArabic ? 'جاري الحذف...' : 'Deleting...',
+    uploading: isArabic ? 'جاري رفع المستند...' : 'Uploading document...',
+    addPaymentTitle: isArabic ? 'إضافة دفعة' : 'Add payment',
+    addAppointmentTitle: isArabic ? 'إضافة موعد' : 'Add appointment',
+    addTaskTitle: isArabic ? 'إضافة مهمة' : 'Add task',
+    createInvoiceTitle: isArabic ? 'إنشاء فاتورة' : 'Create invoice',
+    uploadDocumentTitle: isArabic ? 'رفع مستند للقضية' : 'Upload case document',
+    deletePaymentTitle: isArabic ? 'حذف الدفعة' : 'Delete payment',
+    deletePaymentConfirm: isArabic
+      ? 'هل أنت متأكد من حذف هذه الدفعة؟ لا يمكن التراجع عن هذه العملية.'
+      : 'Are you sure you want to delete this payment? This action cannot be undone.',
+    documentUploadHint: isArabic
+      ? 'سيتم ربط المستند تلقائيًا بهذه القضية وبالموكل المرتبط بها. الحد الأقصى لحجم الملف 10MB.'
+      : 'The document will be linked automatically to this case and its client. Maximum file size is 10MB.',
+    noAppointments: isArabic ? 'لا توجد مواعيد مرتبطة بهذه القضية.' : 'No appointments are linked to this case.',
+    noTasks: isArabic ? 'لا توجد مهام مرتبطة بهذه القضية.' : 'No tasks are linked to this case.',
+    noInvoices: isArabic ? 'لا توجد فواتير مرتبطة بهذه القضية.' : 'No invoices are linked to this case.',
+    noPayments: isArabic ? 'لا توجد دفعات مرتبطة بهذه القضية.' : 'No payments are linked to this case.',
+    noDocuments: isArabic ? 'لا توجد مستندات مرتبطة بهذه القضية.' : 'No documents are linked to this case.',
+    notFoundTitle: isArabic ? 'القضية غير موجودة' : 'Case not found',
+    notFoundDescription: isArabic
+      ? 'تعذر العثور على بيانات هذه القضية.'
+      : 'Could not find this case data.',
+  }
+
+  const statusText: Record<string, string> = {
+    OPEN: isArabic ? 'نشطة' : 'Open',
+    IN_PROGRESS: isArabic ? 'قيد المتابعة' : 'In progress',
+    CLOSED: isArabic ? 'مغلقة' : 'Closed',
+    ARCHIVED: isArabic ? 'مؤرشفة' : 'Archived',
+  }
+
+  const statuses = [
+    ['OPEN', statusText.OPEN],
+    ['IN_PROGRESS', statusText.IN_PROGRESS],
+    ['CLOSED', statusText.CLOSED],
+    ['ARCHIVED', statusText.ARCHIVED],
+  ] as const
+
+  const methodText: Record<string, string> = {
+    CASH: isArabic ? 'نقدًا' : 'Cash',
+    BANK_TRANSFER: isArabic ? 'تحويل بنكي' : 'Bank transfer',
+    CHECK: isArabic ? 'شيك' : 'Check',
+    ONLINE: isArabic ? 'إلكتروني' : 'Online',
+  }
+
+  const paymentStatusText: Record<string, string> = {
+    PAID: isArabic ? 'مدفوع' : 'Paid',
+    PENDING: isArabic ? 'معلق' : 'Pending',
+    OVERDUE: isArabic ? 'متأخر' : 'Overdue',
+    CANCELLED: isArabic ? 'ملغي' : 'Cancelled',
+  }
+
+  const invoiceStatusText: Record<string, string> = {
+    DRAFT: isArabic ? 'مسودة' : 'Draft',
+    UNPAID: isArabic ? 'غير مدفوعة' : 'Unpaid',
+    PAID: isArabic ? 'مدفوعة' : 'Paid',
+    OVERDUE: isArabic ? 'متأخرة' : 'Overdue',
+    CANCELLED: isArabic ? 'ملغاة' : 'Cancelled',
+  }
+
+  const taskPriorityText: Record<string, string> = {
+    URGENT: isArabic ? 'عاجلة' : 'Urgent',
+    HIGH: isArabic ? 'عالية' : 'High',
+    MEDIUM: isArabic ? 'متوسطة' : 'Medium',
+    LOW: isArabic ? 'منخفضة' : 'Low',
+  }
+
+  const appointmentTypeText: Record<string, string> = {
+    MEETING: isArabic ? 'اجتماع' : 'Meeting',
+    COURT_SESSION: isArabic ? 'جلسة محكمة' : 'Court session',
+    PHONE_CALL: isArabic ? 'مكالمة' : 'Phone call',
+    DEADLINE: isArabic ? 'موعد نهائي' : 'Deadline',
+    OTHER: isArabic ? 'أخرى' : 'Other',
+  }
+
+  const appointmentStatusText: Record<string, string> = {
+    SCHEDULED: isArabic ? 'مجدول' : 'Scheduled',
+    COMPLETED: isArabic ? 'مكتمل' : 'Completed',
+    CANCELLED: isArabic ? 'ملغي' : 'Cancelled',
+  }
 
   const [c, setC] = useState<CaseDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -776,18 +993,18 @@ export default function CaseDetailPage() {
 
   if (!c) {
     return (
-      <div className="space-y-5 stagger">
+      <div className="space-y-5 stagger" dir={isRtl ? 'rtl' : 'ltr'}>
         <div className="card p-10 text-center">
           <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
-            القضية غير موجودة
+            {pageText.notFoundTitle}
           </h1>
 
           <p className="mt-2 text-sm" style={{ color: 'var(--text-3)' }}>
-            تعذر العثور على بيانات هذه القضية.
+            {pageText.notFoundDescription}
           </p>
 
           <button onClick={() => router.back()} className="btn btn-primary mt-5">
-            رجوع
+            {pageText.back}
           </button>
         </div>
       </div>
@@ -795,7 +1012,7 @@ export default function CaseDetailPage() {
   }
 
   return (
-    <div className="space-y-5 stagger">
+    <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger" dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6"
@@ -807,12 +1024,12 @@ export default function CaseDetailPage() {
         }}
       >
         <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
+          className={`absolute -top-14 h-40 w-40 rounded-full ${isRtl ? '-right-14' : '-left-14'}`}
           style={{ background: 'rgba(245, 200, 66, 0.16)' }}
         />
 
         <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
+          className={`absolute -bottom-20 h-52 w-52 rounded-full ${isRtl ? 'left-16' : 'right-16'}`}
           style={{ background: 'rgba(255,255,255,0.08)' }}
         />
 
@@ -827,7 +1044,7 @@ export default function CaseDetailPage() {
                   border: '1px solid rgba(255,255,255,0.18)',
                 }}
               >
-                ملف القضية
+                {pageText.caseFile}
               </span>
 
               <span
@@ -837,7 +1054,7 @@ export default function CaseDetailPage() {
                   color: 'var(--sidebar)',
                 }}
               >
-                {STATUS_AR[c.status] || c.status}
+                {statusText[c.status] || c.status}
               </span>
 
               {c.caseNumber && (
@@ -848,16 +1065,16 @@ export default function CaseDetailPage() {
                     color: '#fff',
                   }}
                 >
-                  رقم القضية: {c.caseNumber}
+                  {pageText.caseNumber}: {c.caseNumber}
                 </span>
               )}
             </div>
 
             <h1 className="text-2xl font-black text-white">{c.title}</h1>
 
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              {c.court || 'بدون محكمة محددة'} · أُضيفت {formatDate(c.createdAt)}
-            </p>
+<p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
+  {c.court || pageText.noCourt} · {pageText.added} {displayDate(c.createdAt, isArabic)}
+</p>
 
             {c.description && (
               <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-white/75">
@@ -877,7 +1094,7 @@ export default function CaseDetailPage() {
                 borderColor: 'rgba(255,255,255,0.32)',
               }}
             >
-              رجوع
+              {pageText.back}
             </button>
 
             <button
@@ -890,7 +1107,7 @@ export default function CaseDetailPage() {
                 borderColor: 'rgba(245,200,66,0.35)',
               }}
             >
-              + دفعة
+              {pageText.payment}
             </button>
 
             <button
@@ -903,7 +1120,7 @@ export default function CaseDetailPage() {
                 borderColor: 'rgba(255,255,255,0.22)',
               }}
             >
-              + فاتورة
+              {pageText.invoice}
             </button>
           </div>
         </div>
@@ -913,25 +1130,25 @@ export default function CaseDetailPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
-            label: 'الأتعاب المتفق عليها',
-            value: formatCurrency(c.feeAgreed || 0),
+            label: pageText.agreedFees,
+            value: formatMoney(c.feeAgreed || 0),
             color: 'var(--text)',
             bg: 'var(--card)',
           },
           {
-            label: 'المحصّل',
-            value: formatCurrency(totals.totalPaid),
+            label: pageText.collected,
+            value: formatMoney(totals.totalPaid),
             color: 'var(--sidebar)',
             bg: 'var(--green-soft)',
           },
           {
-            label: 'المتبقي',
-            value: formatCurrency(totals.remaining),
+            label: pageText.remaining,
+            value: formatMoney(totals.remaining),
             color: totals.remaining > 0 ? '#dc2626' : 'var(--text-3)',
             bg: totals.remaining > 0 ? 'var(--red-soft)' : 'var(--card)',
           },
           {
-            label: 'نسبة التحصيل',
+            label: pageText.collectionRate,
             value: `${Math.round(totals.pct)}%`,
             color: totals.pct >= 80 ? 'var(--sidebar)' : '#92400e',
             bg: totals.pct >= 80 ? 'var(--green-soft)' : 'var(--amber-soft)',
@@ -946,7 +1163,13 @@ export default function CaseDetailPage() {
               {item.label}
             </p>
 
-            <p className="mt-2 text-2xl font-black" style={{ color: item.color }}>
+            <p
+              dir="ltr"
+              className={`mt-2 whitespace-nowrap text-xl font-black leading-tight ${
+                isRtl ? 'text-right' : 'text-left'
+              }`}
+              style={{ color: item.color }}
+            >
               {item.value}
             </p>
           </div>
@@ -955,21 +1178,21 @@ export default function CaseDetailPage() {
 
       {/* Quick actions */}
       <div className="card p-4">
-        <div className="flex flex-wrap gap-2">
+        <div className={`flex flex-wrap gap-2 ${isRtl ? 'justify-end' : 'justify-start'}`}>
           <button onClick={() => setAppointmentOpen(true)} className="btn btn-ghost">
-            + موعد
+            {pageText.appointment}
           </button>
           <button onClick={() => setTaskOpen(true)} className="btn btn-ghost">
-            + مهمة
+            {pageText.task}
           </button>
           <button onClick={() => setDocumentOpen(true)} className="btn btn-ghost">
-            + مستند
+            {pageText.document}
           </button>
           <button onClick={() => setPaymentOpen(true)} className="btn btn-ghost">
-            + دفعة
+            {pageText.payment}
           </button>
           <button onClick={() => setInvoiceOpen(true)} className="btn btn-ghost">
-            + فاتورة
+            {pageText.invoice}
           </button>
         </div>
       </div>
@@ -980,7 +1203,7 @@ export default function CaseDetailPage() {
           <div className="card p-5">
             <div className="mb-4">
               <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
-                الموكل
+                {pageText.client}
               </p>
               <h2 className="mt-1 text-xl font-black" style={{ color: 'var(--text)' }}>
                 {c.client.name}
@@ -998,11 +1221,11 @@ export default function CaseDetailPage() {
   <div className="flex items-start justify-between gap-3">
     <div>
       <p className="text-xs font-black" style={{ color: 'var(--text-2)' }}>
-        الموكل
+        {pageText.client}
       </p>
 
       <h3 className="mt-1 text-lg font-black" style={{ color: 'var(--sidebar)' }}>
-        {c.client.name || 'غير مضاف'}
+        {c.client.name || pageText.notAdded}
       </h3>
     </div>
 
@@ -1014,8 +1237,8 @@ export default function CaseDetailPage() {
         border: '1px solid var(--border)',
       }}
     >
-      فتح ملف الموكل
-    </span>
+      {pageText.openClient}
+      </span>
   </div>
 
   <div
@@ -1024,37 +1247,37 @@ export default function CaseDetailPage() {
   >
     <div>
       <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
-        الهاتف
+        {pageText.phone}
       </p>
-      <p className="mt-1 truncate text-sm font-bold" style={{ color: 'var(--text)' }}>
-        {c.client.phone || 'غير مضاف'}
-      </p>
-    </div>
-
-    <div>
-      <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
-        البريد الإلكتروني
-      </p>
-      <p className="mt-1 truncate text-sm font-bold" style={{ color: 'var(--text)' }}>
-        {c.client.email || 'غير مضاف'}
+      <p dir="ltr" className={`mt-1 truncate text-sm font-bold ${isRtl ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text)' }}>
+        {c.client.phone || pageText.notAdded}
       </p>
     </div>
 
     <div>
       <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
-        الرقم الوطني / الهوية
+        {pageText.email}
       </p>
-      <p className="mt-1 truncate text-sm font-bold" style={{ color: 'var(--text)' }}>
-       {c.client.nationalId || 'غير مضاف'}
+      <p dir="ltr" className={`mt-1 truncate text-sm font-bold ${isRtl ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text)' }}>
+        {c.client.email || pageText.notAdded}
       </p>
     </div>
 
     <div>
       <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
-        العنوان
+        {pageText.nationalId}
+      </p>
+      <p dir="ltr" className={`mt-1 truncate text-sm font-bold ${isRtl ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text)' }}>
+       {c.client.nationalId || pageText.notAdded}
+      </p>
+    </div>
+
+    <div>
+      <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+        {pageText.address}
       </p>
       <p className="mt-1 line-clamp-2 break-words text-sm font-bold" style={{ color: 'var(--text)' }}>
-        {c.client.address || 'غير مضاف'}
+        {c.client.address || pageText.notAdded}
       </p>
     </div>
   </div>
@@ -1064,9 +1287,9 @@ export default function CaseDetailPage() {
           <div className="card p-5">
             <div className="mb-3 flex justify-between text-xs font-black">
               <span style={{ color: 'var(--sidebar)' }}>
-                {Math.round(totals.pct)}% محصّل
+                {Math.round(totals.pct)}% {pageText.collected}
               </span>
-              <span style={{ color: 'var(--text-3)' }}>نسبة التحصيل</span>
+              <span style={{ color: 'var(--text-3)' }}>{pageText.collectionRate}</span>
             </div>
 
             <div
@@ -1088,10 +1311,10 @@ export default function CaseDetailPage() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <MiniMetric label="الفواتير" value={formatCurrency(totals.invoicesTotal)} />
+              <MiniMetric label={pageText.invoices} value={formatMoney(totals.invoicesTotal)} />
               <MiniMetric
-                label="غير مدفوع"
-                value={formatCurrency(totals.unpaidInvoicesTotal)}
+                label={pageText.unpaid}
+                value={formatMoney(totals.unpaidInvoicesTotal)}
                 danger={totals.unpaidInvoicesTotal > 0}
               />
             </div>
@@ -1099,11 +1322,11 @@ export default function CaseDetailPage() {
 
           <div className="card p-5">
             <p className="mb-3 text-xs font-black" style={{ color: 'var(--text-3)' }}>
-              تغيير حالة القضية
+              {pageText.changeStatus}
             </p>
 
             <div className="grid grid-cols-2 gap-2">
-              {STATUSES.map(([status, label]) => (
+              {statuses.map(([status, label]) => (
                 <button
                   key={status}
                   type="button"
@@ -1127,22 +1350,23 @@ export default function CaseDetailPage() {
             </div>
           </div>
 
-          <Timeline activities={c.activities} />
+          <Timeline activities={c.activities} text={pageText} isArabic={isArabic} />
         </div>
 
         {/* Main sections */}
         <div className="space-y-5 xl:col-span-8">
           <SectionCard
-            title="المواعيد والجلسات"
+            title={pageText.appointmentsSection}
             count={c.appointments.length}
+            countLabel={pageText.item}
             action={
               <button onClick={() => setAppointmentOpen(true)} className="btn btn-ghost">
-                + موعد
+                {pageText.appointment}
               </button>
             }
           >
             {c.appointments.length === 0 ? (
-              <EmptyLine text="لا توجد مواعيد مرتبطة بهذه القضية." />
+              <EmptyLine text={pageText.noAppointments} />
             ) : (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {(upcomingAppointments.length
@@ -1159,7 +1383,7 @@ export default function CaseDetailPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <span className="badge badge-blue">
-                        {APPT_TYPE_AR[appointment.type] || appointment.type}
+                        {appointmentTypeText[appointment.type] || appointment.type}
                       </span>
 
                       <div className="text-right">
@@ -1178,7 +1402,7 @@ export default function CaseDetailPage() {
                       className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"
                       style={{ color: 'var(--text-2)' }}
                     >
-                      <span>{APPT_STATUS_AR[appointment.status] || appointment.status}</span>
+                      <span>{appointmentStatusText[appointment.status] || appointment.status}</span>
 
                       <div className="flex items-center gap-2">
                         <button
@@ -1186,10 +1410,10 @@ export default function CaseDetailPage() {
                           onClick={() => deleteAppointment(appointment)}
                           className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
                         >
-                          حذف
+                          {pageText.delete}
                         </button>
 
-                        <span>{appointment.location || 'بدون موقع'}</span>
+                        <span>{appointment.location || pageText.noLocation}</span>
                       </div>
                     </div>
                   </div>
@@ -1199,16 +1423,17 @@ export default function CaseDetailPage() {
           </SectionCard>
 
           <SectionCard
-            title="المهام"
+            title={pageText.tasksSection}
             count={c.tasks.length}
+            countLabel={pageText.item}
             action={
               <button onClick={() => setTaskOpen(true)} className="btn btn-ghost">
-                + مهمة
+                {pageText.task}
               </button>
             }
           >
             {c.tasks.length === 0 ? (
-              <EmptyLine text="لا توجد مهام مرتبطة بهذه القضية." />
+              <EmptyLine text={pageText.noTasks} />
             ) : (
               <div className="space-y-2">
                 {c.tasks.slice(0, 8).map((task) => (
@@ -1239,13 +1464,13 @@ export default function CaseDetailPage() {
 
                       <p className="text-xs" style={{ color: 'var(--text-3)' }}>
                         {task.dueDate
-                          ? `تاريخ الاستحقاق: ${formatDate(task.dueDate)}`
-                          : 'بدون تاريخ'}
+                          ? `${pageText.dueDate}: ${formatDate(task.dueDate)}`
+                          : pageText.noDate}
                       </p>
                     </div>
 
                     <span className={TASK_PRIORITY_BADGE[task.priority] || 'badge badge-gray'}>
-                      {TASK_PRIORITY_AR[task.priority] || task.priority}
+                      {taskPriorityText[task.priority] || task.priority}
                     </span>
 
                     <button
@@ -1253,7 +1478,7 @@ export default function CaseDetailPage() {
                       onClick={() => deleteTask(task)}
                       className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
                     >
-                      حذف
+                      {pageText.delete}
                     </button>
                   </div>
                 ))}
@@ -1262,25 +1487,26 @@ export default function CaseDetailPage() {
           </SectionCard>
 
           <SectionCard
-            title="الفواتير"
+            title={pageText.invoicesSection}
             count={c.invoices.length}
+            countLabel={pageText.item}
             action={
               <button onClick={() => setInvoiceOpen(true)} className="btn btn-ghost">
-                + فاتورة
+                {pageText.invoice}
               </button>
             }
           >
             {c.invoices.length === 0 ? (
-              <EmptyLine text="لا توجد فواتير مرتبطة بهذه القضية." />
+              <EmptyLine text={pageText.noInvoices} />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="data-table">
+              <div className="max-w-full overflow-x-auto">
+                <table className="data-table min-w-[760px]">
                   <thead>
                     <tr>
-                      <th>رقم الفاتورة</th>
-                      <th>الحالة</th>
-                      <th>الإجمالي</th>
-                      <th>الاستحقاق</th>
+                      <th>{pageText.invoiceNumber}</th>
+                      <th>{pageText.status}</th>
+                      <th>{pageText.total}</th>
+                      <th>{pageText.dueDate}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -1296,11 +1522,11 @@ export default function CaseDetailPage() {
                               INVOICE_STATUS_BADGE[invoice.status] || 'badge badge-gray'
                             }
                           >
-                            {INVOICE_STATUS_AR[invoice.status] || invoice.status}
+                            {invoiceStatusText[invoice.status] || invoice.status}
                           </span>
                         </td>
 
-                        <td className="font-bold">{formatCurrency(invoice.total)}</td>
+                        <td dir="ltr" className={`whitespace-nowrap font-bold ${isRtl ? 'text-right' : 'text-left'}`}>{formatMoney(invoice.total)}</td>
 
                         <td>{invoice.dueDate ? formatDate(invoice.dueDate) : '-'}</td>
 
@@ -1311,7 +1537,7 @@ export default function CaseDetailPage() {
                               className="text-xs font-bold hover:underline"
                               style={{ color: 'var(--sidebar)' }}
                             >
-                              فتح
+                              {pageText.open}
                             </Link>
 
                             <button
@@ -1320,12 +1546,12 @@ export default function CaseDetailPage() {
                               disabled={!!invoice.payment}
                               title={
                                 invoice.payment
-                                  ? 'لا يمكن حذف فاتورة مرتبطة بدفعة'
-                                  : 'حذف الفاتورة'
+                                  ? (isArabic ? 'لا يمكن حذف فاتورة مرتبطة بدفعة' : 'Cannot delete an invoice linked to a payment')
+                                  : (isArabic ? 'حذف الفاتورة' : 'Delete invoice')
                               }
                               className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                              حذف
+                              {pageText.delete}
                             </button>
                           </div>
                         </td>
@@ -1338,26 +1564,27 @@ export default function CaseDetailPage() {
           </SectionCard>
 
           <SectionCard
-            title="المدفوعات"
+            title={pageText.paymentsSection}
             count={c.payments.length}
+            countLabel={pageText.item}
             action={
               <button onClick={() => setPaymentOpen(true)} className="btn btn-ghost">
-                + دفعة
+                {pageText.payment}
               </button>
             }
           >
             {c.payments.length === 0 ? (
-              <EmptyLine text="لا توجد دفعات مرتبطة بهذه القضية." />
+              <EmptyLine text={pageText.noPayments} />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="data-table">
+              <div className="max-w-full overflow-x-auto">
+                <table className="data-table min-w-[760px]">
                   <thead>
                     <tr>
-                      <th>التاريخ</th>
-                      <th>المبلغ</th>
-                      <th>الطريقة</th>
-                      <th>الحالة</th>
-                      <th>الفاتورة</th>
+                      <th>{pageText.date}</th>
+                      <th>{pageText.amount}</th>
+                      <th>{pageText.method}</th>
+                      <th>{pageText.status}</th>
+                      <th>{pageText.invoice}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -1367,17 +1594,20 @@ export default function CaseDetailPage() {
                       <tr key={payment.id}>
                         <td className="text-sm">{formatDate(payment.paidAt)}</td>
 
-                        <td className="font-bold">
-                          {formatCurrency(payment.amount)}
+                        <td
+                          dir="ltr"
+                          className={`whitespace-nowrap font-bold ${isRtl ? 'text-right' : 'text-left'}`}
+                        >
+                          {formatMoney(payment.amount)}
                         </td>
 
                         <td style={{ color: 'var(--text-2)' }}>
-                          {METHOD_AR[payment.method] || payment.method}
+                          {methodText[payment.method] || payment.method}
                         </td>
 
                         <td>
                           <span className={PMT_STATUS[payment.status] || 'badge badge-gray'}>
-                            {PMT_AR[payment.status] || payment.status}
+                            {paymentStatusText[payment.status] || payment.status}
                           </span>
                         </td>
 
@@ -1401,7 +1631,9 @@ export default function CaseDetailPage() {
                             onClick={() => {
                               if (payment.invoice) {
                                 toast.error(
-                                  'لا يمكن حذف دفعة مرتبطة بفاتورة. افتح الفاتورة وغيّر حالتها أولًا.'
+                                  isArabic
+                                    ? (isArabic ? 'لا يمكن حذف دفعة مرتبطة بفاتورة. افتح الفاتورة وغيّر حالتها أولًا.' : 'Cannot delete a payment linked to an invoice. Open the invoice and change its status first.')
+                                    : 'Cannot delete a payment linked to an invoice. Open the invoice and change its status first.'
                                 )
                                 return
                               }
@@ -1409,7 +1641,9 @@ export default function CaseDetailPage() {
                               setDeleteId(payment.id)
                             }}
                             title={
-                              payment.invoice ? 'دفعة مرتبطة بفاتورة' : 'حذف الدفعة'
+                              payment.invoice
+                                ? (isArabic ? 'دفعة مرتبطة بفاتورة' : 'Payment linked to an invoice')
+                                : (isArabic ? 'حذف الدفعة' : 'Delete payment')
                             }
                             className={`text-sm transition-colors ${
                               payment.invoice
@@ -1429,16 +1663,17 @@ export default function CaseDetailPage() {
           </SectionCard>
 
           <SectionCard
-            title="المستندات"
+            title={pageText.documentsSection}
             count={c.documents.length}
+            countLabel={pageText.item}
             action={
               <button onClick={() => setDocumentOpen(true)} className="btn btn-ghost">
-                + مستند
+                {pageText.document}
               </button>
             }
           >
             {c.documents.length === 0 ? (
-              <EmptyLine text="لا توجد مستندات مرتبطة بهذه القضية." />
+              <EmptyLine text={pageText.noDocuments} />
             ) : (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {c.documents.slice(0, 8).map((doc) => (
@@ -1485,7 +1720,7 @@ export default function CaseDetailPage() {
                         rel="noreferrer"
                         className="btn btn-ghost text-xs"
                       >
-                        معاينة
+                        {pageText.preview}
                       </a>
 
                       <button
@@ -1497,7 +1732,7 @@ export default function CaseDetailPage() {
                           color: '#dc2626',
                         }}
                       >
-                        حذف
+                        {pageText.delete}
                       </button>
                     </div>
                   </div>
@@ -1515,13 +1750,14 @@ export default function CaseDetailPage() {
           setPaymentOpen(false)
           setPaymentForm(PMT_INIT)
         }}
-        title="إضافة دفعة"
+        title={pageText.addPaymentTitle}
       >
-        <form onSubmit={addPayment} className="space-y-3">
-          <FormField label="المبلغ" required>
+        <form onSubmit={addPayment} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+          <FormField label={pageText.amount} required>
             <input
+              dir="ltr"
               type="number"
-              className="input"
+              className="input text-start"
               value={paymentForm.amount}
               onChange={(event) =>
                 setPaymentForm((previous) => ({
@@ -1533,7 +1769,7 @@ export default function CaseDetailPage() {
           </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="طريقة الدفع">
+            <FormField label={pageText.method}>
               <select
                 className="input"
                 value={paymentForm.method}
@@ -1544,14 +1780,14 @@ export default function CaseDetailPage() {
                   }))
                 }
               >
-                <option value="CASH">نقدًا</option>
-                <option value="BANK_TRANSFER">تحويل بنكي</option>
-                <option value="CHECK">شيك</option>
-                <option value="ONLINE">إلكتروني</option>
+                <option value="CASH">{methodText.CASH}</option>
+                <option value="BANK_TRANSFER">{methodText.BANK_TRANSFER}</option>
+                <option value="CHECK">{methodText.CHECK}</option>
+                <option value="ONLINE">{methodText.ONLINE}</option>
               </select>
             </FormField>
 
-            <FormField label="الحالة">
+            <FormField label={pageText.status}>
               <select
                 className="input"
                 value={paymentForm.status}
@@ -1562,15 +1798,15 @@ export default function CaseDetailPage() {
                   }))
                 }
               >
-                <option value="PAID">مدفوع</option>
-                <option value="PENDING">معلق</option>
-                <option value="OVERDUE">متأخر</option>
-                <option value="CANCELLED">ملغي</option>
+                <option value="PAID">{paymentStatusText.PAID}</option>
+                <option value="PENDING">{paymentStatusText.PENDING}</option>
+                <option value="OVERDUE">{paymentStatusText.OVERDUE}</option>
+                <option value="CANCELLED">{paymentStatusText.CANCELLED}</option>
               </select>
             </FormField>
           </div>
 
-          <FormField label="تاريخ الدفع">
+          <FormField label={pageText.paymentDate}>
             <input
               type="datetime-local"
               className="input"
@@ -1584,9 +1820,9 @@ export default function CaseDetailPage() {
             />
           </FormField>
 
-          <FormField label="ملاحظات">
+          <FormField label={pageText.notes}>
             <textarea
-              className="input"
+              className="input resize-none text-start"
               rows={3}
               value={paymentForm.notes}
               onChange={(event) =>
@@ -1604,11 +1840,11 @@ export default function CaseDetailPage() {
               onClick={() => setPaymentOpen(false)}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {pageText.cancel}
             </button>
 
             <button type="submit" disabled={saving} className="btn btn-primary flex-1">
-              {saving ? 'جاري الحفظ...' : 'حفظ الدفعة'}
+              {saving ? pageText.saving : pageText.savePayment}
             </button>
           </div>
         </form>
@@ -1621,10 +1857,10 @@ export default function CaseDetailPage() {
           setAppointmentOpen(false)
           setAppointmentForm(APPOINTMENT_INIT)
         }}
-        title="إضافة موعد"
+        title={pageText.addAppointmentTitle}
       >
-        <form onSubmit={addAppointment} className="space-y-3">
-          <FormField label="عنوان الموعد" required>
+        <form onSubmit={addAppointment} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+          <FormField label={pageText.title} required>
             <input
               className="input"
               value={appointmentForm.title}
@@ -1638,7 +1874,7 @@ export default function CaseDetailPage() {
           </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="النوع">
+            <FormField label={pageText.type}>
               <select
                 className="input"
                 value={appointmentForm.type}
@@ -1649,15 +1885,15 @@ export default function CaseDetailPage() {
                   }))
                 }
               >
-                <option value="COURT_SESSION">جلسة محكمة</option>
-                <option value="MEETING">اجتماع</option>
-                <option value="PHONE_CALL">مكالمة</option>
-                <option value="DEADLINE">موعد نهائي</option>
-                <option value="OTHER">أخرى</option>
+                <option value="COURT_SESSION">{appointmentTypeText.COURT_SESSION}</option>
+                <option value="MEETING">{appointmentTypeText.MEETING}</option>
+                <option value="PHONE_CALL">{appointmentTypeText.PHONE_CALL}</option>
+                <option value="DEADLINE">{appointmentTypeText.DEADLINE}</option>
+                <option value="OTHER">{appointmentTypeText.OTHER}</option>
               </select>
             </FormField>
 
-            <FormField label="المكان">
+            <FormField label={pageText.location}>
               <input
                 className="input"
                 value={appointmentForm.location}
@@ -1672,7 +1908,7 @@ export default function CaseDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="وقت البداية" required>
+            <FormField label={pageText.startTime} required>
               <input
                 type="datetime-local"
                 className="input"
@@ -1686,7 +1922,7 @@ export default function CaseDetailPage() {
               />
             </FormField>
 
-            <FormField label="وقت الانتهاء">
+            <FormField label={pageText.endTime}>
               <input
                 type="datetime-local"
                 className="input"
@@ -1701,9 +1937,9 @@ export default function CaseDetailPage() {
             </FormField>
           </div>
 
-          <FormField label="الوصف">
+          <FormField label={pageText.description}>
             <textarea
-              className="input"
+              className="input resize-none text-start"
               rows={3}
               value={appointmentForm.description}
               onChange={(event) =>
@@ -1721,11 +1957,11 @@ export default function CaseDetailPage() {
               onClick={() => setAppointmentOpen(false)}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {pageText.cancel}
             </button>
 
             <button type="submit" disabled={saving} className="btn btn-primary flex-1">
-              {saving ? 'جاري الحفظ...' : 'حفظ الموعد'}
+              {saving ? pageText.saving : pageText.saveAppointment}
             </button>
           </div>
         </form>
@@ -1738,10 +1974,10 @@ export default function CaseDetailPage() {
           setTaskOpen(false)
           setTaskForm(TASK_INIT)
         }}
-        title="إضافة مهمة"
+        title={pageText.addTaskTitle}
       >
-        <form onSubmit={addTask} className="space-y-3">
-          <FormField label="عنوان المهمة" required>
+        <form onSubmit={addTask} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+          <FormField label={pageText.title} required>
             <input
               className="input"
               value={taskForm.title}
@@ -1755,7 +1991,7 @@ export default function CaseDetailPage() {
           </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="الأولوية">
+            <FormField label={pageText.priority}>
               <select
                 className="input"
                 value={taskForm.priority}
@@ -1766,14 +2002,14 @@ export default function CaseDetailPage() {
                   }))
                 }
               >
-                <option value="URGENT">عاجلة</option>
-                <option value="HIGH">عالية</option>
-                <option value="MEDIUM">متوسطة</option>
-                <option value="LOW">منخفضة</option>
+                <option value="URGENT">{taskPriorityText.URGENT}</option>
+                <option value="HIGH">{taskPriorityText.HIGH}</option>
+                <option value="MEDIUM">{taskPriorityText.MEDIUM}</option>
+                <option value="LOW">{taskPriorityText.LOW}</option>
               </select>
             </FormField>
 
-            <FormField label="تاريخ الاستحقاق">
+            <FormField label={pageText.dueDate}>
               <input
                 type="date"
                 className="input"
@@ -1788,9 +2024,9 @@ export default function CaseDetailPage() {
             </FormField>
           </div>
 
-          <FormField label="الوصف">
+          <FormField label={pageText.description}>
             <textarea
-              className="input"
+              className="input resize-none text-start"
               rows={3}
               value={taskForm.description}
               onChange={(event) =>
@@ -1808,11 +2044,11 @@ export default function CaseDetailPage() {
               onClick={() => setTaskOpen(false)}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {pageText.cancel}
             </button>
 
             <button type="submit" disabled={saving} className="btn btn-primary flex-1">
-              {saving ? 'جاري الحفظ...' : 'حفظ المهمة'}
+              {saving ? pageText.saving : pageText.saveTask}
             </button>
           </div>
         </form>
@@ -1825,10 +2061,10 @@ export default function CaseDetailPage() {
           setInvoiceOpen(false)
           setInvoiceForm(INVOICE_INIT)
         }}
-        title="إنشاء فاتورة"
+        title={pageText.createInvoiceTitle}
       >
-        <form onSubmit={createInvoice} className="space-y-3">
-          <FormField label="وصف البند" required>
+        <form onSubmit={createInvoice} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+          <FormField label={pageText.itemDescription} required>
             <input
               className="input"
               value={invoiceForm.description}
@@ -1842,7 +2078,7 @@ export default function CaseDetailPage() {
           </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <FormField label="المبلغ" required>
+            <FormField label={pageText.amount} required>
               <input
                 type="number"
                 className="input"
@@ -1856,7 +2092,7 @@ export default function CaseDetailPage() {
               />
             </FormField>
 
-            <FormField label="الضريبة">
+            <FormField label={pageText.tax}>
               <input
                 type="number"
                 className="input"
@@ -1870,7 +2106,7 @@ export default function CaseDetailPage() {
               />
             </FormField>
 
-            <FormField label="الخصم">
+            <FormField label={pageText.discount}>
               <input
                 type="number"
                 className="input"
@@ -1885,7 +2121,7 @@ export default function CaseDetailPage() {
             </FormField>
           </div>
 
-          <FormField label="تاريخ الاستحقاق">
+          <FormField label={pageText.dueDate}>
             <input
               type="date"
               className="input"
@@ -1899,9 +2135,9 @@ export default function CaseDetailPage() {
             />
           </FormField>
 
-          <FormField label="ملاحظات">
+          <FormField label={pageText.notes}>
             <textarea
-              className="input"
+              className="input resize-none text-start"
               rows={3}
               value={invoiceForm.notes}
               onChange={(event) =>
@@ -1919,11 +2155,11 @@ export default function CaseDetailPage() {
               onClick={() => setInvoiceOpen(false)}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {pageText.cancel}
             </button>
 
             <button type="submit" disabled={saving} className="btn btn-primary flex-1">
-              {saving ? 'جاري الإنشاء...' : 'إنشاء الفاتورة'}
+              {saving ? pageText.creating : pageText.createInvoice}
             </button>
           </div>
         </form>
@@ -1937,10 +2173,10 @@ export default function CaseDetailPage() {
           setDocumentForm(DOCUMENT_INIT)
           if (documentInputRef.current) documentInputRef.current.value = ''
         }}
-        title="رفع مستند للقضية"
+        title={pageText.uploadDocumentTitle}
       >
         <div className="space-y-3">
-          <FormField label="تصنيف المستند">
+          <FormField label={pageText.documentCategory}>
             <select
               className="input"
               value={documentForm.tag}
@@ -1959,9 +2195,9 @@ export default function CaseDetailPage() {
             </select>
           </FormField>
 
-          <FormField label="ملاحظات">
+          <FormField label={pageText.notes}>
             <textarea
-              className="input"
+              className="input resize-none text-start"
               rows={3}
               value={documentForm.notes}
               onChange={(event) =>
@@ -1988,14 +2224,13 @@ export default function CaseDetailPage() {
               background: 'var(--green-soft)',
             }}
           >
-            سيتم ربط المستند تلقائيًا بهذه القضية وبالموكل المرتبط بها. الحد الأقصى
-            لحجم الملف 10MB.
+            {pageText.documentUploadHint}
           </div>
 
           {uploadingDocument && (
             <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-2)' }}>
               <span className="spinner spinner-sm" />
-              جاري رفع المستند...
+              {pageText.uploading}
             </div>
           )}
         </div>
@@ -2007,11 +2242,11 @@ export default function CaseDetailPage() {
         onClose={() => {
           if (!deleteLoading) setDeleteId(null)
         }}
-        title="حذف الدفعة"
+        title={pageText.deletePaymentTitle}
       >
         <div className="space-y-4">
           <p className="text-sm leading-7" style={{ color: 'var(--text-2)' }}>
-            هل أنت متأكد من حذف هذه الدفعة؟ لا يمكن التراجع عن هذه العملية.
+            {pageText.deletePaymentConfirm}
           </p>
 
           <div className="flex gap-2">
@@ -2021,7 +2256,7 @@ export default function CaseDetailPage() {
               onClick={() => setDeleteId(null)}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {pageText.cancel}
             </button>
 
             <button
@@ -2031,7 +2266,7 @@ export default function CaseDetailPage() {
               className="btn flex-1"
               style={{ background: '#dc2626', color: '#fff' }}
             >
-              {deleteLoading ? 'جاري الحذف...' : 'حذف'}
+              {deleteLoading ? pageText.deleting : pageText.delete}
             </button>
           </div>
         </div>
@@ -2062,7 +2297,8 @@ function MiniMetric({
       </p>
 
       <p
-        className="mt-1 text-sm font-black"
+        dir="ltr"
+        className="mt-1 whitespace-nowrap text-sm font-black"
         style={{ color: danger ? '#dc2626' : 'var(--text)' }}
       >
         {value}
@@ -2076,11 +2312,13 @@ function SectionCard({
   count,
   action,
   children,
+  countLabel,
 }: {
   title: string
   count: number
-  action?: React.ReactNode
-  children: React.ReactNode
+  action?: ReactNode
+  children: ReactNode
+  countLabel: string
 }) {
   return (
     <div className="card overflow-hidden p-0">
@@ -2094,7 +2332,7 @@ function SectionCard({
           </h2>
 
           <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-            {count} عنصر
+            {count} {countLabel}
           </p>
         </div>
 
@@ -2120,21 +2358,29 @@ function EmptyLine({ text }: { text: string }) {
   )
 }
 
-function Timeline({ activities }: { activities: Activity[] }) {
+function Timeline({
+  activities,
+  text,
+  isArabic,
+}: {
+  activities: Activity[]
+  text: { latestActivities: string; latestActivitiesHint: string; noActivities: string }
+  isArabic: boolean
+}) {
   return (
     <div className="card p-5">
       <div className="mb-4">
         <h2 className="font-black" style={{ color: 'var(--text)' }}>
-          آخر النشاطات
+          {text.latestActivities}
         </h2>
 
         <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-          أحدث العمليات على هذه القضية
+          {text.latestActivitiesHint}
         </p>
       </div>
 
       {activities.length === 0 ? (
-        <EmptyLine text="لا توجد نشاطات مسجلة." />
+        <EmptyLine text={text.noActivities} />
       ) : (
         <div className="space-y-3">
           {activities.slice(0, 8).map((activity) => (
@@ -2156,17 +2402,17 @@ function Timeline({ activities }: { activities: Activity[] }) {
 
                 <div className="min-w-0 flex-1">
                   <p className="font-bold" style={{ color: 'var(--text)' }}>
-                    {activity.title}
+                    {activityTitle(activity, isArabic)}
                   </p>
 
-                  {activity.message && (
+                  {activityMessage(activity, isArabic) && (
                     <p className="mt-1 text-xs leading-6" style={{ color: 'var(--text-3)' }}>
-                      {activity.message}
+                      {activityMessage(activity, isArabic)}
                     </p>
                   )}
 
                   <p className="mt-1 text-[11px]" style={{ color: 'var(--text-3)' }}>
-                    {formatDate(activity.createdAt)}
+                    {activityDate(activity.createdAt, isArabic)}
                   </p>
                 </div>
               </div>

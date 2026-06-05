@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLoader from "@/components/ui/PageLoader";
 import EmptyState from "@/components/ui/EmptyState";
+import { useLocale } from "@/lib/useLocale";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -25,13 +26,186 @@ interface Client {
   };
 }
 
+type CaseFilter = "all" | "withCases" | "withoutCases";
+type LocaleKey = "ar" | "en";
+
+const pageText = {
+  ar: {
+    heroBadge: "إدارة علاقات الموكلين",
+    title: "الموكلون",
+    subtitle:
+      "تابع بيانات الموكلين، معلومات التواصل، عدد القضايا والمواعيد المرتبطة بكل موكل من واجهة منظمة وسريعة.",
+    newClient: "+ موكل جديد",
+    stats: {
+      total: "كل الموكلين",
+      thisMonth: "هذا الشهر",
+      withCases: "لديهم قضايا",
+      withoutCases: "بدون قضايا",
+    },
+    filters: {
+      searchPlaceholder: "ابحث باسم الموكل، الهاتف، البريد أو الرقم الوطني...",
+      ariaCaseFilter: "فلترة حسب القضايا",
+      allClients: "جميع الموكلين",
+      withCases: "لديهم قضايا",
+      withoutCases: "بدون قضايا",
+      search: "بحث",
+      all: "الكل",
+      clear: "مسح الفلاتر",
+    },
+    empty: {
+      title: "لا يوجد موكلون",
+      noClients: "لم يتم إضافة أي موكل بعد. ابدأ بإضافة أول موكل داخل المكتب.",
+      noResults: "لا توجد نتائج مطابقة للفلاتر الحالية.",
+      addClient: "+ إضافة موكل",
+    },
+    card: {
+      addedAt: "أضيف بتاريخ",
+      cases: "قضايا",
+      appointments: "مواعيد",
+      active: "نشط",
+      withoutCases: "بدون قضايا",
+      phone: "الهاتف",
+      email: "البريد الإلكتروني",
+      address: "العنوان",
+      dash: "-",
+    },
+    modal: {
+      title: "إضافة موكل",
+      subtitle: "إضافة بيانات موكل جديد داخل المكتب",
+      close: "إغلاق",
+      operationFailed: "تعذر تنفيذ العملية",
+      labels: {
+        name: "اسم الموكل",
+        phone: "رقم الهاتف",
+        email: "البريد الإلكتروني",
+        nationalId: "الرقم الوطني / رقم الهوية",
+        address: "العنوان",
+        notes: "ملاحظات",
+      },
+      placeholders: {
+        name: "اسم الموكل",
+        phone: "رقم الهاتف",
+        email: "البريد الإلكتروني",
+        nationalId: "الرقم الوطني / رقم الهوية",
+        address: "العنوان",
+        notes: "ملاحظات",
+      },
+      save: "حفظ الموكل",
+      saving: "جاري الحفظ...",
+      cancel: "إلغاء",
+    },
+    validation: {
+      nameRequired: "اسم الموكل مطلوب.",
+      nameTooLong: "اسم الموكل طويل جدًا.",
+      phoneTooLong: "رقم الهاتف طويل جدًا.",
+      emailTooLong: "البريد الإلكتروني طويل جدًا.",
+      nationalIdTooLong: "الرقم الوطني / رقم الهوية طويل جدًا.",
+      addressTooLong: "العنوان طويل جدًا.",
+      notesTooLong: "الملاحظات طويلة جدًا.",
+      invalidEmail: "البريد الإلكتروني غير صالح.",
+      browserToken:
+        "يبدو أن المتصفح عبّأ أحد الحقول تلقائيًا بقيمة غير صحيحة. امسح الحقول وأدخل البيانات يدويًا.",
+      planLimit: "وصلت إلى حد الموكلين المسموح في خطتك الحالية.",
+      addFailed: "تعذر إضافة الموكل",
+      connectionFailed: "تعذر الاتصال بالخادم. حاول مرة أخرى.",
+    },
+  },
+  en: {
+    heroBadge: "Client relationship management",
+    title: "Clients",
+    subtitle:
+      "Track client details, contact information, linked cases, and appointments from a clean and fast workspace.",
+    newClient: "+ New client",
+    stats: {
+      total: "All clients",
+      thisMonth: "This month",
+      withCases: "With cases",
+      withoutCases: "Without cases",
+    },
+    filters: {
+      searchPlaceholder:
+        "Search by client name, phone, email, or national ID...",
+      ariaCaseFilter: "Filter by cases",
+      allClients: "All clients",
+      withCases: "With cases",
+      withoutCases: "Without cases",
+      search: "Search",
+      all: "All",
+      clear: "Clear filters",
+    },
+    empty: {
+      title: "No clients found",
+      noClients:
+        "No clients have been added yet. Start by adding your first client.",
+      noResults: "No clients match the current filters.",
+      addClient: "+ Add client",
+    },
+    card: {
+      addedAt: "Added on",
+      cases: "cases",
+      appointments: "appointments",
+      active: "Active",
+      withoutCases: "Without cases",
+      phone: "Phone",
+      email: "Email",
+      address: "Address",
+      dash: "-",
+    },
+    modal: {
+      title: "Add client",
+      subtitle: "Add a new client record to the office workspace",
+      close: "Close",
+      operationFailed: "Operation failed",
+      labels: {
+        name: "Client name",
+        phone: "Phone number",
+        email: "Email",
+        nationalId: "National ID / Identity number",
+        address: "Address",
+        notes: "Notes",
+      },
+      placeholders: {
+        name: "Client name",
+        phone: "Phone number",
+        email: "Email address",
+        nationalId: "National ID / Identity number",
+        address: "Address",
+        notes: "Notes",
+      },
+      save: "Save client",
+      saving: "Saving...",
+      cancel: "Cancel",
+    },
+    validation: {
+      nameRequired: "Client name is required.",
+      nameTooLong: "Client name is too long.",
+      phoneTooLong: "Phone number is too long.",
+      emailTooLong: "Email is too long.",
+      nationalIdTooLong: "National ID / identity number is too long.",
+      addressTooLong: "Address is too long.",
+      notesTooLong: "Notes are too long.",
+      invalidEmail: "Email address is invalid.",
+      browserToken:
+        "It looks like the browser auto-filled one of the fields with an invalid value. Clear the fields and enter the data manually.",
+      planLimit:
+        "You have reached the allowed client limit for your current plan.",
+      addFailed: "Could not add the client",
+      connectionFailed: "Could not connect to the server. Please try again.",
+    },
+  },
+} as const;
+
+type ClientsText = (typeof pageText)[LocaleKey];
+
 interface CreateClientModalProps {
+  isRtl: boolean;
+  text: ClientsText;
   onClose: () => void;
   onCreated: () => void;
 }
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("ar-JO");
+function formatDate(date: string, locale: LocaleKey) {
+  return new Date(date).toLocaleDateString(locale === "ar" ? "ar-JO" : "en-US");
 }
 
 function cleanValue(value: string) {
@@ -71,18 +245,22 @@ function normalizeClientForm(form: {
   };
 }
 
-function validateClientPayload(payload: ReturnType<typeof normalizeClientForm>) {
-  if (!payload.name) return "اسم الموكل مطلوب.";
+function validateClientPayload(
+  payload: ReturnType<typeof normalizeClientForm>,
+  text: ClientsText,
+) {
+  if (!payload.name) return text.validation.nameRequired;
 
-  if (isTooLong(payload.name, 120)) return "اسم الموكل طويل جدًا.";
-  if (isTooLong(payload.phone, 30)) return "رقم الهاتف طويل جدًا.";
-  if (isTooLong(payload.email, 120)) return "البريد الإلكتروني طويل جدًا.";
-  if (isTooLong(payload.nationalId, 30)) return "الرقم الوطني / رقم الهوية طويل جدًا.";
-  if (isTooLong(payload.address, 180)) return "العنوان طويل جدًا.";
-  if (payload.notes.length > 700) return "الملاحظات طويلة جدًا.";
+  if (isTooLong(payload.name, 120)) return text.validation.nameTooLong;
+  if (isTooLong(payload.phone, 30)) return text.validation.phoneTooLong;
+  if (isTooLong(payload.email, 120)) return text.validation.emailTooLong;
+  if (isTooLong(payload.nationalId, 30))
+    return text.validation.nationalIdTooLong;
+  if (isTooLong(payload.address, 180)) return text.validation.addressTooLong;
+  if (payload.notes.length > 700) return text.validation.notesTooLong;
 
   if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
-    return "البريد الإلكتروني غير صالح.";
+    return text.validation.invalidEmail;
   }
 
   if (
@@ -91,13 +269,18 @@ function validateClientPayload(payload: ReturnType<typeof normalizeClientForm>) 
     looksLikeBrowserToken(payload.nationalId) ||
     looksLikeBrowserToken(payload.address)
   ) {
-    return "يبدو أن المتصفح عبّأ أحد الحقول تلقائيًا بقيمة غير صحيحة. امسح الحقول وأدخل البيانات يدويًا.";
+    return text.validation.browserToken;
   }
 
   return "";
 }
 
-function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
+function CreateClientModal({
+  isRtl,
+  text,
+  onClose,
+  onCreated,
+}: CreateClientModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -110,11 +293,11 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
     notes: "",
   });
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
 
     const payload = normalizeClientForm(form);
-    const validationError = validateClientPayload(payload);
+    const validationError = validateClientPayload(payload, text);
 
     if (validationError) {
       setError(validationError);
@@ -135,11 +318,8 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
 
       if (!response.ok || data.success === false) {
         const message = isPlanLimitResponse(data)
-          ? planLimitMessage(
-              data,
-              "وصلت إلى حد الموكلين المسموح في خطتك الحالية.",
-            )
-          : getApiMessage(data, "تعذر إضافة الموكل");
+          ? planLimitMessage(data, text.validation.planLimit)
+          : getApiMessage(data, text.validation.addFailed);
 
         setError(message);
         return;
@@ -147,7 +327,7 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
 
       onCreated();
     } catch {
-      setError("تعذر الاتصال بالخادم. حاول مرة أخرى.");
+      setError(text.validation.connectionFailed);
     } finally {
       setLoading(false);
     }
@@ -155,20 +335,23 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
 
   return (
     <div
+      dir={isRtl ? "rtl" : "ltr"}
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
       onMouseDown={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="w-full max-w-2xl rounded-[28px] border border-[#335f49] bg-[#10291d] p-6 shadow-2xl"
+        className="w-full max-w-2xl rounded-[28px] border border-[#335f49] bg-[#10291d] p-6 text-start shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-black text-emerald-50">إضافة موكل</h2>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xl font-black text-emerald-50">
+              {text.modal.title}
+            </h2>
             <p className="mt-1 text-sm font-semibold text-emerald-100/60">
-              إضافة بيانات موكل جديد داخل المكتب
+              {text.modal.subtitle}
             </p>
           </div>
 
@@ -176,7 +359,7 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
             type="button"
             onClick={onClose}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#08291d] text-xl text-emerald-100 transition hover:bg-[#173827]"
-            aria-label="إغلاق"
+            aria-label={text.modal.close}
           >
             ×
           </button>
@@ -184,12 +367,17 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
 
         {error && (
           <div className="mb-4 rounded-2xl border border-amber-300/30 bg-amber-500/10 p-4 text-amber-100">
-            <h3 className="font-black">تعذر تنفيذ العملية</h3>
+            <h3 className="font-black">{text.modal.operationFailed}</h3>
             <p className="mt-1 text-sm font-semibold">{error}</p>
           </div>
         )}
 
-        <form onSubmit={submit} autoComplete="off" className="space-y-4">
+        <form
+          onSubmit={submit}
+          autoComplete="off"
+          className="space-y-4"
+          dir={isRtl ? "rtl" : "ltr"}
+        >
           <input
             className="hidden"
             name="username"
@@ -207,115 +395,148 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
             aria-hidden="true"
             readOnly
           />
+
           <div>
             <label className="mb-2 block text-sm font-black text-emerald-100">
-              اسم الموكل <span className="text-red-300">*</span>
+              {text.modal.labels.name} <span className="text-red-300">*</span>
             </label>
-<input
-  className="input"
-  name="viresto_client_name"
-  autoComplete="new-password"
-  maxLength={120}
-  placeholder="اسم الموكل"
-  value={form.name}
-  onChange={(event) =>
-    setForm({ ...form, name: event.target.value })
-  }
-  required
-/>
+            <input
+              dir={isRtl ? "rtl" : "ltr"}
+              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+              name="viresto_client_name"
+              autoComplete="new-password"
+              maxLength={120}
+              placeholder={text.modal.placeholders.name}
+              value={form.name}
+              onChange={(event) =>
+                setForm({ ...form, name: event.target.value })
+              }
+              required
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-black text-emerald-100">
-                رقم الهاتف
+                {text.modal.labels.phone}
               </label>
-<input
-  className="input"
-  name="viresto_client_phone"
-  type="tel"
-  inputMode="tel"
-  autoComplete="new-password"
-  maxLength={30}
-  placeholder="رقم الهاتف"
-  value={form.phone}
-  onChange={(event) =>
-    setForm({ ...form, phone: event.target.value })
-  }
-/>
+              <input
+                dir={isRtl ? "rtl" : "ltr"}
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+                name="viresto_client_phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="new-password"
+                maxLength={30}
+                placeholder={text.modal.placeholders.phone}
+                value={form.phone}
+                onChange={(event) =>
+                  setForm({ ...form, phone: event.target.value })
+                }
+              />
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-black text-emerald-100">
-                البريد الإلكتروني
+                {text.modal.labels.email}
               </label>
-<input
-  className="input"
-  name="viresto_client_email"
-  type="email"
-  inputMode="email"
-  autoComplete="new-password"
-  maxLength={120}
-  placeholder="البريد الإلكتروني"
-  value={form.email}
-  onChange={(event) =>
-    setForm({ ...form, email: event.target.value })
-  }
-/>
+              <input
+                dir="ltr"
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+                name="viresto_client_email"
+                type="email"
+                inputMode="email"
+                autoComplete="new-password"
+                maxLength={120}
+                placeholder={text.modal.placeholders.email}
+                value={form.email}
+                onChange={(event) =>
+                  setForm({ ...form, email: event.target.value })
+                }
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-black text-emerald-100">
-                الرقم الوطني / رقم الهوية
+                {text.modal.labels.nationalId}
               </label>
-<input
-  className="input"
-  name="viresto_client_national_id"
-  autoComplete="new-password"
-  maxLength={30}
-  placeholder="الرقم الوطني / رقم الهوية"
-  value={form.nationalId}
-  onChange={(event) =>
-    setForm({ ...form, nationalId: event.target.value })
-  }
-/>
+              <input
+                dir={isRtl ? "rtl" : "ltr"}
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+                name="viresto_client_national_id"
+                autoComplete="new-password"
+                maxLength={30}
+                placeholder={text.modal.placeholders.nationalId}
+                value={form.nationalId}
+                onChange={(event) =>
+                  setForm({ ...form, nationalId: event.target.value })
+                }
+              />
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-black text-emerald-100">
-                العنوان
+                {text.modal.labels.address}
               </label>
-<input
-  className="input"
-  name="viresto_client_address"
-  autoComplete="new-password"
-  maxLength={180}
-  placeholder="العنوان"
-  value={form.address}
-  onChange={(event) =>
-    setForm({ ...form, address: event.target.value })
-  }
-/>
+              <input
+                dir={isRtl ? "rtl" : "ltr"}
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+                name="viresto_client_address"
+                autoComplete="new-password"
+                maxLength={180}
+                placeholder={text.modal.placeholders.address}
+                value={form.address}
+                onChange={(event) =>
+                  setForm({ ...form, address: event.target.value })
+                }
+              />
             </div>
           </div>
 
           <div>
             <label className="mb-2 block text-sm font-black text-emerald-100">
-              ملاحظات
+              {text.modal.labels.notes}
             </label>
-<textarea
-  className="input min-h-[120px]"
-  name="viresto_client_notes"
-  autoComplete="new-password"
-  maxLength={700}
-  placeholder="ملاحظات"
-  value={form.notes}
-  onChange={(event) =>
-    setForm({ ...form, notes: event.target.value })
-  }
-/>
+            <textarea
+              dir={isRtl ? "rtl" : "ltr"}
+              className={`input min-h-[120px] resize-none ${
+                isRtl ? "!text-right" : "!text-left"
+              }`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+              name="viresto_client_notes"
+              autoComplete="new-password"
+              maxLength={700}
+              placeholder={text.modal.placeholders.notes}
+              value={form.notes}
+              onChange={(event) =>
+                setForm({ ...form, notes: event.target.value })
+              }
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
@@ -324,7 +545,7 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
               disabled={loading}
               className="rounded-2xl bg-[#2f5f4b] px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#3a735b] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "جاري الحفظ..." : "حفظ الموكل"}
+              {loading ? text.modal.saving : text.modal.save}
             </button>
 
             <button
@@ -333,7 +554,7 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
               disabled={loading}
               className="rounded-2xl border border-[#335f49] bg-transparent px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#173827] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              إلغاء
+              {text.modal.cancel}
             </button>
           </div>
         </form>
@@ -344,24 +565,21 @@ function CreateClientModal({ onClose, onCreated }: CreateClientModalProps) {
 
 export default function ClientsPage() {
   const router = useRouter();
+  const { locale, isRtl } = useLocale();
+  const localeKey = (locale === "en" ? "en" : "ar") as LocaleKey;
+  const text = pageText[localeKey];
 
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [caseFilter, setCaseFilter] = useState<
-    "all" | "withCases" | "withoutCases"
-  >("all");
+  const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
 
-      const url = q.trim()
-        ? `/api/clients?q=${encodeURIComponent(q)}&limit=100`
-        : "/api/clients?limit=100";
-
-      const response = await fetch(url);
+      const response = await fetch("/api/clients?limit=100");
       const data = await response.json().catch(() => ({}));
 
       setClients(
@@ -376,15 +594,14 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [q]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  function search(event: React.FormEvent) {
+  function search(event: FormEvent) {
     event.preventDefault();
-    load();
   }
 
   function clearFilters() {
@@ -406,15 +623,27 @@ export default function ClientsPage() {
   }
 
   const filteredClients = useMemo(() => {
+    const query = q.trim().toLowerCase();
+
     return clients.filter((client) => {
       const casesCount = client._count?.cases ?? 0;
 
-      if (caseFilter === "withCases") return casesCount > 0;
-      if (caseFilter === "withoutCases") return casesCount === 0;
+      const matchesSearch =
+        !query ||
+        client.name?.toLowerCase().includes(query) ||
+        client.phone?.toLowerCase().includes(query) ||
+        client.email?.toLowerCase().includes(query) ||
+        client.nationalId?.toLowerCase().includes(query) ||
+        client.address?.toLowerCase().includes(query);
 
-      return true;
+      const matchesCaseFilter =
+        caseFilter === "all" ||
+        (caseFilter === "withCases" && casesCount > 0) ||
+        (caseFilter === "withoutCases" && casesCount === 0);
+
+      return matchesSearch && matchesCaseFilter;
     });
-  }, [clients, caseFilter]);
+  }, [clients, caseFilter, q]);
 
   const totalClients = clients.length;
   const clientsWithCases = clients.filter(
@@ -438,7 +667,7 @@ export default function ClientsPage() {
 
   return (
     <>
-      <div className="space-y-5 stagger">
+      <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 text-start stagger">
         {/* Hero */}
         <div
           className="relative overflow-hidden rounded-[28px] border p-6"
@@ -460,7 +689,7 @@ export default function ClientsPage() {
           />
 
           <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
+            <div className="min-w-0 flex-1">
               <div
                 className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
                 style={{
@@ -469,28 +698,27 @@ export default function ClientsPage() {
                   border: "1px solid rgba(255,255,255,0.18)",
                 }}
               >
-                إدارة علاقات الموكلين
+                {text.heroBadge}
               </div>
 
-              <h1 className="text-2xl font-black text-white">الموكلون</h1>
+              <h1 className="text-2xl font-black text-white">{text.title}</h1>
 
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-                تابع بيانات الموكلين، معلومات التواصل، عدد القضايا والمواعيد
-                المرتبطة بكل موكل من واجهة منظمة وسريعة.
+                {text.subtitle}
               </p>
             </div>
 
             <button
               type="button"
               onClick={openCreateModal}
-              className="btn shrink-0"
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl px-5 text-sm font-black transition hover:scale-[1.01]"
               style={{
                 background: "#fff",
                 color: "var(--sidebar)",
                 borderColor: "rgba(255,255,255,0.32)",
               }}
             >
-              + موكل جديد
+              {text.newClient}
             </button>
           </div>
         </div>
@@ -499,25 +727,25 @@ export default function ClientsPage() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
-              label: "كل الموكلين",
+              label: text.stats.total,
               value: totalClients,
               color: "var(--text)",
               bg: "var(--card)",
             },
             {
-              label: " هذا الشهر",
+              label: text.stats.thisMonth,
               value: newThisMonth,
               color: "var(--sidebar)",
               bg: "var(--green-soft)",
             },
             {
-              label: "لديهم قضايا",
+              label: text.stats.withCases,
               value: clientsWithCases,
               color: "#92400e",
               bg: "var(--amber-soft)",
             },
             {
-              label: "بدون قضايا",
+              label: text.stats.withoutCases,
               value: clientsWithoutCases,
               color: "#6b7280",
               bg: "var(--card)",
@@ -536,7 +764,7 @@ export default function ClientsPage() {
               </p>
 
               <p
-                className="mt-2 text-3xl font-black"
+                className="mt-2 text-2xl font-black leading-tight"
                 style={{ color: item.color }}
               >
                 {item.value}
@@ -545,96 +773,86 @@ export default function ClientsPage() {
           ))}
         </div>
 
-        {/* Filters */}
-        <div className="card p-4">
-          <form
-            onSubmit={search}
-            className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_.8fr_auto]"
-          >
-            <input
-              name="clientsSearch"
-              autoComplete="off"
-              value={q}
-              onChange={(event) => setQ(event.target.value)}
-              placeholder="ابحث باسم الموكل، الهاتف، البريد أو الرقم الوطني..."
-              className="input"
-            />
+{/* Filters */}
+<div className="card p-4">
+  <form
+    onSubmit={search}
+    className="grid grid-cols-1 gap-3"
+  >
+<input
+  dir={isRtl ? 'rtl' : 'ltr'}
+  name="clientsSearch"
+  autoComplete="off"
+  value={q}
+  onChange={(event) => setQ(event.target.value)}
+  placeholder={text.filters.searchPlaceholder}
+  className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
+  style={{
+    textAlign: isRtl ? 'right' : 'left',
+    direction: isRtl ? 'rtl' : 'ltr',
+  }}
+/>
+  </form>
 
-            <select
-              value={caseFilter}
-              onChange={(event) =>
-                setCaseFilter(
-                  event.target.value as "all" | "withCases" | "withoutCases",
-                )
+<div
+  dir={isRtl ? 'rtl' : 'ltr'}
+  className="mt-4 flex flex-wrap justify-start gap-2"
+>
+    {(
+      [
+        ["all", text.filters.all],
+        ["withCases", text.filters.withCases],
+        ["withoutCases", text.filters.withoutCases],
+      ] as [CaseFilter, string][]
+    ).map(([key, label]) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => setCaseFilter(key)}
+        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+        style={
+          caseFilter === key
+            ? {
+                background: "var(--sidebar)",
+                color: "#fff",
               }
-              className="input"
-              aria-label="فلترة حسب القضايا"
-            >
-              <option value="all">جميع الموكلين</option>
-              <option value="withCases">لديهم قضايا</option>
-              <option value="withoutCases">بدون قضايا</option>
-            </select>
+            : {
+                background: "var(--green-soft)",
+                color: "var(--text-2)",
+              }
+        }
+      >
+        {label}
+      </button>
+    ))}
 
-            <button type="submit" className="btn btn-ghost whitespace-nowrap">
-              بحث
-            </button>
-          </form>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(
-              [
-                ["all", "الكل"],
-                ["withCases", "لديهم قضايا"],
-                ["withoutCases", "بدون قضايا"],
-              ] as ["all" | "withCases" | "withoutCases", string][]
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setCaseFilter(key)}
-                className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-                style={
-                  caseFilter === key
-                    ? {
-                        background: "var(--sidebar)",
-                        color: "#fff",
-                      }
-                    : {
-                        background: "var(--green-soft)",
-                        color: "var(--text-2)",
-                      }
-                }
-              >
-                {label}
-              </button>
-            ))}
-
-            {(q || caseFilter !== "all") && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-                style={{
-                  background: "var(--card)",
-                  color: "var(--text-2)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                مسح الفلاتر
-              </button>
-            )}
-          </div>
-        </div>
+    {(q || caseFilter !== "all") && (
+      <button
+        type="button"
+        onClick={clearFilters}
+        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+        style={{
+          background: "var(--card)",
+          color: "var(--text-2)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {text.filters.clear}
+      </button>
+    )}
+  </div>
+</div>
 
         {/* Content */}
         {filteredClients.length === 0 ? (
           <div className="card p-8">
             <EmptyState
               icon="👥"
-              title="لا يوجد موكلون"
+              title={text.empty.title}
               sub={
                 clients.length === 0
-                  ? "لم يتم إضافة أي موكل بعد. ابدأ بإضافة أول موكل داخل المكتب."
-                  : "لا توجد نتائج مطابقة للفلاتر الحالية."
+                  ? text.empty.noClients
+                  : text.empty.noResults
               }
               action={
                 clients.length === 0 ? (
@@ -643,7 +861,7 @@ export default function ClientsPage() {
                     onClick={openCreateModal}
                     className="btn btn-primary"
                   >
-                    + إضافة موكل
+                    {text.empty.addClient}
                   </button>
                 ) : (
                   <button
@@ -651,7 +869,7 @@ export default function ClientsPage() {
                     onClick={clearFilters}
                     className="btn btn-ghost"
                   >
-                    مسح الفلاتر
+                    {text.filters.clear}
                   </button>
                 )
               }
@@ -666,7 +884,7 @@ export default function ClientsPage() {
                 className="card group cursor-pointer p-5 transition-all duration-200 hover:-translate-y-0.5"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3">
                       <div
                         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black"
@@ -690,26 +908,29 @@ export default function ClientsPage() {
                           className="mt-1 text-xs"
                           style={{ color: "var(--text-3)" }}
                         >
-                          أضيف بتاريخ {formatDate(client.createdAt)}
+                          {text.card.addedAt}{" "}
+                          {formatDate(client.createdAt, localeKey)}
                         </p>
                       </div>
                     </div>
 
- <div className="mt-4 flex flex-wrap gap-2">
-  <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
-    ⚖️ {client._count?.cases ?? 0} قضايا
-  </span>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
+                        ⚖️ {client._count?.cases ?? 0} {text.card.cases}
+                      </span>
 
-  <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
-    📅 {client._count?.appointments ?? 0} مواعيد
-  </span>
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
+                        📅 {client._count?.appointments ?? 0}{" "}
+                        {text.card.appointments}
+                      </span>
 
-  {client.nationalId && (
-    <span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
-      🪪 <span className="truncate">{client.nationalId}</span>
-    </span>
-  )}
-</div>
+                      {client.nationalId && (
+                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
+                          🪪{" "}
+                          <span className="truncate">{client.nationalId}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <span
@@ -726,64 +947,75 @@ export default function ClientsPage() {
                       border: "1px solid var(--border)",
                     }}
                   >
-                    {(client._count?.cases ?? 0) > 0 ? "نشط" : "بدون قضايا"}
+                    {(client._count?.cases ?? 0) > 0
+                      ? text.card.active
+                      : text.card.withoutCases}
                   </span>
                 </div>
 
-                <div
-                  className="mt-5 grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <div>
-                    <p
-                      className="text-xs font-bold"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      الهاتف
-                    </p>
+<div
+  dir={isRtl ? "rtl" : "ltr"}
+  className="mt-5 grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2"
+  style={{ borderColor: "var(--border)" }}
+>
+  <div className="min-w-0">
+    <p
+      className="text-xs font-bold text-start"
+      style={{ color: "var(--text-3)" }}
+    >
+      {text.card.phone}
+    </p>
 
-                    <p
-                      className="mt-1 truncate text-sm font-semibold"
-                      style={{ color: "var(--text)" }}
-                    >
-                      {client.phone || "-"}
-                    </p>
-                  </div>
+    <p
+      dir="ltr"
+      className={`
+        mt-1 truncate text-sm font-semibold
+        ${isRtl ? "text-right" : "text-left"}
+      `}
+      style={{ color: "var(--text)" }}
+    >
+      {client.phone || text.card.dash}
+    </p>
+  </div>
 
-                  <div>
-                    <p
-                      className="text-xs font-bold"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      البريد الإلكتروني
-                    </p>
+  <div className="min-w-0">
+    <p
+      className="text-xs font-bold text-start"
+      style={{ color: "var(--text-3)" }}
+    >
+      {text.card.email}
+    </p>
 
-                    <p
-                      className="mt-1 truncate text-sm font-semibold"
-                      style={{ color: "var(--text)" }}
-                    >
-                      {client.email || "-"}
-                    </p>
-                  </div>
+    <p
+      dir="ltr"
+      className={`
+        mt-1 truncate text-sm font-semibold
+        ${isRtl ? "text-right" : "text-left"}
+      `}
+      style={{ color: "var(--text)" }}
+    >
+      {client.email || text.card.dash}
+    </p>
+  </div>
 
-                  {client.address && (
-                    <div className="sm:col-span-2">
-                      <p
-                        className="text-xs font-bold"
-                        style={{ color: "var(--text-3)" }}
-                      >
-                        العنوان
-                      </p>
+  {client.address && (
+    <div className="min-w-0 sm:col-span-2">
+      <p
+        className="text-xs font-bold text-start"
+        style={{ color: "var(--text-3)" }}
+      >
+        {text.card.address}
+      </p>
 
-                      <p
-                        className="mt-1 line-clamp-1 text-sm font-semibold"
-                        style={{ color: "var(--text)" }}
-                      >
-                        {client.address}
-                      </p>
-                    </div>
-                  )}
-                </div>
+      <p
+        className="mt-1 line-clamp-1 text-start text-sm font-semibold"
+        style={{ color: "var(--text)" }}
+      >
+        {client.address}
+      </p>
+    </div>
+  )}
+</div>
               </div>
             ))}
           </div>
@@ -792,6 +1024,8 @@ export default function ClientsPage() {
 
       {showCreateModal && (
         <CreateClientModal
+          isRtl={isRtl}
+          text={text}
           onClose={closeCreateModal}
           onCreated={handleClientCreated}
         />

@@ -1,6 +1,7 @@
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
 import SessionGuard from '@/components/security/SessionGuard'
+import DashboardShell from '@/components/layout/DashboardShell'
 
 export default function DashboardLayout({
   children,
@@ -16,13 +17,13 @@ export default function DashboardLayout({
 
       <Sidebar />
 
-      <div className="lg:mr-64 flex flex-col min-h-screen">
+      <DashboardShell>
         <TopBar />
 
         <main className="flex-1 px-5 py-5 lg:px-6 lg:py-6">
           {children}
         </main>
-      </div>
+      </DashboardShell>
     </div>
   )
 }

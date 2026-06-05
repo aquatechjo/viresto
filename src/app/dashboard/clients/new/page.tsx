@@ -4,9 +4,54 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getApiMessage, isPlanLimitResponse, planLimitMessage } from '@/lib/plan-ui'
+import { useLocale } from '@/lib/useLocale'
+
+const COPY = {
+  ar: {
+    title: 'إضافة موكل',
+    subtitle: 'إضافة بيانات موكل جديد داخل المكتب',
+    errorTitle: 'تعذر تنفيذ العملية',
+    planLimitFallback: 'وصلت إلى حد الموكلين المسموح في خطتك الحالية.',
+    addFallback: 'تعذر إضافة الموكل',
+    billing: 'عرض الاشتراك والخطة',
+    fields: {
+      name: 'اسم الموكل',
+      phone: 'رقم الهاتف',
+      email: 'البريد الإلكتروني',
+      nationalId: 'الرقم الوطني / رقم الهوية',
+      address: 'العنوان',
+      notes: 'ملاحظات',
+    },
+    save: 'حفظ الموكل',
+    saving: 'جاري الحفظ...',
+    cancel: 'إلغاء',
+  },
+  en: {
+    title: 'Add client',
+    subtitle: 'Add a new client record to the office workspace',
+    errorTitle: 'Could not complete the action',
+    planLimitFallback: 'You have reached the client limit allowed by your current plan.',
+    addFallback: 'Could not add client',
+    billing: 'View billing and plan',
+    fields: {
+      name: 'Client name',
+      phone: 'Phone number',
+      email: 'Email address',
+      nationalId: 'National ID / identity number',
+      address: 'Address',
+      notes: 'Notes',
+    },
+    save: 'Save client',
+    saving: 'Saving...',
+    cancel: 'Cancel',
+  },
+} as const
 
 export default function NewClientPage() {
   const router = useRouter()
+  const { locale, isRtl } = useLocale()
+  const text = COPY[locale === 'ar' ? 'ar' : 'en']
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -35,8 +80,8 @@ export default function NewClientPage() {
 
     if (!res.ok || data.success === false) {
       const message = isPlanLimitResponse(data)
-        ? planLimitMessage(data, 'وصلت إلى حد الموكلين المسموح في خطتك الحالية.')
-        : getApiMessage(data, 'تعذر إضافة الموكل')
+        ? planLimitMessage(data, text.planLimitFallback)
+        : getApiMessage(data, text.addFallback)
 
       setError(message)
       return
@@ -47,99 +92,115 @@ export default function NewClientPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black">إضافة موكل</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          إضافة بيانات موكل جديد داخل المكتب
+    <div className="space-y-6" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
+          {text.title}
+        </h1>
+
+        <p className="text-sm font-semibold" style={{ color: 'var(--text-3)' }}>
+          {text.subtitle}
         </p>
       </div>
 
       {error && (
         <div className="max-w-3xl rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
-          <h2 className="font-black">تعذر تنفيذ العملية</h2>
-          <p className="mt-1 text-sm">{error}</p>
+          <h2 className="font-black">{text.errorTitle}</h2>
+          <p className="mt-1 text-sm font-semibold">{error}</p>
+
           {isPlanLimitResponse({ message: error }) && (
             <Link href="/dashboard/billing" className="btn btn-primary mt-4 inline-flex">
-              عرض الاشتراك والخطة
+              {text.billing}
             </Link>
           )}
         </div>
       )}
 
-<form
-  onSubmit={submit}
-  autoComplete="off"
-  className="card p-6 space-y-4 max-w-3xl"
->
-  <input
-  className="input"
-  name="clientName"
-  autoComplete="off"
-  placeholder="اسم الموكل"
-  value={form.name}
-  onChange={(e) => setForm({ ...form, name: e.target.value })}
-  required
-/>
+      <form
+        onSubmit={submit}
+        autoComplete="off"
+        className="card max-w-3xl space-y-4 p-6"
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <input
+            className="input h-12 w-full text-start"
+            dir={isRtl ? 'rtl' : 'ltr'}
+            name="clientName"
+            autoComplete="off"
+            placeholder={text.fields.name}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
 
-<input
-  className="input"
-  name="clientPhone"
-  autoComplete="off"
-  inputMode="tel"
-  placeholder="رقم الهاتف"
-  value={form.phone}
-  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-/>
+          <input
+            className={`input h-12 w-full ${isRtl ? 'text-right' : 'text-left'}`}
+            dir="ltr"
+            name="clientPhone"
+            autoComplete="off"
+            inputMode="tel"
+            placeholder={text.fields.phone}
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
 
-<input
-  className="input"
-  name="clientEmail"
-  autoComplete="off"
-  type="email"
-  placeholder="البريد الإلكتروني"
-  value={form.email}
-  onChange={(e) => setForm({ ...form, email: e.target.value })}
-/>
+          <input
+            className={`input h-12 w-full ${isRtl ? 'text-right' : 'text-left'}`}
+            dir="ltr"
+            name="clientEmail"
+            autoComplete="off"
+            type="email"
+            placeholder={text.fields.email}
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
 
-<input
-  className="input"
-  name="clientNationalId"
-  autoComplete="off"
-  placeholder="الرقم الوطني / رقم الهوية"
-  value={form.nationalId}
-  onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
-/>
+          <input
+            className={`input h-12 w-full ${isRtl ? 'text-right' : 'text-left'}`}
+            dir="ltr"
+            name="clientNationalId"
+            autoComplete="off"
+            placeholder={text.fields.nationalId}
+            value={form.nationalId}
+            onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
+          />
+        </div>
 
-<input
-  className="input"
-  name="clientAddress"
-  autoComplete="off"
-  placeholder="العنوان"
-  value={form.address}
-  onChange={(e) => setForm({ ...form, address: e.target.value })}
-/>
+        <input
+          className="input h-12 w-full text-start"
+          dir={isRtl ? 'rtl' : 'ltr'}
+          name="clientAddress"
+          autoComplete="off"
+          placeholder={text.fields.address}
+          value={form.address}
+          onChange={(e) => setForm({ ...form, address: e.target.value })}
+        />
 
-<textarea
-  className="input min-h-[120px]"
-  name="clientNotes"
-  autoComplete="off"
-  placeholder="ملاحظات"
-  value={form.notes}
-  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-/>
+        <textarea
+          className="input min-h-[130px] w-full resize-none text-start leading-relaxed"
+          dir={isRtl ? 'rtl' : 'ltr'}
+          name="clientNotes"
+          autoComplete="off"
+          placeholder={text.fields.notes}
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+        />
 
-        <div className="flex gap-3">
-          <button disabled={loading} className="btn btn-primary">
-            {loading ? 'جاري الحفظ...' : 'حفظ الموكل'}
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary h-12 flex-1"
+          >
+            {loading ? text.saving : text.save}
           </button>
 
           <button
             type="button"
-            className="btn"
+            className="btn h-12 flex-1"
             onClick={() => router.push('/dashboard/clients')}
           >
-            إلغاء
+            {text.cancel}
           </button>
         </div>
       </form>

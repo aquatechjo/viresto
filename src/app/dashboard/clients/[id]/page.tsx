@@ -10,7 +10,8 @@ import PageLoader from '@/components/ui/PageLoader'
 import Modal from '@/components/ui/Modal'
 import FormField from '@/components/ui/FormField'
 import EmptyState from '@/components/ui/EmptyState'
-import { formatCurrency, formatDate, initials } from '@/lib/utils'
+import { initials } from '@/lib/utils'
+import { useLocale } from '@/lib/useLocale'
 
 interface ClientCase {
   id: string
@@ -36,13 +37,6 @@ interface Client {
   cases: ClientCase[]
 }
 
-const STATUS_AR: Record<string, string> = {
-  OPEN: 'نشطة',
-  IN_PROGRESS: 'قيد المتابعة',
-  CLOSED: 'مغلقة',
-  ARCHIVED: 'مؤرشفة',
-}
-
 const STATUS_BADGE: Record<string, string> = {
   OPEN: 'badge badge-green',
   IN_PROGRESS: 'badge badge-blue',
@@ -50,13 +44,181 @@ const STATUS_BADGE: Record<string, string> = {
   ARCHIVED: 'badge badge-gray',
 }
 
-const STATUS_FILTERS = [
-  ['all', 'الكل'],
-  ['OPEN', 'نشطة'],
-  ['IN_PROGRESS', 'قيد المتابعة'],
-  ['CLOSED', 'مغلقة'],
-  ['ARCHIVED', 'مؤرشفة'],
-] as const
+const STATUS_KEYS = ['all', 'OPEN', 'IN_PROGRESS', 'CLOSED', 'ARCHIVED'] as const
+type StatusFilter = (typeof STATUS_KEYS)[number]
+
+const COPY = {
+  ar: {
+    notFoundTitle: 'الموكل غير موجود',
+    notFoundSub: 'تعذر العثور على بيانات هذا الموكل.',
+    missingClientId: 'رقم الموكل غير موجود',
+    clientNotFound: 'الموكل غير موجود',
+    loadError: 'تعذر تحميل بيانات الموكل',
+    nameRequired: 'اسم الموكل مطلوب',
+    saved: 'تم حفظ بيانات الموكل',
+    saveError: 'تعذر حفظ بيانات الموكل',
+    saveUnexpected: 'حدث خطأ أثناء حفظ البيانات',
+    exportError: 'تعذر تصدير ملف الموكل',
+    exporting: 'جاري التصدير...',
+    pdf: 'PDF',
+    back: 'رجوع',
+    edit: 'تعديل',
+    clientFile: 'ملف الموكل',
+    clientSince: 'موكل منذ',
+    linkedCaseSentence: 'قضية مرتبطة داخل النظام.',
+    stats: {
+      totalFees: 'إجمالي الأتعاب',
+      paid: 'المحصّل',
+      remaining: 'المتبقي',
+      collectionRate: 'نسبة التحصيل',
+    },
+    info: {
+      title: 'بيانات الموكل',
+      sub: 'معلومات الاتصال الأساسية',
+      name: 'الاسم',
+      phone: 'الهاتف',
+      email: 'البريد',
+      nationalId: 'الرقم الوطني',
+      address: 'العنوان',
+      notes: 'ملاحظات',
+      empty: 'غير محدد',
+    },
+    summary: {
+      title: 'ملخص القضايا',
+      allCases: 'كل القضايا',
+      active: 'نشطة',
+      closedArchived: 'مغلقة/مؤرشفة',
+      pendingPayments: 'دفعات معلقة',
+      collected: 'محصّل',
+      collectionRate: 'نسبة التحصيل',
+    },
+    filters: {
+      placeholder: 'ابحث باسم القضية أو رقمها...',
+      ariaStatus: 'فلترة حسب حالة القضية',
+      filter: 'تصفية',
+      clear: 'مسح الفلاتر',
+      statuses: {
+        all: 'الكل',
+        OPEN: 'نشطة',
+        IN_PROGRESS: 'قيد المتابعة',
+        CLOSED: 'مغلقة',
+        ARCHIVED: 'مؤرشفة',
+      },
+    },
+    cases: {
+      title: 'القضايا المرتبطة',
+      countSuffix: 'قضية ضمن النتائج الحالية',
+      allCases: 'كل القضايا',
+      emptyTitle: 'لا توجد قضايا',
+      noCases: 'لا توجد قضايا مرتبطة بهذا الموكل حتى الآن.',
+      noResults: 'لا توجد قضايا مطابقة للفلاتر الحالية.',
+      columns: {
+        case: 'القضية',
+        fees: 'الأتعاب',
+        paid: 'المحصّل',
+        remaining: 'المتبقي',
+        collectionRate: 'نسبة التحصيل',
+        status: 'الحالة',
+      },
+    },
+    modal: {
+      title: 'تعديل بيانات الموكل',
+      fullName: 'الاسم الكامل',
+      phone: 'الهاتف',
+      email: 'البريد الإلكتروني',
+      address: 'العنوان',
+      notes: 'ملاحظات',
+      cancel: 'إلغاء',
+      save: 'حفظ',
+      saving: 'جاري الحفظ...',
+    },
+  },
+  en: {
+    notFoundTitle: 'Client not found',
+    notFoundSub: 'Could not find this client record.',
+    missingClientId: 'Client ID is missing',
+    clientNotFound: 'Client not found',
+    loadError: 'Could not load client data',
+    nameRequired: 'Client name is required',
+    saved: 'Client details saved',
+    saveError: 'Could not save client details',
+    saveUnexpected: 'Something went wrong while saving',
+    exportError: 'Could not export client file',
+    exporting: 'Exporting...',
+    pdf: 'PDF',
+    back: 'Back',
+    edit: 'Edit',
+    clientFile: 'Client file',
+    clientSince: 'Client since',
+    linkedCaseSentence: 'linked cases in the system.',
+    stats: {
+      totalFees: 'Total fees',
+      paid: 'Collected',
+      remaining: 'Remaining',
+      collectionRate: 'Collection rate',
+    },
+    info: {
+      title: 'Client details',
+      sub: 'Basic contact information',
+      name: 'Name',
+      phone: 'Phone',
+      email: 'Email',
+      nationalId: 'National ID',
+      address: 'Address',
+      notes: 'Notes',
+      empty: 'Not set',
+    },
+    summary: {
+      title: 'Cases summary',
+      allCases: 'All cases',
+      active: 'Active',
+      closedArchived: 'Closed/archived',
+      pendingPayments: 'Pending payments',
+      collected: 'collected',
+      collectionRate: 'Collection rate',
+    },
+    filters: {
+      placeholder: 'Search by case title or number...',
+      ariaStatus: 'Filter by case status',
+      filter: 'Filter',
+      clear: 'Clear filters',
+      statuses: {
+        all: 'All',
+        OPEN: 'Active',
+        IN_PROGRESS: 'In progress',
+        CLOSED: 'Closed',
+        ARCHIVED: 'Archived',
+      },
+    },
+    cases: {
+      title: 'Linked cases',
+      countSuffix: 'case(s) in current results',
+      allCases: 'All cases',
+      emptyTitle: 'No cases found',
+      noCases: 'No cases are linked to this client yet.',
+      noResults: 'No cases match the current filters.',
+      columns: {
+        case: 'Case',
+        fees: 'Fees',
+        paid: 'Collected',
+        remaining: 'Remaining',
+        collectionRate: 'Collection rate',
+        status: 'Status',
+      },
+    },
+    modal: {
+      title: 'Edit client details',
+      fullName: 'Full name',
+      phone: 'Phone',
+      email: 'Email',
+      address: 'Address',
+      notes: 'Notes',
+      cancel: 'Cancel',
+      save: 'Save',
+      saving: 'Saving...',
+    },
+  },
+} as const
 
 const INIT_FORM = {
   name: '',
@@ -92,9 +254,33 @@ function safeMessage(data: any, fallback: string) {
   return data?.message || data?.error || data?.data?.message || fallback
 }
 
+function formatMoney(value: number, localeKey: 'ar' | 'en') {
+  const amount = Number(value || 0).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+  return `JOD ${amount}`
+}
+
+function formatClientDate(value: string, localeKey: 'ar' | 'en') {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat(localeKey === 'ar' ? 'ar-JO' : 'en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(date)
+}
+
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { locale, isRtl } = useLocale()
+  const localeKey = locale === 'ar' ? 'ar' : 'en'
+  const text = COPY[localeKey]
 
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
@@ -104,12 +290,12 @@ export default function ClientDetailPage() {
 
   const [form, setForm] = useState(INIT_FORM)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   const load = useCallback(async () => {
     if (!id || id === 'undefined') {
       setLoading(false)
-      toast.error('رقم الموكل غير موجود')
+      toast.error(text.missingClientId)
       return
     }
 
@@ -129,14 +315,14 @@ export default function ClientDetailPage() {
           notes: data.data.notes ?? '',
         })
       } else {
-        toast.error(safeMessage(data, 'الموكل غير موجود'))
+        toast.error(safeMessage(data, text.clientNotFound))
       }
     } catch {
-      toast.error('تعذر تحميل بيانات الموكل')
+      toast.error(text.loadError)
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, text.clientNotFound, text.loadError, text.missingClientId])
 
   useEffect(() => {
     load()
@@ -186,19 +372,21 @@ export default function ClientDetailPage() {
     })
   }, [client, search, statusFilter])
 
-  const openCases = client?.cases.filter((item) =>
-    ['OPEN', 'IN_PROGRESS'].includes(item.status)
-  ).length ?? 0
+  const openCases =
+    client?.cases.filter((item) =>
+      ['OPEN', 'IN_PROGRESS'].includes(item.status)
+    ).length ?? 0
 
-  const closedCases = client?.cases.filter((item) =>
-    ['CLOSED', 'ARCHIVED'].includes(item.status)
-  ).length ?? 0
+  const closedCases =
+    client?.cases.filter((item) =>
+      ['CLOSED', 'ARCHIVED'].includes(item.status)
+    ).length ?? 0
 
   async function save(event: FormEvent) {
     event.preventDefault()
 
     if (!form.name.trim()) {
-      toast.error('اسم الموكل مطلوب')
+      toast.error(text.nameRequired)
       return
     }
 
@@ -214,14 +402,14 @@ export default function ClientDetailPage() {
       const data = await response.json().catch(() => ({}))
 
       if (response.ok && data.success) {
-        toast.success('تم حفظ بيانات الموكل')
+        toast.success(text.saved)
         setEditing(false)
         load()
       } else {
-        toast.error(safeMessage(data, 'تعذر حفظ بيانات الموكل'))
+        toast.error(safeMessage(data, text.saveError))
       }
     } catch {
-      toast.error('حدث خطأ أثناء حفظ البيانات')
+      toast.error(text.saveUnexpected)
     } finally {
       setSaving(false)
     }
@@ -236,7 +424,7 @@ export default function ClientDetailPage() {
       const { exportClientFullPDF } = await import('@/lib/export')
       exportClientFullPDF(client)
     } catch {
-      toast.error('تعذر تصدير ملف الموكل')
+      toast.error(text.exportError)
     } finally {
       setExporting(false)
     }
@@ -247,22 +435,28 @@ export default function ClientDetailPage() {
     setStatusFilter('all')
   }
 
+  const currencyTextClass = (value: string) =>
+    value.length > 8 ? 'text-lg' : 'text-2xl'
+
   if (loading) return <PageLoader />
 
   if (!client) {
     return (
-      <div className="space-y-5 stagger">
+      <div
+        className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
+        dir={isRtl ? 'rtl' : 'ltr'}
+      >
         <div className="card p-10 text-center">
           <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
-            الموكل غير موجود
+            {text.notFoundTitle}
           </h1>
 
           <p className="mt-2 text-sm" style={{ color: 'var(--text-3)' }}>
-            تعذر العثور على بيانات هذا الموكل.
+            {text.notFoundSub}
           </p>
 
           <button onClick={() => router.back()} className="btn btn-primary mt-5">
-            رجوع
+            {text.back}
           </button>
         </div>
       </div>
@@ -270,7 +464,10 @@ export default function ClientDetailPage() {
   }
 
   return (
-    <div className="space-y-5 stagger">
+    <div
+      className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
+      dir={isRtl ? 'rtl' : 'ltr'}
+    >
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6"
@@ -282,12 +479,16 @@ export default function ClientDetailPage() {
         }}
       >
         <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
+          className={`absolute -top-14 h-40 w-40 rounded-full ${
+            isRtl ? '-right-14' : '-left-14'
+          }`}
           style={{ background: 'rgba(245, 200, 66, 0.16)' }}
         />
 
         <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
+          className={`absolute -bottom-20 h-52 w-52 rounded-full ${
+            isRtl ? 'left-16' : 'right-16'
+          }`}
           style={{ background: 'rgba(255,255,255,0.08)' }}
         />
 
@@ -303,7 +504,7 @@ export default function ClientDetailPage() {
               {initials(client.name)}
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div
                 className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
                 style={{
@@ -312,7 +513,7 @@ export default function ClientDetailPage() {
                   border: '1px solid rgba(255,255,255,0.18)',
                 }}
               >
-                ملف الموكل
+                {text.clientFile}
               </div>
 
               <h1 className="truncate text-2xl font-black text-white">
@@ -320,13 +521,14 @@ export default function ClientDetailPage() {
               </h1>
 
               <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-                موكل منذ {formatDate(client.createdAt)} · لديه {client.cases.length}{' '}
-                قضية مرتبطة داخل النظام.
+                {text.clientSince} {formatClientDate(client.createdAt, localeKey)} ·{' '}
+                {client.cases.length} {text.linkedCaseSentence}
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
                 {client.phone && (
                   <span
+                    dir="ltr"
                     className="rounded-full px-3 py-1 text-xs font-bold"
                     style={{
                       background: 'rgba(255,255,255,0.14)',
@@ -339,6 +541,7 @@ export default function ClientDetailPage() {
 
                 {client.email && (
                   <span
+                    dir="ltr"
                     className="rounded-full px-3 py-1 text-xs font-bold"
                     style={{
                       background: 'rgba(255,255,255,0.14)',
@@ -351,6 +554,7 @@ export default function ClientDetailPage() {
 
                 {client.nationalId && (
                   <span
+                    dir="ltr"
                     className="rounded-full px-3 py-1 text-xs font-bold"
                     style={{
                       background: 'rgba(255,255,255,0.14)',
@@ -364,45 +568,49 @@ export default function ClientDetailPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div
+            className={`flex flex-wrap gap-2 ${
+              isRtl ? 'justify-start xl:justify-end' : 'justify-start'
+            }`}
+          >
             <button
               type="button"
               onClick={() => router.back()}
-              className="btn"
+              className="btn h-11 px-5"
               style={{
                 background: '#fff',
                 color: 'var(--sidebar)',
                 borderColor: 'rgba(255,255,255,0.32)',
               }}
             >
-              رجوع
+              {text.back}
             </button>
 
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="btn"
+              className="btn h-11 px-5"
               style={{
                 background: 'rgba(255,255,255,0.14)',
                 color: '#fff',
                 borderColor: 'rgba(255,255,255,0.22)',
               }}
             >
-              تعديل
+              {text.edit}
             </button>
 
             <button
               type="button"
               onClick={exportClientPDF}
               disabled={exporting}
-              className="btn"
+              className="btn h-11 px-5"
               style={{
                 background: 'rgba(245,200,66,0.18)',
                 color: '#fff',
                 borderColor: 'rgba(245,200,66,0.35)',
               }}
             >
-              {exporting ? 'جاري التصدير...' : 'PDF'}
+              {exporting ? text.exporting : text.pdf}
             </button>
           </div>
         </div>
@@ -412,25 +620,25 @@ export default function ClientDetailPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
-            label: 'إجمالي الأتعاب',
-            value: formatCurrency(totals.totalFees),
+            label: text.stats.totalFees,
+            value: formatMoney(totals.totalFees, localeKey),
             color: 'var(--text)',
             bg: 'var(--card)',
           },
           {
-            label: 'المحصّل',
-            value: formatCurrency(totals.totalPaid),
+            label: text.stats.paid,
+            value: formatMoney(totals.totalPaid, localeKey),
             color: 'var(--sidebar)',
             bg: 'var(--green-soft)',
           },
           {
-            label: 'المتبقي',
-            value: formatCurrency(totals.totalRemaining),
+            label: text.stats.remaining,
+            value: formatMoney(totals.totalRemaining, localeKey),
             color: totals.totalRemaining > 0 ? '#dc2626' : 'var(--text-3)',
             bg: totals.totalRemaining > 0 ? 'var(--red-soft)' : 'var(--card)',
           },
           {
-            label: 'نسبة التحصيل',
+            label: text.stats.collectionRate,
             value: `${Math.round(totals.collectionRate)}%`,
             color: totals.collectionRate >= 80 ? 'var(--sidebar)' : '#92400e',
             bg:
@@ -451,9 +659,17 @@ export default function ClientDetailPage() {
               {item.label}
             </p>
 
-            <p className="mt-2 text-2xl font-black" style={{ color: item.color }}>
-              {item.value}
-            </p>
+<p
+  dir="ltr"
+  className={`
+    mt-2 whitespace-nowrap font-black leading-tight
+    ${item.label === text.stats.collectionRate ? 'text-2xl' : 'text-xl'}
+    ${isRtl ? 'text-right' : 'text-left'}
+  `}
+  style={{ color: item.color }}
+>
+  {item.value}
+</p>
           </div>
         ))}
       </div>
@@ -464,20 +680,20 @@ export default function ClientDetailPage() {
           <div className="card p-5">
             <div className="mb-4">
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                بيانات الموكل
+                {text.info.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                معلومات الاتصال الأساسية
+                {text.info.sub}
               </p>
             </div>
 
             <div className="space-y-3">
-              <InfoRow icon="👤" label="الاسم" value={client.name} />
-              <InfoRow icon="📞" label="الهاتف" value={client.phone} />
-              <InfoRow icon="✉️" label="البريد" value={client.email} />
-              <InfoRow icon="🪪" label="الرقم الوطني" value={client.nationalId} />
-              <InfoRow icon="📍" label="العنوان" value={client.address} />
+              <InfoRow icon="👤" label={text.info.name} value={client.name} empty={text.info.empty} />
+              <InfoRow icon="📞" label={text.info.phone} value={client.phone} empty={text.info.empty} forceLtr />
+              <InfoRow icon="✉️" label={text.info.email} value={client.email} empty={text.info.empty} forceLtr />
+              <InfoRow icon="🪪" label={text.info.nationalId} value={client.nationalId} empty={text.info.empty} forceLtr />
+              <InfoRow icon="📍" label={text.info.address} value={client.address} empty={text.info.empty} />
             </div>
 
             {client.notes && (
@@ -490,7 +706,7 @@ export default function ClientDetailPage() {
                 }}
               >
                 <p className="mb-1 text-xs font-black" style={{ color: 'var(--sidebar)' }}>
-                  ملاحظات
+                  {text.info.notes}
                 </p>
                 {client.notes}
               </div>
@@ -499,28 +715,29 @@ export default function ClientDetailPage() {
 
           <div className="card p-5">
             <h2 className="font-black" style={{ color: 'var(--text)' }}>
-              ملخص القضايا
+              {text.summary.title}
             </h2>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <MiniMetric label="كل القضايا" value={String(client.cases.length)} />
-              <MiniMetric label="نشطة" value={String(openCases)} />
-              <MiniMetric label="مغلقة/مؤرشفة" value={String(closedCases)} />
+              <MiniMetric label={text.summary.allCases} value={String(client.cases.length)} />
+              <MiniMetric label={text.summary.active} value={String(openCases)} />
+              <MiniMetric label={text.summary.closedArchived} value={String(closedCases)} />
               <MiniMetric
-                label="دفعات معلقة"
-                value={formatCurrency(totals.totalPending)}
+                label={text.summary.pendingPayments}
+                value={formatMoney(totals.totalPending, localeKey)}
                 danger={totals.totalPending > 0}
+                isRtl={isRtl}
               />
             </div>
           </div>
 
           <div className="card p-5">
-            <div className="mb-3 flex justify-between text-xs font-black">
+            <div className="mb-3 flex justify-between gap-3 text-xs font-black">
               <span style={{ color: 'var(--sidebar)' }}>
-                {Math.round(totals.collectionRate)}% محصّل
+                {Math.round(totals.collectionRate)}% {text.summary.collected}
               </span>
 
-              <span style={{ color: 'var(--text-3)' }}>نسبة التحصيل</span>
+              <span style={{ color: 'var(--text-3)' }}>{text.summary.collectionRate}</span>
             </div>
 
             <div
@@ -545,77 +762,66 @@ export default function ClientDetailPage() {
 
         {/* Main Content */}
         <div className="space-y-5 xl:col-span-8">
-          {/* Filters */}
-          <div className="card p-4">
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto]">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="ابحث باسم القضية أو رقمها..."
-                className="input"
-              />
+{/* Filters */}
+<div className="card p-4">
+  <div className="grid grid-cols-1 gap-3">
+    <input
+      dir={isRtl ? 'rtl' : 'ltr'}
+      aria-label={text.filters.placeholder}
+      value={search}
+      onChange={(event) => setSearch(event.target.value)}
+      placeholder={text.filters.placeholder}
+      className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
+      style={{
+        textAlign: isRtl ? 'right' : 'left',
+        direction: isRtl ? 'rtl' : 'ltr',
+      }}
+    />
+  </div>
 
-              <select
-                aria-label="فلترة حسب حالة القضية"
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="input"
-              >
-                {STATUS_FILTERS.map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+  <div
+    className={`mt-4 flex flex-wrap gap-2 ${
+      isRtl ? 'justify-end' : 'justify-start'
+    }`}
+  >
+    {STATUS_KEYS.map((key) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => setStatusFilter(key)}
+        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+        style={
+          statusFilter === key
+            ? {
+                background: 'var(--sidebar)',
+                color: '#fff',
+              }
+            : {
+                background: 'var(--green-soft)',
+                color: 'var(--text-2)',
+              }
+        }
+      >
+        {text.filters.statuses[key]}
+      </button>
+    ))}
 
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="btn btn-ghost whitespace-nowrap"
-              >
-                تصفية
-              </button>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {STATUS_FILTERS.map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setStatusFilter(key)}
-                  className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-                  style={
-                    statusFilter === key
-                      ? {
-                          background: 'var(--sidebar)',
-                          color: '#fff',
-                        }
-                      : {
-                          background: 'var(--green-soft)',
-                          color: 'var(--text-2)',
-                        }
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-
-              {(search || statusFilter !== 'all') && (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-                  style={{
-                    background: 'var(--card)',
-                    color: 'var(--text-2)',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  مسح الفلاتر
-                </button>
-              )}
-            </div>
-          </div>
+    {(search || statusFilter !== 'all') && (
+      <button
+        type="button"
+        onClick={clearFilters}
+        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+        style={{
+          background: 'var(--card)',
+          color: 'var(--text-2)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        {text.filters.clear}
+      </button>
+    )}
+  </div>
+</div>
 
           {/* Cases */}
           <div className="card overflow-hidden p-0">
@@ -625,16 +831,16 @@ export default function ClientDetailPage() {
             >
               <div>
                 <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                  القضايا المرتبطة
+                  {text.cases.title}
                 </h2>
 
                 <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                  {filteredCases.length} قضية ضمن النتائج الحالية
+                  {filteredCases.length} {text.cases.countSuffix}
                 </p>
               </div>
 
               <Link href="/dashboard/cases" className="btn btn-ghost">
-                كل القضايا
+                {text.cases.allCases}
               </Link>
             </div>
 
@@ -642,32 +848,32 @@ export default function ClientDetailPage() {
               <div className="p-8">
                 <EmptyState
                   icon="⚖️"
-                  title="لا توجد قضايا"
+                  title={text.cases.emptyTitle}
                   sub={
                     client.cases.length === 0
-                      ? 'لا توجد قضايا مرتبطة بهذا الموكل حتى الآن.'
-                      : 'لا توجد قضايا مطابقة للفلاتر الحالية.'
+                      ? text.cases.noCases
+                      : text.cases.noResults
                   }
                   action={
                     client.cases.length > 0 ? (
                       <button type="button" onClick={clearFilters} className="btn btn-ghost">
-                        مسح الفلاتر
+                        {text.filters.clear}
                       </button>
                     ) : undefined
                   }
                 />
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="data-table">
+              <div className="max-w-full overflow-x-auto">
+                <table className="data-table min-w-[860px]">
                   <thead>
                     <tr>
-                      <th>القضية</th>
-                      <th>الأتعاب</th>
-                      <th>المحصّل</th>
-                      <th>المتبقي</th>
-                      <th>نسبة التحصيل</th>
-                      <th>الحالة</th>
+                      <th>{text.cases.columns.case}</th>
+                      <th>{text.cases.columns.fees}</th>
+                      <th>{text.cases.columns.paid}</th>
+                      <th>{text.cases.columns.remaining}</th>
+                      <th>{text.cases.columns.collectionRate}</th>
+                      <th>{text.cases.columns.status}</th>
                     </tr>
                   </thead>
 
@@ -698,19 +904,29 @@ export default function ClientDetailPage() {
                             </div>
                           </td>
 
-                          <td>{formatCurrency(item.feeAgreed)}</td>
-
-                          <td className="font-bold" style={{ color: 'var(--sidebar)' }}>
-                            {formatCurrency(paid)}
+                          <td
+                            dir="ltr"
+                            className={`whitespace-nowrap ${isRtl ? 'text-right' : 'text-left'}`}
+                          >
+                            {formatMoney(item.feeAgreed, localeKey)}
                           </td>
 
                           <td
-                            className="font-bold"
+                            dir="ltr"
+                            className={`whitespace-nowrap font-bold ${isRtl ? 'text-right' : 'text-left'}`}
+                            style={{ color: 'var(--sidebar)' }}
+                          >
+                            {formatMoney(paid, localeKey)}
+                          </td>
+
+                          <td
+                            dir="ltr"
+                            className={`whitespace-nowrap font-bold ${isRtl ? 'text-right' : 'text-left'}`}
                             style={{
                               color: remaining > 0 ? '#dc2626' : 'var(--text)',
                             }}
                           >
-                            {formatCurrency(remaining)}
+                            {formatMoney(remaining, localeKey)}
                           </td>
 
                           <td>
@@ -734,6 +950,7 @@ export default function ClientDetailPage() {
                               </div>
 
                               <span
+                                dir="ltr"
                                 className="w-9 text-xs font-bold"
                                 style={{ color: 'var(--text-2)' }}
                               >
@@ -744,7 +961,7 @@ export default function ClientDetailPage() {
 
                           <td>
                             <span className={STATUS_BADGE[item.status] ?? 'badge badge-gray'}>
-                              {STATUS_AR[item.status] ?? item.status}
+                              {text.filters.statuses[item.status as keyof typeof text.filters.statuses] ?? item.status}
                             </span>
                           </td>
                         </tr>
@@ -758,10 +975,122 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Edit Modal */}
-      <Modal
-        open={editing}
-        onClose={() => {
+{/* Edit Modal */}
+<Modal
+  open={editing}
+  onClose={() => {
+    setEditing(false)
+    setForm({
+      name: client.name ?? '',
+      phone: client.phone ?? '',
+      email: client.email ?? '',
+      address: client.address ?? '',
+      notes: client.notes ?? '',
+    })
+  }}
+  title={text.modal.title}
+>
+  <form onSubmit={save} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+    <FormField label={text.modal.fullName} required>
+      <input
+        dir={isRtl ? 'rtl' : 'ltr'}
+        value={form.name}
+        onChange={(event) =>
+          setForm((previous) => ({
+            ...previous,
+            name: event.target.value,
+          }))
+        }
+        className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+        style={{
+          textAlign: isRtl ? 'right' : 'left',
+          direction: isRtl ? 'rtl' : 'ltr',
+        }}
+        autoFocus
+      />
+    </FormField>
+
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <FormField label={text.modal.phone}>
+        <input
+          dir="ltr"
+          value={form.phone}
+          onChange={(event) =>
+            setForm((previous) => ({
+              ...previous,
+              phone: event.target.value,
+            }))
+          }
+          className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+          style={{
+            textAlign: isRtl ? 'right' : 'left',
+            direction: 'ltr',
+          }}
+        />
+      </FormField>
+
+      <FormField label={text.modal.email}>
+        <input
+          dir="ltr"
+          type="email"
+          value={form.email}
+          onChange={(event) =>
+            setForm((previous) => ({
+              ...previous,
+              email: event.target.value,
+            }))
+          }
+          className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+          style={{
+            textAlign: isRtl ? 'right' : 'left',
+            direction: 'ltr',
+          }}
+        />
+      </FormField>
+    </div>
+
+    <FormField label={text.modal.address}>
+      <input
+        dir={isRtl ? 'rtl' : 'ltr'}
+        value={form.address}
+        onChange={(event) =>
+          setForm((previous) => ({
+            ...previous,
+            address: event.target.value,
+          }))
+        }
+        className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+        style={{
+          textAlign: isRtl ? 'right' : 'left',
+          direction: isRtl ? 'rtl' : 'ltr',
+        }}
+      />
+    </FormField>
+
+    <FormField label={text.modal.notes}>
+      <textarea
+        dir={isRtl ? 'rtl' : 'ltr'}
+        value={form.notes}
+        onChange={(event) =>
+          setForm((previous) => ({
+            ...previous,
+            notes: event.target.value,
+          }))
+        }
+        className={`input min-h-[105px] resize-none ${
+          isRtl ? '!text-right' : '!text-left'
+        }`}
+        style={{
+          textAlign: isRtl ? 'right' : 'left',
+          direction: isRtl ? 'rtl' : 'ltr',
+        }}
+      />
+    </FormField>
+
+    <div className="flex gap-2 pt-2">
+      <button
+        type="button"
+        onClick={() => {
           setEditing(false)
           setForm({
             name: client.name ?? '',
@@ -771,95 +1100,17 @@ export default function ClientDetailPage() {
             notes: client.notes ?? '',
           })
         }}
-        title="تعديل بيانات الموكل"
+        className="btn btn-ghost flex-1"
       >
-        <form onSubmit={save} className="space-y-3">
-          <FormField label="الاسم الكامل" required>
-            <input
-              value={form.name}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  name: event.target.value,
-                }))
-              }
-              className="input"
-              autoFocus
-            />
-          </FormField>
+        {text.modal.cancel}
+      </button>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="الهاتف">
-              <input
-                value={form.phone}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    phone: event.target.value,
-                  }))
-                }
-                className="input"
-              />
-            </FormField>
-
-            <FormField label="البريد الإلكتروني">
-              <input
-                type="email"
-                value={form.email}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    email: event.target.value,
-                  }))
-                }
-                className="input"
-              />
-            </FormField>
-          </div>
-
-          <FormField label="العنوان">
-            <input
-              value={form.address}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  address: event.target.value,
-                }))
-              }
-              className="input"
-            />
-          </FormField>
-
-          <FormField label="ملاحظات">
-            <textarea
-              value={form.notes}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  notes: event.target.value,
-                }))
-              }
-              className="input"
-              rows={3}
-              style={{ resize: 'none' }}
-            />
-          </FormField>
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="btn btn-ghost flex-1"
-            >
-              إلغاء
-            </button>
-
-            <button type="submit" disabled={saving} className="btn btn-primary flex-1">
-              {saving ? 'جاري الحفظ...' : 'حفظ'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      <button type="submit" disabled={saving} className="btn btn-primary flex-1">
+        {saving ? text.modal.saving : text.modal.save}
+      </button>
+    </div>
+  </form>
+</Modal>
     </div>
   )
 }
@@ -868,32 +1119,37 @@ function InfoRow({
   icon,
   label,
   value,
+  empty,
+  forceLtr,
 }: {
   icon: string
   label: string
   value?: string | null
+  empty: string
+  forceLtr?: boolean
 }) {
   return (
     <div
-      className="rounded-2xl border p-3"
+      className="rounded-2xl border px-3 py-2.5"
       style={{
         borderColor: 'var(--border)',
         background: 'var(--card)',
       }}
     >
       <div className="flex items-start gap-3">
-        <span className="text-lg">{icon}</span>
+        <span className="text-base">{icon}</span>
 
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+          <p className="text-xs font-black text-start" style={{ color: 'var(--text-3)' }}>
             {label}
           </p>
 
           <p
-            className="mt-1 break-words text-sm font-bold"
+            dir={forceLtr ? 'ltr' : undefined}
+            className="mt-1 break-words text-start text-sm font-bold"
             style={{ color: value ? 'var(--text)' : 'var(--text-3)' }}
           >
-            {value || 'غير محدد'}
+            {value || empty}
           </p>
         </div>
       </div>
@@ -905,14 +1161,18 @@ function MiniMetric({
   label,
   value,
   danger,
+  isRtl,
 }: {
   label: string
   value: string
   danger?: boolean
+  isRtl?: boolean
 }) {
+  const isLongValue = value.length > 8
+
   return (
     <div
-      className="rounded-2xl border p-3"
+      className="rounded-2xl border px-3 py-2.5"
       style={{
         borderColor: 'var(--border)',
         background: 'var(--card)',
@@ -923,7 +1183,10 @@ function MiniMetric({
       </p>
 
       <p
-        className="mt-1 text-lg font-black"
+        dir="ltr"
+        className={`mt-1 whitespace-nowrap font-black leading-tight ${
+          isLongValue ? 'text-base' : 'text-lg'
+        } ${isRtl ? 'text-right' : 'text-left'}`}
         style={{ color: danger ? '#dc2626' : 'var(--text)' }}
       >
         {value}
