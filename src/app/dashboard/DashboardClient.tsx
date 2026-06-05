@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic'
 import PageLoader from '@/components/ui/PageLoader'
 import StatCard from '@/components/ui/StatCard'
 import { formatCurrency, formatTime } from '@/lib/utils'
-import ThemeToggle from '@/components/ThemeToggle'
 
 const AIAssistant = dynamic(() => import('@/components/dashboard/AIAssistant'), {
   ssr: false,
@@ -223,8 +222,6 @@ export default function DashboardPage() {
       <span>⚖️</span>
       <span>لوحة إدارة المكتب القانوني</span>
     </div>
-
-    <ThemeToggle />
   </div>
 
   <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.45fr_.75fr] lg:items-center">

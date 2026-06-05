@@ -73,9 +73,12 @@ const usageLabels: Record<keyof BillingData['usage'], string> = {
 }
 
 const statusClasses = {
-  success: 'bg-emerald-100 text-emerald-700',
-  warning: 'bg-amber-100 text-amber-700',
-  danger: 'bg-red-100 text-red-700',
+  success:
+    'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-400/30 dark:bg-[#1f4d35] dark:text-emerald-50',
+  warning:
+    'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200',
+  danger:
+    'border border-red-200 bg-red-100 text-red-700 dark:border-red-400/30 dark:bg-red-500/15 dark:text-red-200',
 }
 
 export default function BillingPage() {
@@ -176,15 +179,15 @@ export default function BillingPage() {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border p-4">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#335f49] dark:bg-[#0b1f16]">
               <p className="text-xs font-bold" style={{ color: 'var(--muted)' }}>المكتب</p>
               <p className="mt-1 font-black">{data.tenant.name}</p>
             </div>
-            <div className="rounded-2xl border p-4">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#335f49] dark:bg-[#0b1f16]">
               <p className="text-xs font-bold" style={{ color: 'var(--muted)' }}>الحد الأقصى للمستخدمين</p>
               <p className="mt-1 font-black">{formatLimit(data.tenant.maxUsers)}</p>
             </div>
-            <div className="rounded-2xl border p-4">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#335f49] dark:bg-[#0b1f16]">
               <p className="text-xs font-bold" style={{ color: 'var(--muted)' }}>الفترة التجريبية</p>
               <p className="mt-1 font-black">{trialLabel}</p>
             </div>
@@ -230,7 +233,7 @@ export default function BillingPage() {
             const percent = item.percent ?? 0
 
             return (
-              <div key={key} className="rounded-2xl border p-4">
+              <div key={key} className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#335f49] dark:bg-[#0b1f16]">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-black">{usageLabels[key]}</p>
                   <p className="text-xs font-bold" style={{ color: 'var(--muted)' }}>
@@ -238,7 +241,7 @@ export default function BillingPage() {
                   </p>
                 </div>
 
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/5">
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/5 dark:bg-emerald-950/70">
                   <div
                     className="h-full rounded-full bg-emerald-600 transition-all"
                     style={{ width: item.limit ? `${Math.min(percent, 100)}%` : '100%' }}
@@ -246,7 +249,7 @@ export default function BillingPage() {
                 </div>
 
                 <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-                  {item.limit ? `${percent}% مستخدم` : 'لا يوجد حد محدد'}
+                  {item.limit ? `${percent}% مستخدم` : 'لا يوجد حد معين'}
                 </p>
               </div>
             )
@@ -266,8 +269,8 @@ export default function BillingPage() {
                 className={`card p-5 relative ${active ? 'ring-2 ring-emerald-600' : ''}`}
               >
                 {plan.recommended && (
-                  <span className="absolute left-4 top-4 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
-                    الأكثر مناسبة
+                  <span className="absolute left-4 top-4 rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700 dark:border-emerald-400/30 dark:bg-[#1f4d35] dark:text-emerald-50">
+                    الأكثر مبيعا
                   </span>
                 )}
 
@@ -287,7 +290,7 @@ export default function BillingPage() {
                   ))}
                 </ul>
 
-                <div className="mt-5 rounded-2xl bg-black/5 p-3 text-xs leading-6">
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-black/5 p-3 text-xs leading-6 dark:border-[#335f49] dark:bg-[#0b1f16] dark:text-emerald-100/85">
                   <p>المستخدمون: {formatLimit(plan.limits.users)}</p>
                   <p>الموكلون: {formatLimit(plan.limits.clients)}</p>
                   <p>القضايا: {formatLimit(plan.limits.cases)}</p>

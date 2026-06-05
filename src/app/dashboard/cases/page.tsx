@@ -21,8 +21,15 @@ interface Case {
   caseNumber?: string
   status: string
   feeAgreed: number
-  client: { name: string }
-  payments: { amount: number; status: string }[]
+  clientId: string
+  client: {
+    id?: string
+    name: string
+  }
+  payments: {
+    amount: number
+    status: string
+  }[]
   _count?: {
     appointments: number
     documents: number
@@ -555,9 +562,21 @@ export default function CasesPage() {
                         </span>
                       </td>
 
-                      <td className="text-sm" style={{ color: 'var(--text-3)' }}>
-                        ←
-                      </td>
+<td>
+  <Link
+    href={`/dashboard/clients/${item.clientId}`}
+    className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition-all hover:-translate-y-0.5 hover:shadow-md"
+    style={{
+      borderColor: 'var(--border)',
+      background: 'var(--green-soft)',
+      color: 'var(--sidebar)',
+    }}
+    title="فتح ملف الموكل"
+  >
+    فتح الملف
+    <span>←</span>
+  </Link>
+</td>
                     </tr>
                   )
                 })}

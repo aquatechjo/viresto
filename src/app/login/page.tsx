@@ -399,33 +399,21 @@ style={{
                 style={{ background: 'rgba(245,200,66,.24)' }}
               />
 
-              <div
-                className="relative rounded-[28px] p-6 sm:p-7"
-                style={{
-                  background: 'rgba(255,255,255,.88)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.7)',
-                }}
-              >
+                <div className="relative rounded-[28px] bg-white/90 p-6 text-slate-900 shadow-inner sm:p-7 dark:bg-[#10291d]/95 dark:text-emerald-50">
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
                 >
-                  <div
-                    className="mb-4 inline-flex rounded-full px-3 py-1 text-xs font-black"
-                    style={{
-                      background: 'rgba(31,70,57,.10)',
-                      color: '#1f4639',
-                    }}
-                  >
-                    مرحبًا بعودتك
+                  <div className="mb-4 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800 dark:bg-[#1f4d35] dark:text-emerald-50">
+                        مرحبًا بعودتك
                   </div>
 
-                  <h2 className="text-2xl font-black" style={{ color: '#10261f' }}>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-emerald-50">
                     تسجيل الدخول
                   </h2>
 
-                  <p className="mt-2 text-sm font-semibold leading-7 text-slate-500">
+                  <p className="mt-2 text-sm font-medium text-slate-600 dark:text-emerald-100/75">
                     أدخل بياناتك للوصول إلى لوحة التحكم وإدارة مكتبك.
                   </p>
                 </motion.div>
@@ -490,13 +478,13 @@ style={{
                           placeholder="••••••••"
                         />
 
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((previous) => !previous)}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 rounded-xl px-2 py-1 text-xs font-bold text-slate-500 transition hover:bg-black/5"
-                        >
-                          {showPassword ? 'إخفاء' : 'إظهار'}
-                        </button>
+<button
+  type="button"
+  onClick={() => setShowPassword((previous) => !previous)}
+  className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-xl bg-white/80 px-2 py-1 text-xs font-black !text-[#17352b] transition hover:bg-white dark:bg-white/80 dark:!text-[#17352b]"
+>
+  {showPassword ? 'إخفاء' : 'إظهار'}
+</button>
                       </div>
                     </FormField>
                   </motion.div>
@@ -518,21 +506,20 @@ style={{
                   </motion.button>
                 </form>
 
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.55 }}
-                  className="mt-5 text-center text-sm font-semibold text-slate-500"
-                >
-                  ليس لديك حساب؟{' '}
-                  <Link
-                    href="/register"
-                    className="font-black"
-                    style={{ color: '#1f4639' }}
-                  >
-                    سجّل مكتبك
-                  </Link>
-                </motion.p>
+<motion.p
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.55 }}
+  className="mt-5 text-center text-sm font-semibold text-slate-600 dark:text-emerald-100/75"
+>
+  ليس لديك حساب؟{' '}
+  <Link
+    href="/register"
+    className="font-black text-[#1f4639] hover:underline dark:text-emerald-300"
+  >
+    سجّل مكتبك
+  </Link>
+</motion.p>
               </div>
             </div>
           </motion.div>

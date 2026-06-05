@@ -5,8 +5,17 @@ import { caseSchema } from '@/lib/validations'
 import { ok, err, notFound } from '@/lib/api-response'
 import { logActivity } from '@/lib/activity'
 import { apiHandler } from '@/lib/api-handler'
-
+import { decryptText } from '@/lib/encryption'
 type Params = { params: Promise<{ id: string }> }
+function safeDecrypt(value?: string | null) {
+  if (!value) return null
+
+  try {
+    return decryptText(value)
+  } catch {
+    return value
+  }
+}
 
 async function ensureTenantActive(tenantId: string, action: 'تعديل' | 'حذف') {
   const tenant = await prisma.tenant.findUnique({
@@ -46,15 +55,16 @@ export async function GET(req: NextRequest, { params }: Params) {
         tenantId,
       },
       include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            email: true,
-            address: true,
-          },
-        },
+client: {
+  select: {
+    id: true,
+    name: true,
+    phone: true,
+    email: true,
+    nationalId: true,
+    address: true,
+  },
+},
         payments: {
           where: { tenantId },
           include: {
@@ -144,10 +154,17 @@ export async function GET(req: NextRequest, { params }: Params) {
       take: 50,
     })
 
-    return ok({
-      ...c,
-      activities,
-    })
+return ok({
+  ...c,
+  client: {
+    ...c.client,
+    email: safeDecrypt(c.client.email),
+    phone: safeDecrypt(c.client.phone),
+    nationalId: safeDecrypt(c.client.nationalId),
+    address: safeDecrypt(c.client.address),
+  },
+  activities,
+})
   })
 }
 

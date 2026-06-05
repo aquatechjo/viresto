@@ -71,7 +71,7 @@ export const PLAN_META: Record<PlanKey, PlanMeta> = {
       invoices: true,
       reports: true,
       aiSummaries: true,
-      support: 'دعم أولوية',
+      support: 'دعم أساسي',
     },
     features: [
       'فواتير ومدفوعات وتقارير',

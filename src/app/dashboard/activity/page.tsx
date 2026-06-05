@@ -227,29 +227,57 @@ export default function ActivityPage() {
 
       <div className="card p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="ابحث في النشاط..."
-                className="input w-72 pr-9"
-              />
-            </div>
+<div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+<div className="w-full sm:w-80">
+  <input
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    placeholder="ابحث في النشاط..."
+    className="
+      input
+      w-full
+      px-4
+      text-right
+      text-slate-800
+      placeholder:text-slate-400
+      dark:text-emerald-50
+      dark:placeholder:text-emerald-100/60
+    "
+  />
+</div>
 
-            <button
-              type="button"
-              onClick={() => load()}
-              className="btn"
-              title="بحث"
-            >
-              بحث
-            </button>
-          </div>
+<button
+  type="button"
+  onClick={() => load()}
+  className="
+    inline-flex
+    items-center
+    justify-center
+    gap-2
+    rounded-2xl
+    border
+    border-emerald-500/30
+    bg-emerald-600
+    px-5
+    py-2.5
+    text-sm
+    font-black
+    text-white
+    transition
+    hover:bg-emerald-700
+    dark:border-emerald-400/30
+    dark:bg-[#1f4d35]
+    dark:text-emerald-50
+    dark:hover:bg-[#276342]
+  "
+  title="بحث"
+>
+  <Search className="h-4 w-4" />
+  <span>بحث</span>
+</button>
+</div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Filter className="h-4 w-4" style={{ color: 'var(--text-3)' }} />
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
@@ -279,7 +307,7 @@ export default function ActivityPage() {
                   <th>الكيان</th>
                   <th>الوقت</th>
                   <th>IP</th>
-                  <th>فتح</th>
+                  <th>الإجراء</th>
                 </tr>
               </thead>
 
@@ -337,23 +365,28 @@ export default function ActivityPage() {
                         </div>
                       </td>
 
-                      <td>
-                        <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                          {activity.ipAddress ?? '-'}
-                        </span>
-                      </td>
+<td>
+  <span className="text-xs font-bold text-slate-600 dark:text-emerald-100/80">
+    {activity.ipAddress === '::1' || activity.ipAddress === '127.0.0.1'
+      ? 'محلي'
+      : activity.ipAddress || 'غير متاح'}
+  </span>
+</td>
 
-                      <td>
-                        {href ? (
-                          <Link href={href} className="btn text-xs">
-                            فتح
-                          </Link>
-                        ) : (
-                          <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                            -
-                          </span>
-                        )}
-                      </td>
+<td>
+  {href ? (
+    <Link
+      href={href}
+      className="inline-flex items-center justify-center rounded-xl border border-emerald-500/30 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+    >
+      عرض
+    </Link>
+  ) : (
+    <span className="text-xs font-bold text-slate-600 dark:text-emerald-100/80">
+      غير متاح
+    </span>
+  )}
+</td>
                     </tr>
                   )
                 })}

@@ -4,18 +4,24 @@ import { useEffect, useState } from 'react'
 
 type Theme = 'light' | 'dark'
 
+function getCurrentTheme(): Theme {
+  if (typeof document === 'undefined') return 'light'
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+}
+
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('light')
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark')
-    setTheme(isDark ? 'dark' : 'light')
+    const currentTheme = getCurrentTheme()
+    setTheme(currentTheme)
     setMounted(true)
   }, [])
 
   function toggleTheme() {
-    const nextTheme: Theme = theme === 'dark' ? 'light' : 'dark'
+    const currentTheme = getCurrentTheme()
+    const nextTheme: Theme = currentTheme === 'dark' ? 'light' : 'dark'
 
     document.documentElement.classList.toggle('dark', nextTheme === 'dark')
     localStorage.setItem('theme', nextTheme)
@@ -24,9 +30,26 @@ export default function ThemeToggle() {
 
   return (
     <button
+className="
+  flex h-11 w-14 items-center justify-center
+  rounded-2xl
+  border border-slate-200
+  bg-slate-50/90
+  text-slate-700
+  shadow-sm
+  transition-all
+  hover:border-emerald-200
+  hover:bg-white
+
+  dark:border-[#3b6654]
+  dark:bg-[#08291d]
+  dark:text-emerald-100
+  dark:hover:border-emerald-400/70
+  dark:hover:bg-[#103b2a]
+"
       type="button"
-      onClick={mounted ? toggleTheme : undefined}
-      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-[#2d4a3e] dark:bg-[#10291d] dark:text-emerald-100 dark:hover:bg-[#173827]"
+      onClick={toggleTheme}
+      disabled={!mounted}
       aria-label={theme === 'dark' ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي'}
       title={theme === 'dark' ? 'الوضع النهاري' : 'الوضع الليلي'}
     >

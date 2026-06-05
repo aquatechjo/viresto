@@ -67,49 +67,67 @@ export default function NewClientPage() {
         </div>
       )}
 
-      <form onSubmit={submit} className="card p-6 space-y-4 max-w-3xl">
-        <input
-          className="input"
-          placeholder="اسم الموكل"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          required
-        />
+<form
+  onSubmit={submit}
+  autoComplete="off"
+  className="card p-6 space-y-4 max-w-3xl"
+>
+  <input
+  className="input"
+  name="clientName"
+  autoComplete="off"
+  placeholder="اسم الموكل"
+  value={form.name}
+  onChange={(e) => setForm({ ...form, name: e.target.value })}
+  required
+/>
 
-        <input
-          className="input"
-          placeholder="رقم الهاتف"
-          value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value })}
-        />
+<input
+  className="input"
+  name="clientPhone"
+  autoComplete="off"
+  inputMode="tel"
+  placeholder="رقم الهاتف"
+  value={form.phone}
+  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+/>
 
-        <input
-          className="input"
-          placeholder="البريد الإلكتروني"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-        />
+<input
+  className="input"
+  name="clientEmail"
+  autoComplete="off"
+  type="email"
+  placeholder="البريد الإلكتروني"
+  value={form.email}
+  onChange={(e) => setForm({ ...form, email: e.target.value })}
+/>
 
-        <input
-          className="input"
-          placeholder="الرقم الوطني / رقم الهوية"
-          value={form.nationalId}
-          onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
-        />
+<input
+  className="input"
+  name="clientNationalId"
+  autoComplete="off"
+  placeholder="الرقم الوطني / رقم الهوية"
+  value={form.nationalId}
+  onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
+/>
 
-        <input
-          className="input"
-          placeholder="العنوان"
-          value={form.address}
-          onChange={(e) => setForm({ ...form, address: e.target.value })}
-        />
+<input
+  className="input"
+  name="clientAddress"
+  autoComplete="off"
+  placeholder="العنوان"
+  value={form.address}
+  onChange={(e) => setForm({ ...form, address: e.target.value })}
+/>
 
-        <textarea
-          className="input min-h-[120px]"
-          placeholder="ملاحظات"
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        />
+<textarea
+  className="input min-h-[120px]"
+  name="clientNotes"
+  autoComplete="off"
+  placeholder="ملاحظات"
+  value={form.notes}
+  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+/>
 
         <div className="flex gap-3">
           <button disabled={loading} className="btn btn-primary">

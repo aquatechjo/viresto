@@ -105,13 +105,14 @@ interface CaseDetail {
   description?: string | null
   createdAt: string
   updatedAt: string
-  client: {
-    id: string
-    name: string
-    phone?: string | null
-    email?: string | null
-    address?: string | null
-  }
+client: {
+  id: string
+  name: string
+  phone?: string | null
+  email?: string | null
+  nationalId?: string | null
+  address?: string | null
+}
   payments: Payment[]
   appointments: Appointment[]
   documents: DocumentItem[]
@@ -986,36 +987,78 @@ export default function CaseDetailPage() {
               </h2>
             </div>
 
-            <Link
-              href={`/dashboard/clients/${c.client.id}`}
-              className="block rounded-2xl border p-4 transition-all hover:-translate-y-0.5"
-              style={{
-                borderColor: 'var(--border)',
-                background: 'var(--green-soft)',
-              }}
-            >
-              <p className="font-black" style={{ color: 'var(--sidebar)' }}>
-                فتح ملف الموكل
-              </p>
+<Link
+  href={`/dashboard/clients/${c.client.id}`}
+  className="block rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+  style={{
+    borderColor: 'var(--border)',
+    background: 'var(--green-soft)',
+  }}
+>
+  <div className="flex items-start justify-between gap-3">
+    <div>
+      <p className="text-xs font-black" style={{ color: 'var(--text-2)' }}>
+        الموكل
+      </p>
 
-              {c.client.phone && (
-                <p className="mt-2 text-sm" style={{ color: 'var(--text-2)' }}>
-                  📞 {c.client.phone}
-                </p>
-              )}
+      <h3 className="mt-1 text-lg font-black" style={{ color: 'var(--sidebar)' }}>
+        {c.client.name || 'غير مضاف'}
+      </h3>
+    </div>
 
-              {c.client.email && (
-                <p className="mt-1 text-sm" style={{ color: 'var(--text-2)' }}>
-                  ✉️ {c.client.email}
-                </p>
-              )}
+    <span
+      className="rounded-full px-3 py-1 text-xs font-black"
+      style={{
+        background: 'var(--card)',
+        color: 'var(--sidebar)',
+        border: '1px solid var(--border)',
+      }}
+    >
+      فتح ملف الموكل
+    </span>
+  </div>
 
-              {c.client.address && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                  📍 {c.client.address}
-                </p>
-              )}
-            </Link>
+  <div
+    className="mt-5 grid gap-4 border-t pt-4 sm:grid-cols-2"
+    style={{ borderColor: 'var(--border)' }}
+  >
+    <div>
+      <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+        الهاتف
+      </p>
+      <p className="mt-1 truncate text-sm font-bold" style={{ color: 'var(--text)' }}>
+        {c.client.phone || 'غير مضاف'}
+      </p>
+    </div>
+
+    <div>
+      <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+        البريد الإلكتروني
+      </p>
+      <p className="mt-1 truncate text-sm font-bold" style={{ color: 'var(--text)' }}>
+        {c.client.email || 'غير مضاف'}
+      </p>
+    </div>
+
+    <div>
+      <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+        الرقم الوطني / الهوية
+      </p>
+      <p className="mt-1 truncate text-sm font-bold" style={{ color: 'var(--text)' }}>
+       {c.client.nationalId || 'غير مضاف'}
+      </p>
+    </div>
+
+    <div>
+      <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+        العنوان
+      </p>
+      <p className="mt-1 line-clamp-2 break-words text-sm font-bold" style={{ color: 'var(--text)' }}>
+        {c.client.address || 'غير مضاف'}
+      </p>
+    </div>
+  </div>
+</Link>
           </div>
 
           <div className="card p-5">

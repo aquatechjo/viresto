@@ -132,6 +132,24 @@ if (!parsed.success) {
         : null,
     }
 
+    function cleanText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function looksLikeToken(value: string) {
+  return /[A-Za-z0-9+/=]{30,}/.test(value)
+}
+
+function isValidOptionalEmail(value: string) {
+  if (!value) return true
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+function isValidOptionalPhone(value: string) {
+  if (!value) return true
+  return /^[+0-9\s()-]{7,20}$/.test(value)
+}
+
     const client = await prisma.client.create({
       data: {
         tenantId: auth.user.tenantId,
