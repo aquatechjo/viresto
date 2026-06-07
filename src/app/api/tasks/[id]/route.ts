@@ -36,6 +36,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
     if (auth.error || !auth.user) return auth.error
+
     const meta = getRequestMeta(req)
 
     const tenantError = await ensureTenantActive(auth.user.tenantId)
@@ -52,7 +53,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         id: true,
         title: true,
         caseId: true,
+        clientId: true,
         completed: true,
+        client: {
+          select: {
+            id: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            client: {
+              select: {
+                id: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -115,11 +134,45 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return err('لا توجد بيانات للتعديل', 400)
     }
 
+    const isArchivedClient = Boolean(
+      exists.client?.archivedAt || exists.case?.client?.archivedAt
+    )
+
+    const onlyCompletionChange =
+      Object.keys(data).length === 1 &&
+      typeof data.completed === 'boolean'
+
+    if (isArchivedClient && !onlyCompletionChange) {
+      return err('لا يمكن تعديل بيانات مهمة مرتبطة بموكل مؤرشف', 400)
+    }
+
     const updated = await prisma.task.update({
       where: {
         id: exists.id,
       },
       data,
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
+      },
     })
 
     if (exists.caseId) {
@@ -151,6 +204,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
     if (auth.error || !auth.user) return auth.error
+
     const meta = getRequestMeta(req)
 
     const tenantError = await ensureTenantActive(auth.user.tenantId)
@@ -167,11 +221,37 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         id: true,
         title: true,
         caseId: true,
+        clientId: true,
+        client: {
+          select: {
+            id: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            client: {
+              select: {
+                id: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 
     if (!exists) {
       return notFound('المهمة غير موجودة')
+    }
+
+    const isArchivedClient = Boolean(
+      exists.client?.archivedAt || exists.case?.client?.archivedAt
+    )
+
+    if (isArchivedClient) {
+      return err('لا يمكن حذف مهمة مرتبطة بموكل مؤرشف', 400)
     }
 
     await prisma.task.delete({

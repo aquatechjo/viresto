@@ -7,6 +7,8 @@ import FormField from '@/components/ui/FormField'
 import EmptyState from '@/components/ui/EmptyState'
 import PageLoader from '@/components/ui/PageLoader'
 import { formatDate } from '@/lib/utils'
+import { translations, type Locale } from '@/lib/i18n'
+import { useLocale } from '@/lib/useLocale'
 
 interface Task {
   id: string
@@ -15,8 +17,20 @@ interface Task {
   dueDate?: string
   priority: string
   completed: boolean
-  client?: { name: string }
-  case?: { title: string }
+  client?: {
+    id?: string
+    name: string
+    archivedAt?: string | null
+  } | null
+  case?: {
+    id?: string
+    title: string
+    client?: {
+      id?: string
+      name: string
+      archivedAt?: string | null
+    } | null
+  } | null
 }
 
 interface ClientItem {
@@ -36,11 +50,19 @@ const PB: Record<string, string> = {
   LOW: 'badge badge-gray',
 }
 
-const PA: Record<string, string> = {
-  URGENT: 'عاجلة',
-  HIGH: 'عالية',
-  MEDIUM: 'متوسطة',
-  LOW: 'منخفضة',
+const PRIORITY_LABELS: Record<Locale, Record<string, string>> = {
+  ar: {
+    URGENT: 'عاجلة',
+    HIGH: 'عالية',
+    MEDIUM: 'متوسطة',
+    LOW: 'منخفضة',
+  },
+  en: {
+    URGENT: 'Urgent',
+    HIGH: 'High',
+    MEDIUM: 'Medium',
+    LOW: 'Low',
+  },
 }
 
 const INIT = {
@@ -52,7 +74,85 @@ const INIT = {
   caseId: '',
 }
 
+
+const TASK_TRANSLATIONS = {
+  ar: {
+    hero: {
+      badge: 'إدارة العمل اليومي',
+      title: 'المهام',
+      subtitle: 'تابع المهام المرتبطة بالقضايا والموكلين، وحدد الأولويات والمواعيد النهائية لضمان عدم تفويت أي إجراء مهم.',
+    },
+    actions: { newTask: '+ مهمة جديدة', addTask: '+ إضافة مهمة', deleteTask: 'حذف المهمة', deleting: 'جاري الحذف...' },
+    stats: { total: 'كل المهام', pending: 'معلقة', done: 'منتهية', overdue: 'متأخرة' },
+    filters: {
+      searchAria: 'البحث في المهام',
+      searchPlaceholder: 'ابحث في العنوان، الوصف، الموكل أو القضية...',
+      priorityAria: 'فلترة حسب الأولوية', clientAria: 'فلترة حسب الموكل', caseAria: 'فلترة حسب القضية',
+      allPriorities: 'جميع الأولويات', allClients: 'جميع الموكلين', allCases: 'جميع القضايا',
+      apply: 'تصفية', clear: 'مسح الفلاتر',
+      chips: { all: 'الكل', pending: 'معلقة', done: 'منتهية' },
+    },
+    status: { pending: 'معلقة', done: 'منتهية' },
+    empty: { title: 'لا توجد مهام', first: 'أضف أول مهمة لتنظيم العمل داخل المكتب.', filtered: 'لا توجد نتائج مطابقة للفلاتر الحالية.' },
+    card: { toggleAria: 'تغيير حالة المهمة', archivedClient: 'موكل مؤرشف' },
+    modal: { createTitle: 'إضافة مهمة جديدة', deleteTitle: 'تأكيد حذف المهمة', deleteMessage: 'هل أنت متأكد من حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.' },
+    form: { title: 'عنوان المهمة', description: 'الوصف', priority: 'الأولوية', dueDate: 'الموعد النهائي', client: 'الموكل', case: 'القضية', noClient: 'بدون موكل', noCase: 'بدون قضية' },
+    messages: {
+      loadError: 'فشل تحميل المهام', updateError: 'فشل تحديث المهمة', updateUnexpectedError: 'حدث خطأ أثناء تحديث المهمة',
+      completedSuccess: 'تم إنجاز المهمة', reopenedSuccess: 'تم إعادة المهمة', deleteError: 'فشل حذف المهمة', deleteSuccess: 'تم حذف المهمة',
+      deleteUnexpectedError: 'حدث خطأ أثناء حذف المهمة', titleRequired: 'العنوان مطلوب', createError: 'فشل إضافة المهمة',
+      createSuccess: 'تمت إضافة المهمة', createUnexpectedError: 'حدث خطأ أثناء إضافة المهمة', archivedDeleteBlocked: 'لا يمكن حذف مهمة مرتبطة بموكل مؤرشف',
+    },
+  },
+  en: {
+    hero: {
+      badge: 'Daily work management',
+      title: 'Tasks',
+      subtitle: 'Track tasks linked to cases and clients, set priorities and deadlines, and avoid missing any important action.',
+    },
+    actions: { newTask: '+ New task', addTask: '+ Add task', deleteTask: 'Delete task', deleting: 'Deleting...' },
+    stats: { total: 'All tasks', pending: 'Pending', done: 'Completed', overdue: 'Overdue' },
+    filters: {
+      searchAria: 'Search tasks',
+      searchPlaceholder: 'Search by title, description, client, or case...',
+      priorityAria: 'Filter by priority', clientAria: 'Filter by client', caseAria: 'Filter by case',
+      allPriorities: 'All priorities', allClients: 'All clients', allCases: 'All cases',
+      apply: 'Filter', clear: 'Clear filters',
+      chips: { all: 'All', pending: 'Pending', done: 'Completed' },
+    },
+    status: { pending: 'Pending', done: 'Completed' },
+    empty: { title: 'No tasks', first: 'Add the first task to organize the office workflow.', filtered: 'No tasks match the current filters.' },
+    card: { toggleAria: 'Change task status', archivedClient: 'Archived client' },
+    modal: { createTitle: 'Add new task', deleteTitle: 'Confirm task deletion', deleteMessage: 'Are you sure you want to delete this task? This action cannot be undone.' },
+    form: { title: 'Task title', description: 'Description', priority: 'Priority', dueDate: 'Due date', client: 'Client', case: 'Case', noClient: 'No client', noCase: 'No case' },
+    messages: {
+      loadError: 'Failed to load tasks', updateError: 'Failed to update task', updateUnexpectedError: 'An error occurred while updating the task',
+      completedSuccess: 'Task completed', reopenedSuccess: 'Task reopened', deleteError: 'Failed to delete task', deleteSuccess: 'Task deleted',
+      deleteUnexpectedError: 'An error occurred while deleting the task', titleRequired: 'Title is required', createError: 'Failed to add task',
+      createSuccess: 'Task added', createUnexpectedError: 'An error occurred while adding the task', archivedDeleteBlocked: 'Cannot delete a task linked to an archived client',
+    },
+  },
+}
+
 export default function TasksPage() {
+  const localeState = useLocale() as { locale?: Locale; t?: typeof translations.ar }
+  const locale = localeState?.locale === 'en' ? 'en' : 'ar'
+  const t = localeState?.t ?? translations[locale] ?? translations.ar
+  const tAny = t as { tasks?: typeof TASK_TRANSLATIONS.ar; common?: typeof translations.ar.common }
+  const taskCopy = tAny.tasks?.messages ? tAny.tasks : TASK_TRANSLATIONS[locale]
+  const common = tAny.common ?? translations.ar.common
+  const isRtl = locale === 'ar'
+  const priorityLabels = PRIORITY_LABELS[locale] ?? PRIORITY_LABELS.ar
+  const fieldProps = {
+    dir: isRtl ? 'rtl' : 'ltr',
+    style: { textAlign: isRtl ? 'right' : 'left', direction: isRtl ? 'rtl' : 'ltr' } as React.CSSProperties,
+  }
+  const dateFieldStyle = {
+    textAlign: 'left',
+    direction: 'ltr',
+    colorScheme: 'dark',
+  } as React.CSSProperties
+
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'done'>('all')
@@ -69,6 +169,10 @@ export default function TasksPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   const now = useMemo(() => new Date(), [])
+
+  const isArchivedTask = useCallback((task: Task) => {
+    return Boolean(task.client?.archivedAt || task.case?.client?.archivedAt)
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -90,14 +194,14 @@ export default function TasksPage() {
       setClients(Array.isArray(clientsData.data?.data) ? clientsData.data.data : [])
       setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : [])
     } catch {
-      toast.error('فشل تحميل المهام')
+      toast.error(taskCopy.messages.loadError)
       setTasks([])
       setClients([])
       setCases([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [taskCopy.messages.loadError])
 
   useEffect(() => {
     load()
@@ -163,7 +267,7 @@ export default function TasksPage() {
       })
 
       if (!response.ok) {
-        toast.error('فشل تحديث المهمة')
+        toast.error(taskCopy.messages.updateError)
         return
       }
 
@@ -171,9 +275,9 @@ export default function TasksPage() {
         current.map((task) => (task.id === id ? { ...task, completed } : task))
       )
 
-      toast.success(completed ? 'تم إنجاز المهمة' : 'تم إعادة المهمة')
+      toast.success(completed ? taskCopy.messages.completedSuccess : taskCopy.messages.reopenedSuccess)
     } catch {
-      toast.error('حدث خطأ أثناء تحديث المهمة')
+      toast.error(taskCopy.messages.updateUnexpectedError)
     }
   }
 
@@ -194,15 +298,15 @@ export default function TasksPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        toast.error(data.message ?? 'فشل حذف المهمة')
+        toast.error(data.message ?? taskCopy.messages.deleteError)
         return
       }
 
-      toast.success('تم حذف المهمة')
+      toast.success(taskCopy.messages.deleteSuccess)
       setDeleteId(null)
       load()
     } catch {
-      toast.error('حدث خطأ أثناء حذف المهمة')
+      toast.error(taskCopy.messages.deleteUnexpectedError)
     } finally {
       setDeleteLoading(false)
     }
@@ -212,7 +316,7 @@ export default function TasksPage() {
     event.preventDefault()
 
     if (!form.title.trim()) {
-      toast.error('العنوان مطلوب')
+      toast.error(taskCopy.messages.titleRequired)
       return
     }
 
@@ -232,16 +336,16 @@ export default function TasksPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok || !data.success) {
-        toast.error(data.message ?? 'فشل إضافة المهمة')
+        toast.error(data.message ?? taskCopy.messages.createError)
         return
       }
 
-      toast.success('تمت إضافة المهمة')
+      toast.success(taskCopy.messages.createSuccess)
       setOpen(false)
       setForm(INIT)
       load()
     } catch {
-      toast.error('حدث خطأ أثناء إضافة المهمة')
+      toast.error(taskCopy.messages.createUnexpectedError)
     } finally {
       setSaving(false)
     }
@@ -256,10 +360,10 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="space-y-5 stagger">
+    <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">
       {/* Header */}
       <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
+        className="relative overflow-hidden rounded-[28px] border p-6 text-start"
         style={{
           background:
             'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
@@ -287,14 +391,13 @@ export default function TasksPage() {
                 border: '1px solid rgba(255,255,255,0.18)',
               }}
             >
-              إدارة العمل اليومي
+              {taskCopy.hero.badge}
             </div>
 
-            <h1 className="text-2xl font-black text-white">المهام</h1>
+            <h1 className="text-2xl font-black text-white">{taskCopy.hero.title}</h1>
 
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              تابع المهام المرتبطة بالقضايا والموكلين، وحدد الأولويات والمواعيد النهائية
-              لضمان عدم تفويت أي إجراء مهم.
+              {taskCopy.hero.subtitle}
             </p>
           </div>
 
@@ -307,7 +410,7 @@ export default function TasksPage() {
               borderColor: 'rgba(255,255,255,0.32)',
             }}
           >
-            + مهمة جديدة
+            {taskCopy.actions.newTask}
           </button>
         </div>
       </div>
@@ -315,14 +418,14 @@ export default function TasksPage() {
       {/* Stats */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'كل المهام', value: total, color: 'var(--text)', bg: 'var(--card)' },
-          { label: 'معلقة', value: pending, color: 'var(--sidebar)', bg: 'var(--green-soft)' },
-          { label: 'منتهية', value: done, color: '#6b7280', bg: 'var(--card)' },
-          { label: 'متأخرة', value: overdue, color: '#dc2626', bg: 'var(--red-soft)' },
+          { label: taskCopy.stats.total, value: total, color: 'var(--text)', bg: 'var(--card)' },
+          { label: taskCopy.stats.pending, value: pending, color: 'var(--sidebar)', bg: 'var(--green-soft)' },
+          { label: taskCopy.stats.done, value: done, color: '#6b7280', bg: 'var(--card)' },
+          { label: taskCopy.stats.overdue, value: overdue, color: '#dc2626', bg: 'var(--red-soft)' },
         ].map((item) => (
           <div
             key={item.label}
-            className="card p-5"
+            className="card p-5 text-start"
             style={{
               background: item.bg,
               borderColor: 'var(--border)',
@@ -340,68 +443,72 @@ export default function TasksPage() {
       </div>
 
       {/* Filters */}
-      <div className="card p-4">
+      <div className="card p-4" dir={isRtl ? 'rtl' : 'ltr'}>
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_.8fr_.8fr_auto]">
           <input
-            aria-label="البحث في المهام"
+            aria-label={taskCopy.filters.searchAria}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="ابحث في العنوان، الوصف، الموكل أو القضية..."
+            placeholder={taskCopy.filters.searchPlaceholder}
             className="input"
+            {...fieldProps}
           />
 
           <select
-            aria-label="فلترة حسب الأولوية"
+            aria-label={taskCopy.filters.priorityAria}
             value={priorityFilter}
             onChange={(event) => setPriorityFilter(event.target.value)}
             className="input"
+            {...fieldProps}
           >
-            <option value="all">جميع الأولويات</option>
-            <option value="URGENT">عاجلة</option>
-            <option value="HIGH">عالية</option>
-            <option value="MEDIUM">متوسطة</option>
-            <option value="LOW">منخفضة</option>
+            <option value="all" dir={isRtl ? 'rtl' : 'ltr'}>{taskCopy.filters.allPriorities}</option>
+            <option value="URGENT" dir={isRtl ? 'rtl' : 'ltr'}>{priorityLabels.URGENT}</option>
+            <option value="HIGH" dir={isRtl ? 'rtl' : 'ltr'}>{priorityLabels.HIGH}</option>
+            <option value="MEDIUM" dir={isRtl ? 'rtl' : 'ltr'}>{priorityLabels.MEDIUM}</option>
+            <option value="LOW" dir={isRtl ? 'rtl' : 'ltr'}>{priorityLabels.LOW}</option>
           </select>
 
           <select
-            aria-label="فلترة حسب الموكل"
+            aria-label={taskCopy.filters.clientAria}
             value={clientFilter}
             onChange={(event) => setClientFilter(event.target.value)}
             className="input"
+            {...fieldProps}
           >
-            <option value="all">جميع الموكلين</option>
+            <option value="all" dir={isRtl ? 'rtl' : 'ltr'}>{taskCopy.filters.allClients}</option>
             {clients.map((client) => (
-              <option key={client.id} value={client.name}>
+              <option key={client.id} value={client.name} dir={isRtl ? 'rtl' : 'ltr'}>
                 {client.name}
               </option>
             ))}
           </select>
 
           <select
-            aria-label="فلترة حسب القضية"
+            aria-label={taskCopy.filters.caseAria}
             value={caseFilter}
             onChange={(event) => setCaseFilter(event.target.value)}
             className="input"
+            {...fieldProps}
           >
-            <option value="all">جميع القضايا</option>
+            <option value="all" dir={isRtl ? 'rtl' : 'ltr'}>{taskCopy.filters.allCases}</option>
             {cases.map((caseItem) => (
-              <option key={caseItem.id} value={caseItem.title}>
+              <option key={caseItem.id} value={caseItem.title} dir={isRtl ? 'rtl' : 'ltr'}>
                 {caseItem.title}
               </option>
             ))}
           </select>
 
           <button onClick={clearFilters} className="btn btn-ghost whitespace-nowrap">
-            تصفية
+            {taskCopy.filters.apply}
           </button>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           {(
             [
-              ['all', 'الكل'],
-              ['pending', 'معلقة'],
-              ['done', 'منتهية'],
+              ['all', taskCopy.filters.chips.all],
+              ['pending', taskCopy.filters.chips.pending],
+              ['done', taskCopy.filters.chips.done],
             ] as ['all' | 'pending' | 'done', string][]
           ).map(([key, label]) => (
             <button
@@ -433,20 +540,20 @@ export default function TasksPage() {
         <div className="card p-8">
           <EmptyState
             icon="✅"
-            title="لا توجد مهام"
+            title={taskCopy.empty.title}
             sub={
               tasks.length === 0
-                ? 'أضف أول مهمة لتنظيم العمل داخل المكتب.'
-                : 'لا توجد نتائج مطابقة للفلاتر الحالية.'
+                ? taskCopy.empty.first
+                : taskCopy.empty.filtered
             }
             action={
               tasks.length === 0 ? (
                 <button onClick={() => setOpen(true)} className="btn btn-primary">
-                  + إضافة مهمة
+                  {taskCopy.actions.addTask}
                 </button>
               ) : (
                 <button onClick={clearFilters} className="btn btn-ghost">
-                  مسح الفلاتر
+                  {taskCopy.filters.clear}
                 </button>
               )
             }
@@ -454,113 +561,143 @@ export default function TasksPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {filtered.map((task) => (
-            <div
-              key={task.id}
-              className={`card group p-4 transition-all duration-200 hover:-translate-y-0.5 ${
-                task.completed ? 'opacity-70' : ''
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <button
-                  aria-label="تغيير حالة المهمة"
-                  onClick={() => toggle(task.id, !task.completed)}
-                  className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black transition-all"
-                  style={{
-                    borderColor: 'var(--sidebar)',
-                    background: task.completed ? 'var(--sidebar)' : 'transparent',
-                    color: task.completed ? '#fff' : 'transparent',
-                  }}
-                >
-                  ✓
-                </button>
+          {filtered.map((task) => {
+            const archivedTask = isArchivedTask(task)
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p
-                        className={`text-sm font-black leading-6 ${
-                          task.completed ? 'line-through' : ''
-                        }`}
-                        style={{ color: 'var(--text)' }}
-                      >
-                        {task.title}
-                      </p>
+            return (
+              <div
+                key={task.id}
+                className={`card group p-4 text-start transition-all duration-200 hover:-translate-y-0.5 ${
+                  task.completed ? 'opacity-70' : ''
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <button
+                    aria-label={taskCopy.card.toggleAria}
+                    onClick={() => toggle(task.id, !task.completed)}
+                    className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black transition-all"
+                    style={{
+                      borderColor: 'var(--sidebar)',
+                      background: task.completed ? 'var(--sidebar)' : 'transparent',
+                      color: task.completed ? '#fff' : 'transparent',
+                    }}
+                  >
+                    ✓
+                  </button>
 
-                      {task.description && (
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <p
-                          className="mt-1 line-clamp-2 text-xs leading-5"
-                          style={{ color: 'var(--text-3)' }}
+                          className={`text-sm font-black leading-6 ${
+                            task.completed ? 'line-through' : ''
+                          }`}
+                          style={{ color: 'var(--text)' }}
                         >
-                          {task.description}
+                          {task.title}
                         </p>
-                      )}
+
+                        {task.description && (
+                          <p
+                            className="mt-1 line-clamp-2 text-xs leading-5"
+                            style={{ color: 'var(--text-3)' }}
+                          >
+                            {task.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <span className={`${PB[task.priority] ?? 'badge badge-gray'} shrink-0`}>
+                        {priorityLabels[task.priority] ?? task.priority}
+                      </span>
                     </div>
 
-                    <span className={`${PB[task.priority] ?? 'badge badge-gray'} shrink-0`}>
-                      {PA[task.priority] ?? task.priority}
-                    </span>
-                  </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {task.dueDate && (
+                        <span
+                          className="rounded-full px-2.5 py-1 text-xs font-bold"
+                          style={{
+                            background: isOverdue(task)
+                              ? 'var(--red-soft)'
+                              : isSoon(task)
+                                ? '#fff7ed'
+                                : 'var(--green-soft)',
+                            color: isOverdue(task)
+                              ? '#dc2626'
+                              : isSoon(task)
+                                ? '#d97706'
+                                : 'var(--text-2)',
+                          }}
+                        >
+                          📅{' '}
+                          {formatDate(task.dueDate, {
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </span>
+                      )}
 
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {task.dueDate && (
+                      {task.client && (
+                        <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: 'var(--green-soft)', color: 'var(--text-2)' }}>
+                          👤 {task.client.name}
+                        </span>
+                      )}
+
+                      {archivedTask && (
+                        <span
+                          className="rounded-full px-2.5 py-1 text-xs font-black"
+                          style={{
+                            background: 'var(--amber-soft, #fff7ed)',
+                            color: '#b45309',
+                            border: '1px solid rgba(180, 83, 9, 0.18)',
+                          }}
+                        >
+                          {taskCopy.card.archivedClient}
+                        </span>
+                      )}
+
+                      {task.case && (
+                        <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: 'var(--green-soft)', color: 'var(--text-2)' }}>
+                          ⚖️ {task.case.title}
+                        </span>
+                      )}
+
                       <span
                         className="rounded-full px-2.5 py-1 text-xs font-bold"
                         style={{
-                          background: isOverdue(task)
-                            ? 'var(--red-soft)'
-                            : isSoon(task)
-                              ? '#fff7ed'
-                              : 'var(--green-soft)',
-                          color: isOverdue(task)
-                            ? '#dc2626'
-                            : isSoon(task)
-                              ? '#d97706'
-                              : 'var(--text-2)',
+                          background: task.completed ? '#ecfdf5' : 'var(--green-soft)',
+                          color: task.completed ? '#059669' : 'var(--sidebar)',
                         }}
                       >
-                        📅{' '}
-                        {formatDate(task.dueDate, {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
+                        {task.completed ? taskCopy.status.done : taskCopy.status.pending}
                       </span>
-                    )}
-
-                    {task.client && (
-                      <span className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                        👤 {task.client.name}
-                      </span>
-                    )}
-
-                    {task.case && (
-                      <span className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                        ⚖️ {task.case.title}
-                      </span>
-                    )}
-
-                    <span
-                      className="rounded-full px-2.5 py-1 text-xs font-bold"
-                      style={{
-                        background: task.completed ? '#ecfdf5' : 'var(--green-soft)',
-                        color: task.completed ? '#059669' : 'var(--sidebar)',
-                      }}
-                    >
-                      {task.completed ? 'منتهية' : 'معلقة'}
-                    </span>
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  aria-label="حذف المهمة"
-                  onClick={() => del(task.id)}
-                  className="shrink-0 text-sm text-red-400 opacity-70 transition-all hover:text-red-600 hover:opacity-100"
-                >
-                  🗑
-                </button>
+                  <button
+                    aria-label={taskCopy.actions.deleteTask}
+                    disabled={archivedTask}
+                    title={
+                      archivedTask
+                        ? taskCopy.messages.archivedDeleteBlocked
+                        : taskCopy.actions.deleteTask
+                    }
+                    onClick={() => {
+                      if (archivedTask) {
+                        toast.warning(taskCopy.messages.archivedDeleteBlocked)
+                        return
+                      }
+
+                      del(task.id)
+                    }}
+                    className="shrink-0 text-sm text-red-400 opacity-70 transition-all hover:text-red-600 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-red-400"
+                  >
+                    🗑
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -571,11 +708,11 @@ export default function TasksPage() {
           setOpen(false)
           setForm(INIT)
         }}
-        title="إضافة مهمة جديدة"
+        title={taskCopy.modal.createTitle}
         size="sm"
       >
-        <form onSubmit={handleAdd} className="space-y-3">
-          <FormField label="عنوان المهمة" required>
+        <form onSubmit={handleAdd} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+          <FormField label={taskCopy.form.title} required>
             <input
               value={form.title}
               onChange={(event) =>
@@ -583,12 +720,13 @@ export default function TasksPage() {
               }
               className="input"
               autoFocus
+              {...fieldProps}
             />
           </FormField>
 
-          <FormField label="الوصف">
+          <FormField label={taskCopy.form.description}>
             <textarea
-              aria-label="الوصف"
+              aria-label={taskCopy.form.description}
               value={form.description}
               onChange={(event) =>
                 setForm((previous) => ({
@@ -598,14 +736,15 @@ export default function TasksPage() {
               }
               className="input"
               rows={2}
-              style={{ resize: 'none' }}
+              style={{ ...fieldProps.style, resize: 'none' }}
+              dir={fieldProps.dir}
             />
           </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="الأولوية">
+            <FormField label={taskCopy.form.priority}>
               <select
-                aria-label="الأولوية"
+                aria-label={taskCopy.form.priority}
                 value={form.priority}
                 onChange={(event) =>
                   setForm((previous) => ({
@@ -614,18 +753,19 @@ export default function TasksPage() {
                   }))
                 }
                 className="input"
+                {...fieldProps}
               >
-                {Object.entries(PA).map(([key, value]) => (
-                  <option key={key} value={key}>
+                {Object.entries(priorityLabels).map(([key, value]) => (
+                  <option key={key} value={key} dir={isRtl ? 'rtl' : 'ltr'}>
                     {value}
                   </option>
                 ))}
               </select>
             </FormField>
 
-            <FormField label="الموعد النهائي">
+            <FormField label={taskCopy.form.dueDate}>
               <input
-                aria-label="الموعد النهائي"
+                aria-label={taskCopy.form.dueDate}
                 type="date"
                 value={form.dueDate}
                 onChange={(event) =>
@@ -635,14 +775,16 @@ export default function TasksPage() {
                   }))
                 }
                 className="input"
+                dir="ltr"
+                style={dateFieldStyle}
               />
             </FormField>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="الموكل">
+            <FormField label={taskCopy.form.client}>
               <select
-                aria-label="الموكل"
+                aria-label={taskCopy.form.client}
                 value={form.clientId}
                 onChange={(event) =>
                   setForm((previous) => ({
@@ -651,20 +793,21 @@ export default function TasksPage() {
                   }))
                 }
                 className="input"
+                {...fieldProps}
               >
-                <option value="">بدون موكل</option>
+                <option value="" dir={isRtl ? 'rtl' : 'ltr'}>{taskCopy.form.noClient}</option>
 
                 {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
+                  <option key={client.id} value={client.id} dir={isRtl ? 'rtl' : 'ltr'}>
                     {client.name}
                   </option>
                 ))}
               </select>
             </FormField>
 
-            <FormField label="القضية">
+            <FormField label={taskCopy.form.case}>
               <select
-                aria-label="القضية"
+                aria-label={taskCopy.form.case}
                 value={form.caseId}
                 onChange={(event) =>
                   setForm((previous) => ({
@@ -673,11 +816,12 @@ export default function TasksPage() {
                   }))
                 }
                 className="input"
+                {...fieldProps}
               >
-                <option value="">بدون قضية</option>
+                <option value="" dir={isRtl ? 'rtl' : 'ltr'}>{taskCopy.form.noCase}</option>
 
                 {cases.map((caseItem) => (
-                  <option key={caseItem.id} value={caseItem.id}>
+                  <option key={caseItem.id} value={caseItem.id} dir={isRtl ? 'rtl' : 'ltr'}>
                     {caseItem.title}
                   </option>
                 ))}
@@ -694,7 +838,7 @@ export default function TasksPage() {
               }}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {common.cancel}
             </button>
 
             <button
@@ -702,7 +846,7 @@ export default function TasksPage() {
               disabled={saving}
               className="btn btn-primary flex-1"
             >
-              {saving ? <span className="spinner spinner-sm" /> : 'حفظ'}
+              {saving ? <span className="spinner spinner-sm" /> : common.save}
             </button>
           </div>
         </form>
@@ -712,12 +856,12 @@ export default function TasksPage() {
       <Modal
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        title="تأكيد حذف المهمة"
+        title={taskCopy.modal.deleteTitle}
         size="sm"
       >
-        <div className="space-y-4">
+        <div className="space-y-4 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
           <p className="text-sm" style={{ color: 'var(--text-2)' }}>
-            هل أنت متأكد من حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.
+            {taskCopy.modal.deleteMessage}
           </p>
 
           <div className="flex gap-2 pt-2">
@@ -726,7 +870,7 @@ export default function TasksPage() {
               onClick={() => setDeleteId(null)}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {common.cancel}
             </button>
 
             <button
@@ -735,7 +879,7 @@ export default function TasksPage() {
               disabled={deleteLoading}
               className="btn flex-1 bg-red-600 text-white hover:bg-red-700"
             >
-              {deleteLoading ? 'جاري الحذف...' : 'حذف'}
+              {deleteLoading ? taskCopy.actions.deleting : common.delete}
             </button>
           </div>
         </div>

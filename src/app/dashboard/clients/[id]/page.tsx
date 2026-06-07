@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-
+import { getApiMessage } from '@/lib/plan-ui'
 import PageLoader from '@/components/ui/PageLoader'
 import Modal from '@/components/ui/Modal'
 import FormField from '@/components/ui/FormField'
@@ -35,6 +35,7 @@ interface Client {
   notes?: string | null
   createdAt: string
   cases: ClientCase[]
+  archivedAt?: string | null
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -63,6 +64,9 @@ const COPY = {
     pdf: 'PDF',
     back: 'رجوع',
     edit: 'تعديل',
+    archivedClient: 'موكل مؤرشف',
+    archivedNotice: 'هذا الموكل مؤرشف. السجل التاريخي ظاهر للعرض، ولا يمكن تعديل بياناته أو إضافة عمليات جديدة قبل الاستعادة.',
+    restoreBeforeEdit: 'استعد الموكل أولًا لتعديل بياناته.',
     clientFile: 'ملف الموكل',
     clientSince: 'موكل منذ',
     linkedCaseSentence: 'قضية مرتبطة داخل النظام.',
@@ -148,6 +152,9 @@ const COPY = {
     pdf: 'PDF',
     back: 'Back',
     edit: 'Edit',
+    archivedClient: 'Archived client',
+    archivedNotice: 'This client is archived. Historical records remain visible, but details cannot be edited and new operations should be added only after restoring the client.',
+    restoreBeforeEdit: 'Restore the client before editing details.',
     clientFile: 'Client file',
     clientSince: 'Client since',
     linkedCaseSentence: 'linked cases in the system.',
@@ -278,6 +285,9 @@ function formatClientDate(value: string, localeKey: 'ar' | 'en') {
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const [deleting, setDeleting] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const { locale, isRtl } = useLocale()
   const localeKey = locale === 'ar' ? 'ar' : 'en'
   const text = COPY[localeKey]
@@ -329,20 +339,27 @@ export default function ClientDetailPage() {
   }, [load])
 
   const totals = useMemo(() => {
-    const totalFees =
-      client?.cases.reduce(
-        (sum, item) => sum + Number(item.feeAgreed || 0),
-        0
-      ) ?? 0
+    const cases = client?.cases ?? []
 
-    const totalPaid =
-      client?.cases.reduce((sum, item) => sum + getPaidAmount(item), 0) ?? 0
+    const totalFees = cases.reduce(
+      (sum, item) => sum + Number(item.feeAgreed || 0),
+      0
+    )
 
-    const totalPending =
-      client?.cases.reduce((sum, item) => sum + getPendingAmount(item), 0) ?? 0
+    const totalPaid = cases.reduce(
+      (sum, item) => sum + getPaidAmount(item),
+      0
+    )
 
-    const totalRemaining =
-      client?.cases.reduce((sum, item) => sum + getRemainingAmount(item), 0) ?? 0
+    const totalPending = cases.reduce(
+      (sum, item) => sum + getPendingAmount(item),
+      0
+    )
+
+    const totalRemaining = cases.reduce(
+      (sum, item) => sum + getRemainingAmount(item),
+      0
+    )
 
     const collectionRate =
       totalFees > 0 ? Math.min((totalPaid / totalFees) * 100, 100) : 0
@@ -373,17 +390,24 @@ export default function ClientDetailPage() {
   }, [client, search, statusFilter])
 
   const openCases =
-    client?.cases.filter((item) =>
+    (client?.cases ?? []).filter((item) =>
       ['OPEN', 'IN_PROGRESS'].includes(item.status)
-    ).length ?? 0
+    ).length
 
   const closedCases =
-    client?.cases.filter((item) =>
+    (client?.cases ?? []).filter((item) =>
       ['CLOSED', 'ARCHIVED'].includes(item.status)
-    ).length ?? 0
+    ).length
+
+  const isArchivedClient = Boolean(client?.archivedAt)
 
   async function save(event: FormEvent) {
     event.preventDefault()
+
+    if (isArchivedClient) {
+      toast.error(text.restoreBeforeEdit)
+      return
+    }
 
     if (!form.name.trim()) {
       toast.error(text.nameRequired)
@@ -429,6 +453,144 @@ export default function ClientDetailPage() {
       setExporting(false)
     }
   }
+
+async function deleteClient() {
+  if (!client || deleting) return
+
+  try {
+    setDeleting(true)
+
+    const response = await fetch(`/api/clients/${client.id}`, {
+      method: 'DELETE',
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      if (response.status === 409) {
+toast.error(
+  localeKey === 'ar'
+    ? 'لا يمكن حذف هذا الموكل لأنه مرتبط بقضايا. يمكنك حذف القضايا المرتبطة أولًا.'
+    : 'This client cannot be deleted because they have linked cases. Delete the linked cases first.'
+)
+        return
+      }
+
+      toast.error(
+        getApiMessage(
+          data,
+          localeKey === 'ar' ? 'تعذر حذف الموكل' : 'Could not delete client'
+        ),
+        {
+          style: {
+            direction: localeKey === 'ar' ? 'rtl' : 'ltr',
+            textAlign: localeKey === 'ar' ? 'right' : 'left',
+            lineHeight: '1.8',
+            maxWidth: '460px',
+          },
+        }
+      )
+      return
+    }
+
+    toast.success(
+      data.message ||
+        (localeKey === 'ar'
+          ? 'تم حذف الموكل بنجاح'
+          : 'Client deleted successfully'),
+      {
+        style: {
+          direction: localeKey === 'ar' ? 'rtl' : 'ltr',
+          textAlign: localeKey === 'ar' ? 'right' : 'left',
+        },
+      }
+    )
+
+    setConfirmDeleteOpen(false)
+    router.push('/dashboard/clients')
+    router.refresh()
+  } catch {
+    toast.error(
+      localeKey === 'ar'
+        ? 'حدث خطأ أثناء حذف الموكل'
+        : 'Something went wrong while deleting the client',
+      {
+        style: {
+          direction: localeKey === 'ar' ? 'rtl' : 'ltr',
+          textAlign: localeKey === 'ar' ? 'right' : 'left',
+          lineHeight: '1.8',
+          maxWidth: '460px',
+        },
+      }
+    )
+  } finally {
+    setDeleting(false)
+  }
+}
+
+async function archiveClient() {
+  if (!client || archiving) return
+
+  try {
+    setArchiving(true)
+
+    const response = await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: client.archivedAt ? 'restore' : 'archive',
+      }),
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      toast.error(
+        getApiMessage(
+          data,
+          localeKey === 'ar'
+            ? 'تعذر تنفيذ العملية'
+            : 'Could not complete the operation'
+        )
+      )
+      return
+    }
+
+    toast.success(
+      client.archivedAt
+        ? localeKey === 'ar'
+          ? 'تمت استعادة الموكل بنجاح'
+          : 'Client restored successfully'
+        : localeKey === 'ar'
+          ? 'تمت أرشفة الموكل بنجاح'
+          : 'Client archived successfully'
+    )
+
+    setClient((prev) => {
+      if (!prev) return prev
+
+      return {
+        ...prev,
+        archivedAt:
+          data.data?.archivedAt ??
+          data.archivedAt ??
+          (prev.archivedAt ? null : new Date().toISOString()),
+      }
+    })
+
+    setEditing(false)
+    router.refresh()
+  } catch {
+    toast.error(
+      localeKey === 'ar'
+        ? 'حدث خطأ أثناء تنفيذ العملية'
+        : 'Something went wrong'
+    )
+  } finally {
+    setArchiving(false)
+  }
+}
+
 
   function clearFilters() {
     setSearch('')
@@ -505,24 +667,36 @@ export default function ClientDetailPage() {
             </div>
 
             <div className="min-w-0 flex-1">
-              <div
-                className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-                style={{
-                  background: 'rgba(255,255,255,0.14)',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.18)',
-                }}
-              >
-                {text.clientFile}
-              </div>
+<div
+  className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-extrabold"
+  style={{
+    background: client.archivedAt
+      ? 'rgba(245,158,11,0.16)'
+      : 'rgba(255,255,255,0.14)',
+    color: '#fff',
+    border: client.archivedAt
+      ? '1px solid rgba(245,158,11,0.38)'
+      : '1px solid rgba(255,255,255,0.18)',
+  }}
+>
+  {client.archivedAt ? text.archivedClient : text.clientFile}
+</div>
 
               <h1 className="truncate text-2xl font-black text-white">
                 {client.name}
               </h1>
 
+              {client.archivedAt && (
+                <p className="mt-2 max-w-3xl text-sm font-bold leading-7 text-amber-200">
+                  {text.archivedNotice}
+                </p>
+              )}
+
+
+
               <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
                 {text.clientSince} {formatClientDate(client.createdAt, localeKey)} ·{' '}
-                {client.cases.length} {text.linkedCaseSentence}
+                {(client.cases ?? []).length} {text.linkedCaseSentence}
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -575,21 +749,17 @@ export default function ClientDetailPage() {
           >
             <button
               type="button"
-              onClick={() => router.back()}
-              className="btn h-11 px-5"
-              style={{
-                background: '#fff',
-                color: 'var(--sidebar)',
-                borderColor: 'rgba(255,255,255,0.32)',
-              }}
-            >
-              {text.back}
-            </button>
+              onClick={() => {
+                if (isArchivedClient) {
+                  toast.error(text.restoreBeforeEdit)
+                  return
+                }
 
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="btn h-11 px-5"
+                setEditing(true)
+              }}
+              disabled={isArchivedClient}
+              title={isArchivedClient ? text.restoreBeforeEdit : text.edit}
+              className="btn h-11 px-5 disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 background: 'rgba(255,255,255,0.14)',
                 color: '#fff',
@@ -597,6 +767,52 @@ export default function ClientDetailPage() {
               }}
             >
               {text.edit}
+            </button>
+
+            <button
+  type="button"
+  onClick={archiveClient}
+  disabled={archiving || deleting}
+  className="btn h-11 px-5"
+  style={{
+    background: 'rgba(245,200,66,0.16)',
+    color: '#fff',
+    borderColor: 'rgba(245,200,66,0.38)',
+  }}
+>
+  {archiving
+    ? localeKey === 'ar'
+      ? 'جاري التنفيذ...'
+      : 'Processing...'
+    : client?.archivedAt
+      ? localeKey === 'ar'
+        ? 'استعادة'
+        : 'Restore'
+      : localeKey === 'ar'
+        ? 'أرشفة'
+        : 'Archive'}
+</button>
+
+
+
+            <button
+              type="button"
+              onClick={deleteClient}
+              disabled={deleting}
+              className="btn h-11 px-5"
+              style={{
+                background: 'rgba(220,38,38,0.16)',
+                color: '#fff',
+                borderColor: 'rgba(248,113,113,0.45)',
+              }}
+            >
+              {deleting
+                ? localeKey === 'ar'
+                  ? 'جاري الحذف...'
+                  : 'Deleting...'
+                : localeKey === 'ar'
+                  ? 'حذف'
+                  : 'Delete'}
             </button>
 
             <button
@@ -615,6 +831,44 @@ export default function ClientDetailPage() {
           </div>
         </div>
       </div>
+
+      {isArchivedClient && (
+        <div
+          className="rounded-3xl border p-5"
+          style={{
+            background: '#fff7ed',
+            borderColor: 'rgba(180, 83, 9, 0.22)',
+            color: '#b45309',
+          }}
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-black">{text.archivedClient}</p>
+              <p className="mt-1 text-sm font-bold leading-7">{text.archivedNotice}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={archiveClient}
+              disabled={archiving || deleting}
+              className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                background: '#b45309',
+                color: '#fff',
+                borderColor: 'rgba(180, 83, 9, 0.25)',
+              }}
+            >
+              {archiving
+                ? localeKey === 'ar'
+                  ? 'جاري التنفيذ...'
+                  : 'Processing...'
+                : localeKey === 'ar'
+                  ? 'استعادة الموكل'
+                  : 'Restore client'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -686,6 +940,19 @@ export default function ClientDetailPage() {
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
                 {text.info.sub}
               </p>
+
+              {isArchivedClient && (
+                <span
+                  className="mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-black"
+                  style={{
+                    background: '#fff7ed',
+                    borderColor: 'rgba(180, 83, 9, 0.22)',
+                    color: '#b45309',
+                  }}
+                >
+                  {text.archivedClient}
+                </span>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -719,7 +986,7 @@ export default function ClientDetailPage() {
             </h2>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <MiniMetric label={text.summary.allCases} value={String(client.cases.length)} />
+              <MiniMetric label={text.summary.allCases} value={String((client.cases ?? []).length)} />
               <MiniMetric label={text.summary.active} value={String(openCases)} />
               <MiniMetric label={text.summary.closedArchived} value={String(closedCases)} />
               <MiniMetric
@@ -850,12 +1117,12 @@ export default function ClientDetailPage() {
                   icon="⚖️"
                   title={text.cases.emptyTitle}
                   sub={
-                    client.cases.length === 0
+                    (client.cases ?? []).length === 0
                       ? text.cases.noCases
                       : text.cases.noResults
                   }
                   action={
-                    client.cases.length > 0 ? (
+                    (client.cases ?? []).length > 0 ? (
                       <button type="button" onClick={clearFilters} className="btn btn-ghost">
                         {text.filters.clear}
                       </button>
@@ -991,6 +1258,19 @@ export default function ClientDetailPage() {
   title={text.modal.title}
 >
   <form onSubmit={save} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+    {isArchivedClient && (
+      <div
+        className="rounded-2xl border p-3 text-xs font-bold"
+        style={{
+          background: '#fff7ed',
+          color: '#b45309',
+          borderColor: 'rgba(180, 83, 9, 0.22)',
+        }}
+      >
+        {text.restoreBeforeEdit}
+      </div>
+    )}
+
     <FormField label={text.modal.fullName} required>
       <input
         dir={isRtl ? 'rtl' : 'ltr'}
@@ -1002,6 +1282,7 @@ export default function ClientDetailPage() {
           }))
         }
         className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+        disabled={isArchivedClient}
         style={{
           textAlign: isRtl ? 'right' : 'left',
           direction: isRtl ? 'rtl' : 'ltr',
@@ -1021,6 +1302,7 @@ export default function ClientDetailPage() {
               phone: event.target.value,
             }))
           }
+          disabled={isArchivedClient}
           className={`input ${isRtl ? '!text-right' : '!text-left'}`}
           style={{
             textAlign: isRtl ? 'right' : 'left',
@@ -1040,6 +1322,7 @@ export default function ClientDetailPage() {
               email: event.target.value,
             }))
           }
+          disabled={isArchivedClient}
           className={`input ${isRtl ? '!text-right' : '!text-left'}`}
           style={{
             textAlign: isRtl ? 'right' : 'left',
@@ -1059,6 +1342,7 @@ export default function ClientDetailPage() {
             address: event.target.value,
           }))
         }
+        disabled={isArchivedClient}
         className={`input ${isRtl ? '!text-right' : '!text-left'}`}
         style={{
           textAlign: isRtl ? 'right' : 'left',
@@ -1077,6 +1361,7 @@ export default function ClientDetailPage() {
             notes: event.target.value,
           }))
         }
+        disabled={isArchivedClient}
         className={`input min-h-[105px] resize-none ${
           isRtl ? '!text-right' : '!text-left'
         }`}
@@ -1105,7 +1390,11 @@ export default function ClientDetailPage() {
         {text.modal.cancel}
       </button>
 
-      <button type="submit" disabled={saving} className="btn btn-primary flex-1">
+      <button
+        type="submit"
+        disabled={saving || isArchivedClient}
+        className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+      >
         {saving ? text.modal.saving : text.modal.save}
       </button>
     </div>

@@ -9,6 +9,8 @@ import FormField from '@/components/ui/FormField'
 import PageLoader from '@/components/ui/PageLoader'
 import EmptyState from '@/components/ui/EmptyState'
 import { formatTime } from '@/lib/utils'
+import { translations, type Locale } from '@/lib/i18n'
+import { useLocale } from '@/lib/useLocale'
 
 const AppointmentsCalendar = dynamic(() => import('./AppointmentsCalendar'), {
   ssr: false,
@@ -24,13 +26,26 @@ interface Appt {
   type: string
   status: string
   description?: string
-  client?: { name: string }
-  case?: { title: string }
+  client?: {
+    id?: string
+    name: string
+    archivedAt?: string | null
+  } | null
+  case?: {
+    id?: string
+    title: string
+    client?: {
+      id?: string
+      name?: string
+      archivedAt?: string | null
+    } | null
+  } | null
 }
 
 interface ClientItem {
   id: string
   name: string
+  archivedAt?: string | null
 }
 
 const TYPE_COLOR: Record<string, string> = {
@@ -41,12 +56,21 @@ const TYPE_COLOR: Record<string, string> = {
   OTHER: 'var(--text-3)',
 }
 
-const TYPE_AR: Record<string, string> = {
-  COURT_SESSION: 'جلسة',
-  MEETING: 'اجتماع',
-  PHONE_CALL: 'اتصال',
-  DEADLINE: 'موعد نهائي',
-  OTHER: 'أخرى',
+const TYPE_LABELS: Record<Locale, Record<string, string>> = {
+  ar: {
+    COURT_SESSION: 'جلسة',
+    MEETING: 'اجتماع',
+    PHONE_CALL: 'اتصال',
+    DEADLINE: 'موعد نهائي',
+    OTHER: 'أخرى',
+  },
+  en: {
+    COURT_SESSION: 'Court session',
+    MEETING: 'Meeting',
+    PHONE_CALL: 'Phone call',
+    DEADLINE: 'Deadline',
+    OTHER: 'Other',
+  },
 }
 
 const INIT = {
@@ -60,8 +84,8 @@ const INIT = {
   description: '',
 }
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('ar-JO')
+function formatDate(date: string, locale: Locale) {
+  return new Date(date).toLocaleDateString(locale === 'ar' ? 'ar-JO' : 'en-US')
 }
 
 function toDateTimeLocal(value?: string) {
@@ -77,6 +101,27 @@ function toDateTimeLocal(value?: string) {
 }
 
 export default function AppointmentsPage() {
+  const localeState = useLocale() as { locale?: Locale; t?: typeof translations.ar }
+  const locale = localeState?.locale === 'en' ? 'en' : 'ar'
+  const t = localeState?.t ?? translations[locale] ?? translations.ar
+  const a = t.appointments ?? translations.ar.appointments
+  const common = t.common ?? translations.ar.common
+  const isRtl = locale === 'ar'
+  const typeLabels = TYPE_LABELS[locale] ?? TYPE_LABELS.ar
+  const fieldDir = {
+    dir: (isRtl ? 'rtl' : 'ltr') as 'rtl' | 'ltr',
+    style: {
+      textAlign: isRtl ? 'right' : 'left',
+      direction: isRtl ? 'rtl' : 'ltr',
+    } as React.CSSProperties,
+  }
+
+  const dateTimeFieldStyle = {
+    textAlign: 'left',
+    direction: 'ltr',
+    colorScheme: 'dark',
+  } as React.CSSProperties
+
   const [appts, setAppts] = useState<Appt[]>([])
   const [clients, setClients] = useState<ClientItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,8 +142,8 @@ export default function AppointmentsPage() {
       setLoading(true)
 
       const [appointmentsRes, clientsRes] = await Promise.all([
-        fetch('/api/appointments'),
-        fetch('/api/clients?limit=100'),
+        fetch('/api/appointments?includeArchivedClients=true'),
+        fetch('/api/clients?limit=100&archive=active'),
       ])
 
       const safeJson = async (response: Response) => {
@@ -125,7 +170,7 @@ export default function AppointmentsPage() {
             : []
       )
     } catch {
-      toast.error('فشل تحميل المواعيد')
+      toast.error(a.messages.loadError)
       setAppts([])
       setClients([])
     } finally {
@@ -137,7 +182,20 @@ export default function AppointmentsPage() {
     load()
   }, [load])
 
-  const now = new Date()
+  const isArchivedAppt = useCallback((appt: Appt) => {
+    return Boolean(appt.client?.archivedAt || appt.case?.client?.archivedAt)
+  }, [])
+
+  const selectedApptArchived = selectedAppt ? isArchivedAppt(selectedAppt) : false
+
+  const selectedClient = useMemo(
+    () => clients.find((client) => client.id === form.clientId),
+    [clients, form.clientId]
+  )
+
+  const selectedClientArchived = Boolean(selectedClient?.archivedAt)
+
+  const now = useMemo(() => new Date(), [])
   const todayKey = now.toISOString().slice(0, 10)
 
   const todayAppts = useMemo(
@@ -221,16 +279,27 @@ export default function AppointmentsPage() {
     event.preventDefault()
 
     if (!form.title.trim() || !form.startTime) {
-      toast.error('العنوان والوقت مطلوبان')
+      toast.error(a.messages.requiredTitleTime)
+      return
+    }
+
+    if (editMode && selectedAppt && isArchivedAppt(selectedAppt)) {
+      toast.warning(a.messages.archivedEditBlocked)
+      return
+    }
+
+    if (selectedClientArchived) {
+      toast.warning(a.messages.archivedCreateBlocked)
       return
     }
 
     try {
       setSaving(true)
 
-      const url = editMode && selectedAppt
-        ? `/api/appointments/${selectedAppt.id}`
-        : '/api/appointments'
+      const url =
+        editMode && selectedAppt
+          ? `/api/appointments/${selectedAppt.id}`
+          : '/api/appointments'
 
       const method = editMode ? 'PATCH' : 'POST'
 
@@ -248,22 +317,27 @@ export default function AppointmentsPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok || !data.success) {
-        toast.error(data.message || 'حدث خطأ أثناء حفظ الموعد')
+        toast.error(data.message || a.messages.saveError)
         return
       }
 
-      toast.success(editMode ? 'تم تعديل الموعد' : 'تمت إضافة الموعد')
+      toast.success(editMode ? a.messages.updateSuccess : a.messages.createSuccess)
       setOpen(false)
       resetForm()
       load()
     } catch {
-      toast.error('حدث خطأ أثناء حفظ الموعد')
+      toast.error(a.messages.saveUnexpectedError)
     } finally {
       setSaving(false)
     }
   }
 
   async function deleteAppointment(id: string) {
+    if (selectedAppt && isArchivedAppt(selectedAppt)) {
+      toast.warning(a.messages.archivedDeleteBlocked)
+      return
+    }
+
     try {
       const response = await fetch(`/api/appointments/${id}`, {
         method: 'DELETE',
@@ -272,16 +346,16 @@ export default function AppointmentsPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok || !data.success) {
-        toast.error(data.message || 'فشل حذف الموعد')
+        toast.error(data.message || a.messages.deleteError)
         return
       }
 
-      toast.success('تم حذف الموعد')
+      toast.success(a.messages.deleteSuccess)
       setDetailsOpen(false)
       setSelectedAppt(null)
       load()
     } catch {
-      toast.error('حدث خطأ أثناء حذف الموعد')
+      toast.error(a.messages.deleteUnexpectedError)
     }
   }
 
@@ -297,11 +371,16 @@ export default function AppointmentsPage() {
   }
 
   function openEditModal(appt: Appt) {
+    if (isArchivedAppt(appt)) {
+      toast.warning(a.messages.archivedEditBlocked)
+      return
+    }
+
     setSelectedAppt(appt)
     setForm({
       title: appt.title,
-      clientId: '',
-      caseId: '',
+      clientId: appt.client?.id || '',
+      caseId: appt.case?.id || '',
       startTime: toDateTimeLocal(appt.startTime),
       endTime: toDateTimeLocal(appt.endTime),
       location: appt.location || '',
@@ -317,7 +396,7 @@ export default function AppointmentsPage() {
   if (loading) return <PageLoader />
 
   return (
-    <div className="space-y-5 stagger">
+    <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6"
@@ -339,7 +418,7 @@ export default function AppointmentsPage() {
         />
 
         <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
+          <div className="text-start">
             <div
               className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
               style={{
@@ -348,14 +427,13 @@ export default function AppointmentsPage() {
                 border: '1px solid rgba(255,255,255,0.18)',
               }}
             >
-              التقويم القانوني
+              {a.hero.badge}
             </div>
 
-            <h1 className="text-2xl font-black text-white">المواعيد</h1>
+            <h1 className="text-2xl font-black text-white">{a.hero.title}</h1>
 
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              تابع الجلسات والاجتماعات والمواعيد النهائية من تقويم واحد، مع
-              ربط كل موعد بالموكل أو القضية لتسهيل متابعة العمل اليومي.
+              {a.hero.subtitle}
             </p>
           </div>
 
@@ -368,7 +446,7 @@ export default function AppointmentsPage() {
               borderColor: 'rgba(255,255,255,0.32)',
             }}
           >
-            + موعد جديد
+            {a.actions.newAppointment}
           </button>
         </div>
       </div>
@@ -377,25 +455,25 @@ export default function AppointmentsPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
-            label: 'كل المواعيد',
+            label: a.stats.total,
             value: appts.length,
             color: 'var(--text)',
             bg: 'var(--card)',
           },
           {
-            label: 'مواعيد اليوم',
+            label: a.stats.today,
             value: todayAppts.length,
             color: 'var(--sidebar)',
             bg: 'var(--green-soft)',
           },
           {
-            label: 'الجلسات',
+            label: a.stats.sessions,
             value: courtSessions,
             color: '#92400e',
             bg: 'var(--amber-soft)',
           },
           {
-            label: 'المواعيد النهائية',
+            label: a.stats.deadlines,
             value: deadlines,
             color: deadlines > 0 ? '#dc2626' : '#6b7280',
             bg: deadlines > 0 ? 'var(--red-soft)' : 'var(--card)',
@@ -403,7 +481,7 @@ export default function AppointmentsPage() {
         ].map((item) => (
           <div
             key={item.label}
-            className="card p-5"
+            className="card p-5 text-start"
             style={{
               background: item.bg,
               borderColor: 'var(--border)',
@@ -422,41 +500,43 @@ export default function AppointmentsPage() {
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_.8fr_auto]">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_.8fr_auto]" dir={isRtl ? 'rtl' : 'ltr'}>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="ابحث في العنوان، المكان، الموكل أو القضية..."
+            placeholder={a.filters.searchPlaceholder}
             className="input"
+            {...fieldDir}
           />
 
           <select
-            aria-label="فلترة حسب نوع الموعد"
+            aria-label={a.filters.typeAria}
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
             className="input"
+            {...fieldDir}
           >
-            <option value="all">جميع الأنواع</option>
+            <option value="all" dir={isRtl ? 'rtl' : 'ltr'}>{a.filters.allTypes}</option>
 
-            {Object.entries(TYPE_AR).map(([key, value]) => (
-              <option key={key} value={key}>
+            {Object.entries(typeLabels).map(([key, value]) => (
+              <option key={key} value={key} dir={isRtl ? 'rtl' : 'ltr'}>
                 {value}
               </option>
             ))}
           </select>
 
           <button onClick={clearFilters} className="btn btn-ghost whitespace-nowrap">
-            تصفية
+            {a.filters.apply}
           </button>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           {[
-            ['all', 'الكل'],
-            ['COURT_SESSION', 'جلسات'],
-            ['MEETING', 'اجتماعات'],
-            ['PHONE_CALL', 'اتصالات'],
-            ['DEADLINE', 'مواعيد نهائية'],
+            ['all', a.filters.chips.all],
+            ['COURT_SESSION', a.filters.chips.sessions],
+            ['MEETING', a.filters.chips.meetings],
+            ['PHONE_CALL', a.filters.chips.calls],
+            ['DEADLINE', a.filters.chips.deadlines],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -484,8 +564,17 @@ export default function AppointmentsPage() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
         <div className="card p-4">
           <AppointmentsCalendar
+            locale={locale}
             events={calendarEvents}
             onEventDrop={async (info) => {
+              const appt = info.event.extendedProps as Appt
+
+              if (isArchivedAppt(appt)) {
+                toast.warning(a.messages.archivedEditBlocked)
+                info.revert()
+                return
+              }
+
               const response = await fetch(`/api/appointments/${info.event.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -497,14 +586,22 @@ export default function AppointmentsPage() {
               const data = await response.json().catch(() => ({}))
 
               if (response.ok && data.success) {
-                toast.success('تم تحديث الموعد')
+                toast.success(a.messages.moveSuccess)
                 load()
               } else {
-                toast.error('فشل تحديث الموعد')
+                toast.error(data.message || a.messages.moveError)
                 info.revert()
               }
             }}
             onEventResize={async (info) => {
+              const appt = info.event.extendedProps as Appt
+
+              if (isArchivedAppt(appt)) {
+                toast.warning(a.messages.archivedEditBlocked)
+                info.revert()
+                return
+              }
+
               const response = await fetch(`/api/appointments/${info.event.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -517,10 +614,10 @@ export default function AppointmentsPage() {
               const data = await response.json().catch(() => ({}))
 
               if (response.ok && data.success) {
-                toast.success('تم تحديث مدة الموعد')
+                toast.success(a.messages.resizeSuccess)
                 load()
               } else {
-                toast.error('فشل تحديث مدة الموعد')
+                toast.error(data.message || a.messages.resizeError)
                 info.revert()
               }
             }}
@@ -534,89 +631,112 @@ export default function AppointmentsPage() {
           />
         </div>
 
-        <div className="card p-5">
+        <div className="card p-5 text-start">
           <div className="mb-4">
             <h3 className="font-black" style={{ color: 'var(--text)' }}>
-              أقرب المواعيد
+              {a.upcoming.title}
             </h3>
 
             <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-              آخر 5 مواعيد قادمة
+              {a.upcoming.subtitle}
             </p>
           </div>
 
           {upcomingAppts.length === 0 ? (
             <EmptyState
               icon="📅"
-              title="لا توجد مواعيد قادمة"
-              sub="لا يوجد مواعيد مجدولة حالياً."
+              title={a.empty.upcomingTitle}
+              sub={a.empty.upcomingSub}
             />
           ) : (
             <div className="space-y-3">
-              {upcomingAppts.map((appt) => (
-                <div
-                  key={appt.id}
-                  onClick={() => {
-                    setSelectedAppt(appt)
-                    setDetailsOpen(true)
-                  }}
-                  className="cursor-pointer rounded-2xl border p-3 transition-all hover:-translate-y-0.5"
-                  style={{
-                    borderColor: 'var(--border)',
-                    background: 'var(--card)',
-                  }}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="mt-1 h-full min-h-[42px] w-1 rounded-full"
-                      style={{
-                        background: TYPE_COLOR[appt.type] ?? 'var(--text-3)',
-                      }}
-                    />
+              {upcomingAppts.map((appt) => {
+                const archivedAppt = isArchivedAppt(appt)
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-3">
-                        <span
-                          className="rounded-full px-2.5 py-1 text-[11px] font-black"
-                          style={{
-                            background: 'var(--green-soft)',
-                            color: 'var(--sidebar)',
-                          }}
+                return (
+                  <div
+                    key={appt.id}
+                    onClick={() => {
+                      setSelectedAppt(appt)
+                      setDetailsOpen(true)
+                    }}
+                    className="cursor-pointer rounded-2xl border p-3 transition-all hover:-translate-y-0.5"
+                    style={{
+                      borderColor: 'var(--border)',
+                      background: 'var(--card)',
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="mt-1 h-full min-h-[42px] w-1 rounded-full"
+                        style={{
+                          background: TYPE_COLOR[appt.type] ?? 'var(--text-3)',
+                        }}
+                      />
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <span
+                            className="rounded-full px-2.5 py-1 text-[11px] font-black"
+                            style={{
+                              background: 'var(--green-soft)',
+                              color: 'var(--sidebar)',
+                            }}
+                          >
+                            {typeLabels[appt.type] ?? appt.type}
+                          </span>
+
+                          <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+                            {formatTime(appt.startTime)}
+                          </span>
+                        </div>
+
+                        <p
+                          className="mt-2 truncate text-sm font-black"
+                          style={{ color: 'var(--text)' }}
                         >
-                          {TYPE_AR[appt.type] ?? appt.type}
-                        </span>
+                          {appt.title}
+                        </p>
 
-                        <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                          {formatTime(appt.startTime)}
-                        </span>
+                        <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+                          {formatDate(appt.startTime, locale)}
+                        </p>
+
+                        {appt.client?.name && (
+                          <p
+                            className="mt-1 truncate text-xs"
+                            style={{ color: 'var(--text-2)' }}
+                          >
+                            👤 {appt.client.name}
+                          </p>
+                        )}
+
+                        {archivedAppt && (
+                          <span
+                            className="mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-black"
+                            style={{
+                              background: '#fff7ed',
+                              color: '#b45309',
+                              border: '1px solid rgba(180, 83, 9, 0.18)',
+                            }}
+                          >
+                            {a.labels.archivedClient}
+                          </span>
+                        )}
+
+                        {appt.location && (
+                          <p
+                            className="mt-1 truncate text-xs"
+                            style={{ color: 'var(--text-2)' }}
+                          >
+                            📍 {appt.location}
+                          </p>
+                        )}
                       </div>
-
-                      <p
-                        className="mt-2 truncate text-sm font-black"
-                        style={{ color: 'var(--text)' }}
-                      >
-                        {appt.title}
-                      </p>
-
-                      <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                        {formatDate(appt.startTime)}
-                      </p>
-
-                      {appt.client?.name && (
-                        <p className="mt-1 truncate text-xs" style={{ color: 'var(--text-2)' }}>
-                          👤 {appt.client.name}
-                        </p>
-                      )}
-
-                      {appt.location && (
-                        <p className="mt-1 truncate text-xs" style={{ color: 'var(--text-2)' }}>
-                          📍 {appt.location}
-                        </p>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -629,45 +749,48 @@ export default function AppointmentsPage() {
           setOpen(false)
           resetForm()
         }}
-        title={editMode ? 'تعديل الموعد' : 'إضافة موعد جديد'}
+        title={editMode ? a.modal.editTitle : a.modal.createTitle}
       >
-        <form onSubmit={saveAppointment} className="space-y-3">
-          <FormField label="عنوان الموعد" required>
+        <form onSubmit={saveAppointment} className="space-y-3 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+          <FormField label={a.form.title} required>
             <input
               value={form.title}
               onChange={f('title')}
               className="input"
+              {...fieldDir}
               autoFocus
             />
           </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="النوع">
+            <FormField label={a.form.type}>
               <select
-                aria-label="نوع الموعد"
+                aria-label={a.form.type}
                 value={form.type}
                 onChange={f('type')}
                 className="input"
+                {...fieldDir}
               >
-                {Object.entries(TYPE_AR).map(([key, value]) => (
-                  <option key={key} value={key}>
+                {Object.entries(typeLabels).map(([key, value]) => (
+                  <option key={key} value={key} dir={isRtl ? 'rtl' : 'ltr'}>
                     {value}
                   </option>
                 ))}
               </select>
             </FormField>
 
-            <FormField label="الموكل">
+            <FormField label={a.form.client}>
               <select
-                aria-label="الموكل"
+                aria-label={a.form.client}
                 value={form.clientId}
                 onChange={f('clientId')}
                 className="input"
+                {...fieldDir}
               >
-                <option value="">بدون موكل</option>
+                <option value="" dir={isRtl ? 'rtl' : 'ltr'}>{a.form.noClient}</option>
 
                 {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
+                  <option key={client.id} value={client.id} dir={isRtl ? 'rtl' : 'ltr'}>
                     {client.name}
                   </option>
                 ))}
@@ -675,46 +798,65 @@ export default function AppointmentsPage() {
             </FormField>
           </div>
 
+          {selectedClientArchived && (
+            <div
+              className="rounded-2xl border p-3 text-xs font-bold"
+              style={{
+                background: '#fff7ed',
+                color: '#b45309',
+                borderColor: 'rgba(180, 83, 9, 0.22)',
+              }}
+            >
+              {a.messages.archivedLinkBlocked}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="وقت البداية" required>
+            <FormField label={a.form.startTime} required>
               <input
-                aria-label="وقت البداية"
+                aria-label={a.form.startTime}
                 type="datetime-local"
                 value={form.startTime}
                 onChange={f('startTime')}
                 className="input"
+                dir="ltr"
+                style={dateTimeFieldStyle}
               />
             </FormField>
 
-            <FormField label="وقت الانتهاء">
+            <FormField label={a.form.endTime}>
               <input
-                aria-label="وقت الانتهاء"
+                aria-label={a.form.endTime}
                 type="datetime-local"
                 value={form.endTime}
                 onChange={f('endTime')}
                 className="input"
+                dir="ltr"
+                style={dateTimeFieldStyle}
               />
             </FormField>
           </div>
 
-          <FormField label="المكان">
+          <FormField label={a.form.location}>
             <input
-              aria-label="المكان"
+              aria-label={a.form.location}
               value={form.location}
               onChange={f('location')}
-              placeholder="مثلاً: محكمة بداية عمان"
+              placeholder={a.form.locationPlaceholder}
               className="input"
+              {...fieldDir}
             />
           </FormField>
 
-          <FormField label="الوصف">
+          <FormField label={a.form.description}>
             <textarea
-              aria-label="الوصف"
+              aria-label={a.form.description}
               value={form.description}
               onChange={f('description')}
               className="input"
               rows={2}
-              style={{ resize: 'none' }}
+              dir={isRtl ? 'rtl' : 'ltr'}
+              style={{ resize: 'none', textAlign: isRtl ? 'right' : 'left' }}
             />
           </FormField>
 
@@ -727,20 +869,20 @@ export default function AppointmentsPage() {
               }}
               className="btn btn-ghost flex-1"
             >
-              إلغاء
+              {common.cancel}
             </button>
 
             <button
               type="submit"
-              disabled={saving}
-              className="btn btn-primary flex-1"
+              disabled={saving || selectedClientArchived}
+              className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? (
                 <span className="spinner spinner-sm" />
               ) : editMode ? (
-                'حفظ التعديل'
+                a.actions.saveChanges
               ) : (
-                'حفظ'
+                common.save
               )}
             </button>
           </div>
@@ -754,10 +896,10 @@ export default function AppointmentsPage() {
           setDetailsOpen(false)
           setSelectedAppt(null)
         }}
-        title="تفاصيل الموعد"
+        title={a.details.title}
       >
         {selectedAppt && (
-          <div className="space-y-4">
+          <div className="space-y-4 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
             <div
               className="rounded-2xl border p-4"
               style={{
@@ -765,46 +907,63 @@ export default function AppointmentsPage() {
                 background: 'var(--green-soft)',
               }}
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="font-black" style={{ color: 'var(--text)' }}>
                   {selectedAppt.title}
                 </p>
 
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-black"
-                  style={{
-                    background: '#fff',
-                    color: TYPE_COLOR[selectedAppt.type] ?? 'var(--sidebar)',
-                  }}
-                >
-                  {TYPE_AR[selectedAppt.type] ?? selectedAppt.type}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className="rounded-full px-3 py-1 text-xs font-black"
+                    style={{
+                      background: '#fff',
+                      color: TYPE_COLOR[selectedAppt.type] ?? 'var(--sidebar)',
+                    }}
+                  >
+                    {typeLabels[selectedAppt.type] ?? selectedAppt.type}
+                  </span>
+
+                  {selectedApptArchived && (
+                    <span
+                      className="rounded-full px-3 py-1 text-xs font-black"
+                      style={{
+                        background: '#fff7ed',
+                        color: '#b45309',
+                        border: '1px solid rgba(180, 83, 9, 0.18)',
+                      }}
+                    >
+                      {a.labels.archivedClient}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <p className="text-xs font-bold" style={{ color: 'var(--text-3)' }}>
-                    التاريخ
+                    {a.details.date}
                   </p>
                   <p className="mt-1 text-sm font-bold" style={{ color: 'var(--text)' }}>
-                    {formatDate(selectedAppt.startTime)}
+                    {formatDate(selectedAppt.startTime, locale)}
                   </p>
                 </div>
 
                 <div>
                   <p className="text-xs font-bold" style={{ color: 'var(--text-3)' }}>
-                    الوقت
+                    {a.details.time}
                   </p>
                   <p className="mt-1 text-sm font-bold" style={{ color: 'var(--text)' }}>
                     {formatTime(selectedAppt.startTime)}
-                    {selectedAppt.endTime ? ` - ${formatTime(selectedAppt.endTime)}` : ''}
+                    {selectedAppt.endTime
+                      ? ` - ${formatTime(selectedAppt.endTime)}`
+                      : ''}
                   </p>
                 </div>
 
                 {selectedAppt.client?.name && (
                   <div>
                     <p className="text-xs font-bold" style={{ color: 'var(--text-3)' }}>
-                      الموكل
+                      {a.details.client}
                     </p>
                     <p className="mt-1 text-sm font-bold" style={{ color: 'var(--text)' }}>
                       {selectedAppt.client.name}
@@ -815,7 +974,7 @@ export default function AppointmentsPage() {
                 {selectedAppt.case?.title && (
                   <div>
                     <p className="text-xs font-bold" style={{ color: 'var(--text-3)' }}>
-                      القضية
+                      {a.details.case}
                     </p>
                     <p className="mt-1 text-sm font-bold" style={{ color: 'var(--text)' }}>
                       {selectedAppt.case.title}
@@ -826,7 +985,7 @@ export default function AppointmentsPage() {
                 {selectedAppt.location && (
                   <div className="sm:col-span-2">
                     <p className="text-xs font-bold" style={{ color: 'var(--text-3)' }}>
-                      المكان
+                      {a.details.location}
                     </p>
                     <p className="mt-1 text-sm font-bold" style={{ color: 'var(--text)' }}>
                       {selectedAppt.location}
@@ -845,23 +1004,42 @@ export default function AppointmentsPage() {
                 }}
                 className="btn btn-ghost flex-1"
               >
-                إغلاق
+                {a.actions.close}
               </button>
 
               <button
                 type="button"
+                disabled={selectedApptArchived}
+                title={
+                  selectedApptArchived
+                    ? a.messages.archivedEditBlocked
+                    : common.edit
+                }
                 onClick={() => openEditModal(selectedAppt)}
-                className="btn btn-primary flex-1"
+                className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                تعديل
+                {common.edit}
               </button>
 
               <button
                 type="button"
-                onClick={() => deleteAppointment(selectedAppt.id)}
-                className="btn flex-1 bg-red-600 text-white hover:bg-red-700"
+                disabled={selectedApptArchived}
+                title={
+                  selectedApptArchived
+                    ? a.messages.archivedDeleteBlocked
+                    : common.delete
+                }
+                onClick={() => {
+                  if (selectedApptArchived) {
+                    toast.warning(a.messages.archivedDeleteBlocked)
+                    return
+                  }
+
+                  deleteAppointment(selectedAppt.id)
+                }}
+                className="btn flex-1 bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                حذف
+                {common.delete}
               </button>
             </div>
           </div>

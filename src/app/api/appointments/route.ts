@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const sp = new URL(req.url).searchParams
     const from = sp.get('from')
     const to = sp.get('to')
+    const includeArchivedClients = sp.get('includeArchivedClients') === 'true'
 
     const fromDate = from ? new Date(from) : null
     const toDate = to ? new Date(to) : null
@@ -29,6 +30,40 @@ export async function GET(req: NextRequest) {
     const data = await prisma.appointment.findMany({
       where: {
         tenantId: auth.user.tenantId,
+
+...(includeArchivedClients
+  ? {}
+  : {
+      AND: [
+        {
+          OR: [
+            {
+              clientId: null,
+            },
+            {
+              client: {
+                archivedAt: null,
+              },
+            },
+          ],
+        },
+        {
+          OR: [
+            {
+              caseId: null,
+            },
+            {
+              case: {
+                client: {
+                  archivedAt: null,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    }),
+
         ...(fromDate || toDate
           ? {
               startTime: {
@@ -38,6 +73,7 @@ export async function GET(req: NextRequest) {
             }
           : {}),
       },
+
       include: {
         client: {
           select: {
@@ -45,13 +81,20 @@ export async function GET(req: NextRequest) {
             name: true,
           },
         },
-        case: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
+case: {
+  select: {
+    id: true,
+    title: true,
+    client: {
+      select: {
+        id: true,
+        name: true,
       },
+    },
+  },
+},
+      },
+
       orderBy: {
         startTime: 'asc',
       },
@@ -60,6 +103,7 @@ export async function GET(req: NextRequest) {
     return ok(data)
   })
 }
+
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {

@@ -79,6 +79,7 @@ model Client {
   documents      Document[]
   invoices       Invoice[]
   tasks          Task[]
+  archivedAt DateTime?
 
   @@index([tenantId])
 }

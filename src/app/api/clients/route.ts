@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
     if (auth.error || !auth.user) return auth.error
 
+    const { searchParams } = new URL(req.url)
     const sp = new URL(req.url).searchParams
     const q = sp.get('q')?.trim()
 
@@ -39,24 +40,33 @@ export async function GET(req: NextRequest) {
 
     const skip = (page - 1) * limit
 
-    const where = {
-      tenantId: auth.user.tenantId,
-      ...(q
-        ? {
-            OR: [
-              {
-                name: {
-                  contains: q,
-                  mode: 'insensitive' as const,
-                },
-              },
-              ...(emailHash ? [{ emailHash }] : []),
-              ...(phoneHash ? [{ phoneHash }] : []),
-              ...(nationalIdHash ? [{ nationalIdHash }] : []),
-            ],
-          }
-        : {}),
-    }
+const archive = searchParams.get('archive') || 'active'
+
+const where = {
+  tenantId: auth.user.tenantId,
+
+  ...(archive === 'active'
+    ? { archivedAt: null }
+    : archive === 'archived'
+      ? { archivedAt: { not: null } }
+      : {}),
+
+  ...(q
+    ? {
+        OR: [
+          {
+            name: {
+              contains: q,
+              mode: 'insensitive' as const,
+            },
+          },
+          ...(emailHash ? [{ emailHash }] : []),
+          ...(phoneHash ? [{ phoneHash }] : []),
+          ...(nationalIdHash ? [{ nationalIdHash }] : []),
+        ],
+      }
+    : {}),
+}
 
     const [data, total] = await Promise.all([
       prisma.client.findMany({

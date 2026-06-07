@@ -1,23 +1,159 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import PageLoader from '@/components/ui/PageLoader'
-import { formatCurrency } from '@/lib/utils'
+import { useLocale } from '@/lib/useLocale'
+import type { Locale } from '@/lib/i18n'
 
-const MONTHS = [
-  'يناير',
-  'فبراير',
-  'مارس',
-  'أبريل',
-  'مايو',
-  'يونيو',
-  'يوليو',
-  'أغسطس',
-  'سبتمبر',
-  'أكتوبر',
-  'نوفمبر',
-  'ديسمبر',
-]
+const REPORT_COPY = {
+  ar: {
+    months: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
+    hero: {
+      badge: 'مركز التقارير والتحليلات',
+      yearlyTitle: (year: number) => `التقرير السنوي ${year}`,
+      monthlyTitle: (monthName: string, year: number) => `تقرير ${monthName} ${year}`,
+      subtitle: 'تقارير مالية وإدارية شاملة تعرض الإيرادات، الفواتير، الدفعات، القضايا، المواعيد والمهام لمساعدة المكتب على اتخاذ قرارات أوضح.',
+      printSummary: 'ملخص مالي وإداري شامل',
+    },
+    actions: {
+      print: 'طباعة',
+      fullPdf: 'PDF شامل',
+      fullExcel: 'Excel شامل',
+      refresh: 'تحديث البيانات',
+      clearFilters: 'مسح الفلاتر',
+      paymentsCsv: 'دفعات CSV',
+      invoicesCsv: 'فواتير CSV',
+      retry: 'إعادة المحاولة',
+    },
+    error: {
+      title: 'التقارير',
+      subtitle: 'تعذر تحميل بيانات التقارير في الوقت الحالي.',
+      load: 'تعذر تحميل التقرير',
+    },
+    filters: {
+      reportType: 'نوع التقرير',
+      month: 'الشهر',
+      year: 'السنة',
+      client: 'الموكل',
+      caseStatus: 'حالة القضية',
+      paymentStatus: 'حالة الدفعة',
+      invoiceStatus: 'حالة الفاتورة',
+      yearly: 'تقرير سنوي',
+      monthly: 'تقرير شهري',
+      allClients: 'جميع الموكلين',
+      allCaseStatuses: 'جميع حالات القضايا',
+      allPayments: 'جميع الدفعات',
+      allInvoices: 'جميع الفواتير',
+    },
+    stats: {
+      periodRevenue: 'إيرادات الفترة',
+      monthlyRevenue: (monthName: string) => `إيرادات ${monthName}`,
+      pendingPayments: 'دفعات معلقة/متأخرة',
+      unpaidInvoices: 'فواتير غير مدفوعة',
+      collectionRate: 'نسبة التحصيل',
+      totalCases: 'عدد القضايا',
+      openCases: 'القضايا النشطة',
+      upcomingAppointments: 'المواعيد القادمة',
+      overdueTasks: 'مهام متأخرة',
+      totalPaidAll: 'إجمالي التحصيل',
+      totalInvoices: 'إجمالي الفواتير',
+      paidInvoices: 'فواتير مدفوعة',
+      overdueInvoices: 'فواتير متأخرة',
+      closedCases: 'القضايا المغلقة/المؤرشفة',
+    },
+    sections: {
+      caseStatus: { title: 'حالة القضايا', subtitle: 'توزيع القضايا حسب الحالة' },
+      monthlyRevenue: { title: 'الإيرادات الشهرية', subtitle: 'مقارنة الإيرادات على مدار السنة' },
+      topClients: { title: 'الموكلون الأكثر نشاطًا', subtitle: 'حسب القضايا والدفعات والفواتير', empty: 'لا توجد بيانات كافية.' },
+      periodPayments: { title: 'دفعات الفترة', subtitle: 'الدفعات المطابقة للفلاتر الحالية', empty: 'لا توجد دفعات ضمن الفلاتر الحالية' },
+      periodInvoices: { title: 'فواتير الفترة', subtitle: 'الفواتير المطابقة للفلاتر الحالية', empty: 'لا توجد فواتير ضمن الفلاتر الحالية' },
+      appointments: { title: 'المواعيد القادمة', subtitle: 'أقرب المواعيد ضمن نطاق التقرير', empty: 'لا توجد مواعيد قادمة.' },
+      tasks: { title: 'المهام المتأخرة', subtitle: 'المهام التي تحتاج متابعة فورية', empty: 'لا توجد مهام متأخرة.' },
+    },
+    table: { case: 'القضية', client: 'الموكل', amount: 'المبلغ', status: 'الحالة', date: 'التاريخ', invoiceNumber: 'رقم الفاتورة', dueDate: 'الاستحقاق', paymentMethod: 'طريقة الدفع', notes: 'ملاحظات', issueDate: 'تاريخ الإصدار', dueDateFull: 'تاريخ الاستحقاق', appointment: 'الموعد', location: 'المكان', task: 'المهمة', priority: 'الأولوية', activityScore: 'مؤشر النشاط', invoicesTotal: 'إجمالي الفواتير', paymentsTotal: 'إجمالي الدفعات', casesCount: 'عدد القضايا', item: 'البند', value: 'القيمة' },
+    statuses: {
+      payments: { PAID: 'مدفوع', PENDING: 'معلق', OVERDUE: 'متأخر', CANCELLED: 'ملغي' },
+      invoices: { DRAFT: 'مسودة', UNPAID: 'غير مدفوعة', PAID: 'مدفوعة', OVERDUE: 'متأخرة', CANCELLED: 'ملغاة' },
+      cases: { OPEN: 'نشطة', IN_PROGRESS: 'قيد المتابعة', CLOSED: 'مغلقة', ARCHIVED: 'مؤرشفة' },
+      priorities: { URGENT: 'عاجلة', HIGH: 'عالية', MEDIUM: 'متوسطة', LOW: 'منخفضة' },
+    },
+    misc: { cases: 'قضايا', payments: 'دفعات', invoices: 'فواتير' },
+  },
+  en: {
+    months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    hero: {
+      badge: 'Reports and analytics center',
+      yearlyTitle: (year: number) => `Annual report ${year}`,
+      monthlyTitle: (monthName: string, year: number) => `${monthName} ${year} report`,
+      subtitle: 'Comprehensive financial and operational reports covering revenue, invoices, payments, cases, appointments, and tasks to support clearer office decisions.',
+      printSummary: 'Comprehensive financial and operational summary',
+    },
+    actions: {
+      print: 'Print',
+      fullPdf: 'Full PDF',
+      fullExcel: 'Full Excel',
+      refresh: 'Refresh data',
+      clearFilters: 'Clear filters',
+      paymentsCsv: 'Payments CSV',
+      invoicesCsv: 'Invoices CSV',
+      retry: 'Retry',
+    },
+    error: {
+      title: 'Reports',
+      subtitle: 'Unable to load report data right now.',
+      load: 'Failed to load report',
+    },
+    filters: {
+      reportType: 'Report type',
+      month: 'Month',
+      year: 'Year',
+      client: 'Client',
+      caseStatus: 'Case status',
+      paymentStatus: 'Payment status',
+      invoiceStatus: 'Invoice status',
+      yearly: 'Annual report',
+      monthly: 'Monthly report',
+      allClients: 'All clients',
+      allCaseStatuses: 'All case statuses',
+      allPayments: 'All payments',
+      allInvoices: 'All invoices',
+    },
+    stats: {
+      periodRevenue: 'Period revenue',
+      monthlyRevenue: (monthName: string) => `${monthName} revenue`,
+      pendingPayments: 'Pending/overdue payments',
+      unpaidInvoices: 'Unpaid invoices',
+      collectionRate: 'Collection rate',
+      totalCases: 'Total cases',
+      openCases: 'Active cases',
+      upcomingAppointments: 'Upcoming appointments',
+      overdueTasks: 'Overdue tasks',
+      totalPaidAll: 'Total collected',
+      totalInvoices: 'Total invoices',
+      paidInvoices: 'Paid invoices',
+      overdueInvoices: 'Overdue invoices',
+      closedCases: 'Closed/archived cases',
+    },
+    sections: {
+      caseStatus: { title: 'Case status', subtitle: 'Cases distributed by status' },
+      monthlyRevenue: { title: 'Monthly revenue', subtitle: 'Revenue comparison across the year' },
+      topClients: { title: 'Most active clients', subtitle: 'Based on cases, payments, and invoices', empty: 'Not enough data.' },
+      periodPayments: { title: 'Period payments', subtitle: 'Payments matching the current filters', empty: 'No payments match the current filters' },
+      periodInvoices: { title: 'Period invoices', subtitle: 'Invoices matching the current filters', empty: 'No invoices match the current filters' },
+      appointments: { title: 'Upcoming appointments', subtitle: 'Nearest appointments within the report range', empty: 'No upcoming appointments.' },
+      tasks: { title: 'Overdue tasks', subtitle: 'Tasks that need immediate follow-up', empty: 'No overdue tasks.' },
+    },
+    table: { case: 'Case', client: 'Client', amount: 'Amount', status: 'Status', date: 'Date', invoiceNumber: 'Invoice number', dueDate: 'Due date', paymentMethod: 'Payment method', notes: 'Notes', issueDate: 'Issue date', dueDateFull: 'Due date', appointment: 'Appointment', location: 'Location', task: 'Task', priority: 'Priority', activityScore: 'Activity score', invoicesTotal: 'Invoices total', paymentsTotal: 'Payments total', casesCount: 'Cases count', item: 'Item', value: 'Value' },
+    statuses: {
+      payments: { PAID: 'Paid', PENDING: 'Pending', OVERDUE: 'Overdue', CANCELLED: 'Cancelled' },
+      invoices: { DRAFT: 'Draft', UNPAID: 'Unpaid', PAID: 'Paid', OVERDUE: 'Overdue', CANCELLED: 'Cancelled' },
+      cases: { OPEN: 'Active', IN_PROGRESS: 'In progress', CLOSED: 'Closed', ARCHIVED: 'Archived' },
+      priorities: { URGENT: 'Urgent', HIGH: 'High', MEDIUM: 'Medium', LOW: 'Low' },
+    },
+    misc: { cases: 'cases', payments: 'Payments', invoices: 'Invoices' },
+  },
+} as const
 
 type ReportType = 'monthly' | 'yearly'
 
@@ -121,63 +257,42 @@ function unwrapPayload(payload: any): ReportData | null {
   return payload?.data?.summary ? payload.data : payload?.summary ? payload : null
 }
 
-function getMessage(payload: any) {
-  return payload?.message || payload?.error || payload?.data?.message || 'تعذر تحميل التقرير'
+function getMessage(payload: any, fallback: string) {
+  return payload?.message || payload?.error || payload?.data?.message || fallback
 }
 
-function formatDate(value?: string | Date | null) {
+function formatDate(value: string | Date | null | undefined, locale: Locale) {
   if (!value) return '-'
 
   const date = new Date(value)
 
   if (Number.isNaN(date.getTime())) return '-'
 
-  return date.toLocaleDateString('ar-JO')
+  return date.toLocaleDateString(locale === 'ar' ? 'ar-JO' : 'en-US')
 }
 
-function paymentStatus(status: string) {
-  const map: Record<string, string> = {
-    PAID: 'مدفوع',
-    PENDING: 'معلق',
-    OVERDUE: 'متأخر',
-    CANCELLED: 'ملغي',
-  }
+function formatMoney(value: number, locale: Locale) {
+  const amount = Number(value || 0)
 
-  return map[status] || status || '-'
+  return locale === 'ar'
+    ? `${amount.toLocaleString('ar-JO')} د.أ`
+    : `JOD ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function invoiceStatus(status: string) {
-  const map: Record<string, string> = {
-    DRAFT: 'مسودة',
-    UNPAID: 'غير مدفوعة',
-    PAID: 'مدفوعة',
-    OVERDUE: 'متأخرة',
-    CANCELLED: 'ملغاة',
-  }
-
-  return map[status] || status || '-'
+function paymentStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
+  return copy.statuses.payments[status as keyof typeof copy.statuses.payments] || status || '-'
 }
 
-function caseStatusLabel(status: string) {
-  const map: Record<string, string> = {
-    OPEN: 'نشطة',
-    IN_PROGRESS: 'قيد المتابعة',
-    CLOSED: 'مغلقة',
-    ARCHIVED: 'مؤرشفة',
-  }
-
-  return map[status] || status || '-'
+function invoiceStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
+  return copy.statuses.invoices[status as keyof typeof copy.statuses.invoices] || status || '-'
 }
 
-function taskPriorityLabel(priority?: string | null) {
-  const map: Record<string, string> = {
-    URGENT: 'عاجلة',
-    HIGH: 'عالية',
-    MEDIUM: 'متوسطة',
-    LOW: 'منخفضة',
-  }
+function caseStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
+  return copy.statuses.cases[status as keyof typeof copy.statuses.cases] || status || '-'
+}
 
-  return priority ? map[priority] || priority : '-'
+function taskPriorityLabel(priority: string | null | undefined, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
+  return priority ? copy.statuses.priorities[priority as keyof typeof copy.statuses.priorities] || priority : '-'
 }
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {
@@ -204,6 +319,15 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
 }
 
 export default function ReportsPage() {
+  const localeState = useLocale() as { locale?: Locale }
+  const locale: Locale = localeState?.locale === 'en' ? 'en' : 'ar'
+  const isRtl = locale === 'ar'
+  const copy = REPORT_COPY[locale]
+  const months = copy.months
+  const fieldStyle = { textAlign: isRtl ? 'right' : 'left', direction: isRtl ? 'rtl' : 'ltr' } as CSSProperties
+  const controlClass = 'input min-h-[48px] w-full text-start'
+  const actionButtonClass = 'btn btn-ghost min-h-[48px] w-full justify-center whitespace-nowrap'
+
   const [reportType, setReportType] = useState<ReportType>('yearly')
   const [year, setYear] = useState(new Date().getFullYear())
   const [month, setMonth] = useState(new Date().getMonth())
@@ -244,7 +368,7 @@ export default function ReportsPage() {
     const nextData = unwrapPayload(payload)
 
     if (!response.ok || !nextData) {
-      setError(getMessage(payload))
+      setError(getMessage(payload, copy.error.load))
       setData(null)
     } else {
       setData(nextData)
@@ -259,6 +383,7 @@ export default function ReportsPage() {
     paymentStatusFilter,
     invoiceStatusFilter,
     clientId,
+    copy.error.load,
   ])
 
   useEffect(() => {
@@ -279,8 +404,8 @@ export default function ReportsPage() {
 
   function reportTitle() {
     return reportType === 'monthly'
-      ? `تقرير ${MONTHS[month]} ${year}`
-      : `التقرير السنوي ${year}`
+      ? copy.hero.monthlyTitle(months[month], year)
+      : copy.hero.yearlyTitle(year)
   }
 
   function reportFilename() {
@@ -295,19 +420,19 @@ export default function ReportsPage() {
     const summary = data.summary
 
     return [
-      ['إيرادات الفترة', formatCurrency(summary.periodRevenue)],
-      ['إجمالي التحصيل', formatCurrency(summary.totalPaidAll)],
-      ['دفعات معلقة/متأخرة', formatCurrency(summary.pendingPaymentsAmount)],
-      ['إجمالي الفواتير', formatCurrency(summary.totalInvoicesAmount)],
-      ['فواتير مدفوعة', formatCurrency(summary.paidInvoicesAmount)],
-      ['فواتير غير مدفوعة', formatCurrency(summary.unpaidInvoicesAmount)],
-      ['فواتير متأخرة', formatCurrency(summary.overdueInvoicesAmount)],
-      ['نسبة التحصيل', `${summary.collectionRate}%`],
-      ['عدد القضايا', summary.totalCases],
-      ['القضايا النشطة', summary.openCases],
-      ['القضايا المغلقة/المؤرشفة', summary.closedCases],
-      ['المواعيد القادمة', summary.upcomingAppointmentsCount],
-      ['المهام المتأخرة', summary.overdueTasksCount],
+      [copy.stats.periodRevenue, formatMoney(summary.periodRevenue, locale)],
+      [copy.stats.totalPaidAll, formatMoney(summary.totalPaidAll, locale)],
+      [copy.stats.pendingPayments, formatMoney(summary.pendingPaymentsAmount, locale)],
+      [copy.stats.totalInvoices, formatMoney(summary.totalInvoicesAmount, locale)],
+      [copy.stats.paidInvoices, formatMoney(summary.paidInvoicesAmount, locale)],
+      [copy.stats.unpaidInvoices, formatMoney(summary.unpaidInvoicesAmount, locale)],
+      [copy.stats.overdueInvoices, formatMoney(summary.overdueInvoicesAmount, locale)],
+      [copy.stats.collectionRate, `${summary.collectionRate}%`],
+      [copy.stats.totalCases, summary.totalCases],
+      [copy.stats.openCases, summary.openCases],
+      [copy.stats.closedCases, summary.closedCases],
+      [copy.stats.upcomingAppointments, summary.upcomingAppointmentsCount],
+      [copy.stats.overdueTasks, summary.overdueTasksCount],
     ]
   }
 
@@ -318,9 +443,9 @@ export default function ReportsPage() {
       القضية: payment.case?.title || '-',
       الموكل: payment.case?.client?.name || '-',
       المبلغ: Number(payment.amount || 0),
-      الحالة: paymentStatus(payment.status),
+      الحالة: paymentStatusLabel(payment.status, copy),
       طريقة_الدفع: payment.method || '-',
-      التاريخ: formatDate(payment.paidAt),
+      التاريخ: formatDate(payment.paidAt, locale),
       ملاحظات: payment.notes || '-',
     }))
   }
@@ -333,9 +458,9 @@ export default function ReportsPage() {
       الموكل: invoice.client?.name || '-',
       القضية: invoice.case?.title || '-',
       المبلغ: Number(invoice.total || 0),
-      الحالة: invoiceStatus(invoice.status),
-      تاريخ_الإصدار: formatDate(invoice.issueDate),
-      تاريخ_الاستحقاق: formatDate(invoice.dueDate),
+      الحالة: invoiceStatusLabel(invoice.status, copy),
+      تاريخ_الإصدار: formatDate(invoice.issueDate, locale),
+      تاريخ_الاستحقاق: formatDate(invoice.dueDate, locale),
     }))
   }
 
@@ -345,7 +470,7 @@ export default function ReportsPage() {
     return data.upcomingAppointments.map((appointment) => ({
       الموعد: appointment.title || '-',
       القضية: appointment.case?.title || '-',
-      التاريخ: formatDate(appointment.startTime),
+      التاريخ: formatDate(appointment.startTime, locale),
       المكان: appointment.location || '-',
     }))
   }
@@ -356,8 +481,8 @@ export default function ReportsPage() {
     return data.overdueTasks.map((task) => ({
       المهمة: task.title || '-',
       القضية: task.case?.title || '-',
-      الأولوية: taskPriorityLabel(task.priority),
-      الاستحقاق: formatDate(task.dueDate),
+      الأولوية: taskPriorityLabel(task.priority, copy),
+      الاستحقاق: formatDate(task.dueDate, locale),
     }))
   }
 
@@ -403,21 +528,21 @@ export default function ReportsPage() {
         rows: invoiceRowsForExport(),
       },
       {
-        name: 'المواعيد القادمة',
+        name: copy.sections.appointments.title,
         rows: appointmentRowsForExport(),
       },
       {
-        name: 'المهام المتأخرة',
+        name: copy.sections.tasks.title,
         rows: taskRowsForExport(),
       },
       {
-        name: 'الموكلون الأكثر نشاطًا',
+        name: copy.sections.topClients.title,
         rows: topClientRowsForExport(),
       },
       {
-        name: 'حالة القضايا',
+        name: copy.sections.caseStatus.title,
         rows: caseRows.map(([status, count]) => ({
-          الحالة: caseStatusLabel(String(status)),
+          الحالة: caseStatusLabel(String(status), copy),
           العدد: count,
         })),
       },
@@ -431,7 +556,7 @@ export default function ReportsPage() {
 
     exportReportPDF(reportFilename(), reportTitle(), summaryRows(), [
       {
-        title: 'دفعات الفترة',
+        title: copy.sections.periodPayments.title,
         columns: [
           'ملاحظات',
           'التاريخ',
@@ -446,13 +571,13 @@ export default function ReportsPage() {
           payment.التاريخ,
           payment.طريقة_الدفع,
           payment.الحالة,
-          formatCurrency(payment.المبلغ),
+          formatMoney(payment.المبلغ, locale),
           payment.الموكل,
           payment.القضية,
         ]),
       },
       {
-        title: 'فواتير الفترة',
+        title: copy.sections.periodInvoices.title,
         columns: [
           'الاستحقاق',
           'الإصدار',
@@ -466,14 +591,14 @@ export default function ReportsPage() {
           invoice.تاريخ_الاستحقاق,
           invoice.تاريخ_الإصدار,
           invoice.الحالة,
-          formatCurrency(invoice.المبلغ),
+          formatMoney(invoice.المبلغ, locale),
           invoice.القضية,
           invoice.الموكل,
           invoice.رقم_الفاتورة,
         ]),
       },
       {
-        title: 'الموكلون الأكثر نشاطًا',
+        title: copy.sections.topClients.title,
         columns: [
           'مؤشر النشاط',
           'إجمالي الفواتير',
@@ -483,14 +608,14 @@ export default function ReportsPage() {
         ],
         rows: topClientRowsForExport().map((client) => [
           client.مؤشر_النشاط,
-          formatCurrency(client.إجمالي_الفواتير),
-          formatCurrency(client.إجمالي_الدفعات),
+          formatMoney(client.إجمالي_الفواتير, locale),
+          formatMoney(client.إجمالي_الدفعات, locale),
           client.عدد_القضايا,
           client.الموكل,
         ]),
       },
       {
-        title: 'المواعيد القادمة',
+        title: copy.sections.appointments.title,
         columns: ['المكان', 'التاريخ', 'القضية', 'الموعد'],
         rows: appointmentRowsForExport().map((appointment) => [
           appointment.المكان,
@@ -500,7 +625,7 @@ export default function ReportsPage() {
         ]),
       },
       {
-        title: 'المهام المتأخرة',
+        title: copy.sections.tasks.title,
         columns: ['الاستحقاق', 'الأولوية', 'القضية', 'المهمة'],
         rows: taskRowsForExport().map((task) => [
           task.الاستحقاق,
@@ -521,9 +646,9 @@ export default function ReportsPage() {
         payment.case?.title || '-',
         payment.case?.client?.name || '-',
         Number(payment.amount || 0),
-        paymentStatus(payment.status),
+        paymentStatusLabel(payment.status, copy),
         payment.method || '-',
-        formatDate(payment.paidAt),
+        formatDate(payment.paidAt, locale),
       ]),
     ]
 
@@ -548,9 +673,9 @@ export default function ReportsPage() {
         invoice.client?.name || '-',
         invoice.case?.title || '-',
         Number(invoice.total || 0),
-        invoiceStatus(invoice.status),
-        formatDate(invoice.issueDate),
-        formatDate(invoice.dueDate),
+        invoiceStatusLabel(invoice.status, copy),
+        formatDate(invoice.issueDate, locale),
+        formatDate(invoice.dueDate, locale),
       ]),
     ]
 
@@ -561,7 +686,7 @@ export default function ReportsPage() {
 
   if (error) {
     return (
-      <div className="space-y-5 stagger">
+      <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger text-start">
         <div
           className="relative overflow-hidden rounded-[28px] border p-6"
           style={{
@@ -571,10 +696,10 @@ export default function ReportsPage() {
             boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
           }}
         >
-          <h1 className="text-2xl font-black text-white">التقارير</h1>
+          <h1 className="text-2xl font-black text-white">{copy.error.title}</h1>
 
           <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-            تعذر تحميل بيانات التقارير في الوقت الحالي.
+            {copy.error.subtitle}
           </p>
         </div>
 
@@ -584,7 +709,7 @@ export default function ReportsPage() {
           </p>
 
           <button onClick={load} className="btn btn-primary">
-            إعادة المحاولة
+            {copy.actions.retry}
           </button>
         </div>
       </div>
@@ -615,7 +740,7 @@ export default function ReportsPage() {
         }
       `}</style>
 
-      <div className="space-y-5 stagger">
+      <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger text-start">
         {/* Hero */}
         <div
           className="relative overflow-hidden rounded-[28px] border p-6 print:hidden"
@@ -646,7 +771,7 @@ export default function ReportsPage() {
                   border: '1px solid rgba(255,255,255,0.18)',
                 }}
               >
-                مركز التقارير والتحليلات
+                {copy.hero.badge}
               </div>
 
               <h1 className="text-2xl font-black text-white">
@@ -654,8 +779,7 @@ export default function ReportsPage() {
               </h1>
 
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-                تقارير مالية وإدارية شاملة تعرض الإيرادات، الفواتير، الدفعات،
-                القضايا، المواعيد والمهام لمساعدة المكتب على اتخاذ قرارات أوضح.
+                {copy.hero.subtitle}
               </p>
             </div>
 
@@ -669,7 +793,7 @@ export default function ReportsPage() {
                   borderColor: 'rgba(255,255,255,0.32)',
                 }}
               >
-                طباعة
+                {copy.actions.print}
               </button>
 
               <button
@@ -681,7 +805,7 @@ export default function ReportsPage() {
                   borderColor: 'rgba(255,255,255,0.22)',
                 }}
               >
-                PDF شامل
+                {copy.actions.fullPdf}
               </button>
 
               <button
@@ -693,7 +817,7 @@ export default function ReportsPage() {
                   borderColor: 'rgba(245,200,66,0.35)',
                 }}
               >
-                Excel شامل
+                {copy.actions.fullExcel}
               </button>
             </div>
           </div>
@@ -705,48 +829,52 @@ export default function ReportsPage() {
           </h1>
 
           <p className="text-sm mt-2" style={{ color: 'var(--text-3)' }}>
-            ملخص مالي وإداري شامل
+            {copy.hero.printSummary}
           </p>
         </div>
 
         {/* Filters */}
         <div className="card p-4 print:hidden">
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[.8fr_.8fr_.8fr_1fr_1fr_1fr]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <select
-              aria-label="نوع التقرير"
-              title="نوع التقرير"
+              aria-label={copy.filters.reportType}
+              title={copy.filters.reportType}
               value={reportType}
               onChange={(event) => setReportType(event.target.value as ReportType)}
-              className="input"
+              className={controlClass}
+              dir={isRtl ? 'rtl' : 'ltr'}
+              style={fieldStyle}
             >
-              <option value="yearly">تقرير سنوي</option>
-              <option value="monthly">تقرير شهري</option>
+              <option value="yearly">{copy.filters.yearly}</option>
+              <option value="monthly">{copy.filters.monthly}</option>
             </select>
 
             {reportType === 'monthly' ? (
               <select
-                aria-label="الشهر"
-                title="الشهر"
+                aria-label={copy.filters.month}
+                title={copy.filters.month}
                 value={month}
                 onChange={(event) => setMonth(Number(event.target.value))}
-                className="input"
+                className={controlClass}
+                dir={isRtl ? 'rtl' : 'ltr'}
+                style={fieldStyle}
               >
-                {MONTHS.map((monthName, index) => (
+                {months.map((monthName, index) => (
                   <option key={monthName} value={index}>
                     {monthName}
                   </option>
                 ))}
               </select>
-            ) : (
-              <div className="hidden xl:block" />
-            )}
+            ) : null}
 
             <select
-              aria-label="السنة"
-              title="السنة"
+              aria-label={copy.filters.year}
+              title={copy.filters.year}
               value={year}
               onChange={(event) => setYear(Number(event.target.value))}
-              className="input"
+              className={controlClass}
+              dir={isRtl ? 'rtl' : 'ltr'}
+              style={fieldStyle}
             >
               {years.map((yearItem) => (
                 <option key={yearItem} value={yearItem}>
@@ -756,13 +884,15 @@ export default function ReportsPage() {
             </select>
 
             <select
-              aria-label="الموكل"
-              title="الموكل"
+              aria-label={copy.filters.client}
+              title={copy.filters.client}
               value={clientId}
               onChange={(event) => setClientId(event.target.value)}
-              className="input"
+              className={controlClass}
+              dir={isRtl ? 'rtl' : 'ltr'}
+              style={fieldStyle}
             >
-              <option value="">جميع الموكلين</option>
+              <option value="">{copy.filters.allClients}</option>
 
               {data.clients.map((client) => (
                 <option key={client.id} value={client.id}>
@@ -772,76 +902,80 @@ export default function ReportsPage() {
             </select>
 
             <select
-              aria-label="حالة القضية"
-              title="حالة القضية"
+              aria-label={copy.filters.caseStatus}
+              title={copy.filters.caseStatus}
               value={caseStatus}
               onChange={(event) => setCaseStatus(event.target.value)}
-              className="input"
+              className={controlClass}
+              dir={isRtl ? 'rtl' : 'ltr'}
+              style={fieldStyle}
             >
-              <option value="">جميع حالات القضايا</option>
-              <option value="OPEN">نشطة</option>
-              <option value="IN_PROGRESS">قيد المتابعة</option>
-              <option value="CLOSED">مغلقة</option>
-              <option value="ARCHIVED">مؤرشفة</option>
+              <option value="">{copy.filters.allCaseStatuses}</option>
+              <option value="OPEN">{copy.statuses.cases.OPEN}</option>
+              <option value="IN_PROGRESS">{copy.statuses.cases.IN_PROGRESS}</option>
+              <option value="CLOSED">{copy.statuses.cases.CLOSED}</option>
+              <option value="ARCHIVED">{copy.statuses.cases.ARCHIVED}</option>
             </select>
 
             <select
-              aria-label="حالة الدفعة"
-              title="حالة الدفعة"
+              aria-label={copy.filters.paymentStatus}
+              title={copy.filters.paymentStatus}
               value={paymentStatusFilter}
               onChange={(event) => setPaymentStatusFilter(event.target.value)}
-              className="input"
+              className={controlClass}
+              dir={isRtl ? 'rtl' : 'ltr'}
+              style={fieldStyle}
             >
-              <option value="">جميع الدفعات</option>
-              <option value="PAID">مدفوعة</option>
-              <option value="PENDING">معلقة</option>
-              <option value="OVERDUE">متأخرة</option>
-              <option value="CANCELLED">ملغاة</option>
+              <option value="">{copy.filters.allPayments}</option>
+              <option value="PAID">{copy.statuses.payments.PAID}</option>
+              <option value="PENDING">{copy.statuses.payments.PENDING}</option>
+              <option value="OVERDUE">{copy.statuses.payments.OVERDUE}</option>
+              <option value="CANCELLED">{copy.statuses.payments.CANCELLED}</option>
             </select>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1fr_auto_auto_auto]">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <select
-              aria-label="حالة الفاتورة"
-              title="حالة الفاتورة"
+              aria-label={copy.filters.invoiceStatus}
+              title={copy.filters.invoiceStatus}
               value={invoiceStatusFilter}
               onChange={(event) => setInvoiceStatusFilter(event.target.value)}
-              className="input"
+              className={controlClass}
+              dir={isRtl ? 'rtl' : 'ltr'}
+              style={fieldStyle}
             >
-              <option value="">جميع الفواتير</option>
-              <option value="DRAFT">مسودة</option>
-              <option value="UNPAID">غير مدفوعة</option>
-              <option value="PAID">مدفوعة</option>
-              <option value="OVERDUE">متأخرة</option>
-              <option value="CANCELLED">ملغاة</option>
+              <option value="">{copy.filters.allInvoices}</option>
+              <option value="DRAFT">{copy.statuses.invoices.DRAFT}</option>
+              <option value="UNPAID">{copy.statuses.invoices.UNPAID}</option>
+              <option value="PAID">{copy.statuses.payments.PAID}</option>
+              <option value="OVERDUE">{copy.statuses.payments.OVERDUE}</option>
+              <option value="CANCELLED">{copy.statuses.invoices.CANCELLED}</option>
             </select>
 
-            <button onClick={load} className="btn btn-ghost whitespace-nowrap">
-              تحديث البيانات
+            <button onClick={load} className={actionButtonClass}>
+              {copy.actions.refresh}
             </button>
 
             <button
               onClick={resetFilters}
-              className="btn btn-ghost whitespace-nowrap"
+              className={actionButtonClass}
             >
-              مسح الفلاتر
+              {copy.actions.clearFilters}
             </button>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={exportPayments}
-                className="btn btn-ghost whitespace-nowrap"
-              >
-                دفعات CSV
-              </button>
+            <button
+              onClick={exportPayments}
+              className={actionButtonClass}
+            >
+              {copy.actions.paymentsCsv}
+            </button>
 
-              <button
-                onClick={exportInvoices}
-                className="btn btn-ghost whitespace-nowrap"
-              >
-                فواتير CSV
-              </button>
-            </div>
+            <button
+              onClick={exportInvoices}
+              className={actionButtonClass}
+            >
+              {copy.actions.invoicesCsv}
+            </button>
           </div>
         </div>
 
@@ -851,15 +985,15 @@ export default function ReportsPage() {
             {
               label:
                 reportType === 'monthly'
-                  ? `إيرادات ${MONTHS[month]}`
-                  : 'إيرادات الفترة',
-              value: formatCurrency(summary.periodRevenue),
+                  ? copy.stats.monthlyRevenue(months[month])
+                  : copy.stats.periodRevenue,
+              value: formatMoney(summary.periodRevenue, locale),
               color: 'var(--sidebar)',
               bg: 'var(--green-soft)',
             },
             {
-              label: 'دفعات معلقة/متأخرة',
-              value: formatCurrency(summary.pendingPaymentsAmount),
+              label: copy.stats.pendingPayments,
+              value: formatMoney(summary.pendingPaymentsAmount, locale),
               color:
                 summary.pendingPaymentsAmount > 0 ? '#dc2626' : 'var(--text-3)',
               bg:
@@ -868,8 +1002,8 @@ export default function ReportsPage() {
                   : 'var(--card)',
             },
             {
-              label: 'فواتير غير مدفوعة',
-              value: formatCurrency(summary.unpaidInvoicesAmount),
+              label: copy.stats.unpaidInvoices,
+              value: formatMoney(summary.unpaidInvoicesAmount, locale),
               color:
                 summary.unpaidInvoicesAmount > 0 ? '#92400e' : 'var(--text-3)',
               bg:
@@ -878,7 +1012,7 @@ export default function ReportsPage() {
                   : 'var(--card)',
             },
             {
-              label: 'نسبة التحصيل',
+              label: copy.stats.collectionRate,
               value: `${summary.collectionRate}%`,
               color:
                 summary.collectionRate >= 80 ? 'var(--sidebar)' : '#92400e',
@@ -888,25 +1022,25 @@ export default function ReportsPage() {
                   : 'var(--amber-soft)',
             },
             {
-              label: 'عدد القضايا',
+              label: copy.stats.totalCases,
               value: summary.totalCases,
               color: 'var(--text)',
               bg: 'var(--card)',
             },
             {
-              label: 'القضايا النشطة',
+              label: copy.stats.openCases,
               value: summary.openCases,
               color: 'var(--sidebar)',
               bg: 'var(--green-soft)',
             },
             {
-              label: 'المواعيد القادمة',
+              label: copy.stats.upcomingAppointments,
               value: summary.upcomingAppointmentsCount,
               color: '#2563eb',
               bg: 'var(--card)',
             },
             {
-              label: 'مهام متأخرة',
+              label: copy.stats.overdueTasks,
               value: summary.overdueTasksCount,
               color: summary.overdueTasksCount > 0 ? '#dc2626' : 'var(--text-3)',
               bg:
@@ -939,11 +1073,11 @@ export default function ReportsPage() {
           <div className="card p-5">
             <div className="mb-4">
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                حالة القضايا
+                {copy.sections.caseStatus.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                توزيع القضايا حسب الحالة
+                {copy.sections.caseStatus.subtitle}
               </p>
             </div>
 
@@ -960,7 +1094,7 @@ export default function ReportsPage() {
                       className="mb-1 flex justify-between text-sm"
                       style={{ color: 'var(--text-2)' }}
                     >
-                      <span>{caseStatusLabel(String(status))}</span>
+                      <span>{caseStatusLabel(String(status), copy)}</span>
                       <span>
                         {count} / {percent}%
                       </span>
@@ -987,11 +1121,11 @@ export default function ReportsPage() {
           <div className="card p-5">
             <div className="mb-4">
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                الإيرادات الشهرية
+                {copy.sections.monthlyRevenue.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                مقارنة الإيرادات على مدار السنة
+                {copy.sections.monthlyRevenue.subtitle}
               </p>
             </div>
 
@@ -1008,7 +1142,7 @@ export default function ReportsPage() {
                     className="flex flex-1 flex-col items-center justify-end gap-2"
                   >
                     <div
-                      title={`${MONTHS[item.month]}: ${formatCurrency(item.revenue)}`}
+                      title={`${months[item.month]}: ${formatMoney(item.revenue, locale)}`}
                       className="w-full rounded-t-xl"
                       style={{
                         height: `${height}%`,
@@ -1018,7 +1152,7 @@ export default function ReportsPage() {
                     />
 
                     <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>
-                      {MONTHS[item.month].slice(0, 3)}
+                      {months[item.month].slice(0, 3)}
                     </span>
                   </div>
                 )
@@ -1029,18 +1163,18 @@ export default function ReportsPage() {
           <div className="card p-5">
             <div className="mb-4">
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                الموكلون الأكثر نشاطًا
+                {copy.sections.topClients.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                حسب القضايا والدفعات والفواتير
+                {copy.sections.topClients.subtitle}
               </p>
             </div>
 
             <div className="space-y-3">
               {data.topClients.length === 0 ? (
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-                  لا توجد بيانات كافية.
+                  {copy.sections.topClients.empty}
                 </p>
               ) : (
                 data.topClients.map((client, index) => (
@@ -1055,7 +1189,7 @@ export default function ReportsPage() {
                       </p>
 
                       <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                        {client.casesCount} قضايا
+                        {client.casesCount} {copy.misc.cases}
                       </span>
                     </div>
 
@@ -1063,8 +1197,8 @@ export default function ReportsPage() {
                       className="mt-2 grid grid-cols-2 gap-2 text-xs"
                       style={{ color: 'var(--text-2)' }}
                     >
-                      <span>دفعات: {formatCurrency(client.paymentsTotal)}</span>
-                      <span>فواتير: {formatCurrency(client.invoicesTotal)}</span>
+                      <span>{copy.misc.payments}: {formatMoney(client.paymentsTotal, locale)}</span>
+                      <span>{copy.misc.invoices}: {formatMoney(client.invoicesTotal, locale)}</span>
                     </div>
                   </div>
                 ))
@@ -1075,37 +1209,37 @@ export default function ReportsPage() {
 
         {/* Financial Tables */}
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          <div className="card overflow-hidden p-0">
+          <div className="card overflow-hidden p-0 text-start">
             <div
               className="border-b p-5"
               style={{ borderColor: 'var(--border)' }}
             >
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                دفعات الفترة
+                {copy.sections.periodPayments.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                الدفعات المطابقة للفلاتر الحالية
+                {copy.sections.periodPayments.subtitle}
               </p>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="data-table">
+              <table dir={isRtl ? 'rtl' : 'ltr'} className="data-table [&_td]:align-middle [&_td]:text-start [&_th]:text-start">
                 <thead>
                   <tr>
-                    <th>القضية</th>
-                    <th>الموكل</th>
-                    <th>المبلغ</th>
-                    <th>الحالة</th>
-                    <th>التاريخ</th>
+                    <th>{copy.table.case}</th>
+                    <th>{copy.table.client}</th>
+                    <th>{copy.table.amount}</th>
+                    <th>{copy.table.status}</th>
+                    <th>{copy.table.date}</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {data.periodPayments.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-6">
-                        لا توجد دفعات ضمن الفلاتر الحالية
+                      <td colSpan={5} className="py-6 text-center">
+                        {copy.sections.periodPayments.empty}
                       </td>
                     </tr>
                   ) : (
@@ -1113,9 +1247,9 @@ export default function ReportsPage() {
                       <tr key={payment.id}>
                         <td>{payment.case?.title || '-'}</td>
                         <td>{payment.case?.client?.name || '-'}</td>
-                        <td>{formatCurrency(payment.amount)}</td>
-                        <td>{paymentStatus(payment.status)}</td>
-                        <td>{formatDate(payment.paidAt)}</td>
+                        <td>{formatMoney(payment.amount, locale)}</td>
+                        <td>{paymentStatusLabel(payment.status, copy)}</td>
+                        <td>{formatDate(payment.paidAt, locale)}</td>
                       </tr>
                     ))
                   )}
@@ -1124,37 +1258,37 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="card overflow-hidden p-0">
+          <div className="card overflow-hidden p-0 text-start">
             <div
               className="border-b p-5"
               style={{ borderColor: 'var(--border)' }}
             >
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                فواتير الفترة
+                {copy.sections.periodInvoices.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                الفواتير المطابقة للفلاتر الحالية
+                {copy.sections.periodInvoices.subtitle}
               </p>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="data-table">
+              <table dir={isRtl ? 'rtl' : 'ltr'} className="data-table [&_td]:align-middle [&_td]:text-start [&_th]:text-start">
                 <thead>
                   <tr>
-                    <th>رقم الفاتورة</th>
-                    <th>الموكل</th>
-                    <th>المبلغ</th>
-                    <th>الحالة</th>
-                    <th>الاستحقاق</th>
+                    <th>{copy.table.invoiceNumber}</th>
+                    <th>{copy.table.client}</th>
+                    <th>{copy.table.amount}</th>
+                    <th>{copy.table.status}</th>
+                    <th>{copy.table.dueDate}</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {data.periodInvoices.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-6">
-                        لا توجد فواتير ضمن الفلاتر الحالية
+                      <td colSpan={5} className="py-6 text-center">
+                        {copy.sections.periodInvoices.empty}
                       </td>
                     </tr>
                   ) : (
@@ -1162,9 +1296,9 @@ export default function ReportsPage() {
                       <tr key={invoice.id}>
                         <td>{invoice.invoiceNumber}</td>
                         <td>{invoice.client?.name || '-'}</td>
-                        <td>{formatCurrency(invoice.total)}</td>
-                        <td>{invoiceStatus(invoice.status)}</td>
-                        <td>{formatDate(invoice.dueDate)}</td>
+                        <td>{formatMoney(invoice.total, locale)}</td>
+                        <td>{invoiceStatusLabel(invoice.status, copy)}</td>
+                        <td>{formatDate(invoice.dueDate, locale)}</td>
                       </tr>
                     ))
                   )}
@@ -1179,18 +1313,18 @@ export default function ReportsPage() {
           <div className="card p-5">
             <div className="mb-4">
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                المواعيد القادمة
+                {copy.sections.appointments.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                أقرب المواعيد ضمن نطاق التقرير
+                {copy.sections.appointments.subtitle}
               </p>
             </div>
 
             <div className="space-y-3">
               {data.upcomingAppointments.length === 0 ? (
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-                  لا توجد مواعيد قادمة.
+                  {copy.sections.appointments.empty}
                 </p>
               ) : (
                 data.upcomingAppointments.map((appointment) => (
@@ -1207,7 +1341,7 @@ export default function ReportsPage() {
                       className="text-xs mt-1"
                       style={{ color: 'var(--text-3)' }}
                     >
-                      {formatDate(appointment.startTime)} —{' '}
+                      {formatDate(appointment.startTime, locale)} —{' '}
                       {appointment.case?.title || '-'} —{' '}
                       {appointment.location || '-'}
                     </p>
@@ -1220,18 +1354,18 @@ export default function ReportsPage() {
           <div className="card p-5">
             <div className="mb-4">
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                المهام المتأخرة
+                {copy.sections.tasks.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                المهام التي تحتاج متابعة فورية
+                {copy.sections.tasks.subtitle}
               </p>
             </div>
 
             <div className="space-y-3">
               {data.overdueTasks.length === 0 ? (
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-                  لا توجد مهام متأخرة.
+                  {copy.sections.tasks.empty}
                 </p>
               ) : (
                 data.overdueTasks.map((task) => (
@@ -1248,8 +1382,8 @@ export default function ReportsPage() {
                       className="text-xs mt-1"
                       style={{ color: 'var(--text-3)' }}
                     >
-                      {formatDate(task.dueDate)} — {task.case?.title || '-'} —{' '}
-                      {taskPriorityLabel(task.priority)}
+                      {formatDate(task.dueDate, locale)} — {task.case?.title || '-'} —{' '}
+                      {taskPriorityLabel(task.priority, copy)}
                     </p>
                   </div>
                 ))

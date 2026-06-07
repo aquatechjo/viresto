@@ -35,7 +35,9 @@ export async function GET(req: NextRequest) {
           id: caseId,
           tenantId: auth.user.tenantId,
         },
-        select: { id: true },
+        select: {
+          id: true,
+        },
       })
 
       if (!caseExists) {
@@ -56,7 +58,9 @@ export async function GET(req: NextRequest) {
             title: true,
             client: {
               select: {
+                id: true,
                 name: true,
+                archivedAt: true,
               },
             },
           },
@@ -115,6 +119,13 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         title: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
       },
     })
 
@@ -130,6 +141,21 @@ export async function POST(req: NextRequest) {
           ? new Date(parsed.data.paidAt)
           : new Date(),
       },
+      include: {
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
+      },
     })
 
     await logActivity({
@@ -138,7 +164,9 @@ export async function POST(req: NextRequest) {
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
       type: 'PAYMENT_CREATED',
-      title: 'تم تسجيل دفعة جديدة',
+      title: c.client?.archivedAt
+        ? 'تم تسجيل دفعة لقضية موكل مؤرشف'
+        : 'تم تسجيل دفعة جديدة',
       message: `${payment.amount} - ${c.title}`,
       entityType: 'CASE',
       entityId: c.id,

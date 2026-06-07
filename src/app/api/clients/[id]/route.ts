@@ -109,7 +109,70 @@ if (tenant.status === 'EXPIRED') {
     }
 
     const body = await req.json().catch(() => ({}))
-    const parsed = clientSchema.partial().safeParse(body)
+
+if (body?.action === 'archive') {
+  const updated = await prisma.client.update({
+    where: { id: exists.id },
+    data: {
+      archivedAt: new Date(),
+    },
+  })
+
+  await logActivity({
+    tenantId: auth.user.tenantId,
+    type: 'CLIENT_ARCHIVED',
+    title: 'تمت أرشفة موكل',
+    message: updated.name,
+    entityType: 'CLIENT',
+    entityId: updated.id,
+    actorId: auth.user.userId,
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  })
+
+  return ok({
+    ...updated,
+    email: decryptText(updated.email),
+    phone: decryptText(updated.phone),
+    nationalId: decryptText(updated.nationalId),
+    address: decryptText(updated.address),
+    notes: decryptText(updated.notes),
+    message: 'تمت أرشفة الموكل بنجاح',
+  })
+}
+
+if (body?.action === 'restore') {
+  const updated = await prisma.client.update({
+    where: { id: exists.id },
+    data: {
+      archivedAt: null,
+    },
+  })
+
+  await logActivity({
+    tenantId: auth.user.tenantId,
+    type: 'CLIENT_RESTORED',
+    title: 'تمت استعادة موكل',
+    message: updated.name,
+    entityType: 'CLIENT',
+    entityId: updated.id,
+    actorId: auth.user.userId,
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  })
+
+  return ok({
+    ...updated,
+    email: decryptText(updated.email),
+    phone: decryptText(updated.phone),
+    nationalId: decryptText(updated.nationalId),
+    address: decryptText(updated.address),
+    notes: decryptText(updated.notes),
+    message: 'تمت استعادة الموكل بنجاح',
+  })
+}
+
+const parsed = clientSchema.partial().safeParse(body)
 
     if (!parsed.success) {
       return err('بيانات غير صالحة', 400, parsed.error.flatten())
@@ -186,28 +249,28 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN'])
     if (auth.error || !auth.user) return auth.error
-   const meta = getRequestMeta(req)
 
-   const tenant = await prisma.tenant.findUnique({
-  where: { id: auth.user.tenantId },
-  select: {
-    isSuspended: true,
-    status: true,
-  },
-})
+    const meta = getRequestMeta(req)
 
-if (!tenant) {
-  return err('المكتب غير موجود', 404)
-}
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: auth.user.tenantId },
+      select: {
+        isSuspended: true,
+        status: true,
+      },
+    })
 
-if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-  return err('لا يمكن حذف الموكلين لأن المكتب موقوف', 403)
-}
+    if (!tenant) {
+      return err('المكتب غير موجود', 404)
+    }
 
-if (tenant.status === 'EXPIRED') {
-  return err('لا يمكن حذف الموكلين لأن الاشتراك منتهي', 403)
-}
+    if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
+      return err('لا يمكن حذف الموكلين لأن المكتب موقوف', 403)
+    }
 
+    if (tenant.status === 'EXPIRED') {
+      return err('لا يمكن حذف الموكلين لأن الاشتراك منتهي', 403)
+    }
 
     const { id } = await params
 
@@ -232,7 +295,10 @@ if (tenant.status === 'EXPIRED') {
     }
 
     if (exists._count.cases > 0) {
-      return err('لا يمكن حذف موكل لديه قضايا مرتبطة. يمكنك أرشفته أو حذف القضايا أولًا.', 409)
+      return err(
+        'لا يمكن حذف موكل لديه قضايا مرتبطة. يمكنك أرشفته أو حذف القضايا أولًا.',
+        409
+      )
     }
 
     await prisma.client.delete({
@@ -251,6 +317,9 @@ if (tenant.status === 'EXPIRED') {
       userAgent: meta.userAgent,
     })
 
-    return ok({ deleted: true })
+    return ok({
+      deleted: true,
+      message: 'تم حذف الموكل بنجاح',
+    })
   })
 }

@@ -35,12 +35,20 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             name: true,
+            archivedAt: true,
           },
         },
         case: {
           select: {
             id: true,
             title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
           },
         },
       },
@@ -87,6 +95,9 @@ export async function POST(req: NextRequest) {
 
     const { clientId, caseId } = parsed.data
 
+    let linkedClientId = clientId || null
+    let linkedClientArchivedAt: Date | null = null
+
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
         where: {
@@ -95,12 +106,19 @@ export async function POST(req: NextRequest) {
         },
         select: {
           id: true,
+          archivedAt: true,
         },
       })
 
       if (!clientExists) {
         return err('لا يمكن ربط المهمة بموكل لا يتبع هذا المكتب', 403)
       }
+
+      if (clientExists.archivedAt) {
+        return err('لا يمكن إنشاء مهمة لموكل مؤرشف', 400)
+      }
+
+      linkedClientArchivedAt = clientExists.archivedAt
     }
 
     if (caseId) {
@@ -112,6 +130,13 @@ export async function POST(req: NextRequest) {
         },
         select: {
           id: true,
+          clientId: true,
+          client: {
+            select: {
+              id: true,
+              archivedAt: true,
+            },
+          },
         },
       })
 
@@ -121,6 +146,17 @@ export async function POST(req: NextRequest) {
           403
         )
       }
+
+      if (caseExists.client?.archivedAt) {
+        return err('لا يمكن إنشاء مهمة لقضية موكلها مؤرشف', 400)
+      }
+
+      linkedClientId = caseExists.clientId
+      linkedClientArchivedAt = caseExists.client?.archivedAt ?? null
+    }
+
+    if (linkedClientArchivedAt) {
+      return err('لا يمكن إنشاء مهمة مرتبطة بموكل مؤرشف', 400)
     }
 
     let dueDate: Date | undefined
@@ -141,7 +177,30 @@ export async function POST(req: NextRequest) {
       data: {
         tenantId: auth.user.tenantId,
         ...rest,
+        ...(linkedClientId ? { clientId: linkedClientId } : {}),
         ...(dueDate !== undefined ? { dueDate } : {}),
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 

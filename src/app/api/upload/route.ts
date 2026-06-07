@@ -3,7 +3,6 @@ import { ok, err } from '@/lib/api-response'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity'
 import { apiHandler } from '@/lib/api-handler'
-import { verifySameOrigin } from '@/lib/csrf'
 import { requireRole, getRequestMeta } from '@/lib/api-auth'
 import {
   enforceResourceLimit,
@@ -59,18 +58,6 @@ export async function POST(req: NextRequest) {
       return err('حجم الملف يتجاوز 10 ميجابايت', 400)
     }
 
-    const documentsLimitError = await enforceResourceLimit(
-      auth.user.tenantId,
-      'documents'
-    )
-    if (documentsLimitError) return documentsLimitError
-
-    const storageLimitError = await enforceStorageLimit(
-      auth.user.tenantId,
-      file.size
-    )
-    if (storageLimitError) return storageLimitError
-
     let tags: string[] = []
 
     if (tagsValue) {
@@ -95,11 +82,18 @@ export async function POST(req: NextRequest) {
           id: clientId,
           tenantId: auth.user.tenantId,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          archivedAt: true,
+        },
       })
 
       if (!client) {
         return err('الموكل غير موجود أو لا يتبع لهذا المكتب', 404)
+      }
+
+      if (client.archivedAt) {
+        return err('لا يمكن رفع مستند لموكل مؤرشف', 400)
       }
     }
 
@@ -110,21 +104,46 @@ export async function POST(req: NextRequest) {
           tenantId: auth.user.tenantId,
           ...(clientId ? { clientId } : {}),
         },
-        select: { id: true, clientId: true },
+        select: {
+          id: true,
+          clientId: true,
+          client: {
+            select: {
+              id: true,
+              archivedAt: true,
+            },
+          },
+        },
       })
 
       if (!caseRecord) {
         return err('القضية غير موجودة أو لا تتبع لهذا المكتب', 404)
       }
 
+      if (caseRecord.client?.archivedAt) {
+        return err('لا يمكن رفع مستند لقضية موكلها مؤرشف', 400)
+      }
+
       if (!clientId) clientId = caseRecord.clientId
     }
 
-const ts = Math.floor(Date.now() / 1000)
-const folder = `Viresto/${auth.user.tenantId}`
-const uploadType = 'authenticated'
+    const documentsLimitError = await enforceResourceLimit(
+      auth.user.tenantId,
+      'documents'
+    )
+    if (documentsLimitError) return documentsLimitError
 
-const str = `folder=${folder}&timestamp=${ts}&type=${uploadType}${SECRET}`
+    const storageLimitError = await enforceStorageLimit(
+      auth.user.tenantId,
+      file.size
+    )
+    if (storageLimitError) return storageLimitError
+
+    const ts = Math.floor(Date.now() / 1000)
+    const folder = `Viresto/${auth.user.tenantId}`
+    const uploadType = 'authenticated'
+
+    const str = `folder=${folder}&timestamp=${ts}&type=${uploadType}${SECRET}`
 
     const buf = await crypto.subtle.digest(
       'SHA-256',
@@ -170,6 +189,28 @@ const str = `folder=${folder}&timestamp=${ts}&type=${uploadType}${SECRET}`
         notes: notes?.trim().slice(0, 1000) || null,
         tags,
       },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
+      },
     })
 
     await logActivity({
@@ -195,6 +236,8 @@ const str = `folder=${folder}&timestamp=${ts}&type=${uploadType}${SECRET}`
         createdAt: doc.createdAt,
         clientId: doc.clientId,
         caseId: doc.caseId,
+        client: doc.client,
+        case: doc.case,
       },
     })
   })

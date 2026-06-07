@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { caseSchema } from '@/lib/validations'
 import { ok, err } from '@/lib/api-response'
@@ -6,7 +7,6 @@ import { logActivity } from '@/lib/activity'
 import { requireRole, getRequestMeta } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-handler'
 import { enforceResourceLimit } from '@/lib/plan-enforcement'
-import { Prisma } from '@prisma/client'
 
 const allowedStatuses = [
   'OPEN',
@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     const status = sp.get('status')
     const clientId = sp.get('clientId')
     const q = sp.get('q')?.trim()
+    const includeArchivedClients = sp.get('includeArchivedClients') === 'true'
 
     const pageRaw = Number(sp.get('page') || 1)
     const limitRaw = Number(sp.get('limit') || 10)
@@ -46,7 +47,9 @@ export async function GET(req: NextRequest) {
           id: clientId,
           tenantId: auth.user.tenantId,
         },
-        select: { id: true },
+        select: {
+          id: true,
+        },
       })
 
       if (!clientExists) {
@@ -56,8 +59,18 @@ export async function GET(req: NextRequest) {
 
     const where: Prisma.CaseWhereInput = {
       tenantId: auth.user.tenantId,
+
+      ...(includeArchivedClients
+        ? {}
+        : {
+            client: {
+              archivedAt: null,
+            },
+          }),
+
       ...(status ? { status: status as any } : {}),
       ...(clientId ? { clientId } : {}),
+
       ...(q
         ? {
             OR: [
@@ -90,8 +103,19 @@ export async function GET(req: NextRequest) {
       prisma.case.findMany({
         where,
         include: {
-          client: { select: { id: true, name: true } },
-          payments: { select: { amount: true, status: true } },
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+          payments: {
+            select: {
+              amount: true,
+              status: true,
+            },
+          },
           _count: {
             select: {
               appointments: true,
@@ -100,7 +124,9 @@ export async function GET(req: NextRequest) {
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: {
+          createdAt: 'desc',
+        },
         skip,
         take: limit,
       }),
@@ -141,9 +167,20 @@ export async function POST(req: NextRequest) {
         id: parsed.data.clientId,
         tenantId: auth.user.tenantId,
       },
+      select: {
+        id: true,
+        name: true,
+        archivedAt: true,
+      },
     })
 
-    if (!client) return err('الموكل غير موجود', 404)
+    if (!client) {
+      return err('الموكل غير موجود', 404)
+    }
+
+    if (client.archivedAt) {
+      return err('لا يمكن إنشاء قضية جديدة لموكل مؤرشف', 400)
+    }
 
     if (parsed.data.caseNumber) {
       const exists = await prisma.case.findFirst({
@@ -151,7 +188,9 @@ export async function POST(req: NextRequest) {
           tenantId: auth.user.tenantId,
           caseNumber: parsed.data.caseNumber,
         },
-        select: { id: true },
+        select: {
+          id: true,
+        },
       })
 
       if (exists) {
@@ -165,7 +204,13 @@ export async function POST(req: NextRequest) {
         ...parsed.data,
       },
       include: {
-        client: { select: { id: true, name: true } },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
       },
     })
 

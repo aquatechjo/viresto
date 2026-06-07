@@ -6,7 +6,9 @@ import { ok, err, notFound } from '@/lib/api-response'
 import { logActivity } from '@/lib/activity'
 import { apiHandler } from '@/lib/api-handler'
 import { decryptText } from '@/lib/encryption'
+
 type Params = { params: Promise<{ id: string }> }
+
 function safeDecrypt(value?: string | null) {
   if (!value) return null
 
@@ -55,16 +57,17 @@ export async function GET(req: NextRequest, { params }: Params) {
         tenantId,
       },
       include: {
-client: {
-  select: {
-    id: true,
-    name: true,
-    phone: true,
-    email: true,
-    nationalId: true,
-    address: true,
-  },
-},
+        client: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+            nationalId: true,
+            address: true,
+            archivedAt: true,
+          },
+        },
         payments: {
           where: { tenantId },
           include: {
@@ -99,7 +102,11 @@ client: {
         },
         tasks: {
           where: { tenantId },
-          orderBy: [{ completed: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
+          orderBy: [
+            { completed: 'asc' },
+            { dueDate: 'asc' },
+            { createdAt: 'desc' },
+          ],
         },
         invoices: {
           where: { tenantId },
@@ -138,11 +145,21 @@ client: {
 
     const activityFilters = [
       { entityType: 'CASE', entityId: c.id },
-      ...(paymentIds.length ? [{ entityType: 'PAYMENT', entityId: { in: paymentIds } }] : []),
-      ...(appointmentIds.length ? [{ entityType: 'APPOINTMENT', entityId: { in: appointmentIds } }] : []),
-      ...(documentIds.length ? [{ entityType: 'DOCUMENT', entityId: { in: documentIds } }] : []),
-      ...(taskIds.length ? [{ entityType: 'TASK', entityId: { in: taskIds } }] : []),
-      ...(invoiceIds.length ? [{ entityType: 'INVOICE', entityId: { in: invoiceIds } }] : []),
+      ...(paymentIds.length
+        ? [{ entityType: 'PAYMENT', entityId: { in: paymentIds } }]
+        : []),
+      ...(appointmentIds.length
+        ? [{ entityType: 'APPOINTMENT', entityId: { in: appointmentIds } }]
+        : []),
+      ...(documentIds.length
+        ? [{ entityType: 'DOCUMENT', entityId: { in: documentIds } }]
+        : []),
+      ...(taskIds.length
+        ? [{ entityType: 'TASK', entityId: { in: taskIds } }]
+        : []),
+      ...(invoiceIds.length
+        ? [{ entityType: 'INVOICE', entityId: { in: invoiceIds } }]
+        : []),
     ]
 
     const activities = await prisma.activity.findMany({
@@ -154,17 +171,17 @@ client: {
       take: 50,
     })
 
-return ok({
-  ...c,
-  client: {
-    ...c.client,
-    email: safeDecrypt(c.client.email),
-    phone: safeDecrypt(c.client.phone),
-    nationalId: safeDecrypt(c.client.nationalId),
-    address: safeDecrypt(c.client.address),
-  },
-  activities,
-})
+    return ok({
+      ...c,
+      client: {
+        ...c.client,
+        email: safeDecrypt(c.client.email),
+        phone: safeDecrypt(c.client.phone),
+        nationalId: safeDecrypt(c.client.nationalId),
+        address: safeDecrypt(c.client.address),
+      },
+      activities,
+    })
   })
 }
 
@@ -189,11 +206,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         title: true,
         status: true,
         clientId: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
       },
     })
 
     if (!exists) {
       return notFound('القضية غير موجودة')
+    }
+
+    if (exists.client?.archivedAt) {
+      return err('لا يمكن تعديل قضية مرتبطة بموكل مؤرشف', 400)
     }
 
     const body = await req.json().catch(() => ({}))
@@ -213,11 +241,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           id: parsed.data.clientId,
           tenantId: auth.user.tenantId,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          name: true,
+          archivedAt: true,
+        },
       })
 
       if (!clientExists) {
         return err('لا يمكن ربط القضية بموكل لا يتبع هذا المكتب', 403)
+      }
+
+      if (clientExists.archivedAt) {
+        return err('لا يمكن ربط القضية بموكل مؤرشف', 400)
       }
     }
 
@@ -239,6 +275,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const updated = await prisma.case.update({
       where: { id: exists.id },
       data: parsed.data,
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
+      },
     })
 
     const statusChanged =
@@ -281,11 +326,22 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       select: {
         id: true,
         title: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
       },
     })
 
     if (!exists) {
       return notFound('القضية غير موجودة')
+    }
+
+    if (exists.client?.archivedAt) {
+      return err('لا يمكن حذف قضية مرتبطة بموكل مؤرشف', 400)
     }
 
     const [
@@ -295,11 +351,36 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       tasksCount,
       invoicesCount,
     ] = await prisma.$transaction([
-      prisma.payment.count({ where: { tenantId: auth.user.tenantId, caseId: exists.id } }),
-      prisma.appointment.count({ where: { tenantId: auth.user.tenantId, caseId: exists.id } }),
-      prisma.document.count({ where: { tenantId: auth.user.tenantId, caseId: exists.id } }),
-      prisma.task.count({ where: { tenantId: auth.user.tenantId, caseId: exists.id } }),
-      prisma.invoice.count({ where: { tenantId: auth.user.tenantId, caseId: exists.id } }),
+      prisma.payment.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          caseId: exists.id,
+        },
+      }),
+      prisma.appointment.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          caseId: exists.id,
+        },
+      }),
+      prisma.document.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          caseId: exists.id,
+        },
+      }),
+      prisma.task.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          caseId: exists.id,
+        },
+      }),
+      prisma.invoice.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          caseId: exists.id,
+        },
+      }),
     ])
 
     const relatedTotal =

@@ -36,6 +36,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
     if (auth.error || !auth.user) return auth.error
+
     const meta = getRequestMeta(req)
 
     const tenantError = await ensureTenantActive(auth.user.tenantId)
@@ -52,13 +53,39 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         id: true,
         title: true,
         caseId: true,
+        clientId: true,
         startTime: true,
         endTime: true,
+        client: {
+          select: {
+            id: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            client: {
+              select: {
+                id: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 
     if (!exists) {
       return notFound('الموعد غير موجود')
+    }
+
+    const isCurrentlyArchivedClient = Boolean(
+      exists.client?.archivedAt || exists.case?.client?.archivedAt
+    )
+
+    if (isCurrentlyArchivedClient) {
+      return err('لا يمكن تعديل موعد مرتبط بموكل مؤرشف', 400)
     }
 
     const body = await req.json().catch(() => ({}))
@@ -96,8 +123,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const finalStart = startTime ?? exists.startTime
-    const finalEnd =
-      endTime !== undefined ? endTime : exists.endTime
+    const finalEnd = endTime !== undefined ? endTime : exists.endTime
 
     if (finalEnd && finalEnd <= finalStart) {
       return err('تاريخ نهاية الموعد يجب أن يكون بعد تاريخ البداية', 400)
@@ -111,6 +137,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...rest
     } = parsed.data
 
+    let linkedClientId =
+      clientId !== undefined ? clientId : exists.clientId
+
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
         where: {
@@ -119,11 +148,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
         select: {
           id: true,
+          archivedAt: true,
         },
       })
 
       if (!clientExists) {
         return err('لا يمكن ربط الموعد بموكل لا يتبع هذا المكتب', 403)
+      }
+
+      if (clientExists.archivedAt) {
+        return err('لا يمكن ربط الموعد بموكل مؤرشف', 400)
       }
     }
 
@@ -136,6 +170,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
         select: {
           id: true,
+          clientId: true,
+          client: {
+            select: {
+              id: true,
+              archivedAt: true,
+            },
+          },
         },
       })
 
@@ -145,6 +186,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           403
         )
       }
+
+      if (caseExists.client?.archivedAt) {
+        return err('لا يمكن ربط الموعد بقضية موكلها مؤرشف', 400)
+      }
+
+      linkedClientId = caseExists.clientId
     }
 
     const updated = await prisma.appointment.update({
@@ -153,10 +200,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
       data: {
         ...rest,
-        ...(clientId !== undefined ? { clientId } : {}),
+        ...(clientId !== undefined ? { clientId: linkedClientId } : {}),
         ...(caseId !== undefined ? { caseId } : {}),
         ...(startTime !== undefined ? { startTime } : {}),
         ...(endTime !== undefined ? { endTime } : {}),
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -184,6 +253,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
     if (auth.error || !auth.user) return auth.error
+
     const meta = getRequestMeta(req)
 
     const tenantError = await ensureTenantActive(auth.user.tenantId)
@@ -200,11 +270,37 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         id: true,
         title: true,
         caseId: true,
+        clientId: true,
+        client: {
+          select: {
+            id: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            client: {
+              select: {
+                id: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 
     if (!exists) {
       return notFound('الموعد غير موجود')
+    }
+
+    const isArchivedClient = Boolean(
+      exists.client?.archivedAt || exists.case?.client?.archivedAt
+    )
+
+    if (isArchivedClient) {
+      return err('لا يمكن حذف موعد مرتبط بموكل مؤرشف', 400)
     }
 
     await prisma.appointment.delete({

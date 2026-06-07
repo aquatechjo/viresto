@@ -20,6 +20,7 @@ interface Client {
   address?: string;
   notes?: string;
   createdAt: string;
+  archivedAt?: string | null;
   _count?: {
     cases: number;
     appointments: number;
@@ -27,6 +28,7 @@ interface Client {
 }
 
 type CaseFilter = "all" | "withCases" | "withoutCases";
+type ArchiveFilter = "active" | "archived" | "all";
 type LocaleKey = "ar" | "en";
 
 const pageText = {
@@ -51,6 +53,8 @@ const pageText = {
       search: "بحث",
       all: "الكل",
       clear: "مسح الفلاتر",
+      activeClients: "النشطون",
+      archivedClients: "المؤرشفون",
     },
     empty: {
       title: "لا يوجد موكلون",
@@ -68,6 +72,7 @@ const pageText = {
       email: "البريد الإلكتروني",
       address: "العنوان",
       dash: "-",
+      archived: "مؤرشف",
     },
     modal: {
       title: "إضافة موكل",
@@ -132,6 +137,9 @@ const pageText = {
       search: "Search",
       all: "All",
       clear: "Clear filters",
+
+      activeClients: "Active",
+archivedClients: "Archived",
     },
     empty: {
       title: "No clients found",
@@ -150,6 +158,7 @@ const pageText = {
       email: "Email",
       address: "Address",
       dash: "-",
+      archived: "Archived",
     },
     modal: {
       title: "Add client",
@@ -572,29 +581,34 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
-  const [showCreateModal, setShowCreateModal] = useState(false);
+const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
+const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
+const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
+const load = useCallback(async () => {
+  try {
+    setLoading(true);
 
-      const response = await fetch("/api/clients?limit=100");
-      const data = await response.json().catch(() => ({}));
+    const params = new URLSearchParams();
+    params.set("limit", "100");
+    params.set("archive", archiveFilter);
 
-      setClients(
-        Array.isArray(data.data?.data)
-          ? data.data.data
-          : Array.isArray(data.data)
-            ? data.data
-            : [],
-      );
-    } catch {
-      setClients([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    const response = await fetch(`/api/clients?${params.toString()}`);
+    const data = await response.json().catch(() => ({}));
+
+    setClients(
+      Array.isArray(data.data?.data)
+        ? data.data.data
+        : Array.isArray(data.data)
+          ? data.data
+          : [],
+    );
+  } catch {
+    setClients([]);
+  } finally {
+    setLoading(false);
+  }
+}, [archiveFilter]);
 
   useEffect(() => {
     load();
@@ -604,10 +618,11 @@ export default function ClientsPage() {
     event.preventDefault();
   }
 
-  function clearFilters() {
-    setQ("");
-    setCaseFilter("all");
-  }
+function clearFilters() {
+  setQ("");
+  setCaseFilter("all");
+  setArchiveFilter("active");
+}
 
   function openCreateModal() {
     setShowCreateModal(true);
@@ -775,74 +790,106 @@ export default function ClientsPage() {
 
 {/* Filters */}
 <div className="card p-4">
-  <form
-    onSubmit={search}
-    className="grid grid-cols-1 gap-3"
-  >
-<input
-  dir={isRtl ? 'rtl' : 'ltr'}
-  name="clientsSearch"
-  autoComplete="off"
-  value={q}
-  onChange={(event) => setQ(event.target.value)}
-  placeholder={text.filters.searchPlaceholder}
-  className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
-  style={{
-    textAlign: isRtl ? 'right' : 'left',
-    direction: isRtl ? 'rtl' : 'ltr',
-  }}
-/>
+  <form onSubmit={search} className="grid grid-cols-1 gap-3">
+    <input
+      dir={isRtl ? 'rtl' : 'ltr'}
+      name="clientsSearch"
+      autoComplete="off"
+      value={q}
+      onChange={(event) => setQ(event.target.value)}
+      placeholder={text.filters.searchPlaceholder}
+      className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
+      style={{
+        textAlign: isRtl ? 'right' : 'left',
+        direction: isRtl ? 'rtl' : 'ltr',
+      }}
+    />
   </form>
 
-<div
-  dir={isRtl ? 'rtl' : 'ltr'}
-  className="mt-4 flex flex-wrap justify-start gap-2"
->
-    {(
-      [
-        ["all", text.filters.all],
-        ["withCases", text.filters.withCases],
-        ["withoutCases", text.filters.withoutCases],
-      ] as [CaseFilter, string][]
-    ).map(([key, label]) => (
-      <button
-        key={key}
-        type="button"
-        onClick={() => setCaseFilter(key)}
-        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-        style={
-          caseFilter === key
-            ? {
-                background: "var(--sidebar)",
-                color: "#fff",
-              }
-            : {
-                background: "var(--green-soft)",
-                color: "var(--text-2)",
-              }
-        }
-      >
-        {label}
-      </button>
-    ))}
+  <div
+    dir={isRtl ? 'rtl' : 'ltr'}
+    className="mt-4 flex flex-col gap-3"
+  >
+    <div className="flex flex-wrap justify-start gap-2">
+      {(
+        [
+          ['active', text.filters.activeClients],
+          ['archived', text.filters.archivedClients],
+          ['all', text.filters.allClients],
+        ] as [ArchiveFilter, string][]
+      ).map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setArchiveFilter(key)}
+          className="min-w-[112px] rounded-2xl px-4 py-2 text-xs font-black transition-all"
+          style={
+            archiveFilter === key
+              ? {
+                  background: 'rgba(245,200,66,0.18)',
+                  color: 'var(--text-1)',
+                  border: '1px solid rgba(245,200,66,0.35)',
+                }
+              : {
+                  background: 'var(--green-soft)',
+                  color: 'var(--text-2)',
+                  border: '1px solid var(--border)',
+                }
+          }
+        >
+          {label}
+        </button>
+      ))}
+    </div>
 
-    {(q || caseFilter !== "all") && (
-      <button
-        type="button"
-        onClick={clearFilters}
-        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-        style={{
-          background: "var(--card)",
-          color: "var(--text-2)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        {text.filters.clear}
-      </button>
-    )}
+    <div className="flex flex-wrap justify-start gap-2">
+      {(
+        [
+          ['all', text.filters.all],
+          ['withCases', text.filters.withCases],
+          ['withoutCases', text.filters.withoutCases],
+        ] as [CaseFilter, string][]
+      ).map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setCaseFilter(key)}
+          className="min-w-[112px] rounded-2xl px-4 py-2 text-xs font-black transition-all"
+          style={
+            caseFilter === key
+              ? {
+                  background: 'rgba(245,200,66,0.18)',
+                  color: 'var(--text-1)',
+                  border: '1px solid rgba(245,200,66,0.35)',
+                }
+              : {
+                  background: 'var(--green-soft)',
+                  color: 'var(--text-2)',
+                  border: '1px solid var(--border)',
+                }
+          }
+        >
+          {label}
+        </button>
+      ))}
+
+      {(q || caseFilter !== 'all' || archiveFilter !== 'active') && (
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="min-w-[112px] rounded-2xl px-4 py-2 text-xs font-black transition-all"
+          style={{
+            background: 'var(--card)',
+            color: 'var(--text-2)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          {text.filters.clear}
+        </button>
+      )}
+    </div>
   </div>
 </div>
-
         {/* Content */}
         {filteredClients.length === 0 ? (
           <div className="card p-8">
@@ -913,6 +960,19 @@ export default function ClientsPage() {
                         </p>
                       </div>
                     </div>
+
+                    {client.archivedAt && (
+  <span
+    className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black shadow-sm"
+    style={{
+      background: "rgba(245,158,11,0.16)",
+      borderColor: "rgba(245,158,11,0.38)",
+      color: "#f59e0b",
+    }}
+  >
+    {text.card.archived}
+  </span>
+)}
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">

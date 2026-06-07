@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { ok, notFound } from '@/lib/api-response'
+import { ok, err, notFound } from '@/lib/api-response'
 import cloudinary, { generateSignedFileUrl } from '@/lib/cloudinary'
 import { logActivity } from '@/lib/activity'
 import { requireRole, getRequestMeta } from '@/lib/api-auth'
@@ -95,6 +95,24 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         fileType: true,
         publicId: true,
         caseId: true,
+        clientId: true,
+        client: {
+          select: {
+            id: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            client: {
+              select: {
+                id: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -102,12 +120,20 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return notFound('المستند غير موجود')
     }
 
+    const isArchivedClient = Boolean(
+      exists.client?.archivedAt || exists.case?.client?.archivedAt
+    )
+
+    if (isArchivedClient) {
+      return err('لا يمكن حذف مستند مرتبط بموكل مؤرشف', 400)
+    }
+
     if (exists.publicId) {
       try {
-await cloudinary.uploader.destroy(exists.publicId, {
-  resource_type: getResourceType(exists.fileType),
-  type: 'authenticated',
-})
+        await cloudinary.uploader.destroy(exists.publicId, {
+          resource_type: getResourceType(exists.fileType),
+          type: 'authenticated',
+        })
       } catch (e) {
         console.error('Cloudinary delete failed:', e)
       }

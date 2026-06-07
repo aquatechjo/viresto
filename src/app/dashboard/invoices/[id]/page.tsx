@@ -38,11 +38,17 @@ interface Invoice {
     name: string
     phone?: string | null
     email?: string | null
+    archivedAt?: string | null
   }
   case?: {
     id: string
     title: string
     caseNumber?: string | null
+    client?: {
+      id?: string
+      name?: string
+      archivedAt?: string | null
+    } | null
   } | null
   items: Array<{
     id: string
@@ -101,6 +107,22 @@ function paymentStatusLabel(status?: string | null) {
   }
 
   return status ? map[status] ?? status : '-'
+}
+
+function isArchivedInvoice(invoice: Invoice) {
+  return Boolean(invoice.client?.archivedAt || invoice.case?.client?.archivedAt)
+}
+
+function isAllowedArchivedStatus(nextStatus: InvoiceStatus) {
+  return nextStatus === 'PAID' || nextStatus === 'CANCELLED'
+}
+
+function money(value: number) {
+  if (!Number.isFinite(value) || value === 0) {
+    return '0 د.أ'
+  }
+
+  return formatCurrency(value)
 }
 
 export default function InvoiceDetailsPage() {
@@ -176,6 +198,11 @@ export default function InvoiceDetailsPage() {
   function openEditModal() {
     if (!invoice) return
 
+    if (isArchivedInvoice(invoice)) {
+      alert('لا يمكن تعديل بيانات فاتورة مرتبطة بموكل مؤرشف. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.')
+      return
+    }
+
     if (invoice.status === 'PAID') {
       alert('لا يمكن تعديل البيانات المالية لفاتورة مدفوعة. غيّر الحالة أولًا إذا احتجت تعديلها.')
       return
@@ -239,6 +266,11 @@ export default function InvoiceDetailsPage() {
     e.preventDefault()
     if (!invoice) return
 
+    if (isArchivedInvoice(invoice)) {
+      alert('لا يمكن تعديل بيانات فاتورة مرتبطة بموكل مؤرشف')
+      return
+    }
+
     const cleanItems = editItems
       .map((item) => ({
         description: item.description.trim(),
@@ -299,6 +331,13 @@ export default function InvoiceDetailsPage() {
   async function updateStatus(nextStatus: InvoiceStatus) {
     if (!invoice || invoice.status === nextStatus) return
 
+    const archivedInvoice = isArchivedInvoice(invoice)
+
+    if (archivedInvoice && !isAllowedArchivedStatus(nextStatus)) {
+      alert('الفاتورة مرتبطة بموكل مؤرشف. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.')
+      return
+    }
+
     if (nextStatus === 'PAID' && !invoice.case) {
       alert('لا يمكن تعليم الفاتورة كمدفوعة لأنها غير مرتبطة بقضية. اربطها بقضية أولًا حتى يتم إنشاء دفعة صحيحة.')
       return
@@ -330,6 +369,11 @@ export default function InvoiceDetailsPage() {
 
   async function deleteInvoice() {
     if (!invoice) return
+
+    if (isArchivedInvoice(invoice)) {
+      alert('لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف')
+      return
+    }
 
     if (invoice.payment) {
       alert('لا يمكن حذف هذه الفاتورة لأنها مرتبطة بدفعة. عالج الدفعة المرتبطة أولًا ثم حاول مرة أخرى.')
@@ -462,7 +506,8 @@ export default function InvoiceDetailsPage() {
   }
 
   const tenantName = invoice.tenant?.name || 'Viresto'
-  const canEditFinancials = invoice.status !== 'PAID'
+  const archivedInvoice = isArchivedInvoice(invoice)
+  const canEditFinancials = invoice.status !== 'PAID' && !archivedInvoice
 
   return (
     <div className="space-y-5 stagger print:space-y-4 print:bg-white print:text-black">
@@ -532,15 +577,34 @@ export default function InvoiceDetailsPage() {
                   color: '#fff',
                 }}
               >
-                الإجمالي: {formatCurrency(invoice.total)}
+                الإجمالي: {money(invoice.total)}
               </span>
+
+              {archivedInvoice && (
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-black"
+                  style={{
+                    background: '#fff7ed',
+                    color: '#b45309',
+                    border: '1px solid rgba(180, 83, 9, 0.18)',
+                  }}
+                >
+                  موكل مؤرشف
+                </span>
+              )}
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
               onClick={openEditModal}
-              className="btn"
+              disabled={archivedInvoice}
+              title={
+                archivedInvoice
+                  ? 'لا يمكن تعديل بيانات فاتورة مرتبطة بموكل مؤرشف'
+                  : 'تعديل الفاتورة'
+              }
+              className="btn disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: '#fff',
                 color: 'var(--sidebar)',
@@ -589,7 +653,15 @@ export default function InvoiceDetailsPage() {
 
             <button
               onClick={deleteInvoice}
-              className="btn"
+              disabled={archivedInvoice || !!invoice.payment}
+              title={
+                archivedInvoice
+                  ? 'لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف'
+                  : invoice.payment
+                    ? 'لا يمكن حذف فاتورة مرتبطة بدفعة'
+                    : 'حذف الفاتورة'
+              }
+              className="btn disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: 'rgba(239,68,68,0.18)',
                 color: '#fff',
@@ -606,27 +678,27 @@ export default function InvoiceDetailsPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
         <InfoCard
           label="إجمالي الفاتورة"
-          value={formatCurrency(invoice.total)}
+          value={money(invoice.total)}
           hint="المبلغ النهائي"
           tone="green"
         />
 
         <InfoCard
           label="المجموع الفرعي"
-          value={formatCurrency(invoice.subtotal)}
+          value={money(invoice.subtotal)}
           hint="قبل الضريبة والخصم"
         />
 
         <InfoCard
           label="الضريبة"
-          value={formatCurrency(invoice.tax)}
+          value={money(invoice.tax)}
           hint="قيمة الضريبة"
           tone="amber"
         />
 
         <InfoCard
           label="الخصم"
-          value={formatCurrency(invoice.discount)}
+          value={money(invoice.discount)}
           hint="إجمالي الخصم"
           tone="red"
         />
@@ -658,10 +730,25 @@ export default function InvoiceDetailsPage() {
               className="input"
               aria-label="تغيير حالة الفاتورة"
             >
-              <option value="DRAFT">مسودة</option>
-              <option value="UNPAID">غير مدفوعة</option>
+              <option
+                value="DRAFT"
+                disabled={archivedInvoice && invoice.status !== 'DRAFT'}
+              >
+                مسودة
+              </option>
+              <option
+                value="UNPAID"
+                disabled={archivedInvoice && invoice.status !== 'UNPAID'}
+              >
+                غير مدفوعة
+              </option>
               <option value="PAID">مدفوعة</option>
-              <option value="OVERDUE">متأخرة</option>
+              <option
+                value="OVERDUE"
+                disabled={archivedInvoice && invoice.status !== 'OVERDUE'}
+              >
+                متأخرة
+              </option>
               <option value="CANCELLED">ملغاة</option>
             </select>
 
@@ -677,6 +764,19 @@ export default function InvoiceDetailsPage() {
                 هذه الفاتورة مرتبطة بدفعة.
               </div>
             )}
+
+            {archivedInvoice && (
+              <div
+                className="mt-4 rounded-2xl border p-4 text-sm font-bold"
+                style={{
+                  borderColor: 'rgba(180, 83, 9, 0.22)',
+                  background: '#fff7ed',
+                  color: '#b45309',
+                }}
+              >
+                هذه الفاتورة مرتبطة بموكل مؤرشف. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.
+              </div>
+            )}
           </div>
 
           <div className="card p-5">
@@ -688,6 +788,19 @@ export default function InvoiceDetailsPage() {
               <MiniLine label="الاسم" value={invoice.client?.name} />
               <MiniLine label="الهاتف" value={invoice.client?.phone} />
               <MiniLine label="البريد" value={invoice.client?.email} />
+
+              {archivedInvoice && (
+                <div
+                  className="rounded-2xl border p-3 text-xs font-black"
+                  style={{
+                    background: '#fff7ed',
+                    color: '#b45309',
+                    borderColor: 'rgba(180, 83, 9, 0.18)',
+                  }}
+                >
+                  موكل مؤرشف
+                </div>
+              )}
             </div>
           </div>
 
@@ -776,6 +889,19 @@ export default function InvoiceDetailsPage() {
                   <p className="mt-1 font-black">{invoice.client?.name || '-'}</p>
                   <p className="mt-1 text-sm">{invoice.client?.phone || '-'}</p>
                   <p className="mt-1 text-sm">{invoice.client?.email || '-'}</p>
+
+                  {archivedInvoice && (
+                    <span
+                      className="mt-3 inline-flex rounded-full px-2.5 py-1 text-[11px] font-black"
+                      style={{
+                        background: '#fff7ed',
+                        color: '#b45309',
+                        border: '1px solid rgba(180, 83, 9, 0.18)',
+                      }}
+                    >
+                      موكل مؤرشف
+                    </span>
+                  )}
                 </div>
 
                 <div className="border-b p-5 md:border-b-0 md:border-l">
@@ -825,8 +951,8 @@ export default function InvoiceDetailsPage() {
                         <td>{index + 1}</td>
                         <td className="font-bold">{item.description}</td>
                         <td>{item.quantity}</td>
-                        <td>{formatCurrency(item.unitPrice)}</td>
-                        <td className="font-bold">{formatCurrency(item.total)}</td>
+                        <td>{money(item.unitPrice)}</td>
+                        <td className="font-bold">{money(item.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -841,7 +967,7 @@ export default function InvoiceDetailsPage() {
 
                   <div className="flex justify-between border-t pt-3 text-xl font-black">
                     <span>الإجمالي النهائي</span>
-                    <span>{formatCurrency(invoice.total)}</span>
+                    <span>{money(invoice.total)}</span>
                   </div>
                 </div>
               </div>
@@ -858,7 +984,7 @@ export default function InvoiceDetailsPage() {
                   <div>
                     <p className="text-sm font-bold text-slate-500">المبلغ</p>
                     <p className="mt-1 font-black">
-                      {formatCurrency(invoice.payment.amount)}
+                      {money(invoice.payment.amount)}
                     </p>
                   </div>
 
@@ -925,7 +1051,20 @@ export default function InvoiceDetailsPage() {
               </button>
             </div>
 
-            {!canEditFinancials && (
+            {archivedInvoice && (
+              <div
+                className="mb-4 rounded-2xl border p-4 text-sm font-bold"
+                style={{
+                  borderColor: 'rgba(180, 83, 9, 0.22)',
+                  background: '#fff7ed',
+                  color: '#b45309',
+                }}
+              >
+                هذه الفاتورة مرتبطة بموكل مؤرشف، لذلك لا يمكن تعديل بياناتها. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.
+              </div>
+            )}
+
+            {!canEditFinancials && !archivedInvoice && (
               <div
                 className="mb-4 rounded-2xl border p-4 text-sm font-bold"
                 style={{
@@ -1072,7 +1211,7 @@ export default function InvoiceDetailsPage() {
 
                 <div className="flex justify-between border-t pt-2 text-lg font-black">
                   <span>الإجمالي</span>
-                  <span>{formatCurrency(editTotal)}</span>
+                  <span>{money(editTotal)}</span>
                 </div>
               </div>
             </div>
@@ -1195,7 +1334,7 @@ function MoneyLine({
   return (
     <div className="flex justify-between text-sm">
       <span>{label}</span>
-      <strong>{formatCurrency(value)}</strong>
+      <strong>{money(value)}</strong>
     </div>
   )
 }

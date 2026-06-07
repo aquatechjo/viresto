@@ -8,32 +8,42 @@ import { apiHandler } from '@/lib/api-handler'
 
 type Params = { params: Promise<{ id: string }> }
 
+async function ensureTenantActive(
+  tenantId: string,
+  action: 'تعديل' | 'حذف'
+) {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      isSuspended: true,
+      status: true,
+    },
+  })
+
+  if (!tenant) {
+    return err('المكتب غير موجود', 404)
+  }
+
+  if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
+    return err(`لا يمكن ${action} الدفعات لأن المكتب موقوف`, 403)
+  }
+
+  if (tenant.status === 'EXPIRED') {
+    return err(`لا يمكن ${action} الدفعات لأن الاشتراك منتهي`, 403)
+  }
+
+  return null
+}
+
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
     if (auth.error || !auth.user) return auth.error
+
     const meta = getRequestMeta(req)
 
-    const tenant = await prisma.tenant.findUnique({
-  where: { id: auth.user.tenantId },
-  select: {
-    isSuspended: true,
-    status: true,
-  },
-})
-
-if (!tenant) {
-  return err('المكتب غير موجود', 404)
-}
-
-if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-  return err('لا يمكن تعديل الدفعات لأن المكتب موقوف', 403)
-}
-
-if (tenant.status === 'EXPIRED') {
-  return err('لا يمكن تعديل الدفعات لأن الاشتراك منتهي', 403)
-}
-
+    const tenantError = await ensureTenantActive(auth.user.tenantId, 'تعديل')
+    if (tenantError) return tenantError
 
     const { id } = await params
 
@@ -47,11 +57,28 @@ if (tenant.status === 'EXPIRED') {
         amount: true,
         caseId: true,
         invoiceId: true,
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 
     if (!exists) {
       return notFound('الدفعة غير موجودة')
+    }
+
+    if (exists.case?.client?.archivedAt) {
+      return err('لا يمكن تعديل دفعة مرتبطة بموكل مؤرشف', 400)
     }
 
     const body = await req.json().catch(() => ({}))
@@ -71,35 +98,63 @@ if (tenant.status === 'EXPIRED') {
           id: parsed.data.caseId,
           tenantId: auth.user.tenantId,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+        },
       })
 
       if (!caseExists) {
         return err('لا يمكن ربط الدفعة بقضية لا تتبع هذا المكتب', 403)
       }
+
+      if (caseExists.client?.archivedAt) {
+        return err('لا يمكن ربط الدفعة بقضية موكلها مؤرشف', 400)
+      }
     }
 
-let paidAt: Date | undefined
+    let paidAt: Date | undefined
 
-if (parsed.data.paidAt !== undefined) {
-  const date = new Date(parsed.data.paidAt)
+    if (parsed.data.paidAt !== undefined) {
+      const date = new Date(parsed.data.paidAt)
 
-  if (Number.isNaN(date.getTime())) {
-    return err('تاريخ الدفع غير صالح', 400)
-  }
+      if (Number.isNaN(date.getTime())) {
+        return err('تاريخ الدفع غير صالح', 400)
+      }
 
-  paidAt = date
-}
+      paidAt = date
+    }
 
-const { paidAt: _paidAt, ...rest } = parsed.data
+    const { paidAt: _paidAt, ...rest } = parsed.data
 
-const updated = await prisma.payment.update({
-  where: { id: exists.id },
-  data: {
-    ...rest,
-    ...(paidAt !== undefined ? { paidAt } : {}),
-  },
-})
+    const updated = await prisma.payment.update({
+      where: { id: exists.id },
+      data: {
+        ...rest,
+        ...(paidAt !== undefined ? { paidAt } : {}),
+      },
+      include: {
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
+      },
+    })
 
     await logActivity({
       tenantId: auth.user.tenantId,
@@ -121,28 +176,11 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN'])
     if (auth.error || !auth.user) return auth.error
+
     const meta = getRequestMeta(req)
 
-    const tenant = await prisma.tenant.findUnique({
-  where: { id: auth.user.tenantId },
-  select: {
-    isSuspended: true,
-    status: true,
-  },
-})
-
-if (!tenant) {
-  return err('المكتب غير موجود', 404)
-}
-
-if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-  return err('لا يمكن حذف الدفعات لأن المكتب موقوف', 403)
-}
-
-if (tenant.status === 'EXPIRED') {
-  return err('لا يمكن حذف الدفعات لأن الاشتراك منتهي', 403)
-}
-
+    const tenantError = await ensureTenantActive(auth.user.tenantId, 'حذف')
+    if (tenantError) return tenantError
 
     const { id } = await params
 
@@ -163,6 +201,19 @@ if (tenant.status === 'EXPIRED') {
             status: true,
           },
         },
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -170,11 +221,18 @@ if (tenant.status === 'EXPIRED') {
       return notFound('الدفعة غير موجودة')
     }
 
+    if (exists.case?.client?.archivedAt) {
+      return err('لا يمكن حذف دفعة مرتبطة بموكل مؤرشف', 400)
+    }
+
     if (exists.invoiceId) {
       return err(
         'لا يمكن حذف دفعة مرتبطة بفاتورة. افتح الفاتورة وغيّر حالتها أولًا حتى لا يحدث خلل مالي.',
         409,
-        { invoiceId: exists.invoiceId, invoiceNumber: exists.invoice?.invoiceNumber }
+        {
+          invoiceId: exists.invoiceId,
+          invoiceNumber: exists.invoice?.invoiceNumber,
+        }
       )
     }
 

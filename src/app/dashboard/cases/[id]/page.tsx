@@ -113,6 +113,7 @@ client: {
   email?: string | null
   nationalId?: string | null
   address?: string | null
+  archivedAt?: string | null
 }
   payments: Payment[]
   appointments: Appointment[]
@@ -436,6 +437,31 @@ export default function CaseDetailPage() {
     notFoundDescription: isArabic
       ? 'تعذر العثور على بيانات هذه القضية.'
       : 'Could not find this case data.',
+    archivedClient: isArabic ? 'موكل مؤرشف' : 'Archived client',
+    archivedCaseWarning: isArabic
+      ? 'هذه القضية مرتبطة بموكل مؤرشف. السجل متاح للعرض والتحصيل فقط، ولا يمكن إضافة مواعيد أو مهام أو مستندات أو فواتير جديدة.'
+      : 'This case is linked to an archived client. The record is available for viewing and collections only. New appointments, tasks, documents, and invoices cannot be added.',
+    archivedStatusBlocked: isArabic
+      ? 'لا يمكن تغيير حالة قضية مرتبطة بموكل مؤرشف'
+      : 'You cannot change the status of a case linked to an archived client',
+    archivedAppointmentBlocked: isArabic
+      ? 'لا يمكن إضافة أو حذف مواعيد لقضية مرتبطة بموكل مؤرشف'
+      : 'You cannot add or delete appointments for a case linked to an archived client',
+    archivedTaskBlocked: isArabic
+      ? 'لا يمكن إضافة أو حذف مهام لقضية مرتبطة بموكل مؤرشف'
+      : 'You cannot add or delete tasks for a case linked to an archived client',
+    archivedInvoiceBlocked: isArabic
+      ? 'لا يمكن إنشاء أو حذف فواتير لقضية مرتبطة بموكل مؤرشف'
+      : 'You cannot create or delete invoices for a case linked to an archived client',
+    archivedDocumentBlocked: isArabic
+      ? 'لا يمكن رفع أو حذف مستندات لقضية مرتبطة بموكل مؤرشف'
+      : 'You cannot upload or delete documents for a case linked to an archived client',
+    archivedPaymentDeleteBlocked: isArabic
+      ? 'لا يمكن حذف دفعة مرتبطة بموكل مؤرشف'
+      : 'You cannot delete a payment linked to an archived client',
+    archivedPaymentHint: isArabic
+      ? 'مسموح تسجيل دفعة تحصيل قديم لهذا الموكل المؤرشف، لكن لا يمكن حذف الدفعة بعد تسجيلها.'
+      : 'You may record an old collection for this archived client, but the payment cannot be deleted afterward.',
   }
 
   const statusText: Record<string, string> = {
@@ -608,6 +634,15 @@ export default function CaseDetailPage() {
     ).length
   }, [c])
 
+  const caseArchived = Boolean(c?.client?.archivedAt)
+
+  function blockArchivedAction(message: string) {
+    if (!caseArchived) return false
+
+    toast.error(message)
+    return true
+  }
+
   async function updateStatus(status: string) {
     if (!id || id === 'undefined') {
       toast.error('رقم القضية غير موجود')
@@ -615,6 +650,10 @@ export default function CaseDetailPage() {
     }
 
     if (c?.status === status) return
+
+    if (blockArchivedAction(pageText.archivedStatusBlocked)) {
+      return
+    }
 
     const response = await fetch(`/api/cases/${id}`, {
       method: 'PATCH',
@@ -672,6 +711,10 @@ export default function CaseDetailPage() {
   async function addAppointment(event: FormEvent) {
     event.preventDefault()
 
+    if (blockArchivedAction(pageText.archivedAppointmentBlocked)) {
+      return
+    }
+
     if (!appointmentForm.title.trim()) {
       toast.error('عنوان الموعد مطلوب')
       return
@@ -716,6 +759,10 @@ export default function CaseDetailPage() {
   }
 
   async function deleteAppointment(appointment: Appointment) {
+    if (blockArchivedAction(pageText.archivedAppointmentBlocked)) {
+      return
+    }
+
     const confirmed = window.confirm(`هل تريد حذف الموعد: ${appointment.title}؟`)
     if (!confirmed) return
 
@@ -735,6 +782,10 @@ export default function CaseDetailPage() {
 
   async function addTask(event: FormEvent) {
     event.preventDefault()
+
+    if (blockArchivedAction(pageText.archivedTaskBlocked)) {
+      return
+    }
 
     if (!taskForm.title.trim()) {
       toast.error('عنوان المهمة مطلوب')
@@ -790,6 +841,10 @@ export default function CaseDetailPage() {
   }
 
   async function deleteTask(task: TaskItem) {
+    if (blockArchivedAction(pageText.archivedTaskBlocked)) {
+      return
+    }
+
     const confirmed = window.confirm(`هل تريد حذف المهمة: ${task.title}؟`)
     if (!confirmed) return
 
@@ -809,6 +864,10 @@ export default function CaseDetailPage() {
 
   async function createInvoice(event: FormEvent) {
     event.preventDefault()
+
+    if (blockArchivedAction(pageText.archivedInvoiceBlocked)) {
+      return
+    }
 
     if (!invoiceForm.description.trim()) {
       toast.error('وصف البند مطلوب')
@@ -863,6 +922,10 @@ export default function CaseDetailPage() {
   }
 
   async function deleteInvoice(invoice: Invoice) {
+    if (blockArchivedAction(pageText.archivedInvoiceBlocked)) {
+      return
+    }
+
     if (invoice.payment) {
       toast.error('لا يمكن حذف فاتورة مرتبطة بدفعة. افتح الفاتورة وغيّر حالتها أولًا.')
       return
@@ -893,6 +956,10 @@ export default function CaseDetailPage() {
 
     if (!c) {
       toast.error('بيانات القضية غير جاهزة')
+      return
+    }
+
+    if (blockArchivedAction(pageText.archivedDocumentBlocked)) {
       return
     }
 
@@ -945,6 +1012,10 @@ export default function CaseDetailPage() {
   }
 
   async function deleteDocument(doc: DocumentItem) {
+    if (blockArchivedAction(pageText.archivedDocumentBlocked)) {
+      return
+    }
+
     const confirmed = window.confirm(`هل تريد حذف المستند: ${doc.fileName}؟`)
     if (!confirmed) return
 
@@ -964,6 +1035,11 @@ export default function CaseDetailPage() {
 
   async function confirmDeletePayment() {
     if (!deleteId) return
+
+    if (blockArchivedAction(pageText.archivedPaymentDeleteBlocked)) {
+      setDeleteId(null)
+      return
+    }
 
     try {
       setDeleteLoading(true)
@@ -1057,6 +1133,19 @@ export default function CaseDetailPage() {
                 {statusText[c.status] || c.status}
               </span>
 
+              {caseArchived && (
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-black"
+                  style={{
+                    background: '#fff7ed',
+                    color: '#b45309',
+                    border: '1px solid rgba(180, 83, 9, 0.22)',
+                  }}
+                >
+                  {pageText.archivedClient}
+                </span>
+              )}
+
               {c.caseNumber && (
                 <span
                   className="rounded-full px-3 py-1 text-xs font-bold"
@@ -1112,8 +1201,16 @@ export default function CaseDetailPage() {
 
             <button
               type="button"
-              onClick={() => setInvoiceOpen(true)}
-              className="btn"
+              onClick={() => {
+                if (caseArchived) {
+                  toast.error(pageText.archivedInvoiceBlocked)
+                  return
+                }
+
+                setInvoiceOpen(true)
+              }}
+              disabled={caseArchived}
+              className="btn disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 background: 'rgba(255,255,255,0.14)',
                 color: '#fff',
@@ -1125,6 +1222,19 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+
+      {caseArchived && (
+        <div
+          className="rounded-3xl border p-5 text-sm font-bold leading-7"
+          style={{
+            background: '#fff7ed',
+            color: '#b45309',
+            borderColor: 'rgba(180, 83, 9, 0.22)',
+          }}
+        >
+          {pageText.archivedCaseWarning}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1179,19 +1289,39 @@ export default function CaseDetailPage() {
       {/* Quick actions */}
       <div className="card p-4">
         <div className={`flex flex-wrap gap-2 ${isRtl ? 'justify-end' : 'justify-start'}`}>
-          <button onClick={() => setAppointmentOpen(true)} className="btn btn-ghost">
+          <button
+            onClick={() => setAppointmentOpen(true)}
+            disabled={caseArchived}
+            title={caseArchived ? pageText.archivedAppointmentBlocked : undefined}
+            className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+          >
             {pageText.appointment}
           </button>
-          <button onClick={() => setTaskOpen(true)} className="btn btn-ghost">
+          <button
+            onClick={() => setTaskOpen(true)}
+            disabled={caseArchived}
+            title={caseArchived ? pageText.archivedTaskBlocked : undefined}
+            className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+          >
             {pageText.task}
           </button>
-          <button onClick={() => setDocumentOpen(true)} className="btn btn-ghost">
+          <button
+            onClick={() => setDocumentOpen(true)}
+            disabled={caseArchived}
+            title={caseArchived ? pageText.archivedDocumentBlocked : undefined}
+            className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+          >
             {pageText.document}
           </button>
           <button onClick={() => setPaymentOpen(true)} className="btn btn-ghost">
             {pageText.payment}
           </button>
-          <button onClick={() => setInvoiceOpen(true)} className="btn btn-ghost">
+          <button
+            onClick={() => setInvoiceOpen(true)}
+            disabled={caseArchived}
+            title={caseArchived ? pageText.archivedInvoiceBlocked : undefined}
+            className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+          >
             {pageText.invoice}
           </button>
         </div>
@@ -1208,6 +1338,19 @@ export default function CaseDetailPage() {
               <h2 className="mt-1 text-xl font-black" style={{ color: 'var(--text)' }}>
                 {c.client.name}
               </h2>
+
+              {caseArchived && (
+                <span
+                  className="mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-black"
+                  style={{
+                    background: '#fff7ed',
+                    color: '#b45309',
+                    borderColor: 'rgba(180, 83, 9, 0.22)',
+                  }}
+                >
+                  {pageText.archivedClient}
+                </span>
+              )}
             </div>
 
 <Link
@@ -1331,7 +1474,9 @@ export default function CaseDetailPage() {
                   key={status}
                   type="button"
                   onClick={() => updateStatus(status)}
-                  className="rounded-2xl px-3 py-2 text-xs font-black transition-all"
+                  disabled={caseArchived}
+                  title={caseArchived ? pageText.archivedStatusBlocked : undefined}
+                  className="rounded-2xl px-3 py-2 text-xs font-black transition-all disabled:cursor-not-allowed disabled:opacity-50"
                   style={
                     c.status === status
                       ? {
@@ -1360,7 +1505,12 @@ export default function CaseDetailPage() {
             count={c.appointments.length}
             countLabel={pageText.item}
             action={
-              <button onClick={() => setAppointmentOpen(true)} className="btn btn-ghost">
+              <button
+                onClick={() => setAppointmentOpen(true)}
+                disabled={caseArchived}
+                title={caseArchived ? pageText.archivedAppointmentBlocked : undefined}
+                className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 {pageText.appointment}
               </button>
             }
@@ -1408,7 +1558,9 @@ export default function CaseDetailPage() {
                         <button
                           type="button"
                           onClick={() => deleteAppointment(appointment)}
-                          className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
+                          disabled={caseArchived}
+                          title={caseArchived ? pageText.archivedAppointmentBlocked : undefined}
+                          className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {pageText.delete}
                         </button>
@@ -1427,7 +1579,12 @@ export default function CaseDetailPage() {
             count={c.tasks.length}
             countLabel={pageText.item}
             action={
-              <button onClick={() => setTaskOpen(true)} className="btn btn-ghost">
+              <button
+                onClick={() => setTaskOpen(true)}
+                disabled={caseArchived}
+                title={caseArchived ? pageText.archivedTaskBlocked : undefined}
+                className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 {pageText.task}
               </button>
             }
@@ -1476,7 +1633,9 @@ export default function CaseDetailPage() {
                     <button
                       type="button"
                       onClick={() => deleteTask(task)}
-                      className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
+                      disabled={caseArchived}
+                      title={caseArchived ? pageText.archivedTaskBlocked : undefined}
+                      className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {pageText.delete}
                     </button>
@@ -1491,7 +1650,12 @@ export default function CaseDetailPage() {
             count={c.invoices.length}
             countLabel={pageText.item}
             action={
-              <button onClick={() => setInvoiceOpen(true)} className="btn btn-ghost">
+              <button
+                onClick={() => setInvoiceOpen(true)}
+                disabled={caseArchived}
+                title={caseArchived ? pageText.archivedInvoiceBlocked : undefined}
+                className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 {pageText.invoice}
               </button>
             }
@@ -1543,11 +1707,13 @@ export default function CaseDetailPage() {
                             <button
                               type="button"
                               onClick={() => deleteInvoice(invoice)}
-                              disabled={!!invoice.payment}
+                              disabled={!!invoice.payment || caseArchived}
                               title={
-                                invoice.payment
-                                  ? (isArabic ? 'لا يمكن حذف فاتورة مرتبطة بدفعة' : 'Cannot delete an invoice linked to a payment')
-                                  : (isArabic ? 'حذف الفاتورة' : 'Delete invoice')
+                                caseArchived
+                                  ? pageText.archivedInvoiceBlocked
+                                  : invoice.payment
+                                    ? (isArabic ? 'لا يمكن حذف فاتورة مرتبطة بدفعة' : 'Cannot delete an invoice linked to a payment')
+                                    : (isArabic ? 'حذف الفاتورة' : 'Delete invoice')
                               }
                               className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                             >
@@ -1629,6 +1795,11 @@ export default function CaseDetailPage() {
                           <button
                             type="button"
                             onClick={() => {
+                              if (caseArchived) {
+                                toast.error(pageText.archivedPaymentDeleteBlocked)
+                                return
+                              }
+
                               if (payment.invoice) {
                                 toast.error(
                                   isArabic
@@ -1641,12 +1812,14 @@ export default function CaseDetailPage() {
                               setDeleteId(payment.id)
                             }}
                             title={
-                              payment.invoice
-                                ? (isArabic ? 'دفعة مرتبطة بفاتورة' : 'Payment linked to an invoice')
-                                : (isArabic ? 'حذف الدفعة' : 'Delete payment')
+                              caseArchived
+                                ? pageText.archivedPaymentDeleteBlocked
+                                : payment.invoice
+                                  ? (isArabic ? 'دفعة مرتبطة بفاتورة' : 'Payment linked to an invoice')
+                                  : (isArabic ? 'حذف الدفعة' : 'Delete payment')
                             }
                             className={`text-sm transition-colors ${
-                              payment.invoice
+                              payment.invoice || caseArchived
                                 ? 'cursor-not-allowed text-gray-300'
                                 : 'text-red-400 hover:text-red-600'
                             }`}
@@ -1667,7 +1840,12 @@ export default function CaseDetailPage() {
             count={c.documents.length}
             countLabel={pageText.item}
             action={
-              <button onClick={() => setDocumentOpen(true)} className="btn btn-ghost">
+              <button
+                onClick={() => setDocumentOpen(true)}
+                disabled={caseArchived}
+                title={caseArchived ? pageText.archivedDocumentBlocked : undefined}
+                className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 {pageText.document}
               </button>
             }
@@ -1726,7 +1904,9 @@ export default function CaseDetailPage() {
                       <button
                         type="button"
                         onClick={() => deleteDocument(doc)}
-                        className="btn text-xs"
+                        disabled={caseArchived}
+                        title={caseArchived ? pageText.archivedDocumentBlocked : undefined}
+                        className="btn text-xs disabled:cursor-not-allowed disabled:opacity-40"
                         style={{
                           background: 'var(--red-soft)',
                           color: '#dc2626',
@@ -1753,6 +1933,19 @@ export default function CaseDetailPage() {
         title={pageText.addPaymentTitle}
       >
         <form onSubmit={addPayment} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+          {caseArchived && (
+            <div
+              className="rounded-2xl border p-3 text-xs font-bold leading-6"
+              style={{
+                background: '#fff7ed',
+                color: '#b45309',
+                borderColor: 'rgba(180, 83, 9, 0.22)',
+              }}
+            >
+              {pageText.archivedPaymentHint}
+            </div>
+          )}
+
           <FormField label={pageText.amount} required>
             <input
               dir="ltr"
@@ -1960,7 +2153,11 @@ export default function CaseDetailPage() {
               {pageText.cancel}
             </button>
 
-            <button type="submit" disabled={saving} className="btn btn-primary flex-1">
+            <button
+              type="submit"
+              disabled={saving || caseArchived}
+              className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+            >
               {saving ? pageText.saving : pageText.saveAppointment}
             </button>
           </div>
@@ -2047,7 +2244,11 @@ export default function CaseDetailPage() {
               {pageText.cancel}
             </button>
 
-            <button type="submit" disabled={saving} className="btn btn-primary flex-1">
+            <button
+              type="submit"
+              disabled={saving || caseArchived}
+              className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+            >
               {saving ? pageText.saving : pageText.saveTask}
             </button>
           </div>
@@ -2158,7 +2359,11 @@ export default function CaseDetailPage() {
               {pageText.cancel}
             </button>
 
-            <button type="submit" disabled={saving} className="btn btn-primary flex-1">
+            <button
+              type="submit"
+              disabled={saving || caseArchived}
+              className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+            >
               {saving ? pageText.creating : pageText.createInvoice}
             </button>
           </div>
@@ -2212,7 +2417,8 @@ export default function CaseDetailPage() {
           <input
             ref={documentInputRef}
             type="file"
-            className="input"
+            className="input disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={caseArchived}
             onChange={(event) => uploadCaseDocument(event.target.files?.[0])}
           />
 
@@ -2224,7 +2430,7 @@ export default function CaseDetailPage() {
               background: 'var(--green-soft)',
             }}
           >
-            {pageText.documentUploadHint}
+            {caseArchived ? pageText.archivedDocumentBlocked : pageText.documentUploadHint}
           </div>
 
           {uploadingDocument && (

@@ -21,13 +21,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </ThemeProvider>
 
-        <Toaster
-          position="bottom-left"
-          richColors
-          toastOptions={{
-            style: { fontFamily: 'Cairo, sans-serif', direction: 'rtl' },
-          }}
-        />
+<Toaster
+  position="bottom-left"
+  richColors
+  toastOptions={{
+    style: {
+      fontFamily: 'Cairo, sans-serif',
+      direction: 'inherit',
+      textAlign: 'start',
+      maxWidth: '460px',
+      lineHeight: '1.8',
+      borderRadius: '16px',
+      fontWeight: 700,
+    },
+  }}
+/>
       </body>
     </html>
   )

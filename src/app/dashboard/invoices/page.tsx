@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { CSSProperties, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
 import PageLoader from '@/components/ui/PageLoader'
 import EmptyState from '@/components/ui/EmptyState'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useLocale } from '@/lib/useLocale'
+import type { Locale } from '@/lib/i18n'
 import {
   buildInvoiceWhatsAppMessage,
   formatInvoiceNumber,
@@ -19,6 +21,7 @@ type InvoiceStatus = 'DRAFT' | 'UNPAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 interface ClientOption {
   id: string
   name: string
+  archivedAt?: string | null
 }
 
 interface CaseOption {
@@ -26,6 +29,11 @@ interface CaseOption {
   title: string
   caseNumber?: string | null
   clientId: string
+  client?: {
+    id?: string
+    name?: string
+    archivedAt?: string | null
+  } | null
 }
 
 interface InvoiceItem {
@@ -50,11 +58,17 @@ interface Invoice {
     name: string
     phone?: string | null
     email?: string | null
+    archivedAt?: string | null
   }
   case?: {
     id: string
     title: string
     caseNumber?: string | null
+    client?: {
+      id?: string
+      name?: string
+      archivedAt?: string | null
+    } | null
   } | null
   items: Array<{
     id: string
@@ -69,6 +83,238 @@ interface Invoice {
     status: string
     paidAt?: string | null
   } | null
+}
+
+
+const COPY = {
+  ar: {
+    hero: {
+      badge: 'إدارة الفواتير',
+      title: 'الفواتير',
+      subtitle:
+        'إنشاء وإدارة فواتير الموكلين والقضايا، متابعة الحالات المالية، وطباعة أو إرسال الفواتير بسهولة.',
+    },
+    actions: {
+      create: '+ إنشاء فاتورة',
+      refresh: 'تحديث',
+      search: 'بحث',
+      clear: 'مسح',
+      clearFilters: 'مسح الفلاتر',
+      view: 'عرض',
+      print: '🖨️ طباعة',
+      whatsapp: 'واتساب',
+      delete: 'حذف',
+      addItem: '+ إضافة بند',
+      saveInvoice: 'حفظ الفاتورة',
+      saving: 'جارٍ الحفظ...',
+      close: 'إغلاق',
+    },
+    stats: {
+      totalInvoices: 'عدد الفواتير',
+      allInvoices: 'كل الفواتير',
+      totalAmount: 'إجمالي الفواتير',
+      totalValue: 'القيمة الكلية',
+      paid: 'المدفوع',
+      invoice: (count: number) => `${count} فاتورة`,
+      unpaid: 'غير المحصل',
+      unpaidHint: 'غير مدفوعة/متأخرة',
+      overdue: 'المتأخرة',
+      overdueHint: 'تحتاج متابعة',
+      archivedClients: 'موكلون مؤرشفون',
+      archivedHint: 'فواتير سجلات مؤرشفة',
+    },
+    filters: {
+      searchPlaceholder: 'بحث برقم الفاتورة أو الموكل أو القضية...',
+      statusAria: 'فلترة الفواتير حسب الحالة',
+      allStatuses: 'كل الحالات',
+      archivedClient: 'موكل مؤرشف',
+    },
+    empty: {
+      title: 'لا توجد فواتير',
+      first: 'ابدأ بإنشاء أول فاتورة لموكل أو قضية',
+      filtered: 'لا توجد نتائج مطابقة للفلاتر الحالية',
+    },
+    list: {
+      title: 'قائمة الفواتير',
+      count: (count: number) => `${count} فاتورة ضمن النتائج الحالية`,
+      archivedOnly: 'فواتير موكلين مؤرشفين',
+      overdueCount: (count: number) => `${count} فاتورة متأخرة`,
+      noOverdue: 'لا توجد فواتير متأخرة',
+      archivedRecord: 'سجل مؤرشف',
+      archivedClient: 'موكل مؤرشف',
+      paidPayment: 'دفعة مدفوعة',
+      pendingPayment: 'دفعة معلّقة',
+    },
+    table: {
+      invoiceNumber: 'رقم الفاتورة',
+      client: 'الموكل',
+      case: 'القضية',
+      total: 'الإجمالي',
+      status: 'الحالة',
+      issueDate: 'الإصدار',
+      dueDate: 'الاستحقاق',
+      actions: 'إجراءات',
+    },
+    statuses: {
+      DRAFT: 'مسودة',
+      UNPAID: 'غير مدفوعة',
+      PAID: 'مدفوعة',
+      OVERDUE: 'متأخرة',
+      CANCELLED: 'ملغاة',
+    } as Record<InvoiceStatus, string>,
+    modal: {
+      title: 'إنشاء فاتورة جديدة',
+      subtitle: 'أضف بيانات الفاتورة والبنود المالية',
+      client: 'الموكل',
+      chooseClient: 'اختر الموكل',
+      case: 'القضية',
+      noCase: 'بدون قضية',
+      archivedWarning: 'لا يمكن إنشاء فاتورة جديدة لموكل مؤرشف أو قضية مرتبطة بموكل مؤرشف.',
+      dueDate: 'تاريخ الاستحقاق',
+      notes: 'ملاحظات',
+      notesPlaceholder: 'مثال: الدفعة الأولى من الأتعاب',
+      items: 'بنود الفاتورة',
+      itemDescription: 'وصف البند',
+      quantity: 'الكمية',
+      unitPrice: 'سعر الوحدة',
+      tax: 'الضريبة',
+      discount: 'الخصم',
+      finalTotal: 'الإجمالي النهائي',
+    },
+    messages: {
+      chooseClient: 'اختار الموكل',
+      archivedCreateBlocked: 'لا يمكن إنشاء فاتورة لموكل مؤرشف',
+      addOneItem: 'أضف بند واحد على الأقل',
+      createError: 'حدث خطأ أثناء إنشاء الفاتورة',
+      archivedStatusBlocked: 'الفاتورة مرتبطة بموكل مؤرشف. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.',
+      paidNeedsCase: 'لا يمكن تعليم الفاتورة كمدفوعة لأنها غير مرتبطة بقضية',
+      paidLinkedPaymentConfirm: 'سيتم تسجيل دفعة مرتبطة بالقضية عند تعليم الفاتورة كمدفوعة. هل تريد المتابعة؟',
+      statusUpdateError: 'تعذر تحديث حالة الفاتورة',
+      archivedDeleteBlocked: 'لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف',
+      linkedPaymentDeleteBlocked: 'لا يمكن حذف فاتورة مرتبطة بدفعة. غيّر حالة الفاتورة أو احذف الدفعة المرتبطة أولًا.',
+      confirmDelete: 'هل أنت متأكد من حذف هذه الفاتورة؟',
+      deleteError: 'تعذر حذف الفاتورة',
+      noPhone: 'لا يوجد رقم هاتف محفوظ لهذا الموكل',
+      deleteTitleArchived: 'لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف',
+      deleteTitlePayment: 'لا يمكن حذف فاتورة مرتبطة بدفعة',
+      deleteTitle: 'حذف الفاتورة',
+      changeStatusAria: (invoiceNumber: string) => `تغيير حالة الفاتورة ${invoiceNumber}`,
+    },
+  },
+  en: {
+    hero: {
+      badge: 'Invoice management',
+      title: 'Invoices',
+      subtitle:
+        'Create and manage client and case invoices, track financial statuses, and print or send invoices easily.',
+    },
+    actions: {
+      create: '+ Create invoice',
+      refresh: 'Refresh',
+      search: 'Search',
+      clear: 'Clear',
+      clearFilters: 'Clear filters',
+      view: 'View',
+      print: '🖨️ Print',
+      whatsapp: 'WhatsApp',
+      delete: 'Delete',
+      addItem: '+ Add item',
+      saveInvoice: 'Save invoice',
+      saving: 'Saving...',
+      close: 'Close',
+    },
+    stats: {
+      totalInvoices: 'Invoice count',
+      allInvoices: 'All invoices',
+      totalAmount: 'Total invoices',
+      totalValue: 'Total value',
+      paid: 'Paid',
+      invoice: (count: number) => `${count} invoice${count === 1 ? '' : 's'}`,
+      unpaid: 'Uncollected',
+      unpaidHint: 'Unpaid/overdue',
+      overdue: 'Overdue',
+      overdueHint: 'Needs follow-up',
+      archivedClients: 'Archived clients',
+      archivedHint: 'Archived-record invoices',
+    },
+    filters: {
+      searchPlaceholder: 'Search by invoice number, client, or case...',
+      statusAria: 'Filter invoices by status',
+      allStatuses: 'All statuses',
+      archivedClient: 'Archived client',
+    },
+    empty: {
+      title: 'No invoices',
+      first: 'Create the first invoice for a client or case',
+      filtered: 'No invoices match the current filters',
+    },
+    list: {
+      title: 'Invoice list',
+      count: (count: number) => `${count} invoice${count === 1 ? '' : 's'} in the current results`,
+      archivedOnly: 'Invoices for archived clients',
+      overdueCount: (count: number) => `${count} overdue invoice${count === 1 ? '' : 's'}`,
+      noOverdue: 'No overdue invoices',
+      archivedRecord: 'Archived record',
+      archivedClient: 'Archived client',
+      paidPayment: 'Paid payment',
+      pendingPayment: 'Pending payment',
+    },
+    table: {
+      invoiceNumber: 'Invoice number',
+      client: 'Client',
+      case: 'Case',
+      total: 'Total',
+      status: 'Status',
+      issueDate: 'Issue date',
+      dueDate: 'Due date',
+      actions: 'Actions',
+    },
+    statuses: {
+      DRAFT: 'Draft',
+      UNPAID: 'Unpaid',
+      PAID: 'Paid',
+      OVERDUE: 'Overdue',
+      CANCELLED: 'Cancelled',
+    } as Record<InvoiceStatus, string>,
+    modal: {
+      title: 'Create new invoice',
+      subtitle: 'Add invoice details and financial items',
+      client: 'Client',
+      chooseClient: 'Choose client',
+      case: 'Case',
+      noCase: 'No case',
+      archivedWarning: 'A new invoice cannot be created for an archived client or a case linked to an archived client.',
+      dueDate: 'Due date',
+      notes: 'Notes',
+      notesPlaceholder: 'Example: first legal-fee installment',
+      items: 'Invoice items',
+      itemDescription: 'Item description',
+      quantity: 'Quantity',
+      unitPrice: 'Unit price',
+      tax: 'Tax',
+      discount: 'Discount',
+      finalTotal: 'Final total',
+    },
+    messages: {
+      chooseClient: 'Choose a client',
+      archivedCreateBlocked: 'Cannot create an invoice for an archived client',
+      addOneItem: 'Add at least one item',
+      createError: 'An error occurred while creating the invoice',
+      archivedStatusBlocked: 'This invoice is linked to an archived client. Only Paid or Cancelled status is allowed.',
+      paidNeedsCase: 'The invoice cannot be marked as paid because it is not linked to a case',
+      paidLinkedPaymentConfirm: 'This invoice is paid and linked to a payment. The linked payment status will be updated according to the new status. Continue?',
+      statusUpdateError: 'Could not update invoice status',
+      archivedDeleteBlocked: 'Cannot delete an invoice linked to an archived client',
+      linkedPaymentDeleteBlocked: 'Cannot delete an invoice linked to a payment. Change the invoice status or delete the linked payment first.',
+      confirmDelete: 'Are you sure you want to delete this invoice?',
+      deleteError: 'Could not delete invoice',
+      noPhone: 'No phone number is saved for this client',
+      deleteTitleArchived: 'Cannot delete an invoice linked to an archived client',
+      deleteTitlePayment: 'Cannot delete an invoice linked to a payment',
+      deleteTitle: 'Delete invoice',
+      changeStatusAria: (invoiceNumber: string) => `Change invoice status ${invoiceNumber}`,
+    },
+  },
 }
 
 const statusLabels: Record<InvoiceStatus, string> = {
@@ -97,15 +343,72 @@ const STATUS_OPTIONS: Array<{ value: '' | InvoiceStatus; label: string }> = [
 ]
 
 function safeList(data: any) {
-  return Array.isArray(data?.data) ? data.data : data?.data?.items ?? []
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.data)) return data.data
+  if (Array.isArray(data?.items)) return data.items
+  if (Array.isArray(data?.clients)) return data.clients
+  if (Array.isArray(data?.cases)) return data.cases
+  if (Array.isArray(data?.invoices)) return data.invoices
+  if (Array.isArray(data?.data?.items)) return data.data.items
+  if (Array.isArray(data?.data?.clients)) return data.data.clients
+  if (Array.isArray(data?.data?.cases)) return data.data.cases
+  if (Array.isArray(data?.data?.invoices)) return data.data.invoices
+
+  return []
 }
 
 function getMessage(data: any, fallback: string) {
   return data?.message || data?.error || data?.data?.message || fallback
 }
 
+function isArchivedInvoice(invoice: Invoice) {
+  return Boolean(invoice.client?.archivedAt || invoice.case?.client?.archivedAt)
+}
+
+function isAllowedArchivedStatus(nextStatus: InvoiceStatus) {
+  return nextStatus === 'PAID' || nextStatus === 'CANCELLED'
+}
+
+function money(value: number, locale: Locale) {
+  if (!Number.isFinite(value) || value === 0) {
+    return locale === 'ar' ? '0 د.أ' : 'JOD 0.00'
+  }
+
+  if (locale === 'ar') return formatCurrency(value)
+
+  return `JOD ${Number(value).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 export default function InvoicesPage() {
   const router = useRouter()
+  const localeState = useLocale() as { locale?: Locale }
+  const locale = localeState?.locale === 'en' ? 'en' : 'ar'
+  const isRtl = locale === 'ar'
+  const copy = COPY[locale]
+
+  const fieldStyle = {
+    textAlign: isRtl ? 'right' : 'left',
+    direction: isRtl ? 'rtl' : 'ltr',
+  } as CSSProperties
+
+  const numberFieldStyle = {
+    textAlign: 'left',
+    direction: 'ltr',
+  } as CSSProperties
+
+  const statusOptions: Array<{ value: '' | InvoiceStatus; label: string }> = [
+    { value: '', label: copy.filters.allStatuses },
+    { value: 'DRAFT', label: copy.statuses.DRAFT },
+    { value: 'UNPAID', label: copy.statuses.UNPAID },
+    { value: 'PAID', label: copy.statuses.PAID },
+    { value: 'OVERDUE', label: copy.statuses.OVERDUE },
+    { value: 'CANCELLED', label: copy.statuses.CANCELLED },
+  ]
+
+  const formatMoney = (value: number) => money(value, locale)
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientOption[]>([])
@@ -117,6 +420,7 @@ export default function InvoicesPage() {
 
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<'' | InvoiceStatus>('')
+  const [archivedOnly, setArchivedOnly] = useState(false)
 
   const [open, setOpen] = useState(false)
   const [clientId, setClientId] = useState('')
@@ -131,8 +435,23 @@ export default function InvoicesPage() {
 
   const filteredCases = useMemo(() => {
     if (!clientId) return []
-    return cases.filter((item) => item.clientId === clientId)
+
+    return cases.filter((item) => {
+      return item.clientId === clientId && !item.client?.archivedAt
+    })
   }, [cases, clientId])
+
+  const selectedClient = useMemo(() => {
+    return clients.find((client) => client.id === clientId)
+  }, [clients, clientId])
+
+  const selectedCase = useMemo(() => {
+    return cases.find((item) => item.id === caseId)
+  }, [cases, caseId])
+
+  const selectedClientArchived = Boolean(selectedClient?.archivedAt)
+  const selectedCaseArchived = Boolean(selectedCase?.client?.archivedAt)
+  const selectedArchivedContext = selectedClientArchived || selectedCaseArchived
 
   const subtotal = useMemo(() => {
     return items.reduce((sum, item) => {
@@ -141,6 +460,12 @@ export default function InvoicesPage() {
   }, [items])
 
   const total = Math.max(subtotal + Number(tax || 0) - Number(discount || 0), 0)
+
+  const visibleInvoices = useMemo(() => {
+    if (!archivedOnly) return invoices
+
+    return invoices.filter(isArchivedInvoice)
+  }, [invoices, archivedOnly])
 
   const stats = useMemo(() => {
     const totalAmount = invoices.reduce((sum, invoice) => {
@@ -157,6 +482,7 @@ export default function InvoicesPage() {
 
     const overdueCount = invoices.filter((invoice) => invoice.status === 'OVERDUE').length
     const paidCount = invoices.filter((invoice) => invoice.status === 'PAID').length
+    const archivedCount = invoices.filter(isArchivedInvoice).length
 
     return {
       totalAmount,
@@ -164,6 +490,7 @@ export default function InvoicesPage() {
       unpaidAmount,
       overdueCount,
       paidCount,
+      archivedCount,
       totalCount: invoices.length,
     }
   }, [invoices])
@@ -192,20 +519,17 @@ export default function InvoicesPage() {
         return
       }
 
-      if (!invoiceRes.ok || !clientRes.ok || !caseRes.ok) {
-        setInvoices([])
-        setClients([])
-        setCases([])
-        return
-      }
+      const invoiceData = invoiceRes.ok ? await invoiceRes.json().catch(() => ({})) : {}
+      const clientData = clientRes.ok ? await clientRes.json().catch(() => ({})) : {}
+      const caseData = caseRes.ok ? await caseRes.json().catch(() => ({})) : {}
 
-      const invoiceData = await invoiceRes.json().catch(() => ({}))
-      const clientData = await clientRes.json().catch(() => ({}))
-      const caseData = await caseRes.json().catch(() => ({}))
+      if (!invoiceRes.ok) console.error('Invoices request failed:', invoiceRes.status)
+      if (!clientRes.ok) console.error('Clients request failed:', clientRes.status)
+      if (!caseRes.ok) console.error('Cases request failed:', caseRes.status)
 
       setInvoices(safeList(invoiceData))
-      setClients(safeList(clientData))
-      setCases(safeList(caseData))
+      setClients(safeList(clientData).filter((client: ClientOption) => !client.archivedAt))
+      setCases(safeList(caseData).filter((item: CaseOption) => !item.client?.archivedAt))
     } catch (error) {
       console.error('Invoices load failed:', error)
       setInvoices([])
@@ -269,14 +593,19 @@ export default function InvoicesPage() {
     event.preventDefault()
 
     if (!clientId) {
-      alert('اختار الموكل')
+      alert(copy.messages.chooseClient)
+      return
+    }
+
+    if (selectedArchivedContext) {
+      alert(copy.messages.archivedCreateBlocked)
       return
     }
 
     const cleanItems = items.filter((item) => item.description.trim())
 
     if (cleanItems.length === 0) {
-      alert('أضف بند واحد على الأقل')
+      alert(copy.messages.addOneItem)
       return
     }
 
@@ -300,7 +629,7 @@ export default function InvoicesPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        alert(getMessage(data, 'حدث خطأ أثناء إنشاء الفاتورة'))
+        alert(getMessage(data, copy.messages.createError))
         return
       }
 
@@ -308,7 +637,7 @@ export default function InvoicesPage() {
       resetForm()
       await load()
     } catch {
-      alert('حدث خطأ أثناء إنشاء الفاتورة')
+      alert(copy.messages.createError)
     } finally {
       setSaving(false)
     }
@@ -317,14 +646,21 @@ export default function InvoicesPage() {
   async function updateStatus(invoice: Invoice, nextStatus: InvoiceStatus) {
     if (invoice.status === nextStatus) return
 
+    const archivedInvoice = isArchivedInvoice(invoice)
+
+    if (archivedInvoice && !isAllowedArchivedStatus(nextStatus)) {
+      alert(copy.messages.archivedStatusBlocked)
+      return
+    }
+
     if (nextStatus === 'PAID' && !invoice.case) {
-      alert('لا يمكن تعليم الفاتورة كمدفوعة لأنها غير مرتبطة بقضية')
+      alert(copy.messages.paidNeedsCase)
       return
     }
 
     if (invoice.payment && invoice.status === 'PAID' && nextStatus !== 'PAID') {
       const confirmed = confirm(
-        'هذه الفاتورة مدفوعة ومرتبطة بدفعة. سيتم تحديث حالة الدفعة المرتبطة حسب الحالة الجديدة. هل تريد المتابعة؟'
+        copy.messages.paidLinkedPaymentConfirm
       )
 
       if (!confirmed) return
@@ -339,7 +675,7 @@ export default function InvoicesPage() {
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      alert(getMessage(data, 'تعذر تحديث حالة الفاتورة'))
+      alert(getMessage(data, copy.messages.statusUpdateError))
       return
     }
 
@@ -347,12 +683,19 @@ export default function InvoicesPage() {
   }
 
   async function deleteInvoice(invoice: Invoice) {
-    if (invoice.payment) {
-      alert('لا يمكن حذف فاتورة مرتبطة بدفعة. غيّر حالة الفاتورة أو احذف الدفعة المرتبطة أولًا.')
+    const archivedInvoice = isArchivedInvoice(invoice)
+
+    if (archivedInvoice) {
+      alert(copy.messages.archivedDeleteBlocked)
       return
     }
 
-    if (!confirm('هل أنت متأكد من حذف هذه الفاتورة؟')) return
+    if (invoice.payment) {
+      alert(copy.messages.linkedPaymentDeleteBlocked)
+      return
+    }
+
+    if (!confirm(copy.messages.confirmDelete)) return
 
     const response = await fetch(`/api/invoices/${invoice.id}`, {
       method: 'DELETE',
@@ -361,7 +704,7 @@ export default function InvoicesPage() {
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      alert(getMessage(data, 'تعذر حذف الفاتورة'))
+      alert(getMessage(data, copy.messages.deleteError))
       return
     }
 
@@ -376,7 +719,7 @@ export default function InvoicesPage() {
     const phone = normalizeWhatsAppPhone(invoice.client?.phone)
 
     if (!phone) {
-      alert('لا يوجد رقم هاتف محفوظ لهذا الموكل')
+      alert(copy.messages.noPhone)
       return
     }
 
@@ -392,12 +735,19 @@ export default function InvoicesPage() {
     router.push(`/dashboard/invoices/${invoice.id}`)
   }
 
+  function clearFilters() {
+    setQ('')
+    setStatus('')
+    setArchivedOnly(false)
+    setTimeout(load, 0)
+  }
+
   if (!mounted || loading) {
     return <PageLoader />
   }
 
   return (
-    <div className="space-y-5 stagger">
+    <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6"
@@ -418,7 +768,7 @@ export default function InvoicesPage() {
           style={{ background: 'rgba(255,255,255,0.08)' }}
         />
 
-        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="relative z-10 flex min-h-[126px] flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div
               className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
@@ -428,17 +778,17 @@ export default function InvoicesPage() {
                 border: '1px solid rgba(255,255,255,0.18)',
               }}
             >
-              إدارة الفواتير
+              {copy.hero.badge}
             </div>
 
-            <h1 className="text-2xl font-black text-white">الفواتير</h1>
+            <h1 className="text-2xl font-black text-white">{copy.hero.title}</h1>
 
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              إنشاء وإدارة فواتير الموكلين والقضايا، متابعة الحالات المالية، وطباعة أو إرسال الفواتير بسهولة.
+              {copy.hero.subtitle}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 items-center gap-2 self-center xl:self-auto">
             <button
               type="button"
               onClick={() => setOpen(true)}
@@ -449,7 +799,7 @@ export default function InvoicesPage() {
                 borderColor: 'rgba(255,255,255,0.32)',
               }}
             >
-              + إنشاء فاتورة
+              {copy.actions.create}
             </button>
 
             <button
@@ -462,49 +812,56 @@ export default function InvoicesPage() {
                 borderColor: 'rgba(255,255,255,0.22)',
               }}
             >
-              تحديث
+              {copy.actions.refresh}
             </button>
           </div>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         {[
           {
-            label: 'عدد الفواتير',
+            label: copy.stats.totalInvoices,
             value: stats.totalCount,
-            hint: 'كل الفواتير',
+            hint: copy.stats.allInvoices,
             color: 'var(--text)',
             bg: 'var(--card)',
           },
           {
-            label: 'إجمالي الفواتير',
-            value: formatCurrency(stats.totalAmount),
-            hint: 'القيمة الكلية',
+            label: copy.stats.totalAmount,
+            value: formatMoney(stats.totalAmount),
+            hint: copy.stats.totalValue,
             color: 'var(--text)',
             bg: 'var(--card)',
           },
           {
-            label: 'المدفوع',
-            value: formatCurrency(stats.paidAmount),
-            hint: `${stats.paidCount} فاتورة`,
+            label: copy.stats.paid,
+            value: formatMoney(stats.paidAmount),
+            hint: copy.stats.invoice(stats.paidCount),
             color: 'var(--sidebar)',
             bg: 'var(--green-soft)',
           },
           {
-            label: 'غير المحصل',
-            value: formatCurrency(stats.unpaidAmount),
-            hint: 'غير مدفوعة/متأخرة',
+            label: copy.stats.unpaid,
+            value: formatMoney(stats.unpaidAmount),
+            hint: copy.stats.unpaidHint,
             color: stats.unpaidAmount > 0 ? '#92400e' : 'var(--text-3)',
             bg: stats.unpaidAmount > 0 ? 'var(--amber-soft)' : 'var(--card)',
           },
           {
-            label: 'المتأخرة',
+            label: copy.stats.overdue,
             value: stats.overdueCount,
-            hint: 'تحتاج متابعة',
+            hint: copy.stats.overdueHint,
             color: stats.overdueCount > 0 ? '#dc2626' : 'var(--text)',
             bg: stats.overdueCount > 0 ? 'var(--red-soft)' : 'var(--card)',
+          },
+          {
+            label: copy.stats.archivedClients,
+            value: stats.archivedCount,
+            hint: copy.stats.archivedHint,
+            color: stats.archivedCount > 0 ? '#b45309' : 'var(--text)',
+            bg: stats.archivedCount > 0 ? 'rgba(180, 83, 9, 0.14)' : 'var(--card)',
           },
         ].map((item) => (
           <div
@@ -532,21 +889,25 @@ export default function InvoicesPage() {
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto_auto]">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto_auto_auto]">
           <input
             value={q}
             onChange={(event) => setQ(event.target.value)}
-            placeholder="بحث برقم الفاتورة أو الموكل أو القضية..."
+            placeholder={copy.filters.searchPlaceholder}
+            dir={isRtl ? 'rtl' : 'ltr'}
+            style={fieldStyle}
             className="input"
           />
 
           <select
-            aria-label="فلترة الفواتير حسب الحالة"
+            aria-label={copy.filters.statusAria}
+            dir={isRtl ? 'rtl' : 'ltr'}
+            style={fieldStyle}
             value={status}
             onChange={(event) => setStatus(event.target.value as '' | InvoiceStatus)}
             className="input"
           >
-            {STATUS_OPTIONS.map((item) => (
+            {statusOptions.map((item) => (
               <option key={item.value || 'all'} value={item.value}>
                 {item.label}
               </option>
@@ -554,34 +915,61 @@ export default function InvoicesPage() {
           </select>
 
           <button type="button" onClick={load} className="btn btn-primary whitespace-nowrap">
-            بحث
+            {copy.actions.search}
           </button>
 
           <button
             type="button"
-            onClick={() => {
-              setQ('')
-              setStatus('')
-              setTimeout(load, 0)
-            }}
+            onClick={() => setArchivedOnly((previous) => !previous)}
+            className="btn whitespace-nowrap"
+            style={
+              archivedOnly
+                ? {
+                    background: '#b45309',
+                    color: '#fff',
+                    borderColor: 'rgba(180, 83, 9, 0.25)',
+                  }
+                : {
+                    background: '#fff7ed',
+                    color: '#b45309',
+                    borderColor: 'rgba(180, 83, 9, 0.18)',
+                  }
+            }
+          >
+            {copy.filters.archivedClient}
+          </button>
+
+          <button
+            type="button"
+            onClick={clearFilters}
             className="btn btn-ghost whitespace-nowrap"
           >
-            مسح
+            {copy.actions.clear}
           </button>
         </div>
       </div>
 
       {/* Content */}
-      {invoices.length === 0 ? (
+      {visibleInvoices.length === 0 ? (
         <div className="card p-8">
           <EmptyState
             icon="🧾"
-            title="لا توجد فواتير"
-            sub="ابدأ بإنشاء أول فاتورة لموكل أو قضية"
+            title={copy.empty.title}
+            sub={
+              invoices.length === 0
+                ? copy.empty.first
+                : copy.empty.filtered
+            }
             action={
-              <button onClick={() => setOpen(true)} className="btn btn-primary">
-                + إنشاء فاتورة
-              </button>
+              invoices.length === 0 ? (
+                <button onClick={() => setOpen(true)} className="btn btn-primary">
+                  {copy.actions.create}
+                </button>
+              ) : (
+                <button onClick={clearFilters} className="btn btn-ghost">
+                  {copy.actions.clearFilters}
+                </button>
+              )
             }
           />
         </div>
@@ -593,20 +981,31 @@ export default function InvoicesPage() {
           >
             <div>
               <h2 className="font-black" style={{ color: 'var(--text)' }}>
-                قائمة الفواتير
+                {copy.list.title}
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                {invoices.length} فاتورة ضمن النتائج الحالية
+                {copy.list.count(visibleInvoices.length)}
               </p>
             </div>
 
-            {stats.overdueCount > 0 ? (
+            {archivedOnly ? (
+              <span
+                className="rounded-full px-3 py-1 text-xs font-black"
+                style={{
+                  background: '#fff7ed',
+                  color: '#b45309',
+                  border: '1px solid rgba(180, 83, 9, 0.18)',
+                }}
+              >
+                {copy.list.archivedOnly}
+              </span>
+            ) : stats.overdueCount > 0 ? (
               <span className="badge badge-red">
-                {stats.overdueCount} فاتورة متأخرة
+                {copy.list.overdueCount(stats.overdueCount)}
               </span>
             ) : (
-              <span className="badge badge-green">لا توجد فواتير متأخرة</span>
+              <span className="badge badge-green">{copy.list.noOverdue}</span>
             )}
           </div>
 
@@ -614,151 +1013,207 @@ export default function InvoicesPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>رقم الفاتورة</th>
-                  <th>الموكل</th>
-                  <th>القضية</th>
-                  <th>الإجمالي</th>
-                  <th>الحالة</th>
-                  <th>الإصدار</th>
-                  <th>الاستحقاق</th>
-                  <th>إجراءات</th>
+                  <th>{copy.table.invoiceNumber}</th>
+                  <th>{copy.table.client}</th>
+                  <th>{copy.table.case}</th>
+                  <th>{copy.table.total}</th>
+                  <th>{copy.table.status}</th>
+                  <th>{copy.table.issueDate}</th>
+                  <th>{copy.table.dueDate}</th>
+                  <th>{copy.table.actions}</th>
                 </tr>
               </thead>
 
               <tbody>
-                {invoices.map((invoice) => (
-                  <tr
-                    key={invoice.id}
-                    onClick={() => openInvoice(invoice)}
-                    className="cursor-pointer"
-                  >
-                    <td>
-                      <p className="font-black" style={{ color: 'var(--text)' }}>
-                        {formatInvoiceNumber(invoice.invoiceNumber)}
-                      </p>
+                {visibleInvoices.map((invoice) => {
+                  const archivedInvoice = isArchivedInvoice(invoice)
 
-                      {invoice.payment && (
-                        <p
-                          className="mt-1 text-[11px] font-bold"
-                          style={{
-                            color:
-                              invoice.payment.status === 'PAID'
-                                ? 'var(--sidebar)'
-                                : '#92400e',
-                          }}
-                        >
-                          {invoice.payment.status === 'PAID'
-                            ? 'دفعة مدفوعة'
-                            : 'دفعة معلّقة'}
+                  return (
+                    <tr
+                      key={invoice.id}
+                      onClick={() => openInvoice(invoice)}
+                      className="cursor-pointer"
+                    >
+                      <td>
+                        <p className="font-black" style={{ color: 'var(--text)' }}>
+                          {formatInvoiceNumber(invoice.invoiceNumber)}
                         </p>
-                      )}
-                    </td>
 
-                    <td>
-                      <p className="font-bold" style={{ color: 'var(--text)' }}>
-                        {invoice.client?.name || '-'}
-                      </p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {invoice.payment && (
+                            <span
+                              className="text-[11px] font-bold"
+                              style={{
+                                color:
+                                  invoice.payment.status === 'PAID'
+                                    ? 'var(--sidebar)'
+                                    : '#92400e',
+                              }}
+                            >
+                              {invoice.payment.status === 'PAID'
+                                ? copy.list.paidPayment
+                                : copy.list.pendingPayment}
+                            </span>
+                          )}
 
-                      {invoice.client?.phone && (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                          {invoice.client.phone}
-                        </p>
-                      )}
-                    </td>
-
-                    <td>
-                      {invoice.case ? (
-                        <div>
-                          <p className="font-bold" style={{ color: 'var(--text)' }}>
-                            {invoice.case.title}
-                          </p>
-
-                          {invoice.case.caseNumber && (
-                            <p className="mt-1 font-mono text-xs" style={{ color: 'var(--text-3)' }}>
-                              {invoice.case.caseNumber}
-                            </p>
+                          {archivedInvoice && (
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[10px] font-black"
+                              style={{
+                                background: '#fff7ed',
+                                color: '#b45309',
+                                border: '1px solid rgba(180, 83, 9, 0.18)',
+                              }}
+                            >
+                              {copy.list.archivedRecord}
+                            </span>
                           )}
                         </div>
-                      ) : (
-                        <span style={{ color: 'var(--text-3)' }}>-</span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="font-black" style={{ color: 'var(--sidebar)' }}>
-                      {formatCurrency(invoice.total)}
-                    </td>
+                      <td>
+                        <div className="flex flex-col gap-1">
+                          <p className="font-bold" style={{ color: 'var(--text)' }}>
+                            {invoice.client?.name || '-'}
+                          </p>
 
-                    <td>
-                      <span className={statusClasses[invoice.status]}>
-                        {statusLabels[invoice.status]}
-                      </span>
-                    </td>
+                          {invoice.client?.phone && (
+                            <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                              {invoice.client.phone}
+                            </p>
+                          )}
 
-                    <td>{formatDate(invoice.issueDate)}</td>
+                          {archivedInvoice && (
+                            <span
+                              className="inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-black"
+                              style={{
+                                background: '#fff7ed',
+                                color: '#b45309',
+                                border: '1px solid rgba(180, 83, 9, 0.18)',
+                              }}
+                            >
+                              {copy.list.archivedClient}
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
-                    <td>{invoice.dueDate ? formatDate(invoice.dueDate) : '-'}</td>
+                      <td>
+                        {invoice.case ? (
+                          <div>
+                            <p className="font-bold" style={{ color: 'var(--text)' }}>
+                              {invoice.case.title}
+                            </p>
 
-                    <td>
-                      <div
-                        className="flex flex-wrap gap-2"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => openInvoice(invoice)}
-                          className="rounded-xl px-3 py-2 text-xs font-bold transition hover:bg-black/5"
+                            {invoice.case.caseNumber && (
+                              <p
+                                className="mt-1 font-mono text-xs"
+                                style={{ color: 'var(--text-3)' }}
+                              >
+                                {invoice.case.caseNumber}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-3)' }}>-</span>
+                        )}
+                      </td>
+
+                      <td className="font-black" style={{ color: 'var(--sidebar)' }}>
+                        {formatMoney(invoice.total)}
+                      </td>
+
+                      <td>
+                        <span className={statusClasses[invoice.status]}>
+                          {copy.statuses[invoice.status]}
+                        </span>
+                      </td>
+
+                      <td>{formatDate(invoice.issueDate)}</td>
+
+                      <td>{invoice.dueDate ? formatDate(invoice.dueDate) : '-'}</td>
+
+                      <td>
+                        <div
+                          className="flex flex-wrap gap-2"
+                          onClick={(event) => event.stopPropagation()}
                         >
-                          عرض
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => openInvoice(invoice)}
+                            className="rounded-xl px-3 py-2 text-xs font-bold transition hover:bg-black/5"
+                          >
+                            {copy.actions.view}
+                          </button>
 
-                        <select
-                          aria-label={`تغيير حالة الفاتورة ${invoice.invoiceNumber}`}
-                          value={invoice.status}
-                          onChange={(event) =>
-                            updateStatus(invoice, event.target.value as InvoiceStatus)
-                          }
-                          className="input h-9 min-w-[130px] text-xs"
-                        >
-                          <option value="DRAFT">مسودة</option>
-                          <option value="UNPAID">غير مدفوعة</option>
-                          <option value="PAID">مدفوعة</option>
-                          <option value="OVERDUE">متأخرة</option>
-                          <option value="CANCELLED">ملغاة</option>
-                        </select>
+                          <select
+                            aria-label={copy.messages.changeStatusAria(invoice.invoiceNumber)}
+                            dir={isRtl ? 'rtl' : 'ltr'}
+                            style={fieldStyle}
+                            value={invoice.status}
+                            onChange={(event) =>
+                              updateStatus(invoice, event.target.value as InvoiceStatus)
+                            }
+                            className="input h-9 min-w-[130px] text-xs"
+                          >
+                            <option
+                              value="DRAFT"
+                              disabled={archivedInvoice && invoice.status !== 'DRAFT'}
+                            >
+                              {copy.statuses.DRAFT}
+                            </option>
+                            <option
+                              value="UNPAID"
+                              disabled={archivedInvoice && invoice.status !== 'UNPAID'}
+                            >
+                              {copy.statuses.UNPAID}
+                            </option>
+                            <option value="PAID">{copy.statuses.PAID}</option>
+                            <option
+                              value="OVERDUE"
+                              disabled={archivedInvoice && invoice.status !== 'OVERDUE'}
+                            >
+                              {copy.statuses.OVERDUE}
+                            </option>
+                            <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
+                          </select>
 
-                        <button
-                          type="button"
-                          onClick={() => printInvoice(invoice)}
-                          className="rounded-xl border border-black/10 px-3 py-2 text-xs font-bold transition hover:bg-black/5"
-                        >
-                          🖨️ طباعة
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => printInvoice(invoice)}
+                            className="rounded-xl border border-black/10 px-3 py-2 text-xs font-bold transition hover:bg-black/5"
+                          >
+                            {copy.actions.print}
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => sendInvoiceWhatsApp(invoice)}
-                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50"
-                        >
-                          واتساب
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => sendInvoiceWhatsApp(invoice)}
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50"
+                          >
+                            {copy.actions.whatsapp}
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => deleteInvoice(invoice)}
-                          disabled={!!invoice.payment}
-                          title={
-                            invoice.payment
-                              ? 'لا يمكن حذف فاتورة مرتبطة بدفعة'
-                              : 'حذف الفاتورة'
-                          }
-                          className="rounded-xl px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          حذف
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <button
+                            type="button"
+                            onClick={() => deleteInvoice(invoice)}
+                            disabled={!!invoice.payment || archivedInvoice}
+                            title={
+                              archivedInvoice
+                                ? copy.messages.deleteTitleArchived
+                                : invoice.payment
+                                  ? copy.messages.deleteTitlePayment
+                                  : copy.messages.deleteTitle
+                            }
+                            className="rounded-xl px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {copy.actions.delete}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -774,16 +1229,17 @@ export default function InvoicesPage() {
           <form
             onSubmit={createInvoice}
             onClick={(event) => event.stopPropagation()}
-            className="card max-h-[90vh] w-full max-w-4xl overflow-y-auto p-6"
+            dir={isRtl ? 'rtl' : 'ltr'}
+            className="card max-h-[90vh] w-full max-w-4xl overflow-y-auto p-6 text-start"
           >
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>
-                  إنشاء فاتورة جديدة
+                  {copy.modal.title}
                 </h2>
 
                 <p className="mt-1 text-sm" style={{ color: 'var(--text-3)' }}>
-                  أضف بيانات الفاتورة والبنود المالية
+                  {copy.modal.subtitle}
                 </p>
               </div>
 
@@ -798,7 +1254,7 @@ export default function InvoicesPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-sm font-bold">الموكل</span>
+                <span className="text-sm font-bold">{copy.modal.client}</span>
 
                 <select
                   value={clientId}
@@ -807,9 +1263,11 @@ export default function InvoicesPage() {
                     setCaseId('')
                   }}
                   className="input"
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                  style={fieldStyle}
                   required
                 >
-                  <option value="">اختر الموكل</option>
+                  <option value="">{copy.modal.chooseClient}</option>
 
                   {clients.map((client) => (
                     <option key={client.id} value={client.id}>
@@ -820,15 +1278,17 @@ export default function InvoicesPage() {
               </label>
 
               <label className="space-y-2">
-                <span className="text-sm font-bold">القضية</span>
+                <span className="text-sm font-bold">{copy.modal.case}</span>
 
                 <select
                   value={caseId}
                   onChange={(event) => setCaseId(event.target.value)}
                   className="input"
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                  style={fieldStyle}
                   disabled={!clientId}
                 >
-                  <option value="">بدون قضية</option>
+                  <option value="">{copy.modal.noCase}</option>
 
                   {filteredCases.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -839,24 +1299,41 @@ export default function InvoicesPage() {
                 </select>
               </label>
 
+              {selectedArchivedContext && (
+                <div
+                  className="md:col-span-2 rounded-2xl border p-3 text-xs font-bold"
+                  style={{
+                    background: '#fff7ed',
+                    color: '#b45309',
+                    borderColor: 'rgba(180, 83, 9, 0.22)',
+                  }}
+                >
+                  {copy.modal.archivedWarning}
+                </div>
+              )}
+
               <label className="space-y-2">
-                <span className="text-sm font-bold">تاريخ الاستحقاق</span>
+                <span className="text-sm font-bold">{copy.modal.dueDate}</span>
 
                 <input
                   type="date"
                   value={dueDate}
+                  dir="ltr"
+                  style={numberFieldStyle}
                   onChange={(event) => setDueDate(event.target.value)}
                   className="input"
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="text-sm font-bold">ملاحظات</span>
+                <span className="text-sm font-bold">{copy.modal.notes}</span>
 
                 <input
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="مثال: الدفعة الأولى من الأتعاب"
+                  placeholder={copy.modal.notesPlaceholder}
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                  style={fieldStyle}
                   className="input"
                 />
               </label>
@@ -865,11 +1342,11 @@ export default function InvoicesPage() {
             <div className="mt-6">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-black" style={{ color: 'var(--text)' }}>
-                  بنود الفاتورة
+                  {copy.modal.items}
                 </h3>
 
                 <button type="button" onClick={addItem} className="btn btn-ghost">
-                  + إضافة بند
+                  {copy.actions.addItem}
                 </button>
               </div>
 
@@ -885,7 +1362,9 @@ export default function InvoicesPage() {
                       onChange={(event) =>
                         updateItem(index, 'description', event.target.value)
                       }
-                      placeholder="وصف البند"
+                      placeholder={copy.modal.itemDescription}
+                      dir={isRtl ? 'rtl' : 'ltr'}
+                      style={fieldStyle}
                       className="input"
                     />
 
@@ -897,7 +1376,9 @@ export default function InvoicesPage() {
                       onChange={(event) =>
                         updateItem(index, 'quantity', event.target.value)
                       }
-                      placeholder="الكمية"
+                      placeholder={copy.modal.quantity}
+                      dir="ltr"
+                      style={numberFieldStyle}
                       className="input"
                     />
 
@@ -909,7 +1390,9 @@ export default function InvoicesPage() {
                       onChange={(event) =>
                         updateItem(index, 'unitPrice', event.target.value)
                       }
-                      placeholder="سعر الوحدة"
+                      placeholder={copy.modal.unitPrice}
+                      dir="ltr"
+                      style={numberFieldStyle}
                       className="input"
                     />
 
@@ -919,7 +1402,7 @@ export default function InvoicesPage() {
                       disabled={items.length === 1}
                       className="rounded-xl px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-40"
                     >
-                      حذف
+                      {copy.actions.delete}
                     </button>
                   </div>
                 ))}
@@ -928,26 +1411,30 @@ export default function InvoicesPage() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <label className="space-y-2">
-                <span className="text-sm font-bold">الضريبة</span>
+                <span className="text-sm font-bold">{copy.modal.tax}</span>
 
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={tax}
+                  dir="ltr"
+                  style={numberFieldStyle}
                   onChange={(event) => setTax(Number(event.target.value || 0))}
                   className="input"
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="text-sm font-bold">الخصم</span>
+                <span className="text-sm font-bold">{copy.modal.discount}</span>
 
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={discount}
+                  dir="ltr"
+                  style={numberFieldStyle}
                   onChange={(event) => setDiscount(Number(event.target.value || 0))}
                   className="input"
                 />
@@ -958,22 +1445,26 @@ export default function InvoicesPage() {
                 style={{ borderColor: 'var(--border)' }}
               >
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-                  الإجمالي النهائي
+                  {copy.modal.finalTotal}
                 </p>
 
                 <p className="mt-1 text-2xl font-black" style={{ color: 'var(--sidebar)' }}>
-                  {formatCurrency(total)}
+                  {formatMoney(total)}
                 </p>
               </div>
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={closeModal} className="btn btn-ghost">
-                إلغاء
+                {copy.actions.clear}
               </button>
 
-              <button type="submit" disabled={saving} className="btn btn-primary">
-                {saving ? 'جارٍ الحفظ...' : 'حفظ الفاتورة'}
+              <button
+                type="submit"
+                disabled={saving || selectedArchivedContext}
+                className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? copy.actions.saving : copy.actions.saveInvoice}
               </button>
             </div>
           </form>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -23,15 +23,15 @@ interface Case {
   caseNumber?: string
   status: string
   feeAgreed: number
-  clientId: string
-  client: {
+
+  client?: {
     id?: string
     name: string
+    archivedAt?: string | null
   }
-  payments: {
-    amount: number
-    status: string
-  }[]
+
+  payments: { amount: number; status: string }[]
+
   _count?: {
     appointments: number
     documents: number
@@ -41,9 +41,18 @@ interface Case {
 interface ClientOpt {
   id: string
   name: string
+  archivedAt?: string | null
 }
 
-const STATUS_KEYS = ['all', 'OPEN', 'IN_PROGRESS', 'CLOSED', 'ARCHIVED'] as const
+const STATUS_KEYS = [
+  'all',
+  'OPEN',
+  'IN_PROGRESS',
+  'CLOSED',
+  'ARCHIVED',
+  'ARCHIVED_CLIENT',
+] as const
+
 type StatusFilter = (typeof STATUS_KEYS)[number]
 
 const STATUS_BADGE: Record<string, string> = {
@@ -57,6 +66,7 @@ const COPY = {
   ar: {
     loadError: 'فشل تحميل القضايا',
     requiredError: 'الموكل وعنوان القضية مطلوبان',
+    archivedClientCreateError: 'لا يمكن إنشاء قضية جديدة لموكل مؤرشف',
     created: 'تمت إضافة القضية',
     addError: 'تعذر إضافة القضية',
     addUnexpected: 'حدث خطأ أثناء إضافة القضية',
@@ -64,6 +74,8 @@ const COPY = {
     planLimitFallback: 'وصلت إلى حد القضايا المسموح في خطتك الحالية.',
     viewBilling: 'عرض الاشتراك',
     close: 'إغلاق',
+    archivedClientBadge: 'موكل مؤرشف',
+    openClientFile: 'فتح ملف الموكل ←',
     hero: {
       badge: 'إدارة القضايا',
       title: 'القضايا',
@@ -76,6 +88,7 @@ const COPY = {
       inProgress: 'قيد المتابعة',
       closed: 'مغلقة',
       archived: 'مؤرشفة',
+      archivedClients: 'موكلون مؤرشفون',
       totalFees: 'إجمالي الأتعاب',
       paid: 'المدفوع',
       remaining: 'المتبقي',
@@ -83,9 +96,6 @@ const COPY = {
     filters: {
       searchAria: 'البحث في القضايا',
       searchPlaceholder: 'ابحث في رقم القضية، العنوان أو اسم الموكل...',
-      clientAria: 'فلترة حسب الموكل',
-      allClients: 'جميع الموكلين',
-      filter: 'تصفية',
       clear: 'مسح الفلاتر',
       statuses: {
         all: 'الكل',
@@ -93,6 +103,7 @@ const COPY = {
         IN_PROGRESS: 'قيد المتابعة',
         CLOSED: 'مغلقة',
         ARCHIVED: 'مؤرشفة',
+        ARCHIVED_CLIENT: 'موكل مؤرشف',
       },
     },
     empty: {
@@ -110,8 +121,6 @@ const COPY = {
       appointments: 'المواعيد',
       documents: 'المستندات',
       status: 'الحالة',
-      openClient: 'فتح الملف',
-      openClientTitle: 'فتح ملف الموكل',
     },
     modal: {
       title: 'إضافة قضية جديدة',
@@ -129,6 +138,7 @@ const COPY = {
   en: {
     loadError: 'Failed to load cases',
     requiredError: 'Client and case title are required',
+    archivedClientCreateError: 'You cannot create a new case for an archived client',
     created: 'Case added successfully',
     addError: 'Could not add case',
     addUnexpected: 'Something went wrong while adding the case',
@@ -136,6 +146,8 @@ const COPY = {
     planLimitFallback: 'You have reached the case limit allowed by your current plan.',
     viewBilling: 'View billing',
     close: 'Close',
+    archivedClientBadge: 'Archived client',
+    openClientFile: 'Open client file →',
     hero: {
       badge: 'Case management',
       title: 'Cases',
@@ -148,6 +160,7 @@ const COPY = {
       inProgress: 'In progress',
       closed: 'Closed',
       archived: 'Archived',
+      archivedClients: 'Archived clients',
       totalFees: 'Total fees',
       paid: 'Paid',
       remaining: 'Remaining',
@@ -155,9 +168,6 @@ const COPY = {
     filters: {
       searchAria: 'Search cases',
       searchPlaceholder: 'Search by case number, title, or client name...',
-      clientAria: 'Filter by client',
-      allClients: 'All clients',
-      filter: 'Filter',
       clear: 'Clear filters',
       statuses: {
         all: 'All',
@@ -165,6 +175,7 @@ const COPY = {
         IN_PROGRESS: 'In progress',
         CLOSED: 'Closed',
         ARCHIVED: 'Archived',
+        ARCHIVED_CLIENT: 'Archived client',
       },
     },
     empty: {
@@ -182,8 +193,6 @@ const COPY = {
       appointments: 'Appointments',
       documents: 'Documents',
       status: 'Status',
-      openClient: 'Open client',
-      openClientTitle: 'Open client file',
     },
     modal: {
       title: 'Add new case',
@@ -216,6 +225,10 @@ function formatMoney(value: number) {
   })
 
   return `JOD ${amount}`
+}
+
+function isArchivedClientCase(item: Case) {
+  return Boolean(item.client?.archivedAt)
 }
 
 function PlanLimitBanner({
@@ -264,13 +277,19 @@ export default function CasesPage() {
   const [saving, setSaving] = useState(false)
   const [planLimit, setPlanLimit] = useState('')
 
+  const selectedClient = useMemo(() => {
+    return clients.find((client) => client.id === form.clientId)
+  }, [clients, form.clientId])
+
+  const selectedClientArchived = Boolean(selectedClient?.archivedAt)
+
   const load = useCallback(async () => {
     try {
       setLoading(true)
 
       const [casesRes, clientsRes] = await Promise.all([
-        fetch('/api/cases?page=1&limit=100'),
-        fetch('/api/clients?page=1&limit=100'),
+        fetch('/api/cases?page=1&limit=100&includeArchivedClients=true'),
+        fetch('/api/clients?page=1&limit=100&archive=active'),
       ])
 
       if (!casesRes.ok || !clientsRes.ok) {
@@ -286,7 +305,9 @@ export default function CasesPage() {
 
       setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : [])
       setClients(
-        Array.isArray(clientsData.data?.data) ? clientsData.data.data : []
+        Array.isArray(clientsData.data?.data)
+          ? clientsData.data.data.filter((client: ClientOpt) => !client.archivedAt)
+          : []
       )
     } catch {
       toast.error(text.loadError)
@@ -305,6 +326,7 @@ export default function CasesPage() {
   const progressCount = cases.filter((item) => item.status === 'IN_PROGRESS').length
   const closedCount = cases.filter((item) => item.status === 'CLOSED').length
   const archivedCount = cases.filter((item) => item.status === 'ARCHIVED').length
+  const archivedClientCount = cases.filter(isArchivedClientCase).length
 
   function paid(item: Case) {
     return item.payments
@@ -327,7 +349,12 @@ export default function CasesPage() {
     const query = search.trim().toLowerCase()
 
     return cases.filter((item) => {
-      const matchesStatus = filter === 'all' || item.status === filter
+      const matchesStatus =
+        filter === 'all' ||
+        (filter === 'ARCHIVED_CLIENT'
+          ? isArchivedClientCase(item)
+          : item.status === filter)
+
       const matchesSearch =
         !query ||
         item.title?.toLowerCase().includes(query) ||
@@ -343,6 +370,11 @@ export default function CasesPage() {
 
     if (!form.clientId || !form.title.trim()) {
       toast.error(text.requiredError)
+      return
+    }
+
+    if (selectedClientArchived) {
+      toast.error(text.archivedClientCreateError)
       return
     }
 
@@ -381,9 +413,7 @@ export default function CasesPage() {
 
   function f(key: keyof typeof INIT) {
     return (
-      event: React.ChangeEvent<
-        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-      >
+      event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
     ) => {
       setForm((previous) => ({
         ...previous,
@@ -472,7 +502,7 @@ export default function CasesPage() {
       </div>
 
       {/* Status Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           {
             label: text.stats.active,
@@ -498,6 +528,12 @@ export default function CasesPage() {
             color: 'var(--text-2)',
             bg: 'var(--card)',
           },
+          {
+            label: text.stats.archivedClients,
+            value: archivedClientCount,
+            color: archivedClientCount > 0 ? '#b45309' : 'var(--text-2)',
+            bg: archivedClientCount > 0 ? '#fff7ed' : 'var(--card)',
+          },
         ].map((item) => (
           <div
             key={item.label}
@@ -511,76 +547,86 @@ export default function CasesPage() {
               {item.label}
             </p>
 
-            <p className="mt-2 text-2xl font-black leading-tight" style={{ color: item.color }}>
+            <p
+              className="mt-2 text-2xl font-black leading-tight"
+              style={{ color: item.color }}
+            >
               {item.value}
             </p>
           </div>
         ))}
       </div>
 
-{/* Filters */}
-<div className="card p-4" dir={isRtl ? 'rtl' : 'ltr'}>
-  <div className="grid grid-cols-1 gap-3">
-    <input
-      dir={isRtl ? 'rtl' : 'ltr'}
-      aria-label={text.filters.searchAria}
-      value={search}
-      onChange={(event) => setSearch(event.target.value)}
-      placeholder={text.filters.searchPlaceholder}
-      className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
-      style={{
-        textAlign: isRtl ? 'right' : 'left',
-        direction: isRtl ? 'rtl' : 'ltr',
-      }}
-    />
-  </div>
+      {/* Filters */}
+      <div className="card p-4" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="grid grid-cols-1 gap-3">
+          <input
+            dir={isRtl ? 'rtl' : 'ltr'}
+            aria-label={text.filters.searchAria}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={text.filters.searchPlaceholder}
+            className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
+            style={{
+              textAlign: isRtl ? 'right' : 'left',
+              direction: isRtl ? 'rtl' : 'ltr',
+            }}
+          />
+        </div>
 
-<div
-  className="mt-4 flex w-full flex-wrap gap-2"
-  dir={isRtl ? 'rtl' : 'ltr'}
-  style={{
-    justifyContent: 'flex-start',
-    direction: isRtl ? 'rtl' : 'ltr',
-  }}
->
-    {STATUS_KEYS.map((key) => (
-      <button
-        key={key}
-        type="button"
-        onClick={() => setFilter(key)}
-        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-        style={
-          filter === key
-            ? {
-                background: 'var(--sidebar)',
-                color: '#fff',
+        <div
+          className="mt-4 flex w-full flex-wrap gap-2"
+          dir={isRtl ? 'rtl' : 'ltr'}
+          style={{
+            justifyContent: 'flex-start',
+            direction: isRtl ? 'rtl' : 'ltr',
+          }}
+        >
+          {STATUS_KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFilter(key)}
+              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+              style={
+                filter === key
+                  ? {
+                      background:
+                        key === 'ARCHIVED_CLIENT' ? '#b45309' : 'var(--sidebar)',
+                      color: '#fff',
+                    }
+                  : {
+                      background:
+                        key === 'ARCHIVED_CLIENT' ? '#fff7ed' : 'var(--green-soft)',
+                      color:
+                        key === 'ARCHIVED_CLIENT' ? '#b45309' : 'var(--text-2)',
+                      border:
+                        key === 'ARCHIVED_CLIENT'
+                          ? '1px solid rgba(180, 83, 9, 0.18)'
+                          : undefined,
+                    }
               }
-            : {
-                background: 'var(--green-soft)',
+            >
+              {text.filters.statuses[key]}
+            </button>
+          ))}
+
+          {(search || filter !== 'all') && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+              style={{
+                background: 'var(--card)',
                 color: 'var(--text-2)',
-              }
-        }
-      >
-        {text.filters.statuses[key]}
-      </button>
-    ))}
-
-    {(search || filter !== 'all') && (
-      <button
-        type="button"
-        onClick={clearFilters}
-        className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-        style={{
-          background: 'var(--card)',
-          color: 'var(--text-2)',
-          border: '1px solid var(--border)',
-        }}
-      >
-        {text.filters.clear}
-      </button>
-    )}
-  </div>
-</div>
+                border: '1px solid var(--border)',
+              }}
+            >
+              {text.filters.clear}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Financial Summary */}
       <div className="grid gap-3 sm:grid-cols-3">
@@ -647,6 +693,7 @@ export default function CasesPage() {
                 {filtered.map((item) => {
                   const paidAmount = paid(item)
                   const remainingAmount = remaining(item)
+                  const archivedClient = isArchivedClientCase(item)
 
                   return (
                     <tr
@@ -670,7 +717,22 @@ export default function CasesPage() {
                       </td>
 
                       <td className="whitespace-nowrap font-semibold">
-                        {item.client?.name}
+                        <div className="flex flex-col gap-1">
+                          <span>{item.client?.name}</span>
+
+                          {archivedClient && (
+                            <span
+                              className="w-fit rounded-full border px-2 py-0.5 text-[11px] font-black"
+                              style={{
+                                background: '#fff7ed',
+                                borderColor: 'rgba(180, 83, 9, 0.22)',
+                                color: '#b45309',
+                              }}
+                            >
+                              {text.archivedClientBadge}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td
@@ -711,27 +773,42 @@ export default function CasesPage() {
                       </td>
 
                       <td>
-                        <span className={STATUS_BADGE[item.status] ?? 'badge badge-gray'}>
-                          {text.filters.statuses[
-                            item.status as keyof typeof text.filters.statuses
-                          ] ?? item.status}
-                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          <span className={STATUS_BADGE[item.status] ?? 'badge badge-gray'}>
+                            {text.filters.statuses[
+                              item.status as keyof typeof text.filters.statuses
+                            ] ?? item.status}
+                          </span>
+
+                          {archivedClient && (
+                            <span
+                              className="rounded-full border px-2.5 py-1 text-xs font-black"
+                              style={{
+                                background: '#fff7ed',
+                                color: '#b45309',
+                                borderColor: 'rgba(180, 83, 9, 0.22)',
+                              }}
+                            >
+                              {text.archivedClientBadge}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td onClick={(event) => event.stopPropagation()}>
-                        <Link
-                          href={`/dashboard/clients/${item.clientId}`}
-                          className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition-all hover:-translate-y-0.5 hover:shadow-md"
-                          style={{
-                            borderColor: 'var(--border)',
-                            background: 'var(--green-soft)',
-                            color: 'var(--sidebar)',
-                          }}
-                          title={text.table.openClientTitle}
-                        >
-                          {text.table.openClient}
-                          <span>{isRtl ? '←' : '→'}</span>
-                        </Link>
+                        {item.client?.id && (
+                          <Link
+                            href={`/dashboard/clients/${item.client.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{
+                              borderColor: 'var(--border)',
+                              color: 'var(--text-2)',
+                            }}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {text.openClientFile}
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   )
@@ -773,6 +850,19 @@ export default function CasesPage() {
             </select>
           </FormField>
 
+          {selectedClientArchived && (
+            <div
+              className="rounded-2xl border p-3 text-xs font-bold"
+              style={{
+                background: '#fff7ed',
+                color: '#b45309',
+                borderColor: 'rgba(180, 83, 9, 0.22)',
+              }}
+            >
+              {text.archivedClientCreateError}
+            </div>
+          )}
+
           <FormField label={text.modal.caseTitle} required>
             <input
               dir={isRtl ? 'rtl' : 'ltr'}
@@ -794,10 +884,10 @@ export default function CasesPage() {
                 value={form.caseNumber}
                 onChange={f('caseNumber')}
                 className={`input ${isRtl ? '!text-right' : '!text-left'}`}
-              style={{
-                textAlign: isRtl ? 'right' : 'left',
-                direction: isRtl ? 'rtl' : 'ltr',
-              }}
+                style={{
+                  textAlign: isRtl ? 'right' : 'left',
+                  direction: isRtl ? 'rtl' : 'ltr',
+                }}
               />
             </FormField>
 
@@ -831,18 +921,18 @@ export default function CasesPage() {
           </FormField>
 
           <FormField label={text.modal.description}>
-<textarea
-  dir={isRtl ? 'rtl' : 'ltr'}
-  value={form.description}
-  onChange={f('description')}
-  className={`input min-h-[105px] resize-none ${
-    isRtl ? '!text-right' : '!text-left'
-  }`}
-  style={{
-    textAlign: isRtl ? 'right' : 'left',
-    direction: isRtl ? 'rtl' : 'ltr',
-  }}
-/>
+            <textarea
+              dir={isRtl ? 'rtl' : 'ltr'}
+              value={form.description}
+              onChange={f('description')}
+              className={`input min-h-[105px] resize-none ${
+                isRtl ? '!text-right' : '!text-left'
+              }`}
+              style={{
+                textAlign: isRtl ? 'right' : 'left',
+                direction: isRtl ? 'rtl' : 'ltr',
+              }}
+            />
           </FormField>
 
           <div className={`flex gap-2 pt-1 ${isRtl ? 'flex-row' : 'flex-row-reverse'}`}>
@@ -859,8 +949,8 @@ export default function CasesPage() {
 
             <button
               type="submit"
-              disabled={saving}
-              className="btn btn-primary flex-1"
+              disabled={saving || selectedClientArchived}
+              className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? <span className="spinner spinner-sm" /> : text.modal.save}
             </button>

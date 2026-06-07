@@ -63,7 +63,10 @@ function calculateTotals(
   }
 }
 
-async function generateInvoiceNumber(tenantId: string, tx: Prisma.TransactionClient = prisma) {
+async function generateInvoiceNumber(
+  tenantId: string,
+  tx: Prisma.TransactionClient = prisma
+) {
   const year = new Date().getFullYear()
   const prefix = `INV-${year}-`
 
@@ -128,6 +131,7 @@ export async function GET(req: NextRequest) {
             name: true,
             phone: true,
             email: true,
+            archivedAt: true,
           },
         },
         case: {
@@ -135,6 +139,13 @@ export async function GET(req: NextRequest) {
             id: true,
             title: true,
             caseNumber: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
           },
         },
         items: true,
@@ -178,10 +189,20 @@ export async function POST(req: NextRequest) {
         id: data.clientId,
         tenantId: auth.user.tenantId,
       },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        archivedAt: true,
+      },
     })
 
-    if (!client) return err('الموكل غير موجود داخل هذا المكتب', 404)
+    if (!client) {
+      return err('الموكل غير موجود داخل هذا المكتب', 404)
+    }
+
+    if (client.archivedAt) {
+      return err('لا يمكن إنشاء فاتورة لموكل مؤرشف', 400)
+    }
 
     if (caseId) {
       const selectedCase = await prisma.case.findFirst({
@@ -190,10 +211,24 @@ export async function POST(req: NextRequest) {
           tenantId: auth.user.tenantId,
           clientId: data.clientId,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          client: {
+            select: {
+              id: true,
+              archivedAt: true,
+            },
+          },
+        },
       })
 
-      if (!selectedCase) return err('القضية غير موجودة لهذا الموكل', 404)
+      if (!selectedCase) {
+        return err('القضية غير موجودة لهذا الموكل', 404)
+      }
+
+      if (selectedCase.client?.archivedAt) {
+        return err('لا يمكن إنشاء فاتورة لقضية موكلها مؤرشف', 400)
+      }
     }
 
     let invoice: Awaited<ReturnType<typeof prisma.invoice.create>> | null = null
@@ -221,8 +256,29 @@ export async function POST(req: NextRequest) {
               },
             },
             include: {
-              client: true,
-              case: true,
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                  email: true,
+                  archivedAt: true,
+                },
+              },
+              case: {
+                select: {
+                  id: true,
+                  title: true,
+                  caseNumber: true,
+                  client: {
+                    select: {
+                      id: true,
+                      name: true,
+                      archivedAt: true,
+                    },
+                  },
+                },
+              },
               items: true,
               payment: true,
             },
