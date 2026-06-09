@@ -18,9 +18,9 @@ model Tenant {
   isSuspended   Boolean        @default(false)
   maxUsers      Int            @default(5)
   status        TenantStatus   @default(ACTIVE)
-  aiEnabled   Boolean   @default(false)
-  aiConsentAt DateTime?
-  aiConsentBy String?
+  aiEnabled     Boolean        @default(false)
+  aiConsentAt   DateTime?
+  aiConsentBy   String?
   trialEndsAt   DateTime?
   address       String?
   email         String?
@@ -37,23 +37,142 @@ model Tenant {
   sessions      Session[]
   tasks         Task[]
   users         User[]
+
+  subscriptions        Subscription[]
+  subscriptionPayments SubscriptionPayment[]
+}
+
+model BillingPlan {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  description String?
+  currency    String  @default("JOD")
+
+  priceMonthly Int @default(0) // بالفلس: 15000 = 15 JOD
+  priceYearly  Int @default(0) // بالفلس
+
+  maxUsers     Int     @default(1)
+  maxClients   Int     @default(25)
+  maxCases     Int     @default(25)
+  maxDocuments Int     @default(100)
+  maxStorageMb Int     @default(500)
+  aiEnabled    Boolean @default(false)
+
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id       String @id @default(cuid())
+  tenantId String
+  planId   String
+
+  provider               BillingProvider @default(MANUAL)
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  providerAgreementId    String?
+
+  status   SubscriptionStatus @default(TRIALING)
+  interval BillingInterval    @default(MONTHLY)
+
+  currency String @default("JOD")
+  amount   Int    @default(0) // بالفلس
+
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+
+  cancelAtPeriodEnd Boolean   @default(false)
+  cancelledAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan     BillingPlan           @relation(fields: [planId], references: [id])
+  payments SubscriptionPayment[]
+
+  @@index([tenantId])
+  @@index([planId])
+  @@index([status])
+  @@index([provider])
+  @@index([currentPeriodEnd])
+}
+
+model SubscriptionPayment {
+  id             String @id @default(cuid())
+  tenantId       String
+  subscriptionId String
+
+  provider          BillingProvider @default(MANUAL)
+  providerChargeId  String?
+  providerInvoiceId String?
+
+  amount   Int    @default(0) // بالفلس
+  currency String @default("JOD")
+  status   String @default("PENDING")
+
+  paidAt DateTime?
+  raw    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@index([provider])
+  @@index([providerChargeId])
+  @@index([status])
+}
+
+model PaymentWebhookEvent {
+  id String @id @default(cuid())
+
+  provider        BillingProvider
+  providerEventId String?
+  eventType       String?
+  payload         Json
+
+  processed Boolean @default(false)
+  error     String?
+
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, providerEventId])
+  @@index([provider])
+  @@index([eventType])
+  @@index([processed])
 }
 
 model User {
-  id               String    @id @default(cuid())
-  tenantId         String
-  name             String
-  email            String    @unique
-  passwordHash     String
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  isActive         Boolean   @default(true)
-  role             UserRole  @default(LAWYER)
-  twoFactorEnabled Boolean   @default(false)
-  twoFactorSecret  String?
-  isSystemAdmin    Boolean   @default(false)
-  sessions         Session[]
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                String             @id @default(cuid())
+  tenantId          String
+  name              String
+  email             String             @unique
+  phone             String?
+  emailVerifiedAt   DateTime?
+  phoneVerifiedAt   DateTime?
+  passwordHash      String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  isActive          Boolean            @default(true)
+  role              UserRole           @default(LAWYER)
+  twoFactorEnabled  Boolean            @default(false)
+  twoFactorSecret   String?
+  isSystemAdmin     Boolean            @default(false)
+  sessions          Session[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  verificationCodes VerificationCode[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -79,7 +198,7 @@ model Client {
   documents      Document[]
   invoices       Invoice[]
   tasks          Task[]
-  archivedAt DateTime?
+  archivedAt     DateTime?
 
   @@index([tenantId])
 }
@@ -301,6 +420,27 @@ enum Plan {
   ENTERPRISE
 }
 
+enum BillingProvider {
+  MANUAL
+  TAP
+  PAYTABS
+  HYPERPAY
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  UNPAID
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
 enum TenantStatus {
   ACTIVE
   TRIAL
@@ -361,4 +501,27 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
+}
+
+enum VerificationType {
+  EMAIL
+  WHATSAPP
+}
+
+model VerificationCode {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type     VerificationType
+  codeHash String
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, type])
 }

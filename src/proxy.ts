@@ -6,9 +6,13 @@ const publicPaths = [
   '/',
   '/login',
   '/register',
+  '/verify-email',
+  '/verify-whatsapp',
   '/api/auth/login',
   '/api/auth/logout',
   '/api/auth/register',
+  '/api/auth/verify-email',
+  '/api/auth/verify-whatsapp',
 ]
 
 function isPublicPath(pathname: string) {

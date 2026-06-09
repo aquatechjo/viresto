@@ -1,47 +1,47 @@
-import { redirect } from 'next/navigation'
-import { prisma } from '@/lib/prisma'
-import { requireSystemAdmin } from '@/lib/system-admin'
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requireSystemAdmin } from "@/lib/system-admin";
 import {
   suspendTenant,
   activateTenant,
   deactivateUser,
   activateUser,
   updateTenantBilling,
-} from './actions'
-import { PLAN_META, STATUS_LABELS } from '@/lib/plans'
+} from "./actions";
+import { PLAN_META, STATUS_LABELS } from "@/lib/plans";
 
-const planOptions = ['FREE', 'PRO', 'ENTERPRISE'] as const
-const statusOptions = ['ACTIVE', 'TRIAL', 'EXPIRED', 'SUSPENDED'] as const
+const planOptions = ["FREE", "PRO", "ENTERPRISE"] as const;
+const statusOptions = ["ACTIVE", "TRIAL", "EXPIRED", "SUSPENDED"] as const;
 
 const statusClasses: Record<string, string> = {
-  ACTIVE: 'badge badge-green',
-  TRIAL: 'badge badge-blue',
-  EXPIRED: 'badge badge-amber',
-  SUSPENDED: 'badge badge-red',
-}
+  ACTIVE: "badge badge-green",
+  TRIAL: "badge badge-blue",
+  EXPIRED: "badge badge-amber",
+  SUSPENDED: "badge badge-red",
+};
 
 const planClasses: Record<string, string> = {
-  FREE: 'badge badge-gray',
-  PRO: 'badge badge-green',
-  ENTERPRISE: 'badge badge-blue',
-}
+  FREE: "badge badge-gray",
+  PRO: "badge badge-green",
+  ENTERPRISE: "badge badge-blue",
+};
 
 const roleLabels: Record<string, string> = {
-  ADMIN: 'مدير',
-  LAWYER: 'محامٍ',
-  STAFF: 'موظف',
-}
+  ADMIN: "مدير",
+  LAWYER: "محامٍ",
+  STAFF: "موظف",
+};
 
 function formatDate(value?: Date | null) {
-  if (!value) return '-'
-  return value.toLocaleDateString('ar-JO')
+  if (!value) return "-";
+  return value.toLocaleDateString("ar-JO");
 }
 
 export default async function AdminPage() {
   try {
-    await requireSystemAdmin()
+    await requireSystemAdmin();
   } catch {
-    redirect('/login')
+    redirect("/login");
   }
 
   const tenants = await prisma.tenant.findMany({
@@ -66,27 +66,27 @@ export default async function AdminPage() {
           isSystemAdmin: true,
           createdAt: true,
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       },
     },
-    orderBy: { createdAt: 'desc' },
-  })
+    orderBy: { createdAt: "desc" },
+  });
 
   const totals = tenants.reduce(
     (acc, tenant) => {
-      acc.users += tenant._count.users
-      acc.clients += tenant._count.clients
-      acc.cases += tenant._count.cases
-      acc.invoices += tenant._count.invoices
-      acc.documents += tenant._count.documents
+      acc.users += tenant._count.users;
+      acc.clients += tenant._count.clients;
+      acc.cases += tenant._count.cases;
+      acc.invoices += tenant._count.invoices;
+      acc.documents += tenant._count.documents;
 
-      if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-        acc.suspended += 1
+      if (tenant.isSuspended || tenant.status === "SUSPENDED") {
+        acc.suspended += 1;
       } else {
-        acc.active += 1
+        acc.active += 1;
       }
 
-      return acc
+      return acc;
     },
     {
       users: 0,
@@ -96,8 +96,8 @@ export default async function AdminPage() {
       documents: 0,
       active: 0,
       suspended: 0,
-    }
-  )
+    },
+  );
 
   return (
     <main className="min-h-screen space-y-6 p-5 md:p-8" dir="rtl">
@@ -106,19 +106,19 @@ export default async function AdminPage() {
         className="relative overflow-hidden rounded-[28px] border p-6"
         style={{
           background:
-            'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-          borderColor: 'rgba(255,255,255,0.12)',
-          boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
+          borderColor: "rgba(255,255,255,0.12)",
+          boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
         }}
       >
         <div
           className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: 'rgba(245, 200, 66, 0.16)' }}
+          style={{ background: "rgba(245, 200, 66, 0.16)" }}
         />
 
         <div
           className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: 'rgba(255,255,255,0.08)' }}
+          style={{ background: "rgba(255,255,255,0.08)" }}
         />
 
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -126,9 +126,9 @@ export default async function AdminPage() {
             <div
               className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
               style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.18)",
               }}
             >
               System Admin
@@ -139,7 +139,8 @@ export default async function AdminPage() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              إدارة المكاتب، الحسابات، الخطط، حدود المستخدمين، وحالة الاشتراكات من لوحة مركزية واحدة.
+              إدارة المكاتب، الحسابات، الخطط، حدود المستخدمين، وحالة الاشتراكات
+              من لوحة مركزية واحدة.
             </p>
           </div>
 
@@ -147,9 +148,9 @@ export default async function AdminPage() {
             <span
               className="rounded-full px-4 py-2 text-xs font-black"
               style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.18)",
               }}
             >
               {tenants.length} مكتب
@@ -158,9 +159,9 @@ export default async function AdminPage() {
             <span
               className="rounded-full px-4 py-2 text-xs font-black"
               style={{
-                background: 'rgba(245,200,66,0.18)',
-                color: '#fff',
-                border: '1px solid rgba(245,200,66,0.35)',
+                background: "rgba(245,200,66,0.18)",
+                color: "#fff",
+                border: "1px solid rgba(245,200,66,0.35)",
               }}
             >
               {totals.users} مستخدم
@@ -173,46 +174,46 @@ export default async function AdminPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         {[
           {
-            label: 'المكاتب',
+            label: "المكاتب",
             value: tenants.length,
-            hint: 'إجمالي المكاتب',
-            color: 'var(--text)',
-            bg: 'var(--card)',
+            hint: "إجمالي المكاتب",
+            color: "var(--text)",
+            bg: "var(--card)",
           },
           {
-            label: 'مكاتب نشطة',
+            label: "مكاتب نشطة",
             value: totals.active,
-            hint: 'غير معلقة',
-            color: 'var(--sidebar)',
-            bg: 'var(--green-soft)',
+            hint: "غير معلقة",
+            color: "var(--sidebar)",
+            bg: "var(--green-soft)",
           },
           {
-            label: 'مكاتب معلقة',
+            label: "مكاتب معلقة",
             value: totals.suspended,
-            hint: 'تحتاج مراجعة',
-            color: totals.suspended > 0 ? '#dc2626' : 'var(--text)',
-            bg: totals.suspended > 0 ? 'var(--red-soft)' : 'var(--card)',
+            hint: "تحتاج مراجعة",
+            color: totals.suspended > 0 ? "#dc2626" : "var(--text)",
+            bg: totals.suspended > 0 ? "var(--red-soft)" : "var(--card)",
           },
           {
-            label: 'المستخدمون',
+            label: "المستخدمون",
             value: totals.users,
-            hint: 'كل الحسابات',
-            color: 'var(--text)',
-            bg: 'var(--card)',
+            hint: "كل الحسابات",
+            color: "var(--text)",
+            bg: "var(--card)",
           },
           {
-            label: 'القضايا',
+            label: "القضايا",
             value: totals.cases,
-            hint: 'كل المكاتب',
-            color: 'var(--text)',
-            bg: 'var(--card)',
+            hint: "كل المكاتب",
+            color: "var(--text)",
+            bg: "var(--card)",
           },
           {
-            label: 'الفواتير',
+            label: "الفواتير",
             value: totals.invoices,
-            hint: 'كل المكاتب',
-            color: 'var(--text)',
-            bg: 'var(--card)',
+            hint: "كل المكاتب",
+            color: "var(--text)",
+            bg: "var(--card)",
           },
         ].map((item) => (
           <div
@@ -220,18 +221,24 @@ export default async function AdminPage() {
             className="card p-5"
             style={{
               background: item.bg,
-              borderColor: 'var(--border)',
+              borderColor: "var(--border)",
             }}
           >
             <p className="text-xs font-black" style={{ color: item.color }}>
               {item.label}
             </p>
 
-            <p className="mt-2 text-3xl font-black" style={{ color: item.color }}>
+            <p
+              className="mt-2 text-3xl font-black"
+              style={{ color: item.color }}
+            >
               {item.value}
             </p>
 
-            <p className="mt-1 text-xs font-bold" style={{ color: 'var(--text-3)' }}>
+            <p
+              className="mt-1 text-xs font-bold"
+              style={{ color: "var(--text-3)" }}
+            >
               {item.hint}
             </p>
           </div>
@@ -241,38 +248,52 @@ export default async function AdminPage() {
       {/* Tenants */}
       <div className="grid gap-5">
         {tenants.map((tenant) => {
-          const hasSystemAdmin = tenant.users.some((user) => user.isSystemAdmin)
+          const hasSystemAdmin = tenant.users.some(
+            (user) => user.isSystemAdmin,
+          );
           const trialValue = tenant.trialEndsAt
             ? tenant.trialEndsAt.toISOString().slice(0, 10)
-            : ''
+            : "";
 
-          const tenantStatusLabel =
-            STATUS_LABELS[tenant.status as keyof typeof STATUS_LABELS] ??
-            tenant.status
+          const tenantStatus =
+            STATUS_LABELS[tenant.status as keyof typeof STATUS_LABELS];
+
+          const tenantStatusLabel = tenantStatus?.ar ?? tenant.status;
 
           return (
             <section key={tenant.id} className="card overflow-hidden p-0">
               {/* Tenant Header */}
               <div
                 className="flex flex-col gap-4 border-b p-5 xl:flex-row xl:items-start xl:justify-between"
-                style={{ borderColor: 'var(--border)' }}
+                style={{ borderColor: "var(--border)" }}
               >
                 <div className="min-w-0">
                   <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>
+                    <h2
+                      className="text-xl font-black"
+                      style={{ color: "var(--text)" }}
+                    >
                       {tenant.name}
                     </h2>
 
-                    <span className={planClasses[tenant.plan] ?? 'badge badge-gray'}>
+                    <span
+                      className={planClasses[tenant.plan] ?? "badge badge-gray"}
+                    >
                       {PLAN_META[tenant.plan].nameAr} - {tenant.plan}
                     </span>
 
-                    <span className={statusClasses[tenant.status] ?? 'badge badge-gray'}>
+                    <span
+                      className={
+                        statusClasses[tenant.status] ?? "badge badge-gray"
+                      }
+                    >
                       {tenantStatusLabel}
                     </span>
 
                     {hasSystemAdmin && (
-                      <span className="badge badge-blue">مكتب النظام الرئيسي</span>
+                      <span className="badge badge-blue">
+                        مكتب النظام الرئيسي
+                      </span>
                     )}
                   </div>
 
@@ -280,8 +301,8 @@ export default async function AdminPage() {
                     <span
                       className="rounded-full px-3 py-1"
                       style={{
-                        background: 'var(--input-bg)',
-                        color: 'var(--text-3)',
+                        background: "var(--input-bg)",
+                        color: "var(--text-3)",
                       }}
                     >
                       Slug: {tenant.slug}
@@ -290,8 +311,8 @@ export default async function AdminPage() {
                     <span
                       className="rounded-full px-3 py-1"
                       style={{
-                        background: 'var(--input-bg)',
-                        color: 'var(--text-3)',
+                        background: "var(--input-bg)",
+                        color: "var(--text-3)",
                       }}
                     >
                       Max Users: {tenant.maxUsers}
@@ -300,8 +321,8 @@ export default async function AdminPage() {
                     <span
                       className="rounded-full px-3 py-1"
                       style={{
-                        background: 'var(--input-bg)',
-                        color: 'var(--text-3)',
+                        background: "var(--input-bg)",
+                        color: "var(--text-3)",
                       }}
                     >
                       Trial Ends: {formatDate(tenant.trialEndsAt)}
@@ -314,8 +335,8 @@ export default async function AdminPage() {
                     <span
                       className="inline-flex rounded-xl px-4 py-2 text-sm font-bold"
                       style={{
-                        background: 'var(--input-bg)',
-                        color: 'var(--text-3)',
+                        background: "var(--input-bg)",
+                        color: "var(--text-3)",
                       }}
                     >
                       محمي
@@ -337,26 +358,32 @@ export default async function AdminPage() {
               {/* Tenant Stats */}
               <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-6">
                 {[
-                  ['المستخدمون', tenant._count.users],
-                  ['الموكلون', tenant._count.clients],
-                  ['القضايا', tenant._count.cases],
-                  ['المدفوعات', tenant._count.payments],
-                  ['الفواتير', tenant._count.invoices],
-                  ['المستندات', tenant._count.documents],
+                  ["المستخدمون", tenant._count.users],
+                  ["الموكلون", tenant._count.clients],
+                  ["القضايا", tenant._count.cases],
+                  ["المدفوعات", tenant._count.payments],
+                  ["الفواتير", tenant._count.invoices],
+                  ["المستندات", tenant._count.documents],
                 ].map(([label, value]) => (
                   <div
                     key={label}
                     className="rounded-2xl border p-4"
                     style={{
-                      borderColor: 'var(--border)',
-                      background: 'var(--input-bg)',
+                      borderColor: "var(--border)",
+                      background: "var(--input-bg)",
                     }}
                   >
-                    <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+                    <p
+                      className="text-xs font-black"
+                      style={{ color: "var(--text-3)" }}
+                    >
                       {label}
                     </p>
 
-                    <p className="mt-1 text-2xl font-black" style={{ color: 'var(--text)' }}>
+                    <p
+                      className="mt-1 text-2xl font-black"
+                      style={{ color: "var(--text)" }}
+                    >
                       {value}
                     </p>
                   </div>
@@ -369,17 +396,21 @@ export default async function AdminPage() {
                   action={updateTenantBilling.bind(null, tenant.id)}
                   className="rounded-[24px] border p-4"
                   style={{
-                    borderColor: 'var(--border)',
-                    background: 'var(--input-bg)',
+                    borderColor: "var(--border)",
+                    background: "var(--input-bg)",
                   }}
                 >
                   <div className="mb-4">
-                    <h3 className="font-black" style={{ color: 'var(--text)' }}>
+                    <h3 className="font-black" style={{ color: "var(--text)" }}>
                       إعدادات الاشتراك
                     </h3>
 
-                    <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                      عدّل الخطة، حالة الاشتراك، وعدد المستخدمين المسموح لهذا المكتب.
+                    <p
+                      className="mt-1 text-xs"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      عدّل الخطة، حالة الاشتراك، وعدد المستخدمين المسموح لهذا
+                      المكتب.
                     </p>
                   </div>
 
@@ -387,7 +418,11 @@ export default async function AdminPage() {
                     <label className="space-y-1 text-sm">
                       <span className="font-bold">الخطة</span>
 
-                      <select name="plan" defaultValue={tenant.plan} className="input">
+                      <select
+                        name="plan"
+                        defaultValue={tenant.plan}
+                        className="input"
+                      >
                         {planOptions.map((plan) => (
                           <option key={plan} value={plan}>
                             {PLAN_META[plan].nameAr} - {plan}
@@ -407,13 +442,17 @@ export default async function AdminPage() {
                       >
                         {statusOptions.map((status) => (
                           <option key={status} value={status}>
-                            {STATUS_LABELS[status]} - {status}
+                            {STATUS_LABELS[status]?.ar ?? status} - {status}
                           </option>
                         ))}
                       </select>
 
                       {hasSystemAdmin && (
-                        <input type="hidden" name="status" value={tenant.status} />
+                        <input
+                          type="hidden"
+                          name="status"
+                          value={tenant.status}
+                        />
                       )}
                     </label>
 
@@ -454,18 +493,24 @@ export default async function AdminPage() {
               <div className="px-5 pb-5">
                 <div
                   className="overflow-hidden rounded-[24px] border"
-                  style={{ borderColor: 'var(--border)' }}
+                  style={{ borderColor: "var(--border)" }}
                 >
                   <div
                     className="flex items-center justify-between gap-3 border-b px-4 py-3"
-                    style={{ borderColor: 'var(--border)' }}
+                    style={{ borderColor: "var(--border)" }}
                   >
                     <div>
-                      <h3 className="font-black" style={{ color: 'var(--text)' }}>
+                      <h3
+                        className="font-black"
+                        style={{ color: "var(--text)" }}
+                      >
                         مستخدمو المكتب
                       </h3>
 
-                      <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+                      <p
+                        className="mt-1 text-xs"
+                        style={{ color: "var(--text-3)" }}
+                      >
                         {tenant.users.length} مستخدم داخل هذا المكتب
                       </p>
                     </div>
@@ -517,14 +562,16 @@ export default async function AdminPage() {
                                 <span
                                   className="rounded-xl px-3 py-1 text-sm font-bold"
                                   style={{
-                                    background: 'var(--input-bg)',
-                                    color: 'var(--text-3)',
+                                    background: "var(--input-bg)",
+                                    color: "var(--text-3)",
                                   }}
                                 >
                                   محمي
                                 </span>
                               ) : user.isActive ? (
-                                <form action={deactivateUser.bind(null, user.id)}>
+                                <form
+                                  action={deactivateUser.bind(null, user.id)}
+                                >
                                   <button className="rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50">
                                     تعطيل
                                   </button>
@@ -545,9 +592,9 @@ export default async function AdminPage() {
                 </div>
               </div>
             </section>
-          )
+          );
         })}
       </div>
     </main>
-  )
+  );
 }

@@ -1,25 +1,26 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { documentSchema } from '@/lib/validations'
-import { ok, err } from '@/lib/api-response'
-import { requireRole } from '@/lib/api-auth'
-import { apiHandler } from '@/lib/api-handler'
-import { logActivity } from '@/lib/log-activity'
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { documentSchema } from "@/lib/validations";
+import { ok, err } from "@/lib/api-response";
+import { requireRole } from "@/lib/api-auth";
+import { apiHandler } from "@/lib/api-handler";
+import { logActivity } from "@/lib/log-activity";
+import { assertTenantCanCreate } from "@/lib/billing-limits";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const sp = new URL(req.url).searchParams
-    const caseId = sp.get('caseId')
-    const clientId = sp.get('clientId')
+    const sp = new URL(req.url).searchParams;
+    const caseId = sp.get("caseId");
+    const clientId = sp.get("clientId");
 
-    const limitRaw = Number(sp.get('limit') || 20)
+    const limitRaw = Number(sp.get("limit") || 20);
 
     const limit = Number.isNaN(limitRaw)
       ? 20
-      : Math.min(Math.max(limitRaw, 1), 50)
+      : Math.min(Math.max(limitRaw, 1), 50);
 
     if (caseId) {
       const caseExists = await prisma.case.findFirst({
@@ -28,10 +29,10 @@ export async function GET(req: NextRequest) {
           tenantId: auth.user.tenantId,
         },
         select: { id: true },
-      })
+      });
 
       if (!caseExists) {
-        return err('القضية غير موجودة داخل هذا المكتب', 404)
+        return err("القضية غير موجودة داخل هذا المكتب", 404);
       }
     }
 
@@ -42,10 +43,10 @@ export async function GET(req: NextRequest) {
           tenantId: auth.user.tenantId,
         },
         select: { id: true },
-      })
+      });
 
       if (!clientExists) {
-        return err('الموكل غير موجود داخل هذا المكتب', 404)
+        return err("الموكل غير موجود داخل هذا المكتب", 404);
       }
     }
 
@@ -87,26 +88,44 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
-    })
+      orderBy: { createdAt: "desc" },
+    });
 
-    return ok(data)
-  })
+    return ok(data);
+  });
 }
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const body = await req.json().catch(() => ({}))
-    const parsed = documentSchema.safeParse(body)
+    const limitCheck = await assertTenantCanCreate(
+      auth.user.tenantId,
+      "documents",
+    );
 
-    if (!parsed.success) {
-      return err('بيانات غير صالحة', 400, parsed.error.flatten())
+    if (!limitCheck.ok) {
+      return err(limitCheck.message, limitCheck.billing.canCreate ? 400 : 402, {
+        code: limitCheck.billing.canCreate
+          ? "PLAN_LIMIT_REACHED"
+          : "SUBSCRIPTION_INACTIVE",
+        resource: "documents",
+        used: limitCheck.used,
+        limit: limitCheck.limit,
+        plan: limitCheck.billing.plan,
+        subscriptionStatus: limitCheck.billing.subscriptionStatus,
+      });
     }
 
-    const { caseId, clientId } = parsed.data
+    const body = await req.json().catch(() => ({}));
+    const parsed = documentSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return err("بيانات غير صالحة", 400, parsed.error.flatten());
+    }
+
+    const { caseId, clientId } = parsed.data;
 
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
@@ -118,14 +137,14 @@ export async function POST(req: NextRequest) {
           id: true,
           archivedAt: true,
         },
-      })
+      });
 
       if (!clientExists) {
-        return err('لا يمكن ربط المستند بموكل لا يتبع هذا المكتب', 403)
+        return err("لا يمكن ربط المستند بموكل لا يتبع هذا المكتب", 403);
       }
 
       if (clientExists.archivedAt) {
-        return err('لا يمكن رفع مستند لموكل مؤرشف', 400)
+        return err("لا يمكن رفع مستند لموكل مؤرشف", 400);
       }
     }
 
@@ -146,17 +165,17 @@ export async function POST(req: NextRequest) {
             },
           },
         },
-      })
+      });
 
       if (!caseExists) {
         return err(
-          'لا يمكن ربط المستند بقضية لا تتبع هذا المكتب أو لا تتبع الموكل المحدد',
-          403
-        )
+          "لا يمكن ربط المستند بقضية لا تتبع هذا المكتب أو لا تتبع الموكل المحدد",
+          403,
+        );
       }
 
       if (caseExists.client?.archivedAt) {
-        return err('لا يمكن رفع مستند لقضية موكلها مؤرشف', 400)
+        return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 400);
       }
     }
 
@@ -187,18 +206,18 @@ export async function POST(req: NextRequest) {
           },
         },
       },
-    })
+    });
 
     await logActivity({
       req,
       tenantId: auth.user.tenantId,
       actorId: auth.user.userId,
-      type: 'DOCUMENT_UPLOADED',
-      title: 'تم رفع مستند جديد',
+      type: "DOCUMENT_UPLOADED",
+      title: "تم رفع مستند جديد",
       message: doc.fileName,
-      entityType: 'DOCUMENT',
+      entityType: "DOCUMENT",
       entityId: doc.id,
-    })
+    });
 
     return ok(
       {
@@ -214,7 +233,7 @@ export async function POST(req: NextRequest) {
         client: doc.client,
         case: doc.case,
       },
-      201
-    )
-  })
+      201,
+    );
+  });
 }

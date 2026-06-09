@@ -142,7 +142,7 @@ export async function enforceStorageLimit(
 
   if (nextTotalBytes > limitBytes) {
     return err(
-      `مساحة التخزين في خطتك الحالية لا تكفي لرفع هذا الملف. الحد الحالي ${formatLimit(storageMb, 'MB')}.`,
+      `مساحة التخزين في خطتك الحالية لا تكفي لرفع هذا الملف. الحد الحالي ${formatLimit(storageMb, 'ar', 'MB')}.`,
       403,
       {
         code: 'PLAN_STORAGE_LIMIT_REACHED',

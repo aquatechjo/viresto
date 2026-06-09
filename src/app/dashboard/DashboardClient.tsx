@@ -139,6 +139,14 @@ const ACTIVITY_CONFIG: Record<
     icon: '👥',
     color: 'bg-cyan-500/20 text-cyan-700 border-cyan-500/30',
   },
+  AI_ASSISTANT_ENABLED: {
+    icon: '✨',
+    color: 'bg-emerald-500/20 text-emerald-700 border-emerald-500/30',
+  },
+  AI_ASSISTANT_DISABLED: {
+    icon: '✨',
+    color: 'bg-slate-500/20 text-slate-700 border-slate-500/30',
+  },
 }
 
 const TEXT = {
@@ -255,6 +263,9 @@ const ACTIVITY_TEXT: Record<
     USER_UPDATED: { title: 'تم تعديل مستخدم' },
     USER_DISABLED: { title: 'تم تعطيل مستخدم' },
     USER_ENABLED: { title: 'تم تفعيل مستخدم' },
+
+    AI_ASSISTANT_ENABLED: { title: 'تم تفعيل المساعد الذكي' },
+    AI_ASSISTANT_DISABLED: { title: 'تم تعطيل المساعد الذكي' },
   },
   en: {
     LOGIN_SUCCESS: { title: 'Signed in successfully' },
@@ -293,6 +304,9 @@ const ACTIVITY_TEXT: Record<
     USER_UPDATED: { title: 'User updated' },
     USER_DISABLED: { title: 'User disabled' },
     USER_ENABLED: { title: 'User enabled' },
+
+    AI_ASSISTANT_ENABLED: { title: 'AI assistant enabled' },
+    AI_ASSISTANT_DISABLED: { title: 'AI assistant disabled' },
   },
 }
 
@@ -462,6 +476,20 @@ function normalizeActivityType(activity: ActivityItem) {
     containsAny(normalized, ['new payment', 'payment recorded', 'payment created', 'payment added'])
   ) {
     return 'PAYMENT_CREATED'
+  }
+
+  if (
+    containsAny(source, ['AI_ASSISTANT_ENABLED', 'ENABLE_AI_ASSISTANT', 'AI_ENABLED', 'تفعيل المساعد الذكي', 'تم تفعيل المساعد الذكي']) ||
+    containsAny(normalized, ['ai assistant enabled', 'enabled ai assistant'])
+  ) {
+    return 'AI_ASSISTANT_ENABLED'
+  }
+
+  if (
+    containsAny(source, ['AI_ASSISTANT_DISABLED', 'DISABLE_AI_ASSISTANT', 'AI_DISABLED', 'تعطيل المساعد الذكي', 'تم تعطيل المساعد الذكي']) ||
+    containsAny(normalized, ['ai assistant disabled', 'disabled ai assistant'])
+  ) {
+    return 'AI_ASSISTANT_DISABLED'
   }
 
   if (

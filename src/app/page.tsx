@@ -97,11 +97,11 @@ const COPY: Record<
     },
     hero: {
       badge: "Everything your legal office needs in one place",
-      titleTop: "Run Your Law Firm",
-      titleAccent: "Cases to Invoices",
-      titleBottom: "One Platform",
+      titleTop: "Run your legal office",
+      titleAccent: "with confidence and clarity.",
+      titleBottom: "",
       description:
-        "Viresto brings cases, clients, appointments, documents, payments, invoices, and smart reporting into one workspace built specifically for law firms.",
+        "One platform to organize cases, clients, appointments, documents, invoices, and financial reports professionally and quickly.",
       primary: "Start Now",
       secondary: "Explore Features",
       tags: [
@@ -261,11 +261,11 @@ const COPY: Record<
     },
     hero: {
       badge: "كل أدوات مكتبك القانوني في مكان واحد",
-      titleTop: "أدِر مكتب المحاماة",
-      titleAccent: "من القضايا للفواتير",
-      titleBottom: "في منصة واحدة",
+      titleTop: "أدر مكتبك القانوني",
+      titleAccent: "بثقة ووضوح.",
+      titleBottom: "",
       description:
-        "يجمع Viresto القضايا، الموكلين، المواعيد، المستندات، المدفوعات، الفواتير، والتقارير الذكية في مساحة عمل واحدة مصممة خصيصًا لمكاتب المحاماة.",
+        "منصة واحدة لتنظيم القضايا، الموكلين، المواعيد، المستندات، الفواتير والتقارير المالية بطريقة احترافية وسريعة.",
       primary: "ابدأ الآن",
       secondary: "استكشف المميزات",
       tags: [
@@ -546,7 +546,9 @@ export default function HomePage() {
               <span className="block text-emerald-400">
                 {copy.hero.titleAccent}
               </span>
-              <span className="block">{copy.hero.titleBottom}</span>
+              {copy.hero.titleBottom ? (
+                <span className="block">{copy.hero.titleBottom}</span>
+              ) : null}
             </h1>
 
             <p className="mt-6 max-w-xl text-lg font-medium leading-8 text-white/70">

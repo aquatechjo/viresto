@@ -1,44 +1,39 @@
-import { NextRequest } from 'next/server'
-import { Prisma } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
-import { caseSchema } from '@/lib/validations'
-import { ok, err } from '@/lib/api-response'
-import { logActivity } from '@/lib/activity'
-import { requireRole, getRequestMeta } from '@/lib/api-auth'
-import { apiHandler } from '@/lib/api-handler'
-import { enforceResourceLimit } from '@/lib/plan-enforcement'
+import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { caseSchema } from "@/lib/validations";
+import { ok, err } from "@/lib/api-response";
+import { logActivity } from "@/lib/activity";
+import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { apiHandler } from "@/lib/api-handler";
+import { assertTenantCanCreate } from "@/lib/billing-limits";
 
-const allowedStatuses = [
-  'OPEN',
-  'IN_PROGRESS',
-  'CLOSED',
-  'ARCHIVED',
-] as const
+const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const sp = new URL(req.url).searchParams
+    const sp = new URL(req.url).searchParams;
 
-    const status = sp.get('status')
-    const clientId = sp.get('clientId')
-    const q = sp.get('q')?.trim()
-    const includeArchivedClients = sp.get('includeArchivedClients') === 'true'
+    const status = sp.get("status");
+    const clientId = sp.get("clientId");
+    const q = sp.get("q")?.trim();
+    const includeArchivedClients = sp.get("includeArchivedClients") === "true";
 
-    const pageRaw = Number(sp.get('page') || 1)
-    const limitRaw = Number(sp.get('limit') || 10)
+    const pageRaw = Number(sp.get("page") || 1);
+    const limitRaw = Number(sp.get("limit") || 10);
 
-    const page = Number.isNaN(pageRaw) ? 1 : Math.max(pageRaw, 1)
+    const page = Number.isNaN(pageRaw) ? 1 : Math.max(pageRaw, 1);
     const limit = Number.isNaN(limitRaw)
       ? 10
-      : Math.min(Math.max(limitRaw, 1), 50)
+      : Math.min(Math.max(limitRaw, 1), 50);
 
-    const skip = (page - 1) * limit
+    const skip = (page - 1) * limit;
 
     if (status && !allowedStatuses.includes(status as any)) {
-      return err('حالة القضية غير صالحة', 400)
+      return err("حالة القضية غير صالحة", 400);
     }
 
     if (clientId) {
@@ -50,10 +45,10 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
         },
-      })
+      });
 
       if (!clientExists) {
-        return err('الموكل غير موجود داخل هذا المكتب', 404)
+        return err("الموكل غير موجود داخل هذا المكتب", 404);
       }
     }
 
@@ -77,27 +72,27 @@ export async function GET(req: NextRequest) {
               {
                 title: {
                   contains: q,
-                  mode: 'insensitive',
+                  mode: "insensitive",
                 },
               },
               {
                 caseNumber: {
                   contains: q,
-                  mode: 'insensitive',
+                  mode: "insensitive",
                 },
               },
               {
                 client: {
                   name: {
                     contains: q,
-                    mode: 'insensitive',
+                    mode: "insensitive",
                   },
                 },
               },
             ],
           }
         : {}),
-    }
+    };
 
     const [data, total] = await Promise.all([
       prisma.case.findMany({
@@ -125,14 +120,14 @@ export async function GET(req: NextRequest) {
           },
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         skip,
         take: limit,
       }),
 
       prisma.case.count({ where }),
-    ])
+    ]);
 
     return ok({
       data,
@@ -142,24 +137,36 @@ export async function GET(req: NextRequest) {
         total,
         pages: Math.ceil(total / limit),
       },
-    })
-  })
+    });
+  });
 }
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const limitError = await enforceResourceLimit(auth.user.tenantId, 'cases')
-    if (limitError) return limitError
+    const limitCheck = await assertTenantCanCreate(auth.user.tenantId, "cases");
 
-    const meta = getRequestMeta(req)
-    const body = await req.json().catch(() => ({}))
-    const parsed = caseSchema.safeParse(body)
+    if (!limitCheck.ok) {
+      return err(limitCheck.message, limitCheck.billing.canCreate ? 400 : 402, {
+        code: limitCheck.billing.canCreate
+          ? "PLAN_LIMIT_REACHED"
+          : "SUBSCRIPTION_INACTIVE",
+        resource: "cases",
+        used: limitCheck.used,
+        limit: limitCheck.limit,
+        plan: limitCheck.billing.plan,
+        subscriptionStatus: limitCheck.billing.subscriptionStatus,
+      });
+    }
+
+    const meta = getRequestMeta(req);
+    const body = await req.json().catch(() => ({}));
+    const parsed = caseSchema.safeParse(body);
 
     if (!parsed.success) {
-      return err('بيانات غير صالحة', 400, parsed.error.flatten())
+      return err("بيانات غير صالحة", 400, parsed.error.flatten());
     }
 
     const client = await prisma.client.findFirst({
@@ -172,14 +179,14 @@ export async function POST(req: NextRequest) {
         name: true,
         archivedAt: true,
       },
-    })
+    });
 
     if (!client) {
-      return err('الموكل غير موجود', 404)
+      return err("الموكل غير موجود", 404);
     }
 
     if (client.archivedAt) {
-      return err('لا يمكن إنشاء قضية جديدة لموكل مؤرشف', 400)
+      return err("لا يمكن إنشاء قضية جديدة لموكل مؤرشف", 400);
     }
 
     if (parsed.data.caseNumber) {
@@ -191,10 +198,10 @@ export async function POST(req: NextRequest) {
         select: {
           id: true,
         },
-      })
+      });
 
       if (exists) {
-        return err('رقم القضية مستخدم مسبقًا', 409)
+        return err("رقم القضية مستخدم مسبقًا", 409);
       }
     }
 
@@ -212,20 +219,20 @@ export async function POST(req: NextRequest) {
           },
         },
       },
-    })
+    });
 
     await logActivity({
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
-      type: 'CASE_CREATED',
-      title: 'تم إنشاء قضية جديدة',
+      type: "CASE_CREATED",
+      title: "تم إنشاء قضية جديدة",
       message: newCase.title,
-      entityType: 'CASE',
+      entityType: "CASE",
       entityId: newCase.id,
-    })
+    });
 
-    return ok(newCase, 201)
-  })
+    return ok(newCase, 201);
+  });
 }

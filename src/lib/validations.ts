@@ -8,9 +8,20 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   tenantName: z.string().min(2, 'اسم المكتب مطلوب'),
-  name:       z.string().min(2, 'الاسم مطلوب'),
-  email:      z.string().email('بريد إلكتروني غير صالح'),
-  password:   z.string().min(8, 'كلمة المرور 8 أحرف على الأقل'),
+  name: z.string().min(2, 'الاسم مطلوب'),
+  email: z.string().email('بريد إلكتروني غير صالح'),
+
+  phone: z
+    .string()
+    .trim()
+    .min(10, 'رقم الهاتف غير صحيح')
+    .max(20, 'رقم الهاتف طويل جدًا')
+    .regex(
+      /^(\+9627\d{8}|07\d{8})$/,
+      'أدخل رقم هاتف أردني صحيح مثل 07XXXXXXXX'
+    ),
+
+  password: z.string().min(8, 'كلمة المرور 8 أحرف على الأقل'),
 })
 
 export const clientSchema = z.object({
