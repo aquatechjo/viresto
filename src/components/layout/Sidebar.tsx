@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -20,6 +21,7 @@ import {
   LogOut,
   Menu,
   Activity,
+  X,
 } from "lucide-react";
 
 import { initials } from "@/lib/utils";
@@ -186,6 +188,24 @@ export default function Sidebar() {
     setMobileOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileOpen]);
+
   async function logout() {
     await fetch("/api/auth/logout", {
       method: "POST",
@@ -204,7 +224,7 @@ export default function Sidebar() {
   const Inner = () => (
     <div
       dir={isRtl ? "rtl" : "ltr"}
-      className="flex h-full flex-col bg-[#0f2b21] text-emerald-50"
+      className="flex h-full min-h-0 flex-col bg-[#0f2b21] text-emerald-50"
     >
       {/* Brand */}
       <div className="border-b border-emerald-100/10 px-5 py-5">
@@ -226,7 +246,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-4 py-4">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-4 overscroll-contain">
         {NAV.map((group) => (
           <div key={group.sectionKey} className="mb-5">
             <p className="mb-2 px-3 text-start text-xs font-black tracking-wide text-emerald-100/55">
@@ -279,7 +299,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User + Logout */}
-      <div className="border-t border-emerald-100/10 p-4">
+      <div className="shrink-0 border-t border-emerald-100/10 p-4">
         <Link
           href="/dashboard/settings"
           className="flex items-center gap-3 rounded-2xl bg-emerald-50/5 p-3 transition hover:bg-emerald-50/10"
@@ -318,33 +338,38 @@ export default function Sidebar() {
       {/* Mobile trigger */}
       <button
         type="button"
-        aria-label={t.sidebar.openMenu}
-        title={t.sidebar.openMenu}
-        onClick={() => setMobileOpen(true)}
+        aria-label={mobileOpen ? (locale === "ar" ? "إغلاق القائمة" : "Close menu") : t.sidebar.openMenu}
+        title={mobileOpen ? (locale === "ar" ? "إغلاق القائمة" : "Close menu") : t.sidebar.openMenu}
+        onClick={() => setMobileOpen((value) => !value)}
         className={`
-          fixed top-4 z-50 flex h-11 w-11 items-center justify-center
+          fixed top-3 z-[70] flex h-11 w-11 items-center justify-center
           rounded-2xl border border-emerald-400/20 bg-[#10291d]
-          text-emerald-50 shadow-lg lg:hidden
+          text-emerald-50 shadow-lg transition lg:hidden
+          hover:bg-[#173827]
           ${isRtl ? "right-4" : "left-4"}
         `}
       >
-        <Menu className="h-5 w-5" />
+        {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
 
       {/* Mobile */}
       {mobileOpen && (
         <div
           className={`
-            fixed inset-0 z-40 flex lg:hidden
+            fixed inset-0 z-[60] flex lg:hidden
             ${isRtl ? "justify-end" : "justify-start"}
           `}
+          role="dialog"
+          aria-modal="true"
         >
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          <button
+            type="button"
+            aria-label={locale === "ar" ? "إغلاق القائمة" : "Close menu"}
+            className="absolute inset-0 cursor-default bg-black/50 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
 
-          <aside className="relative h-full w-72 shadow-2xl">
+          <aside className="relative h-full w-[min(20rem,88vw)] shadow-2xl">
             <Inner />
           </aside>
         </div>

@@ -2297,3 +2297,389 @@ select.input {
     transform: translateX(140px) rotate(12deg);
   }
 }
+
+/* ============================================================
+   26. RESPONSIVE FOUNDATION — Mobile / Tablet baseline
+   ملاحظة: هذا القسم يوضع في نهاية globals.css حتى يتغلب على القواعد السابقة.
+   ============================================================ */
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  overscroll-behavior-x: none;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+/* يمنع عناصر Tailwind/Grid من توسيع الصفحة على الشاشات الصغيرة */
+.min-w-0,
+.card,
+.card-soft,
+.card-flat,
+.stat-card,
+.page-wrapper,
+.dashboard-root,
+.dashboard-page-shell {
+  min-width: 0;
+}
+
+.dashboard-root {
+  background: var(--bg);
+}
+
+.dashboard-page-shell {
+  width: 100%;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .dashboard-page-shell {
+    padding: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-page-shell {
+    padding: 1.5rem;
+  }
+}
+
+/* دعم LTR إذا كان DashboardShell أو أي Wrapper يستخدم dashboard-content */
+html[dir='ltr'] .dashboard-content {
+  margin-right: 0;
+  margin-left: 256px;
+}
+
+html[dir='rtl'] .dashboard-content {
+  margin-right: 256px;
+  margin-left: 0;
+}
+
+@media (max-width: 1024px) {
+  html[dir='ltr'] .dashboard-content,
+  html[dir='rtl'] .dashboard-content,
+  .dashboard-content {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+}
+
+/* Page structure */
+.page-wrapper,
+.page-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.page-header {
+  min-width: 0;
+}
+
+.page-header > * {
+  min-width: 0;
+}
+
+.page-actions,
+.header-actions,
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filters-row,
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filters-row > *,
+.toolbar-row > * {
+  min-width: 0;
+}
+
+/* Responsive grids for existing and new pages */
+.responsive-grid-2,
+.responsive-grid-3,
+.responsive-grid-4 {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .responsive-grid-2,
+  .responsive-grid-3,
+  .responsive-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .responsive-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .responsive-grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Tables: لا تجعل الجدول يكسر عرض الصفحة */
+.table-wrapper,
+.data-table-wrap,
+.responsive-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+}
+
+.table-wrapper > table,
+.data-table-wrap > table,
+.responsive-table-wrap > table,
+.data-table {
+  min-width: 680px;
+}
+
+@media (max-width: 640px) {
+  .table-wrapper,
+  .data-table-wrap,
+  .responsive-table-wrap {
+    border-radius: var(--radius-md);
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.82rem;
+  }
+}
+
+/* Optional pattern: table on desktop, cards on mobile */
+.mobile-card-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .mobile-card-list {
+    display: none;
+  }
+
+  .desktop-table-only {
+    display: block;
+  }
+}
+
+@media (max-width: 767px) {
+  .desktop-table-only {
+    display: none !important;
+  }
+}
+
+/* Forms */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea,
+  .input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .form-row,
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .filters-row,
+  .toolbar-row,
+  .page-actions,
+  .header-actions,
+  .filter-actions {
+    align-items: stretch;
+  }
+
+  .filters-row > *,
+  .toolbar-row > *,
+  .page-actions > *,
+  .header-actions > *,
+  .filter-actions > * {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .filters-row,
+  .toolbar-row,
+  .page-actions,
+  .header-actions,
+  .filter-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .filters-row > *,
+  .toolbar-row > *,
+  .page-actions > *,
+  .header-actions > *,
+  .filter-actions > * {
+    width: 100%;
+  }
+}
+
+/* Cards and spacing */
+@media (max-width: 640px) {
+  .page-wrapper {
+    gap: 1rem;
+  }
+
+  .card,
+  .card-soft,
+  .card-flat,
+  .stat-card {
+    border-radius: var(--radius-md);
+  }
+
+  .card.p-6,
+  .card-soft.p-6,
+  .card-flat.p-6 {
+    padding: 1rem !important;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.25rem;
+    line-height: 1.7rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.82rem;
+  }
+}
+
+/* Buttons: في الموبايل الأزرار الأساسية تأخذ العرض كامل داخل مجموعات الإجراءات فقط */
+@media (max-width: 520px) {
+  .page-actions .btn:not(.btn-icon),
+  .header-actions .btn:not(.btn-icon),
+  .filter-actions .btn:not(.btn-icon),
+  .modal-footer .btn:not(.btn-icon) {
+    width: 100%;
+  }
+}
+
+/* Modals */
+@media (max-width: 640px) {
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0.75rem;
+  }
+
+  .modal {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - 1.5rem);
+    border-radius: 1.25rem;
+    padding: 1rem;
+  }
+
+  .modal-header {
+    align-items: flex-start;
+  }
+
+  .modal-footer {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Topbar helpers */
+@media (max-width: 640px) {
+  .topbar-search,
+  .topbar-actions {
+    max-width: 100%;
+  }
+}
+
+/* FullCalendar: التقويم كبير بطبيعته، لذلك نعطيه تمرير أفقي بدل كسر الصفحة */
+.appointments-calendar {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .appointments-calendar .fc {
+    min-width: 700px;
+  }
+
+  .appointments-calendar .fc-toolbar {
+    position: sticky;
+    inset-inline-start: 0;
+  }
+}
+
+/* Utility classes for quick page fixes */
+.mobile-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mobile-full {
+  width: 100%;
+}
+
+.overflow-safe {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.safe-x-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 768px) {
+  .md\:desktop-row {
+    display: flex;
+    align-items: center;
+  }
+}
+

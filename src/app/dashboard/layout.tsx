@@ -10,7 +10,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div
-      className="min-h-screen"
+      className="dashboard-root min-h-screen overflow-x-hidden"
       style={{ background: 'var(--bg)' }}
     >
       <SessionGuard />
@@ -20,7 +20,7 @@ export default function DashboardLayout({
       <DashboardShell>
         <TopBar />
 
-        <main className="flex-1 px-5 py-5 lg:px-6 lg:py-6">
+        <main className="dashboard-page-shell min-w-0 flex-1">
           {children}
         </main>
       </DashboardShell>

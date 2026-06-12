@@ -1,3 +1,4 @@
+
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
@@ -106,38 +107,54 @@ export default function TopBar() {
     LOW: "🟢",
   };
 
-const now = new Date()
+  const now = new Date();
 
-const dateStr =
-  locale === 'ar'
-    ? new Intl.DateTimeFormat('ar-SA', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      }).format(now)
-    : new Intl.DateTimeFormat('en-US', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
-        .formatToParts(now)
-        .filter((part) => part.type !== 'literal')
-        .map((part) => part.value)
-        .join(' ')
+  const dateStr =
+    locale === "ar"
+      ? new Intl.DateTimeFormat("ar-JO", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }).format(now)
+      : new Intl.DateTimeFormat("en-US", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }).format(now);
 
   const alignClass = isRtl ? "text-right" : "text-left";
+
+  function closeSearch() {
+    setOpen(false);
+    setQuery("");
+  }
 
   return (
     <header
       dir={isRtl ? "rtl" : "ltr"}
-      className="sticky top-0 z-20 flex h-[72px] min-w-0 items-center gap-4 border-b border-slate-200 bg-white/85 px-6 shadow-sm backdrop-blur-[18px] transition-colors dark:border-[#2d4a3e] dark:bg-[#0d241a]/95 lg:gap-6"
+      className={`
+        sticky top-0 z-20 flex min-h-[72px] min-w-0 flex-wrap items-center gap-3
+        border-b border-slate-200 bg-white/85 py-3 shadow-sm backdrop-blur-[18px]
+        transition-colors dark:border-[#2d4a3e] dark:bg-[#0d241a]/95
+        sm:flex-nowrap sm:gap-4 lg:h-[72px] lg:py-0
+        ${isRtl ? "pr-[72px] pl-4 lg:pr-6 lg:pl-6" : "pl-[72px] pr-4 lg:pl-6 lg:pr-6"}
+      `}
     >
+      {/* Title */}
+      <div className="order-1 min-w-0 shrink-0 sm:w-auto">
+        <h1 className="max-w-[42vw] truncate text-sm font-black text-slate-800 dark:text-emerald-50 sm:max-w-[180px] lg:max-w-[240px]">
+          {title}
+        </h1>
+      </div>
 
       {/* Search */}
-      <div ref={ref} className="relative min-w-[260px] max-w-[720px] flex-1">
+      <div
+        ref={ref}
+        className="order-3 relative w-full min-w-0 flex-[1_0_100%] sm:order-2 sm:min-w-[220px] sm:flex-1 lg:max-w-[720px]"
+      >
         <span
           className={`
-            absolute top-1/2 -translate-y-1/2 text-sm text-slate-400 dark:text-emerald-200
+            pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm text-slate-400 dark:text-emerald-200
             ${isRtl ? "right-3" : "left-3"}
           `}
         >
@@ -145,6 +162,7 @@ const dateStr =
         </span>
 
         <input
+          aria-label={t.topbar.searchPlaceholder}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -153,35 +171,15 @@ const dateStr =
           onFocus={() => setOpen(true)}
           placeholder={t.topbar.searchPlaceholder}
           className={`
-            h-11 w-full
-            rounded-2xl
-            border border-slate-200
-            bg-white
-            text-sm
-            font-semibold
-            text-slate-800
-            placeholder:text-slate-400
-            shadow-sm
-            outline-none
-            transition-all
-            hover:border-emerald-300
-            focus:border-emerald-500
-            focus:ring-4
-            focus:ring-emerald-500/10
-
-            dark:border-emerald-700/60
-            dark:bg-[#08291d]
-            dark:text-white
-            dark:placeholder:text-emerald-200/80
-            dark:hover:border-emerald-500/80
-
+            h-11 w-full rounded-2xl border border-slate-200 bg-white py-2
+            text-[16px] font-semibold text-slate-800 placeholder:text-slate-400
+            shadow-sm outline-none transition-all hover:border-emerald-300
+            focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10
+            dark:border-emerald-700/60 dark:bg-[#08291d] dark:text-white
+            dark:placeholder:text-emerald-200/80 dark:hover:border-emerald-500/80
+            sm:text-sm
             ${isRtl ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"}
           `}
-          style={{
-            fontSize: ".8rem",
-            paddingTop: ".4rem",
-            paddingBottom: ".4rem",
-          }}
         />
 
         {loading && (
@@ -197,7 +195,9 @@ const dateStr =
         {open && query.length >= 2 && (
           <div
             className={`
-              absolute top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#2d4a3e] dark:bg-[#10291d]
+              absolute top-full z-50 mt-2 max-h-[70vh] w-full overflow-y-auto rounded-2xl
+              border border-slate-200 bg-white shadow-2xl dark:border-[#2d4a3e] dark:bg-[#10291d]
+              sm:w-96
               ${isRtl ? "right-0" : "left-0"}
             `}
           >
@@ -209,21 +209,15 @@ const dateStr =
 
             {results?.clients?.map((c) => (
               <button
+                type="button"
                 key={c.id}
                 onClick={() => {
                   router.push(`/dashboard/clients/${c.id}`);
-                  setOpen(false);
-                  setQuery("");
+                  closeSearch();
                 }}
                 className={`flex w-full items-center gap-2.5 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:hover:bg-[#173827]`}
               >
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                  style={{
-                    background: "var(--green-soft)",
-                    color: "var(--sidebar)",
-                  }}
-                >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--green-soft)] text-xs font-bold text-[var(--sidebar)]">
                   {c.name?.[0] ?? "C"}
                 </span>
 
@@ -245,11 +239,11 @@ const dateStr =
 
             {results?.cases?.map((c) => (
               <button
+                type="button"
                 key={c.id}
                 onClick={() => {
                   router.push(`/dashboard/cases/${c.id}`);
-                  setOpen(false);
-                  setQuery("");
+                  closeSearch();
                 }}
                 className={`flex w-full items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#2d4a3e] dark:hover:bg-[#173827]`}
               >
@@ -275,21 +269,20 @@ const dateStr =
 
             {results?.tasks?.map((task) => (
               <button
+                type="button"
                 key={task.id}
                 onClick={() => {
                   router.push("/dashboard/tasks");
-                  setOpen(false);
-                  setQuery("");
+                  closeSearch();
                 }}
                 className={`flex w-full items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#2d4a3e] dark:hover:bg-[#173827]`}
               >
                 <span className="text-xs">{PRIORITY_DOT[task.priority]}</span>
 
                 <p
-                  className={`truncate text-sm text-slate-800 dark:text-emerald-50 ${alignClass}`}
-                  style={{
-                    textDecoration: task.completed ? "line-through" : "none",
-                  }}
+                  className={`truncate text-sm text-slate-800 dark:text-emerald-50 ${alignClass} ${
+                    task.completed ? "line-through" : ""
+                  }`}
                 >
                   {task.title}
                 </p>
@@ -298,11 +291,11 @@ const dateStr =
 
             {results?.documents?.map((document) => (
               <button
+                type="button"
                 key={document.id}
                 onClick={() => {
                   router.push("/dashboard/documents");
-                  setOpen(false);
-                  setQuery("");
+                  closeSearch();
                 }}
                 className={`flex w-full items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#2d4a3e] dark:hover:bg-[#173827]`}
               >
@@ -318,8 +311,7 @@ const dateStr =
                   <p
                     className={`truncate text-xs text-slate-500 dark:text-emerald-200 ${alignClass}`}
                   >
-                    {locale === "ar" ? "مستند" : "Document"} ·{" "}
-                    {document.fileType}
+                    {locale === "ar" ? "مستند" : "Document"} · {document.fileType}
                   </p>
                 </div>
               </button>
@@ -329,28 +321,14 @@ const dateStr =
       </div>
 
       {/* Controls */}
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="order-2 flex shrink-0 items-center gap-2 sm:order-3">
         <span
           className="
-            hidden h-11 items-center gap-1.5
-            rounded-2xl
-            border border-slate-200
-            bg-slate-50/90
-            px-4
-            text-xs
-            font-bold
-            text-slate-700
-            shadow-sm
-            transition-all
-            hover:border-emerald-200
-            hover:bg-white
-            sm:flex
-
-            dark:border-emerald-700/60
-            dark:bg-[#08291d]
-            dark:text-white
-            dark:hover:border-emerald-500/80
-            dark:hover:bg-[#103b2a]
+            hidden h-11 items-center gap-1.5 rounded-2xl border border-slate-200
+            bg-slate-50/90 px-4 text-xs font-bold text-slate-700 shadow-sm
+            transition-all hover:border-emerald-200 hover:bg-white md:flex
+            dark:border-emerald-700/60 dark:bg-[#08291d] dark:text-white
+            dark:hover:border-emerald-500/80 dark:hover:bg-[#103b2a]
           "
         >
           📅 {dateStr}
@@ -359,17 +337,6 @@ const dateStr =
         <LanguageToggle />
         <ThemeToggle />
         <ProfileMenu />
-
-              {/* Title */}
-<h1
-  className={`
-    hidden min-w-[110px] shrink-0 text-sm font-black text-slate-800 dark:text-emerald-50 md:block
-    ${isRtl ? "mr-6 text-right" : "ml-6 text-left"}
-  `}
->
-  {title}
-</h1>
-
       </div>
     </header>
   );
