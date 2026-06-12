@@ -42,9 +42,15 @@ function VerifyEmailContent() {
         return
       }
 
+      const next = data?.data?.next
       setMessage(data?.data?.message || 'تم تأكيد البريد الإلكتروني بنجاح')
 
       setTimeout(() => {
+        if (next === 'LOGIN') {
+          router.push('/login')
+          return
+        }
+
         router.push(`/verify-whatsapp?email=${encodeURIComponent(email)}`)
       }, 900)
     } catch {
@@ -81,11 +87,12 @@ function VerifyEmailContent() {
 
         <form onSubmit={submitVerification} className="space-y-5">
           <div>
-            <label className="mb-2 block text-sm font-bold text-white">
+            <label htmlFor="email" className="mb-2 block text-sm font-bold text-white">
               البريد الإلكتروني
             </label>
 
             <input
+              id="email"
               dir="ltr"
               type="email"
               value={email}
@@ -97,11 +104,12 @@ function VerifyEmailContent() {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-bold text-white">
+            <label htmlFor="code" className="mb-2 block text-sm font-bold text-white">
               رمز التحقق
             </label>
 
             <input
+              id="code"
               dir="ltr"
               inputMode="numeric"
               maxLength={6}

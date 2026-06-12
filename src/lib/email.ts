@@ -1,95 +1,71 @@
-import { Resend } from "resend";
-
-const resendApiKey = process.env.RESEND_API_KEY;
-const emailFrom = process.env.EMAIL_FROM;
-
-function getAppUrl() {
-  return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-export async function sendVerificationEmail({
-  to,
-  code,
-}: {
+type SendVerificationEmailInput = {
   to: string;
   code: string;
-}) {
-  if (!resendApiKey) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("RESEND_API_KEY is not configured");
-    }
+};
 
-    console.log("EMAIL VERIFICATION CODE:", code);
-    console.log("EMAIL VERIFICATION TO:", to);
-    return;
-  }
+function getAppName() {
+  return process.env.APP_NAME || "Viresto";
+}
 
-  if (!emailFrom) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("EMAIL_FROM is not configured");
-    }
+function getEmailFrom() {
+  return process.env.EMAIL_FROM || "Viresto <onboarding@resend.dev>";
+}
 
-    console.log("EMAIL_FROM is not configured");
-    console.log("EMAIL VERIFICATION CODE:", code);
-    console.log("EMAIL VERIFICATION TO:", to);
-    return;
-  }
+function verificationEmailHtml(code: string) {
+  const appName = getAppName();
 
-  const safeCode = escapeHtml(code);
-  const appUrl = getAppUrl();
-  const verifyUrl = `${appUrl}/verify-email?email=${encodeURIComponent(to)}`;
-
-  const resend = new Resend(resendApiKey);
-
-  const { error } = await resend.emails.send({
-    from: emailFrom,
-    to,
-    subject: "رمز تأكيد البريد الإلكتروني - Viresto",
-    html: `
-      <div dir="rtl" style="font-family:Arial,sans-serif;background:#071811;padding:28px;color:#ffffff">
-        <div style="max-width:560px;margin:0 auto;background:#0b2a1d;border:1px solid rgba(52,211,153,.35);border-radius:22px;padding:28px">
-          <h1 style="margin:0 0 12px;font-size:24px">تأكيد البريد الإلكتروني</h1>
-
-          <p style="margin:0 0 20px;color:#c7f9df;line-height:1.8">
-            استخدم رمز التحقق التالي لإكمال إنشاء مكتبك في Viresto.
-          </p>
-
-          <div dir="ltr" style="letter-spacing:8px;text-align:center;font-size:34px;font-weight:900;background:#071811;border-radius:18px;padding:18px;margin:22px 0;color:#d1fae5">
-            ${safeCode}
-          </div>
-
-          <p style="margin:0 0 18px;color:#b7d9c8;line-height:1.8">
-            الرمز صالح لمدة 10 دقائق.
-          </p>
-
-          <a href="${verifyUrl}" style="display:inline-block;background:#10b981;color:#052e1c;text-decoration:none;font-weight:900;border-radius:14px;padding:12px 18px">
-            فتح صفحة التحقق
-          </a>
-
-          <p style="margin:22px 0 0;color:#86a899;line-height:1.8;font-size:13px">
-            إذا لم تقم بطلب إنشاء حساب، تجاهل هذه الرسالة.
-          </p>
-        </div>
+  return `
+  <div dir="rtl" style="font-family: Arial, sans-serif; background:#f4f7f3; padding:32px; color:#173827;">
+    <div style="max-width:560px; margin:0 auto; background:#ffffff; border:1px solid #dfe8dc; border-radius:20px; padding:28px;">
+      <h1 style="margin:0 0 12px; font-size:22px; color:#1e3329;">تأكيد البريد الإلكتروني</h1>
+      <p style="margin:0 0 20px; font-size:15px; line-height:1.8; color:#537065;">
+        استخدم الرمز التالي لتأكيد بريدك الإلكتروني في ${appName}.
+      </p>
+      <div dir="ltr" style="letter-spacing:8px; text-align:center; font-size:32px; font-weight:900; color:#1e3329; background:#eef6f0; border-radius:16px; padding:18px 12px;">
+        ${code}
       </div>
-    `,
-    text: `رمز تأكيد البريد الإلكتروني الخاص بك هو: ${code}. الرمز صالح لمدة 10 دقائق. صفحة التحقق: ${verifyUrl}`,
+      <p style="margin:22px 0 0; font-size:13px; line-height:1.8; color:#8ba498;">
+        تنتهي صلاحية الرمز خلال 10 دقائق. لا تشارك هذا الرمز مع أي شخص.
+      </p>
+    </div>
+  </div>`;
+}
+
+function verificationEmailText(code: string) {
+  return `رمز تأكيد البريد الإلكتروني الخاص بك في ${getAppName()} هو: ${code}\nتنتهي صلاحية الرمز خلال 10 دقائق.`;
+}
+
+export async function sendVerificationEmail({ to, code }: SendVerificationEmailInput) {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV EMAIL VERIFICATION] to=${to} code=${code}`);
+      return { skipped: true };
+    }
+
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: getEmailFrom(),
+      to,
+      subject: `رمز تأكيد البريد الإلكتروني - ${getAppName()}`,
+      html: verificationEmailHtml(code),
+      text: verificationEmailText(code),
+    }),
   });
 
-  if (error) {
-    console.error("RESEND_EMAIL_ERROR:", error);
-    throw new Error(
-      typeof error.message === "string"
-        ? error.message
-        : "Failed to send verification email",
-    );
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Failed to send verification email: ${response.status} ${errorText}`);
   }
+
+  return response.json().catch(() => ({ ok: true }));
 }

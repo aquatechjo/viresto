@@ -42,9 +42,15 @@ function VerifyWhatsappContent() {
         return;
       }
 
+      const next = data?.data?.next;
       setMessage(data?.data?.message || "تم تأكيد رقم الواتساب بنجاح");
 
       setTimeout(() => {
+        if (next === "LOGIN") {
+          router.push("/login");
+          return;
+        }
+
         router.push("/dashboard");
       }, 900);
     } catch {
@@ -81,11 +87,12 @@ function VerifyWhatsappContent() {
 
         <form onSubmit={submitVerification} className="space-y-5">
           <div>
-            <label className="mb-2 block text-sm font-bold text-white">
+            <label htmlFor="email" className="mb-2 block text-sm font-bold text-white">
               البريد الإلكتروني
             </label>
 
             <input
+              id="email"
               dir="ltr"
               type="email"
               value={email}
@@ -97,11 +104,12 @@ function VerifyWhatsappContent() {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-bold text-white">
+            <label htmlFor="code" className="mb-2 block text-sm font-bold text-white">
               رمز الواتساب
             </label>
 
             <input
+              id="code"
               dir="ltr"
               inputMode="numeric"
               maxLength={6}

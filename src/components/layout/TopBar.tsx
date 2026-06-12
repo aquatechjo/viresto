@@ -1,4 +1,3 @@
-
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
@@ -131,17 +130,20 @@ export default function TopBar() {
 
   return (
     <header
-      dir={isRtl ? "rtl" : "ltr"}
+      dir="ltr"
       className={`
-        sticky top-0 z-20 flex min-h-[72px] min-w-0 flex-wrap items-center gap-3
-        border-b border-slate-200 bg-white/85 py-3 shadow-sm backdrop-blur-[18px]
-        transition-colors dark:border-[#2d4a3e] dark:bg-[#0d241a]/95
-        sm:flex-nowrap sm:gap-4 lg:h-[72px] lg:py-0
-        ${isRtl ? "pr-[72px] pl-4 lg:pr-6 lg:pl-6" : "pl-[72px] pr-4 lg:pl-6 lg:pr-6"}
-      `}
+      sticky top-0 z-20 flex min-h-[72px] min-w-0 flex-wrap items-center gap-3
+      border-b border-slate-200 bg-white/85 py-3 shadow-sm backdrop-blur-[18px]
+      transition-colors dark:border-[#2d4a3e] dark:bg-[#0d241a]/95
+      sm:flex-nowrap sm:gap-4 lg:h-[72px] lg:py-0
+      ${isRtl ? "pr-[72px] pl-4 lg:pr-6 lg:pl-6" : "pl-[72px] pr-4 lg:pl-6 lg:pr-6"}
+    `}
     >
       {/* Title */}
-      <div className="order-1 min-w-0 shrink-0 sm:w-auto">
+      <div
+        dir={isRtl ? "rtl" : "ltr"}
+        className="order-1 min-w-0 shrink-0 text-left sm:w-auto"
+      >
         <h1 className="max-w-[42vw] truncate text-sm font-black text-slate-800 dark:text-emerald-50 sm:max-w-[180px] lg:max-w-[240px]">
           {title}
         </h1>
@@ -311,7 +313,8 @@ export default function TopBar() {
                   <p
                     className={`truncate text-xs text-slate-500 dark:text-emerald-200 ${alignClass}`}
                   >
-                    {locale === "ar" ? "مستند" : "Document"} · {document.fileType}
+                    {locale === "ar" ? "مستند" : "Document"} ·{" "}
+                    {document.fileType}
                   </p>
                 </div>
               </button>

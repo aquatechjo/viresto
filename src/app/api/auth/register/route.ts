@@ -11,7 +11,7 @@ import { createVerificationCode } from "@/lib/verification";
 import { sendVerificationEmail } from "@/lib/email";
 
 function normalizeJordanPhone(phone: string) {
-  const cleaned = phone.replace(/\s+/g, "");
+  const cleaned = phone.replace(/\s+/g, "").trim();
 
   if (cleaned.startsWith("+962")) return cleaned;
 
@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
-    const publicRegisterEnabled =
-      process.env.PUBLIC_REGISTER_ENABLED === "true";
+
+    const publicRegisterEnabled = process.env.PUBLIC_REGISTER_ENABLED === "true";
 
     if (!publicRegisterEnabled) {
       return err("إنشاء الحسابات غير متاح حالياً", 403);
@@ -55,7 +55,8 @@ export async function POST(req: NextRequest) {
       return err("بيانات غير صالحة", 400, parsed.error.flatten());
     }
 
-    const { tenantName, name, email, phone, password } = parsed.data;
+    const { tenantName, name, phone, password } = parsed.data;
+    const email = parsed.data.email.trim().toLowerCase();
     const normalizedPhone = normalizeJordanPhone(phone);
 
     const existingPhone = await prisma.user.findFirst({
@@ -70,7 +71,15 @@ export async function POST(req: NextRequest) {
     if (existingPhone) {
       return err("رقم الهاتف مستخدم مسبقًا", 409);
     }
-    const exists = await prisma.user.findFirst({ where: { email } });
+
+    const exists = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+      select: {
+        id: true,
+      },
+    });
 
     if (exists) {
       return err("البريد الإلكتروني مستخدم مسبقاً", 409);
@@ -102,7 +111,9 @@ export async function POST(req: NextRequest) {
           },
         },
       },
-      include: { users: true },
+      include: {
+        users: true,
+      },
     });
 
     const adminUser = tenant.users[0];
@@ -122,7 +133,7 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         data: {
-          message: "تم إنشاء المكتب. يرجى تأكيد البريد الإلكتروني.",
+          message: "تم إنشاء المكتب. أرسلنا رمز تأكيد إلى بريدك الإلكتروني.",
           requiresVerification: true,
           next: "EMAIL_VERIFICATION",
           email: adminUser.email,

@@ -1,11 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { verifyCode } from "@/lib/verification";
-import crypto from "crypto";
 import { signToken, buildCookie } from "@/lib/auth";
+
+async function createLoginResponse(req: NextRequest, user: {
+  id: string;
+  tenantId: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "LAWYER" | "STAFF";
+  isSystemAdmin: boolean;
+}) {
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    req.headers.get("x-real-ip") ??
+    "unknown";
+
+  const session = await prisma.session.create({
+    data: {
+      userId: user.id,
+      tenantId: user.tenantId,
+      tokenHash: crypto.randomUUID(),
+      ipAddress: ip,
+      userAgent: req.headers.get("user-agent"),
+    },
+  });
+
+  const token = await signToken({
+    userId: user.id,
+    tenantId: user.tenantId,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    sessionId: session.id,
+    isSystemAdmin: user.isSystemAdmin,
+  });
+
+  const res = NextResponse.json({
+    success: true,
+    data: {
+      message: "تم تأكيد رقم الواتساب بنجاح.",
+      phoneVerified: true,
+      next: "DASHBOARD",
+    },
+  });
+
+  res.cookies.set(buildCookie(token));
+
+  return res;
+}
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -56,7 +103,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         data: {
-          message: "رقم الواتساب مؤكد مسبقًا.",
+          message: "رقم الواتساب مؤكد مسبقًا. يرجى تسجيل الدخول.",
           phoneVerified: true,
           next: "LOGIN",
         },
@@ -81,51 +128,15 @@ export async function POST(req: NextRequest) {
       return err("رمز التحقق غير صحيح", 400);
     }
 
-await prisma.user.update({
-  where: {
-    id: user.id,
-  },
-  data: {
-    phoneVerifiedAt: new Date(),
-  },
-});
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        phoneVerifiedAt: new Date(),
+      },
+    });
 
-const ip =
-  req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-  req.headers.get("x-real-ip") ??
-  "unknown";
-
-const session = await prisma.session.create({
-  data: {
-    userId: user.id,
-    tenantId: user.tenantId,
-    tokenHash: crypto.randomUUID(),
-    ipAddress: ip,
-    userAgent: req.headers.get("user-agent"),
-  },
-});
-
-const token = await signToken({
-  userId: user.id,
-  tenantId: user.tenantId,
-  email: user.email,
-  name: user.name,
-  role: user.role,
-  sessionId: session.id,
-  isSystemAdmin: user.isSystemAdmin,
-});
-
-const res = NextResponse.json({
-  success: true,
-  data: {
-    message: "تم تأكيد رقم الواتساب بنجاح.",
-    phoneVerified: true,
-    next: "DASHBOARD",
-  },
-});
-
-res.cookies.set(buildCookie(token));
-
-return res;
+    return createLoginResponse(req, user);
   });
 }
