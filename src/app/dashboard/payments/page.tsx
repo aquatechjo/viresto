@@ -47,7 +47,7 @@ const FALLBACK_PAYMENTS_COPY = {
     },
     filters: {
       searchPlaceholder: 'ابحث باسم القضية، رقم القضية أو اسم الموكل...',
-      apply: 'تصفية',
+      apply: 'بحث',
       clear: 'مسح الفلاتر',
       chips: {
         all: 'الكل',

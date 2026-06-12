@@ -89,7 +89,7 @@ const TASK_TRANSLATIONS = {
       searchPlaceholder: 'ابحث في العنوان، الوصف، الموكل أو القضية...',
       priorityAria: 'فلترة حسب الأولوية', clientAria: 'فلترة حسب الموكل', caseAria: 'فلترة حسب القضية',
       allPriorities: 'جميع الأولويات', allClients: 'جميع الموكلين', allCases: 'جميع القضايا',
-      apply: 'تصفية', clear: 'مسح الفلاتر',
+      apply: 'بحث', clear: 'مسح الفلاتر',
       chips: { all: 'الكل', pending: 'معلقة', done: 'منتهية' },
     },
     status: { pending: 'معلقة', done: 'منتهية' },

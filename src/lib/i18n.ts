@@ -156,7 +156,7 @@ export const translations = {
         searchPlaceholder: "ابحث باسم الملف، الموكل، أو القضية...",
         categoryAria: "فلترة حسب التصنيف",
         allCategories: "جميع التصنيفات",
-        apply: "تصفية",
+        apply: "بحث",
         clear: "مسح الفلاتر",
         types: {
           all: "الكل",
@@ -173,7 +173,6 @@ export const translations = {
       },
       linkPanel: {
         title: "بيانات الربط والتصنيف",
-        subtitle: "اختيارية، لكنها تساعد في تنظيم الأرشيف والبحث لاحقًا.",
         caseAria: "اختيار قضية",
         noCase: "بدون قضية",
         clientAria: "اختيار موكل",
@@ -247,7 +246,7 @@ export const translations = {
       },
       filters: {
         searchPlaceholder: "ابحث باسم القضية، رقم القضية أو اسم الموكل...",
-        apply: "تصفية",
+        apply: "بحث",
         clear: "مسح الفلاتر",
         chips: {
           all: "الكل",
@@ -308,7 +307,7 @@ export const translations = {
         searchPlaceholder: "ابحث في العنوان، المكان، الموكل أو القضية...",
         typeAria: "فلترة حسب نوع الموعد",
         allTypes: "جميع الأنواع",
-        apply: "تصفية",
+        apply: "بحث",
         chips: {
           all: "الكل",
           sessions: "جلسات",
@@ -399,7 +398,7 @@ export const translations = {
         statusAria: "فلترة حسب الحالة",
         allRoles: "جميع الصلاحيات",
         allStatuses: "جميع الحالات",
-        apply: "تصفية",
+        apply: "يحث",
         chips: {
           all: "الكل",
           admins: "المدراء",
@@ -659,8 +658,6 @@ export const translations = {
       },
       linkPanel: {
         title: "Linking and classification",
-        subtitle:
-          "Optional, but it helps organize the archive and search later.",
         caseAria: "Choose case",
         noCase: "No case",
         clientAria: "Choose client",

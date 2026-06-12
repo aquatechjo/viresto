@@ -71,7 +71,7 @@ const TEAM_COPY = {
       statusAria: "فلترة حسب الحالة",
       allRoles: "جميع الصلاحيات",
       allStatuses: "جميع الحالات",
-      filter: "تصفية",
+      filter: "بحث",
       clear: "مسح الفلاتر",
       all: "الكل",
       admins: "المدراء",

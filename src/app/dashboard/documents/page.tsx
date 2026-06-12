@@ -166,6 +166,9 @@ export default function DocumentsPage() {
     selectCaseFirst: isRtl
       ? "اختر قضية لعرض الموكل المرتبط"
       : "Select a case to show the linked client",
+    subtitle: isRtl
+      ? "اختر القضية وسيتم ربط الموكل تلقائياً لتنظيم الأرشيف والبحث لاحقاً."
+      : "Select a case and the client will be linked automatically for better archiving and search.",
   };
 
   const [docs, setDocs] = useState<Doc[]>([]);
@@ -301,11 +304,6 @@ export default function DocumentsPage() {
   async function upload(file: File) {
     if (file.size > 10 * 1024 * 1024) {
       toast.error(d.messages.fileTooLarge);
-      return;
-    }
-
-    if (!caseId) {
-      toast.error(linkCopy.caseRequired);
       return;
     }
 
@@ -790,7 +788,7 @@ export default function DocumentsPage() {
             </h3>
 
             <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
-              {d.linkPanel.subtitle}
+              {linkCopy.subtitle}
             </p>
           </div>
 

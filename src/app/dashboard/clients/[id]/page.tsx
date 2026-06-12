@@ -106,7 +106,7 @@ const COPY = {
     filters: {
       placeholder: "ابحث باسم القضية أو رقمها...",
       ariaStatus: "فلترة حسب حالة القضية",
-      filter: "تصفية",
+      filter: "بحث",
       clear: "مسح الفلاتر",
       statuses: {
         all: "الكل",
@@ -133,6 +133,7 @@ const COPY = {
       },
     },
     modal: {
+      nationalId: "الرقم الوطني",
       title: "تعديل بيانات الموكل",
       fullName: "الاسم الكامل",
       phone: "الهاتف",
@@ -222,6 +223,7 @@ const COPY = {
       },
     },
     modal: {
+      nationalId: "National ID",
       title: "Edit client details",
       fullName: "Full name",
       phone: "Phone",
@@ -239,6 +241,7 @@ const INIT_FORM = {
   name: "",
   phone: "",
   email: "",
+  nationalId: "",
   address: "",
   notes: "",
 };
@@ -329,6 +332,7 @@ export default function ClientDetailPage() {
           name: data.data.name ?? "",
           phone: data.data.phone ?? "",
           email: data.data.email ?? "",
+          nationalId: data.data.nationalId ?? "",
           address: data.data.address ?? "",
           notes: data.data.notes ?? "",
         });
@@ -420,10 +424,19 @@ export default function ClientDetailPage() {
     try {
       setSaving(true);
 
+      const payload = {
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        nationalId: form.nationalId.trim(),
+        address: form.address.trim(),
+        notes: form.notes.trim(),
+      };
+
       const response = await fetch(`/api/clients/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json().catch(() => ({}));
@@ -1323,6 +1336,7 @@ export default function ClientDetailPage() {
             name: client.name ?? "",
             phone: client.phone ?? "",
             email: client.email ?? "",
+            nationalId: client.nationalId ?? "",
             address: client.address ?? "",
             notes: client.notes ?? "",
           });
@@ -1404,6 +1418,25 @@ export default function ClientDetailPage() {
             </FormField>
           </div>
 
+          <FormField label={text.modal.nationalId}>
+            <input
+              dir="ltr"
+              value={form.nationalId}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  nationalId: event.target.value,
+                }))
+              }
+              disabled={isArchivedClient}
+              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: "ltr",
+              }}
+            />
+          </FormField>
+
           <FormField label={text.modal.address}>
             <input
               dir={isRtl ? "rtl" : "ltr"}
@@ -1453,6 +1486,7 @@ export default function ClientDetailPage() {
                   name: client.name ?? "",
                   phone: client.phone ?? "",
                   email: client.email ?? "",
+                  nationalId: client.nationalId ?? "",
                   address: client.address ?? "",
                   notes: client.notes ?? "",
                 });

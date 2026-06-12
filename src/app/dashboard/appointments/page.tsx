@@ -510,26 +510,6 @@ if (loading) {
             className="input"
             {...fieldDir}
           />
-
-          <select
-            aria-label={a.filters.typeAria}
-            value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value)}
-            className="input"
-            {...fieldDir}
-          >
-            <option value="all" dir={isRtl ? 'rtl' : 'ltr'}>{a.filters.allTypes}</option>
-
-            {Object.entries(typeLabels).map(([key, value]) => (
-              <option key={key} value={key} dir={isRtl ? 'rtl' : 'ltr'}>
-                {value}
-              </option>
-            ))}
-          </select>
-
-          <button onClick={clearFilters} className="btn btn-ghost whitespace-nowrap">
-            {a.filters.apply}
-          </button>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
