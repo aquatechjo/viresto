@@ -1,234 +1,236 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
-import Modal from '@/components/ui/Modal'
-import FormField from '@/components/ui/FormField'
-import EmptyState from '@/components/ui/EmptyState'
-import TableSkeleton from '@/components/ui/TableSkeleton'
+import Modal from "@/components/ui/Modal";
+import FormField from "@/components/ui/FormField";
+import EmptyState from "@/components/ui/EmptyState";
+import TableSkeleton from "@/components/ui/TableSkeleton";
 import {
   getApiMessage,
   isPlanLimitResponse,
   planLimitMessage,
-} from '@/lib/plan-ui'
-import { useLocale } from '@/lib/useLocale'
+} from "@/lib/plan-ui";
+import { useLocale } from "@/lib/useLocale";
 
 interface Case {
-  id: string
-  title: string
-  caseNumber?: string
-  status: string
-  feeAgreed: number
+  id: string;
+  title: string;
+  caseNumber?: string;
+  status: string;
+  feeAgreed: number;
 
   client?: {
-    id?: string
-    name: string
-    archivedAt?: string | null
-  }
+    id?: string;
+    name: string;
+    archivedAt?: string | null;
+  };
 
-  payments: { amount: number; status: string }[]
+  payments: { amount: number; status: string }[];
 
   _count?: {
-    appointments: number
-    documents: number
-  }
+    appointments: number;
+    documents: number;
+  };
 }
 
 interface ClientOpt {
-  id: string
-  name: string
-  archivedAt?: string | null
+  id: string;
+  name: string;
+  archivedAt?: string | null;
 }
 
 const STATUS_KEYS = [
-  'all',
-  'OPEN',
-  'IN_PROGRESS',
-  'CLOSED',
-  'ARCHIVED',
-  'ARCHIVED_CLIENT',
-] as const
+  "all",
+  "OPEN",
+  "IN_PROGRESS",
+  "CLOSED",
+  "ARCHIVED",
+  "ARCHIVED_CLIENT",
+] as const;
 
-type StatusFilter = (typeof STATUS_KEYS)[number]
+type StatusFilter = (typeof STATUS_KEYS)[number];
 
 const STATUS_BADGE: Record<string, string> = {
-  OPEN: 'badge badge-green',
-  IN_PROGRESS: 'badge badge-blue',
-  CLOSED: 'badge badge-gray',
-  ARCHIVED: 'badge badge-gray',
-}
+  OPEN: "badge badge-green",
+  IN_PROGRESS: "badge badge-blue",
+  CLOSED: "badge badge-gray",
+  ARCHIVED: "badge badge-gray",
+};
 
 const COPY = {
   ar: {
-    loadError: 'فشل تحميل القضايا',
-    requiredError: 'الموكل وعنوان القضية مطلوبان',
-    archivedClientCreateError: 'لا يمكن إنشاء قضية جديدة لموكل مؤرشف',
-    created: 'تمت إضافة القضية',
-    addError: 'تعذر إضافة القضية',
-    addUnexpected: 'حدث خطأ أثناء إضافة القضية',
-    planLimitTitle: 'وصلت إلى حد الخطة الحالية',
-    planLimitFallback: 'وصلت إلى حد القضايا المسموح في خطتك الحالية.',
-    viewBilling: 'عرض الاشتراك',
-    close: 'إغلاق',
-    archivedClientBadge: 'موكل مؤرشف',
-    openClientFile: 'فتح ملف الموكل ←',
+    loadError: "فشل تحميل القضايا",
+    requiredError: "الموكل وعنوان القضية مطلوبان",
+    archivedClientCreateError: "لا يمكن إنشاء قضية جديدة لموكل مؤرشف",
+    created: "تمت إضافة القضية",
+    addError: "تعذر إضافة القضية",
+    addUnexpected: "حدث خطأ أثناء إضافة القضية",
+    planLimitTitle: "وصلت إلى حد الخطة الحالية",
+    planLimitFallback: "وصلت إلى حد القضايا المسموح في خطتك الحالية.",
+    viewBilling: "عرض الاشتراك",
+    close: "إغلاق",
+    archivedClientBadge: "موكل مؤرشف",
+    openClientFile: "فتح ملف الموكل ←",
     hero: {
-      badge: 'إدارة القضايا',
-      title: 'القضايا',
+      badge: "إدارة القضايا",
+      title: "القضايا",
       subtitle:
-        'تابع ملفات القضايا، الموكلين، الأتعاب، المدفوعات والمستحقات من واجهة واحدة تساعدك على إدارة العمل القانوني بوضوح.',
-      newCase: '+ قضية جديدة',
+        "تابع ملفات القضايا، الموكلين، الأتعاب، المدفوعات والمستحقات من واجهة واحدة تساعدك على إدارة العمل القانوني بوضوح.",
+      newCase: "+ قضية جديدة",
     },
     stats: {
-      active: 'نشطة',
-      inProgress: 'قيد المتابعة',
-      closed: 'مغلقة',
-      archived: 'مؤرشفة',
-      archivedClients: 'موكلون مؤرشفون',
-      totalFees: 'إجمالي الأتعاب',
-      paid: 'المدفوع',
-      remaining: 'المتبقي',
+      active: "نشطة",
+      inProgress: "قيد المتابعة",
+      closed: "مغلقة",
+      archived: "مؤرشفة",
+      archivedClients: "موكلون مؤرشفون",
+      totalFees: "إجمالي الأتعاب",
+      paid: "المدفوع",
+      remaining: "المتبقي",
     },
     filters: {
-      searchAria: 'البحث في القضايا',
-      searchPlaceholder: 'ابحث في رقم القضية، العنوان أو اسم الموكل...',
-      clear: 'مسح الفلاتر',
+      searchAria: "البحث في القضايا",
+      searchPlaceholder: "ابحث في رقم القضية، العنوان أو اسم الموكل...",
+      clear: "مسح الفلاتر",
       statuses: {
-        all: 'الكل',
-        OPEN: 'نشطة',
-        IN_PROGRESS: 'قيد المتابعة',
-        CLOSED: 'مغلقة',
-        ARCHIVED: 'مؤرشفة',
-        ARCHIVED_CLIENT: 'موكل مؤرشف',
+        all: "الكل",
+        OPEN: "نشطة",
+        IN_PROGRESS: "قيد المتابعة",
+        CLOSED: "مغلقة",
+        ARCHIVED: "مؤرشفة",
+        ARCHIVED_CLIENT: "موكل مؤرشف",
       },
     },
     empty: {
-      title: 'لا توجد قضايا',
-      noCases: 'قم بإنشاء أول قضية للبدء بإدارة العمل القانوني.',
-      noResults: 'لا توجد قضايا مطابقة للفلاتر الحالية.',
-      add: '+ قضية جديدة',
+      title: "لا توجد قضايا",
+      noCases: "قم بإنشاء أول قضية للبدء بإدارة العمل القانوني.",
+      noResults: "لا توجد قضايا مطابقة للفلاتر الحالية.",
+      add: "+ قضية جديدة",
     },
     table: {
-      case: 'القضية',
-      client: 'الموكل',
-      fees: 'الأتعاب',
-      paid: 'المدفوع',
-      remaining: 'المتبقي',
-      appointments: 'المواعيد',
-      documents: 'المستندات',
-      status: 'الحالة',
+      case: "القضية",
+      client: "الموكل",
+      fees: "الأتعاب",
+      paid: "المدفوع",
+      remaining: "المتبقي",
+      appointments: "المواعيد",
+      documents: "المستندات",
+      status: "الحالة",
     },
     modal: {
-      title: 'إضافة قضية جديدة',
-      client: 'الموكل',
-      chooseClient: 'اختر موكلاً...',
-      caseTitle: 'عنوان القضية',
-      caseNumber: 'رقم القضية',
-      fees: 'الأتعاب',
-      court: 'المحكمة',
-      description: 'الوصف',
-      cancel: 'إلغاء',
-      save: 'حفظ',
+      title: "إضافة قضية جديدة",
+      client: "الموكل",
+      chooseClient: "اختر موكلاً...",
+      caseTitle: "عنوان القضية",
+      caseNumber: "رقم القضية",
+      fees: "الأتعاب",
+      court: "المحكمة",
+      description: "الوصف",
+      cancel: "إلغاء",
+      save: "حفظ",
     },
   },
   en: {
-    loadError: 'Failed to load cases',
-    requiredError: 'Client and case title are required',
-    archivedClientCreateError: 'You cannot create a new case for an archived client',
-    created: 'Case added successfully',
-    addError: 'Could not add case',
-    addUnexpected: 'Something went wrong while adding the case',
-    planLimitTitle: 'Current plan limit reached',
-    planLimitFallback: 'You have reached the case limit allowed by your current plan.',
-    viewBilling: 'View billing',
-    close: 'Close',
-    archivedClientBadge: 'Archived client',
-    openClientFile: 'Open client file →',
+    loadError: "Failed to load cases",
+    requiredError: "Client and case title are required",
+    archivedClientCreateError:
+      "You cannot create a new case for an archived client",
+    created: "Case added successfully",
+    addError: "Could not add case",
+    addUnexpected: "Something went wrong while adding the case",
+    planLimitTitle: "Current plan limit reached",
+    planLimitFallback:
+      "You have reached the case limit allowed by your current plan.",
+    viewBilling: "View billing",
+    close: "Close",
+    archivedClientBadge: "Archived client",
+    openClientFile: "Open client file →",
     hero: {
-      badge: 'Case management',
-      title: 'Cases',
+      badge: "Case management",
+      title: "Cases",
       subtitle:
-        'Track case files, clients, fees, payments, and receivables from one clear legal workspace.',
-      newCase: '+ New case',
+        "Track case files, clients, fees, payments, and receivables from one clear legal workspace.",
+      newCase: "+ New case",
     },
     stats: {
-      active: 'Active',
-      inProgress: 'In progress',
-      closed: 'Closed',
-      archived: 'Archived',
-      archivedClients: 'Archived clients',
-      totalFees: 'Total fees',
-      paid: 'Paid',
-      remaining: 'Remaining',
+      active: "Active",
+      inProgress: "In progress",
+      closed: "Closed",
+      archived: "Archived",
+      archivedClients: "Archived clients",
+      totalFees: "Total fees",
+      paid: "Paid",
+      remaining: "Remaining",
     },
     filters: {
-      searchAria: 'Search cases',
-      searchPlaceholder: 'Search by case number, title, or client name...',
-      clear: 'Clear filters',
+      searchAria: "Search cases",
+      searchPlaceholder: "Search by case number, title, or client name...",
+      clear: "Clear filters",
       statuses: {
-        all: 'All',
-        OPEN: 'Active',
-        IN_PROGRESS: 'In progress',
-        CLOSED: 'Closed',
-        ARCHIVED: 'Archived',
-        ARCHIVED_CLIENT: 'Archived client',
+        all: "All",
+        OPEN: "Active",
+        IN_PROGRESS: "In progress",
+        CLOSED: "Closed",
+        ARCHIVED: "Archived",
+        ARCHIVED_CLIENT: "Archived client",
       },
     },
     empty: {
-      title: 'No cases found',
-      noCases: 'Create the first case to start managing legal work.',
-      noResults: 'No cases match the current filters.',
-      add: '+ New case',
+      title: "No cases found",
+      noCases: "Create the first case to start managing legal work.",
+      noResults: "No cases match the current filters.",
+      add: "+ New case",
     },
     table: {
-      case: 'Case',
-      client: 'Client',
-      fees: 'Fees',
-      paid: 'Paid',
-      remaining: 'Remaining',
-      appointments: 'Appointments',
-      documents: 'Documents',
-      status: 'Status',
+      case: "Case",
+      client: "Client",
+      fees: "Fees",
+      paid: "Paid",
+      remaining: "Remaining",
+      appointments: "Appointments",
+      documents: "Documents",
+      status: "Status",
     },
     modal: {
-      title: 'Add new case',
-      client: 'Client',
-      chooseClient: 'Choose a client...',
-      caseTitle: 'Case title',
-      caseNumber: 'Case number',
-      fees: 'Fees',
-      court: 'Court',
-      description: 'Description',
-      cancel: 'Cancel',
-      save: 'Save',
+      title: "Add new case",
+      client: "Client",
+      chooseClient: "Choose a client...",
+      caseTitle: "Case title",
+      caseNumber: "Case number",
+      fees: "Fees",
+      court: "Court",
+      description: "Description",
+      cancel: "Cancel",
+      save: "Save",
     },
   },
-} as const
+} as const;
 
 const INIT = {
-  clientId: '',
-  title: '',
-  caseNumber: '',
-  court: '',
-  feeAgreed: '',
-  description: '',
-}
+  clientId: "",
+  title: "",
+  caseNumber: "",
+  court: "",
+  feeAgreed: "",
+  description: "",
+};
 
 function formatMoney(value: number) {
-  const amount = Number(value || 0).toLocaleString('en-US', {
+  const amount = Number(value || 0).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })
+  });
 
-  return `JOD ${amount}`
+  return `JOD ${amount}`;
 }
 
 function isArchivedClientCase(item: Case) {
-  return Boolean(item.client?.archivedAt)
+  return Boolean(item.client?.archivedAt);
 }
 
 function PlanLimitBanner({
@@ -236,9 +238,9 @@ function PlanLimitBanner({
   onClose,
   text,
 }: {
-  message: string
-  onClose: () => void
-  text: (typeof COPY)['ar'] | (typeof COPY)['en']
+  message: string;
+  onClose: () => void;
+  text: (typeof COPY)["ar"] | (typeof COPY)["en"];
 }) {
   return (
     <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
@@ -259,183 +261,191 @@ function PlanLimitBanner({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function CasesPage() {
-  const router = useRouter()
-  const { locale, isRtl } = useLocale()
-  const text = COPY[locale === 'ar' ? 'ar' : 'en']
+  const router = useRouter();
+  const { locale, isRtl } = useLocale();
+  const text = COPY[locale === "ar" ? "ar" : "en"];
 
-  const [cases, setCases] = useState<Case[]>([])
-  const [clients, setClients] = useState<ClientOpt[]>([])
-  const [filter, setFilter] = useState<StatusFilter>('all')
-  const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState(INIT)
-  const [saving, setSaving] = useState(false)
-  const [planLimit, setPlanLimit] = useState('')
+  const [cases, setCases] = useState<Case[]>([]);
+  const [clients, setClients] = useState<ClientOpt[]>([]);
+  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(INIT);
+  const [saving, setSaving] = useState(false);
+  const [planLimit, setPlanLimit] = useState("");
 
   const selectedClient = useMemo(() => {
-    return clients.find((client) => client.id === form.clientId)
-  }, [clients, form.clientId])
+    return clients.find((client) => client.id === form.clientId);
+  }, [clients, form.clientId]);
 
-  const selectedClientArchived = Boolean(selectedClient?.archivedAt)
+  const selectedClientArchived = Boolean(selectedClient?.archivedAt);
 
   const load = useCallback(async () => {
     try {
-      setLoading(true)
+      setLoading(true);
 
       const [casesRes, clientsRes] = await Promise.all([
-        fetch('/api/cases?page=1&limit=100&includeArchivedClients=true'),
-        fetch('/api/clients?page=1&limit=100&archive=active'),
-      ])
+        fetch("/api/cases?page=1&limit=100&includeArchivedClients=true"),
+        fetch("/api/clients?page=1&limit=100&archive=active"),
+      ]);
 
       if (!casesRes.ok || !clientsRes.ok) {
-        setCases([])
-        setClients([])
-        return
+        setCases([]);
+        setClients([]);
+        return;
       }
 
       const [casesData, clientsData] = await Promise.all([
         casesRes.json().catch(() => ({ data: [] })),
         clientsRes.json().catch(() => ({ data: [] })),
-      ])
+      ]);
 
-      setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : [])
+      setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : []);
       setClients(
         Array.isArray(clientsData.data?.data)
-          ? clientsData.data.data.filter((client: ClientOpt) => !client.archivedAt)
-          : []
-      )
+          ? clientsData.data.data.filter(
+              (client: ClientOpt) => !client.archivedAt,
+            )
+          : [],
+      );
     } catch {
-      toast.error(text.loadError)
-      setCases([])
-      setClients([])
+      toast.error(text.loadError);
+      setCases([]);
+      setClients([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [text.loadError])
+  }, [text.loadError]);
 
   useEffect(() => {
-    load()
-  }, [load])
+    load();
+  }, [load]);
 
-  const activeCount = cases.filter((item) => item.status === 'OPEN').length
-  const progressCount = cases.filter((item) => item.status === 'IN_PROGRESS').length
-  const closedCount = cases.filter((item) => item.status === 'CLOSED').length
-  const archivedCount = cases.filter((item) => item.status === 'ARCHIVED').length
-  const archivedClientCount = cases.filter(isArchivedClientCase).length
+  const activeCount = cases.filter((item) => item.status === "OPEN").length;
+  const progressCount = cases.filter(
+    (item) => item.status === "IN_PROGRESS",
+  ).length;
+  const closedCount = cases.filter((item) => item.status === "CLOSED").length;
+  const archivedCount = cases.filter(
+    (item) => item.status === "ARCHIVED",
+  ).length;
+  const archivedClientCount = cases.filter(isArchivedClientCase).length;
 
   function paid(item: Case) {
     return item.payments
-      .filter((payment) => payment.status === 'PAID')
-      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+      .filter((payment) => payment.status === "PAID")
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   }
 
   function remaining(item: Case) {
-    return Math.max(0, Number(item.feeAgreed || 0) - paid(item))
+    return Math.max(0, Number(item.feeAgreed || 0) - paid(item));
   }
 
   const totalFees = cases.reduce(
     (sum, item) => sum + Number(item.feeAgreed || 0),
-    0
-  )
-  const totalPaid = cases.reduce((sum, item) => sum + paid(item), 0)
-  const totalRemaining = Math.max(0, totalFees - totalPaid)
+    0,
+  );
+  const totalPaid = cases.reduce((sum, item) => sum + paid(item), 0);
+  const totalRemaining = Math.max(0, totalFees - totalPaid);
 
   const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase()
+    const query = search.trim().toLowerCase();
 
     return cases.filter((item) => {
       const matchesStatus =
-        filter === 'all' ||
-        (filter === 'ARCHIVED_CLIENT'
+        filter === "all" ||
+        (filter === "ARCHIVED_CLIENT"
           ? isArchivedClientCase(item)
-          : item.status === filter)
+          : item.status === filter);
 
       const matchesSearch =
         !query ||
         item.title?.toLowerCase().includes(query) ||
         item.caseNumber?.toLowerCase().includes(query) ||
-        item.client?.name?.toLowerCase().includes(query)
+        item.client?.name?.toLowerCase().includes(query);
 
-      return matchesStatus && matchesSearch
-    })
-  }, [cases, filter, search])
+      return matchesStatus && matchesSearch;
+    });
+  }, [cases, filter, search]);
 
   async function handleAdd(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+    event.preventDefault();
 
     if (!form.clientId || !form.title.trim()) {
-      toast.error(text.requiredError)
-      return
+      toast.error(text.requiredError);
+      return;
     }
 
     if (selectedClientArchived) {
-      toast.error(text.archivedClientCreateError)
-      return
+      toast.error(text.archivedClientCreateError);
+      return;
     }
 
     try {
-      setSaving(true)
-      setPlanLimit('')
+      setSaving(true);
+      setPlanLimit("");
 
-      const response = await fetch('/api/cases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           feeAgreed: parseFloat(form.feeAgreed) || 0,
         }),
-      })
+      });
 
-      const data = await response.json().catch(() => ({}))
+      const data = await response.json().catch(() => ({}));
 
       if (data.success) {
-        toast.success(text.created)
-        setOpen(false)
-        setForm(INIT)
-        load()
+        toast.success(text.created);
+        setOpen(false);
+        setForm(INIT);
+        load();
       } else if (isPlanLimitResponse(data)) {
-        setOpen(false)
-        setPlanLimit(planLimitMessage(data, text.planLimitFallback))
+        setOpen(false);
+        setPlanLimit(planLimitMessage(data, text.planLimitFallback));
       } else {
-        toast.error(getApiMessage(data, text.addError))
+        toast.error(getApiMessage(data, text.addError));
       }
     } catch {
-      toast.error(text.addUnexpected)
+      toast.error(text.addUnexpected);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   function f(key: keyof typeof INIT) {
     return (
-      event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+      event: ChangeEvent<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >,
     ) => {
       setForm((previous) => ({
         ...previous,
         [key]: event.target.value,
-      }))
-    }
+      }));
+    };
   }
 
   function clearFilters() {
-    setSearch('')
-    setFilter('all')
+    setSearch("");
+    setFilter("all");
   }
 
   return (
     <div
       className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
-      dir={isRtl ? 'rtl' : 'ltr'}
+      dir={isRtl ? "rtl" : "ltr"}
     >
       {planLimit && (
         <PlanLimitBanner
           message={planLimit}
-          onClose={() => setPlanLimit('')}
+          onClose={() => setPlanLimit("")}
           text={text}
         />
       )}
@@ -445,23 +455,23 @@ export default function CasesPage() {
         className="relative overflow-hidden rounded-[28px] border p-6"
         style={{
           background:
-            'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-          borderColor: 'rgba(255,255,255,0.12)',
-          boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
+          borderColor: "rgba(255,255,255,0.12)",
+          boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
         }}
       >
         <div
           className={`absolute -top-14 h-40 w-40 rounded-full ${
-            isRtl ? '-right-14' : '-left-14'
+            isRtl ? "-right-14" : "-left-14"
           }`}
-          style={{ background: 'rgba(245, 200, 66, 0.16)' }}
+          style={{ background: "rgba(245, 200, 66, 0.16)" }}
         />
 
         <div
           className={`absolute -bottom-20 h-52 w-52 rounded-full ${
-            isRtl ? 'left-16' : 'right-16'
+            isRtl ? "left-16" : "right-16"
           }`}
-          style={{ background: 'rgba(255,255,255,0.08)' }}
+          style={{ background: "rgba(255,255,255,0.08)" }}
         />
 
         <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -469,9 +479,9 @@ export default function CasesPage() {
             <div
               className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
               style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.18)",
               }}
             >
               {text.hero.badge}
@@ -491,9 +501,9 @@ export default function CasesPage() {
             onClick={() => setOpen(true)}
             className="btn h-11 shrink-0 px-5"
             style={{
-              background: '#fff',
-              color: 'var(--sidebar)',
-              borderColor: 'rgba(255,255,255,0.32)',
+              background: "#fff",
+              color: "var(--sidebar)",
+              borderColor: "rgba(255,255,255,0.32)",
             }}
           >
             {text.hero.newCase}
@@ -507,32 +517,32 @@ export default function CasesPage() {
           {
             label: text.stats.active,
             value: activeCount,
-            color: 'var(--sidebar)',
-            bg: 'var(--green-soft)',
+            color: "var(--sidebar)",
+            bg: "var(--green-soft)",
           },
           {
             label: text.stats.inProgress,
             value: progressCount,
-            color: '#92400e',
-            bg: 'var(--amber-soft)',
+            color: "#92400e",
+            bg: "var(--amber-soft)",
           },
           {
             label: text.stats.closed,
             value: closedCount,
-            color: '#6b7280',
-            bg: 'var(--card)',
+            color: "#6b7280",
+            bg: "var(--card)",
           },
           {
             label: text.stats.archived,
             value: archivedCount,
-            color: 'var(--text-2)',
-            bg: 'var(--card)',
+            color: "var(--text-2)",
+            bg: "var(--card)",
           },
           {
             label: text.stats.archivedClients,
             value: archivedClientCount,
-            color: archivedClientCount > 0 ? '#b45309' : 'var(--text-2)',
-            bg: archivedClientCount > 0 ? '#fff7ed' : 'var(--card)',
+            color: archivedClientCount > 0 ? "#b45309" : "var(--text-2)",
+            bg: archivedClientCount > 0 ? "#fff7ed" : "var(--card)",
           },
         ].map((item) => (
           <div
@@ -540,7 +550,7 @@ export default function CasesPage() {
             className="card p-5"
             style={{
               background: item.bg,
-              borderColor: 'var(--border)',
+              borderColor: "var(--border)",
             }}
           >
             <p className="text-xs font-black" style={{ color: item.color }}>
@@ -558,28 +568,28 @@ export default function CasesPage() {
       </div>
 
       {/* Filters */}
-      <div className="card p-4" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
         <div className="grid grid-cols-1 gap-3">
           <input
-            dir={isRtl ? 'rtl' : 'ltr'}
+            dir={isRtl ? "rtl" : "ltr"}
             aria-label={text.filters.searchAria}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={text.filters.searchPlaceholder}
-            className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
+            className={`input h-12 w-full ${isRtl ? "!text-right" : "!text-left"}`}
             style={{
-              textAlign: isRtl ? 'right' : 'left',
-              direction: isRtl ? 'rtl' : 'ltr',
+              textAlign: isRtl ? "right" : "left",
+              direction: isRtl ? "rtl" : "ltr",
             }}
           />
         </div>
 
         <div
           className="mt-4 flex w-full flex-wrap gap-2"
-          dir={isRtl ? 'rtl' : 'ltr'}
+          dir={isRtl ? "rtl" : "ltr"}
           style={{
-            justifyContent: 'flex-start',
-            direction: isRtl ? 'rtl' : 'ltr',
+            justifyContent: "flex-start",
+            direction: isRtl ? "rtl" : "ltr",
           }}
         >
           {STATUS_KEYS.map((key) => (
@@ -591,19 +601,14 @@ export default function CasesPage() {
               style={
                 filter === key
                   ? {
-                      background:
-                        key === 'ARCHIVED_CLIENT' ? '#b45309' : 'var(--sidebar)',
-                      color: '#fff',
+                      background: "var(--sidebar)",
+                      color: "#fff",
+                      border: "1px solid rgba(245, 200, 66, 0.35)",
                     }
                   : {
-                      background:
-                        key === 'ARCHIVED_CLIENT' ? '#fff7ed' : 'var(--green-soft)',
-                      color:
-                        key === 'ARCHIVED_CLIENT' ? '#b45309' : 'var(--text-2)',
-                      border:
-                        key === 'ARCHIVED_CLIENT'
-                          ? '1px solid rgba(180, 83, 9, 0.18)'
-                          : undefined,
+                      background: "var(--green-soft)",
+                      color: "var(--text-2)",
+                      border: "1px solid transparent",
                     }
               }
             >
@@ -611,15 +616,15 @@ export default function CasesPage() {
             </button>
           ))}
 
-          {(search || filter !== 'all') && (
+          {(search || filter !== "all") && (
             <button
               type="button"
               onClick={clearFilters}
               className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
               style={{
-                background: 'var(--card)',
-                color: 'var(--text-2)',
-                border: '1px solid var(--border)',
+                background: "var(--card)",
+                color: "var(--text-2)",
+                border: "1px solid var(--border)",
               }}
             >
               {text.filters.clear}
@@ -660,7 +665,10 @@ export default function CasesPage() {
             sub={cases.length === 0 ? text.empty.noCases : text.empty.noResults}
             action={
               cases.length === 0 ? (
-                <button onClick={() => setOpen(true)} className="btn btn-primary">
+                <button
+                  onClick={() => setOpen(true)}
+                  className="btn btn-primary"
+                >
                   {text.empty.add}
                 </button>
               ) : (
@@ -691,9 +699,9 @@ export default function CasesPage() {
 
               <tbody>
                 {filtered.map((item) => {
-                  const paidAmount = paid(item)
-                  const remainingAmount = remaining(item)
-                  const archivedClient = isArchivedClientCase(item)
+                  const paidAmount = paid(item);
+                  const remainingAmount = remaining(item);
+                  const archivedClient = isArchivedClientCase(item);
 
                   return (
                     <tr
@@ -709,7 +717,7 @@ export default function CasesPage() {
 
                           <p
                             className="max-w-[220px] truncate text-xs"
-                            style={{ color: 'var(--text-3)' }}
+                            style={{ color: "var(--text-3)" }}
                           >
                             {item.title}
                           </p>
@@ -724,9 +732,9 @@ export default function CasesPage() {
                             <span
                               className="w-fit rounded-full border px-2 py-0.5 text-[11px] font-black"
                               style={{
-                                background: '#fff7ed',
-                                borderColor: 'rgba(180, 83, 9, 0.22)',
-                                color: '#b45309',
+                                background: "#fff7ed",
+                                borderColor: "rgba(180, 83, 9, 0.22)",
+                                color: "#b45309",
                               }}
                             >
                               {text.archivedClientBadge}
@@ -737,7 +745,7 @@ export default function CasesPage() {
 
                       <td
                         dir="ltr"
-                        className={`whitespace-nowrap ${isRtl ? 'text-right' : 'text-left'}`}
+                        className={`whitespace-nowrap ${isRtl ? "text-right" : "text-left"}`}
                       >
                         {formatMoney(item.feeAgreed)}
                       </td>
@@ -745,9 +753,9 @@ export default function CasesPage() {
                       <td
                         dir="ltr"
                         className={`whitespace-nowrap font-bold ${
-                          isRtl ? 'text-right' : 'text-left'
+                          isRtl ? "text-right" : "text-left"
                         }`}
-                        style={{ color: 'var(--sidebar)' }}
+                        style={{ color: "var(--sidebar)" }}
                       >
                         {formatMoney(paidAmount)}
                       </td>
@@ -755,10 +763,11 @@ export default function CasesPage() {
                       <td
                         dir="ltr"
                         className={`whitespace-nowrap font-bold ${
-                          isRtl ? 'text-right' : 'text-left'
+                          isRtl ? "text-right" : "text-left"
                         }`}
                         style={{
-                          color: remainingAmount > 0 ? '#dc2626' : 'var(--text)',
+                          color:
+                            remainingAmount > 0 ? "#dc2626" : "var(--text)",
                         }}
                       >
                         {formatMoney(remainingAmount)}
@@ -774,7 +783,11 @@ export default function CasesPage() {
 
                       <td>
                         <div className="flex flex-wrap gap-2">
-                          <span className={STATUS_BADGE[item.status] ?? 'badge badge-gray'}>
+                          <span
+                            className={
+                              STATUS_BADGE[item.status] ?? "badge badge-gray"
+                            }
+                          >
                             {text.filters.statuses[
                               item.status as keyof typeof text.filters.statuses
                             ] ?? item.status}
@@ -784,9 +797,9 @@ export default function CasesPage() {
                             <span
                               className="rounded-full border px-2.5 py-1 text-xs font-black"
                               style={{
-                                background: '#fff7ed',
-                                color: '#b45309',
-                                borderColor: 'rgba(180, 83, 9, 0.22)',
+                                background: "#fff7ed",
+                                color: "#b45309",
+                                borderColor: "rgba(180, 83, 9, 0.22)",
                               }}
                             >
                               {text.archivedClientBadge}
@@ -801,8 +814,8 @@ export default function CasesPage() {
                             href={`/dashboard/clients/${item.client.id}`}
                             className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
                             style={{
-                              borderColor: 'var(--border)',
-                              color: 'var(--text-2)',
+                              borderColor: "var(--border)",
+                              color: "var(--text-2)",
                             }}
                             onClick={(event) => event.stopPropagation()}
                           >
@@ -811,7 +824,7 @@ export default function CasesPage() {
                         )}
                       </td>
                     </tr>
-                  )
+                  );
                 })}
               </tbody>
             </table>
@@ -823,21 +836,25 @@ export default function CasesPage() {
       <Modal
         open={open}
         onClose={() => {
-          setOpen(false)
-          setForm(INIT)
+          setOpen(false);
+          setForm(INIT);
         }}
         title={text.modal.title}
       >
-        <form onSubmit={handleAdd} className="space-y-3" dir={isRtl ? 'rtl' : 'ltr'}>
+        <form
+          onSubmit={handleAdd}
+          className="space-y-3"
+          dir={isRtl ? "rtl" : "ltr"}
+        >
           <FormField label={text.modal.client} required>
             <select
-              dir={isRtl ? 'rtl' : 'ltr'}
+              dir={isRtl ? "rtl" : "ltr"}
               value={form.clientId}
-              onChange={f('clientId')}
-              className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+              onChange={f("clientId")}
+              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
               style={{
-                textAlign: isRtl ? 'right' : 'left',
-                direction: isRtl ? 'rtl' : 'ltr',
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
               }}
             >
               <option value="">{text.modal.chooseClient}</option>
@@ -854,9 +871,9 @@ export default function CasesPage() {
             <div
               className="rounded-2xl border p-3 text-xs font-bold"
               style={{
-                background: '#fff7ed',
-                color: '#b45309',
-                borderColor: 'rgba(180, 83, 9, 0.22)',
+                background: "#fff7ed",
+                color: "#b45309",
+                borderColor: "rgba(180, 83, 9, 0.22)",
               }}
             >
               {text.archivedClientCreateError}
@@ -865,13 +882,13 @@ export default function CasesPage() {
 
           <FormField label={text.modal.caseTitle} required>
             <input
-              dir={isRtl ? 'rtl' : 'ltr'}
+              dir={isRtl ? "rtl" : "ltr"}
               value={form.title}
-              onChange={f('title')}
-              className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+              onChange={f("title")}
+              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
               style={{
-                textAlign: isRtl ? 'right' : 'left',
-                direction: isRtl ? 'rtl' : 'ltr',
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
               }}
               autoFocus
             />
@@ -880,13 +897,13 @@ export default function CasesPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={text.modal.caseNumber}>
               <input
-                dir={isRtl ? 'rtl' : 'ltr'}
+                dir={isRtl ? "rtl" : "ltr"}
                 value={form.caseNumber}
-                onChange={f('caseNumber')}
-                className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+                onChange={f("caseNumber")}
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
                 style={{
-                  textAlign: isRtl ? 'right' : 'left',
-                  direction: isRtl ? 'rtl' : 'ltr',
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
                 }}
               />
             </FormField>
@@ -896,11 +913,11 @@ export default function CasesPage() {
                 dir="ltr"
                 type="number"
                 value={form.feeAgreed}
-                onChange={f('feeAgreed')}
-                className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+                onChange={f("feeAgreed")}
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
                 style={{
-                  textAlign: isRtl ? 'right' : 'left',
-                  direction: 'ltr',
+                  textAlign: isRtl ? "right" : "left",
+                  direction: "ltr",
                 }}
                 min="0"
               />
@@ -909,38 +926,40 @@ export default function CasesPage() {
 
           <FormField label={text.modal.court}>
             <input
-              dir={isRtl ? 'rtl' : 'ltr'}
+              dir={isRtl ? "rtl" : "ltr"}
               value={form.court}
-              onChange={f('court')}
-              className={`input ${isRtl ? '!text-right' : '!text-left'}`}
+              onChange={f("court")}
+              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
               style={{
-                textAlign: isRtl ? 'right' : 'left',
-                direction: isRtl ? 'rtl' : 'ltr',
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
               }}
             />
           </FormField>
 
           <FormField label={text.modal.description}>
             <textarea
-              dir={isRtl ? 'rtl' : 'ltr'}
+              dir={isRtl ? "rtl" : "ltr"}
               value={form.description}
-              onChange={f('description')}
+              onChange={f("description")}
               className={`input min-h-[105px] resize-none ${
-                isRtl ? '!text-right' : '!text-left'
+                isRtl ? "!text-right" : "!text-left"
               }`}
               style={{
-                textAlign: isRtl ? 'right' : 'left',
-                direction: isRtl ? 'rtl' : 'ltr',
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
               }}
             />
           </FormField>
 
-          <div className={`flex gap-2 pt-1 ${isRtl ? 'flex-row' : 'flex-row-reverse'}`}>
+          <div
+            className={`flex gap-2 pt-1 ${isRtl ? "flex-row" : "flex-row-reverse"}`}
+          >
             <button
               type="button"
               onClick={() => {
-                setOpen(false)
-                setForm(INIT)
+                setOpen(false);
+                setForm(INIT);
               }}
               className="btn btn-ghost flex-1"
             >
@@ -952,39 +971,43 @@ export default function CasesPage() {
               disabled={saving || selectedClientArchived}
               className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? <span className="spinner spinner-sm" /> : text.modal.save}
+              {saving ? (
+                <span className="spinner spinner-sm" />
+              ) : (
+                text.modal.save
+              )}
             </button>
           </div>
         </form>
       </Modal>
     </div>
-  )
+  );
 }
 
 function FinancialCard({
   label,
   value,
-  color = 'var(--text)',
+  color = "var(--text)",
   danger,
   isRtl,
 }: {
-  label: string
-  value: string
-  color?: string
-  danger?: boolean
-  isRtl?: boolean
+  label: string;
+  value: string;
+  color?: string;
+  danger?: boolean;
+  isRtl?: boolean;
 }) {
   return (
     <div
       className="card p-5"
       style={{
-        background: danger ? 'var(--red-soft)' : 'var(--card)',
-        borderColor: 'var(--border)',
+        background: danger ? "var(--red-soft)" : "var(--card)",
+        borderColor: "var(--border)",
       }}
     >
       <p
         className="text-xs font-black"
-        style={{ color: danger ? '#dc2626' : 'var(--text-3)' }}
+        style={{ color: danger ? "#dc2626" : "var(--text-3)" }}
       >
         {label}
       </p>
@@ -992,12 +1015,12 @@ function FinancialCard({
       <p
         dir="ltr"
         className={`mt-2 whitespace-nowrap text-xl font-black leading-tight ${
-          isRtl ? 'text-right' : 'text-left'
+          isRtl ? "text-right" : "text-left"
         }`}
-        style={{ color: danger ? '#dc2626' : color }}
+        style={{ color: danger ? "#dc2626" : color }}
       >
         {value}
       </p>
     </div>
-  )
+  );
 }

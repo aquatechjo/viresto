@@ -12,7 +12,7 @@ import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
 import { initials } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
-import AppLoader from "@/components/ui/AppLoader"
+import AppLoader from "@/components/ui/AppLoader";
 interface ClientCase {
   id: string;
   title: string;
@@ -603,10 +603,8 @@ export default function ClientDetailPage() {
     value.length > 8 ? "text-lg" : "text-2xl";
 
   if (loading) {
-  return <AppLoader fullScreen={false} />
-}
-;
-
+    return <AppLoader fullScreen={false} />;
+  }
   if (!client) {
     return (
       <div
@@ -968,33 +966,42 @@ export default function ClientDetailPage() {
                 label={text.info.name}
                 value={client.name}
                 empty={text.info.empty}
+                isRtl={isRtl}
               />
+
               <InfoRow
                 icon="📞"
                 label={text.info.phone}
                 value={client.phone}
                 empty={text.info.empty}
                 forceLtr
+                isRtl={isRtl}
               />
+
               <InfoRow
                 icon="✉️"
                 label={text.info.email}
                 value={client.email}
                 empty={text.info.empty}
                 forceLtr
+                isRtl={isRtl}
               />
+
               <InfoRow
                 icon="🪪"
                 label={text.info.nationalId}
                 value={client.nationalId}
                 empty={text.info.empty}
                 forceLtr
+                isRtl={isRtl}
               />
+
               <InfoRow
                 icon="📍"
                 label={text.info.address}
                 value={client.address}
                 empty={text.info.empty}
+                isRtl={isRtl}
               />
             </div>
 
@@ -1097,8 +1104,8 @@ export default function ClientDetailPage() {
 
             <div
               dir={isRtl ? "rtl" : "ltr"}
-              className={`mt-4 flex w-full flex-wrap items-center gap-2 ${
-                isRtl ? "justify-end text-right" : "justify-start text-left"
+              className={`mt-4 flex w-full flex-wrap items-center justify-start gap-2 ${
+                isRtl ? "text-right" : "text-left"
               }`}
             >
               {STATUS_KEYS.map((key) => (
@@ -1475,35 +1482,44 @@ function InfoRow({
   value,
   empty,
   forceLtr,
+  isRtl,
 }: {
   icon: string;
   label: string;
   value?: string | null;
   empty: string;
   forceLtr?: boolean;
+  isRtl: boolean;
 }) {
+  const alignClass = isRtl ? "text-right" : "text-left";
+
   return (
     <div
-      className="rounded-2xl border px-3 py-2.5 text-right"
+      dir={isRtl ? "rtl" : "ltr"}
+      className={`rounded-2xl border px-3 py-2.5 ${alignClass}`}
       style={{
         borderColor: "var(--border)",
         background: "var(--card)",
       }}
     >
-      <div className="flex flex-row-reverse items-start gap-3">
+      <div
+        className={`flex items-start gap-3 ${
+          isRtl ? "flex-row-reverse" : "flex-row"
+        }`}
+      >
         <span className="text-base">{icon}</span>
 
-        <div className="min-w-0 flex-1 text-right">
+        <div className={`min-w-0 flex-1 ${alignClass}`}>
           <p
-            className="text-xs font-black text-right"
+            className={`text-xs font-black ${alignClass}`}
             style={{ color: "var(--text-3)" }}
           >
             {label}
           </p>
 
           <p
-            dir={forceLtr ? "ltr" : "rtl"}
-            className="mt-1 break-words text-right text-sm font-bold"
+            dir={forceLtr ? "ltr" : isRtl ? "rtl" : "ltr"}
+            className={`mt-1 break-words text-sm font-bold ${alignClass}`}
             style={{ color: value ? "var(--text)" : "var(--text-3)" }}
           >
             {value || empty}
@@ -1536,9 +1552,7 @@ function MiniMetric({
       }}
     >
       <p
-        className={`text-xs font-black ${
-          isRtl ? "text-right" : "text-left"
-        }`}
+        className={`text-xs font-black ${isRtl ? "text-right" : "text-left"}`}
         style={{ color: "var(--text-3)" }}
       >
         {label}

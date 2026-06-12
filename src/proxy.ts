@@ -1,55 +1,54 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { verifyToken } from '@/lib/auth'
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { verifyToken } from "@/lib/auth";
 
 const publicPaths = [
-  '/',
-  '/login',
-  '/register',
-  '/verify-email',
-  '/verify-whatsapp',
-  '/api/auth/login',
-  '/api/auth/logout',
-  '/api/auth/register',
-  '/api/auth/verify-email',
-  '/api/auth/verify-whatsapp',
-]
+  "/",
+  "/login",
+  "/register",
+  "/verify-email",
+  "/verify-whatsapp",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/register",
+  "/api/auth/verify-email",
+  "/api/auth/verify-whatsapp",
+];
 
 function isPublicPath(pathname: string) {
   return publicPaths.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`)
-  )
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
 }
 
 function applySecurityHeaders(res: NextResponse) {
-  const isProd = process.env.NODE_ENV === 'production'
+  const isProd = process.env.NODE_ENV === "production";
 
   if (isProd) {
     res.headers.set(
-      'Strict-Transport-Security',
-      'max-age=31536000; includeSubDomains'
-    )
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    );
   }
 
-  res.headers.set('X-DNS-Prefetch-Control', 'off')
-  res.headers.set('X-Frame-Options', 'DENY')
-  res.headers.set('X-Content-Type-Options', 'nosniff')
-  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.headers.set("X-DNS-Prefetch-Control", "off");
+  res.headers.set("X-Frame-Options", "DENY");
+  res.headers.set("X-Content-Type-Options", "nosniff");
+  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set(
-    'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=()'
-  )
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=()",
+  );
 
-const isDev = process.env.NODE_ENV !== 'production'
+  const isDev = process.env.NODE_ENV !== "production";
 
-const scriptSrc = isDev
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval';"
-  : "script-src 'self' 'unsafe-inline';"
+  const scriptSrc = isDev
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval';"
+    : "script-src 'self' 'unsafe-inline';";
 
-  
-res.headers.set(
-  'Content-Security-Policy',
-  `
+  res.headers.set(
+    "Content-Security-Policy",
+    `
     default-src 'self';
     worker-src 'self' blob:;
     ${scriptSrc}
@@ -63,58 +62,73 @@ res.headers.set(
     base-uri 'self';
     form-action 'self';
   `
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-)
+      .replace(/\s{2,}/g, " ")
+      .trim(),
+  );
 
-  return res
+  return res;
+}
+
+function unauthenticatedResponse(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { ok: false, message: "غير مصرح لك بتنفيذ هذا الطلب" },
+      { status: 401 },
+    );
+  }
+
+  const loginUrl = new URL("/login", req.url);
+  return NextResponse.redirect(loginUrl);
 }
 
 export async function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl
+  const { pathname } = req.nextUrl;
 
   const isAsset =
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon') ||
-    pathname.startsWith('/images') ||
-    pathname.startsWith('/assets') ||
-    pathname.includes('.')
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon") ||
+    pathname.startsWith("/images") ||
+    pathname.startsWith("/assets") ||
+    pathname.includes(".");
 
   if (isAsset) {
-    return applySecurityHeaders(NextResponse.next())
+    return applySecurityHeaders(NextResponse.next());
   }
 
-  const token = req.cookies.get('ld_token')?.value
+  const token = req.cookies.get("ld_token")?.value;
 
   if (!token && !isPublicPath(pathname)) {
-    const loginUrl = new URL('/login', req.url)
-    return applySecurityHeaders(NextResponse.redirect(loginUrl))
+    return applySecurityHeaders(unauthenticatedResponse(req));
   }
 
   if (!token && isPublicPath(pathname)) {
-    return applySecurityHeaders(NextResponse.next())
+    return applySecurityHeaders(NextResponse.next());
   }
 
   if (token) {
     try {
-      const payload = await verifyToken(token)
+      const payload = await verifyToken(token);
 
-if (!payload) {
-  const loginUrl = new URL('/login', req.url)
-  const res = NextResponse.redirect(loginUrl)
-  res.cookies.delete('ld_token')
-  return applySecurityHeaders(res)
-}
+      if (!payload) {
+        const res = isPublicPath(pathname)
+          ? NextResponse.next()
+          : unauthenticatedResponse(req);
 
-      const requestHeaders = new Headers(req.headers)
-      requestHeaders.set('x-user-id', String(payload.userId))
-      requestHeaders.set('x-tenant-id', String(payload.tenantId))
-      requestHeaders.set('x-user-role', String(payload.role))
+        res.cookies.delete("ld_token");
+        return applySecurityHeaders(res);
+      }
 
-      if (pathname === '/login' || pathname === '/') {
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set("x-user-id", String(payload.userId));
+      requestHeaders.set("x-tenant-id", String(payload.tenantId));
+      requestHeaders.set("x-user-role", String(payload.role));
+
+      if (pathname === "/login" || pathname === "/") {
         return applySecurityHeaders(
-          NextResponse.redirect(new URL('/dashboard', req.url))
-        )
+          NextResponse.redirect(new URL("/dashboard", req.url)),
+        );
       }
 
       return applySecurityHeaders(
@@ -122,19 +136,21 @@ if (!payload) {
           request: {
             headers: requestHeaders,
           },
-        })
-      )
+        }),
+      );
     } catch {
-      const loginUrl = new URL('/login', req.url)
-      const res = NextResponse.redirect(loginUrl)
-      res.cookies.delete('ld_token')
-      return applySecurityHeaders(res)
+      const res = isPublicPath(pathname)
+        ? NextResponse.next()
+        : unauthenticatedResponse(req);
+
+      res.cookies.delete("ld_token");
+      return applySecurityHeaders(res);
     }
   }
 
-  return applySecurityHeaders(NextResponse.next())
+  return applySecurityHeaders(NextResponse.next());
 }
 
 export const config = {
-  matcher: '/((?!_next/static|_next/image|favicon.ico).*)',
-}
+  matcher: "/((?!_next/static|_next/image|favicon.ico).*)",
+};
