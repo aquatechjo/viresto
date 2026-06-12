@@ -75,7 +75,7 @@ const COPY = {
     viewBilling: "عرض الاشتراك",
     close: "إغلاق",
     archivedClientBadge: "موكل مؤرشف",
-    openClientFile: "فتح ملف الموكل ←",
+    openClientFile: "عرض ملف الموكل ←",
     hero: {
       badge: "إدارة القضايا",
       title: "القضايا",

@@ -125,64 +125,42 @@ export async function POST(req: NextRequest) {
       return err("بيانات غير صالحة", 400, parsed.error.flatten());
     }
 
-    const { caseId, clientId } = parsed.data;
+    const { caseId, clientId: _ignoredClientId, ...documentData } = parsed.data;
 
-    if (clientId) {
-      const clientExists = await prisma.client.findFirst({
-        where: {
-          id: clientId,
-          tenantId: auth.user.tenantId,
-        },
-        select: {
-          id: true,
-          archivedAt: true,
-        },
-      });
-
-      if (!clientExists) {
-        return err("لا يمكن ربط المستند بموكل لا يتبع هذا المكتب", 403);
-      }
-
-      if (clientExists.archivedAt) {
-        return err("لا يمكن رفع مستند لموكل مؤرشف", 400);
-      }
+    if (!caseId) {
+      return err("يجب ربط المستند بقضية", 400);
     }
 
-    if (caseId) {
-      const caseExists = await prisma.case.findFirst({
-        where: {
-          id: caseId,
-          tenantId: auth.user.tenantId,
-          ...(clientId ? { clientId } : {}),
-        },
-        select: {
-          id: true,
-          clientId: true,
-          client: {
-            select: {
-              id: true,
-              archivedAt: true,
-            },
+    const linkedCase = await prisma.case.findFirst({
+      where: {
+        id: caseId,
+        tenantId: auth.user.tenantId,
+      },
+      select: {
+        id: true,
+        clientId: true,
+        client: {
+          select: {
+            id: true,
+            archivedAt: true,
           },
         },
-      });
+      },
+    });
 
-      if (!caseExists) {
-        return err(
-          "لا يمكن ربط المستند بقضية لا تتبع هذا المكتب أو لا تتبع الموكل المحدد",
-          403,
-        );
-      }
-
-      if (caseExists.client?.archivedAt) {
-        return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 400);
-      }
+    if (!linkedCase) {
+      return err("القضية غير موجودة أو لا تتبع هذا المكتب", 403);
     }
 
+    if (linkedCase.client?.archivedAt) {
+      return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 400);
+    }
     const doc = await prisma.document.create({
       data: {
         tenantId: auth.user.tenantId,
-        ...parsed.data,
+        ...documentData,
+        caseId: linkedCase.id,
+        clientId: linkedCase.clientId,
       },
       include: {
         client: {

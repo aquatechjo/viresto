@@ -363,7 +363,7 @@ export default function CaseDetailPage() {
     remaining: isArabic ? 'المتبقي' : 'Remaining',
     collectionRate: isArabic ? 'نسبة التحصيل' : 'Collection rate',
     client: isArabic ? 'الموكل' : 'Client',
-    openClient: isArabic ? 'فتح ملف الموكل' : 'Open client file',
+    openClient: isArabic ? 'عرض ملف الموكل' : 'Open client file',
     phone: isArabic ? 'الهاتف' : 'Phone',
     email: isArabic ? 'البريد الإلكتروني' : 'Email',
     nationalId: isArabic ? 'الرقم الوطني / الهوية' : 'National ID',

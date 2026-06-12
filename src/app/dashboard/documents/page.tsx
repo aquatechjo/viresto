@@ -1,5 +1,5 @@
 "use client";
-import AppLoader from "@/components/ui/AppLoader"
+import AppLoader from "@/components/ui/AppLoader";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -146,11 +146,27 @@ function PlanLimitBanner({
 }
 
 export default function DocumentsPage() {
-  const localeState = useLocale() as { locale?: Locale; t?: typeof translations.ar };
+  const localeState = useLocale() as {
+    locale?: Locale;
+    t?: typeof translations.ar;
+  };
   const locale = localeState?.locale === "en" ? "en" : "ar";
   const t = localeState?.t ?? translations[locale] ?? translations.ar;
   const d = t.documents ?? translations.ar.documents;
   const isRtl = locale === "ar";
+
+  const linkCopy = {
+    selectCase: isRtl ? "اختر قضية" : "Select a case",
+    caseRequired: isRtl
+      ? "يجب اختيار قضية قبل رفع المستند"
+      : "Please select a case before uploading the document",
+    clientAuto: isRtl
+      ? "سيتم ربط الموكل تلقائياً من القضية"
+      : "Client will be linked automatically from the selected case",
+    selectCaseFirst: isRtl
+      ? "اختر قضية لعرض الموكل المرتبط"
+      : "Select a case to show the linked client",
+  };
 
   const [docs, setDocs] = useState<Doc[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
@@ -185,9 +201,7 @@ export default function DocumentsPage() {
     [cases, caseId],
   );
 
-  const selectedArchivedContext = Boolean(
-    selectedClient?.archivedAt || selectedCase?.client?.archivedAt,
-  );
+  const selectedArchivedContext = Boolean(selectedCase?.client?.archivedAt);
 
   const load = useCallback(async () => {
     try {
@@ -290,6 +304,16 @@ export default function DocumentsPage() {
       return;
     }
 
+    if (!caseId) {
+      toast.error(linkCopy.caseRequired);
+      return;
+    }
+
+    if (!caseId) {
+      toast.error(linkCopy.caseRequired);
+      return;
+    }
+
     if (selectedArchivedContext) {
       toast.warning(d.messages.archivedUploadBlocked);
       return;
@@ -302,8 +326,7 @@ export default function DocumentsPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      if (caseId) formData.append("caseId", caseId);
-      if (clientId) formData.append("clientId", clientId);
+      formData.append("caseId", caseId);
       formData.append("tags", JSON.stringify(uploadTag ? [uploadTag] : []));
 
       const response = await fetch("/api/upload", {
@@ -315,12 +338,7 @@ export default function DocumentsPage() {
 
       if (!response.ok || !data.success) {
         if (isPlanLimitResponse(data)) {
-          setPlanLimit(
-            planLimitMessage(
-              data,
-              d.messages.planLimitFallback,
-            ),
-          );
+          setPlanLimit(planLimitMessage(data, d.messages.planLimitFallback));
           return;
         }
 
@@ -353,10 +371,7 @@ export default function DocumentsPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    const confirmed = window.confirm(d.messages.confirmDelete);
-    if (!confirmed) return;
-
+  async function performDelete(id: string) {
     try {
       const response = await fetch(`/api/documents/${id}`, {
         method: "DELETE",
@@ -376,6 +391,65 @@ export default function DocumentsPage() {
     }
   }
 
+  function handleDelete(id: string) {
+    toast.custom((toastId) => (
+      <div
+        dir={isRtl ? "rtl" : "ltr"}
+        className="w-[380px] max-w-[calc(100vw-32px)] rounded-3xl border p-5 shadow-2xl"
+        style={{
+          background: "var(--card)",
+          borderColor: "rgba(248, 113, 113, 0.35)",
+          color: "var(--text)",
+        }}
+      >
+        <div className={isRtl ? "text-right" : "text-left"}>
+          <p className="text-base font-black">
+            {isRtl ? "حذف المستند" : "Delete document"}
+          </p>
+
+          <p
+            className="mt-2 text-sm font-bold leading-6"
+            style={{ color: "var(--text-2)" }}
+          >
+            {d.messages.confirmDelete}
+          </p>
+        </div>
+
+        <div
+          className={`mt-5 flex gap-2 ${
+            isRtl ? "flex-row-reverse justify-start" : "justify-end"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => toast.dismiss(toastId)}
+            className="rounded-2xl px-4 py-2 text-sm font-black transition"
+            style={{
+              background: "var(--green-soft)",
+              color: "var(--text)",
+            }}
+          >
+            {isRtl ? "إلغاء" : "Cancel"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              toast.dismiss(toastId);
+              void performDelete(id);
+            }}
+            className="rounded-2xl px-4 py-2 text-sm font-black text-white transition"
+            style={{
+              background: "linear-gradient(135deg, #dc2626, #991b1b)",
+            }}
+          >
+            {isRtl ? "حذف" : "Delete"}
+          </button>
+        </div>
+      </div>
+    ));
+  }
+
   async function handleSummarize(id: string) {
     try {
       setPlanLimit("");
@@ -392,12 +466,7 @@ export default function DocumentsPage() {
 
       if (!response.ok || !data?.success) {
         if (isPlanLimitResponse(data)) {
-          setPlanLimit(
-            planLimitMessage(
-              data,
-              d.messages.aiPlanLimitFallback,
-            ),
-          );
+          setPlanLimit(planLimitMessage(data, d.messages.aiPlanLimitFallback));
           return;
         }
 
@@ -413,10 +482,8 @@ export default function DocumentsPage() {
   }
 
   if (loading) {
-  return <AppLoader fullScreen={false} />
-}
-;
-
+    return <AppLoader fullScreen={false} />;
+  }
   return (
     <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
       {planLimit && (
@@ -566,10 +633,16 @@ export default function DocumentsPage() {
             style={{ textAlign: isRtl ? "right" : "left" }}
             className="input"
           >
-            <option dir={isRtl ? "rtl" : "ltr"} value="">{d.filters.allCategories}</option>
+            <option dir={isRtl ? "rtl" : "ltr"} value="">
+              {d.filters.allCategories}
+            </option>
 
             {AVAILABLE_TAGS.map((tag) => (
-              <option key={tag.value} dir={isRtl ? "rtl" : "ltr"} value={tag.value}>
+              <option
+                key={tag.value}
+                dir={isRtl ? "rtl" : "ltr"}
+                value={tag.value}
+              >
                 {d.tags[tag.key]}
               </option>
             ))}
@@ -636,6 +709,11 @@ export default function DocumentsPage() {
             event.preventDefault();
             setDragging(false);
 
+            if (!caseId) {
+              toast.error(linkCopy.caseRequired);
+              return;
+            }
+
             if (selectedArchivedContext) {
               toast.warning(d.messages.archivedUploadBlocked);
               return;
@@ -645,6 +723,11 @@ export default function DocumentsPage() {
             if (file) upload(file);
           }}
           onClick={() => {
+            if (!caseId) {
+              toast.error(linkCopy.caseRequired);
+              return;
+            }
+
             if (selectedArchivedContext) {
               toast.warning(d.messages.archivedUploadBlocked);
               return;
@@ -678,7 +761,9 @@ export default function DocumentsPage() {
           {uploadStatus === "uploading" ? (
             <div className="flex items-center gap-2">
               <span className="spinner" />
-              <span style={{ color: "var(--text-2)" }}>{d.upload.uploading}</span>
+              <span style={{ color: "var(--text-2)" }}>
+                {d.upload.uploading}
+              </span>
             </div>
           ) : (
             <>
@@ -718,31 +803,50 @@ export default function DocumentsPage() {
               style={{ textAlign: isRtl ? "right" : "left" }}
               className="input"
             >
-              <option dir={isRtl ? "rtl" : "ltr"} value="">{d.linkPanel.noCase}</option>
+              <option dir={isRtl ? "rtl" : "ltr"} value="">
+                {linkCopy.selectCase}
+              </option>
 
               {cases.map((caseItem) => (
-                <option key={caseItem.id} dir={isRtl ? "rtl" : "ltr"} value={caseItem.id}>
+                <option
+                  key={caseItem.id}
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={caseItem.id}
+                >
                   {caseItem.title}
+                  {caseItem.client?.name ? ` — ${caseItem.client.name}` : ""}
                 </option>
               ))}
             </select>
 
-            <select
-              aria-label={d.linkPanel.clientAria}
-              value={clientId}
-              onChange={(event) => setClientId(event.target.value)}
+            <div
+              className="rounded-2xl border px-4 py-3 text-sm font-black"
               dir={isRtl ? "rtl" : "ltr"}
-              style={{ textAlign: isRtl ? "right" : "left" }}
-              className="input"
+              style={{
+                borderColor: "var(--border)",
+                background: "var(--card)",
+                color: selectedCase?.client?.name
+                  ? "var(--text)"
+                  : "var(--text-3)",
+                textAlign: isRtl ? "right" : "left",
+              }}
             >
-              <option dir={isRtl ? "rtl" : "ltr"} value="">{d.linkPanel.noClient}</option>
+              <p
+                className="mb-1 text-xs font-black"
+                style={{ color: "var(--text-3)" }}
+              >
+                {d.card.client}
+              </p>
 
-              {clients.map((client) => (
-                <option key={client.id} dir={isRtl ? "rtl" : "ltr"} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
+              <p>{selectedCase?.client?.name || linkCopy.selectCaseFirst}</p>
+
+              <p
+                className="mt-1 text-xs font-bold"
+                style={{ color: "var(--text-3)" }}
+              >
+                {linkCopy.clientAuto}
+              </p>
+            </div>
 
             {selectedArchivedContext && (
               <div
@@ -812,11 +916,7 @@ export default function DocumentsPage() {
           <EmptyState
             icon="📄"
             title={d.empty.title}
-            sub={
-              docs.length === 0
-                ? d.empty.first
-                : d.empty.filtered
-            }
+            sub={docs.length === 0 ? d.empty.first : d.empty.filtered}
             action={
               docs.length === 0 ? (
                 <button
@@ -886,8 +986,9 @@ export default function DocumentsPage() {
                     >
                       {AVAILABLE_TAGS.find((tag) => tag.value === doc.tags?.[0])
                         ? d.tags[
-                            AVAILABLE_TAGS.find((tag) => tag.value === doc.tags?.[0])!
-                              .key
+                            AVAILABLE_TAGS.find(
+                              (tag) => tag.value === doc.tags?.[0],
+                            )!.key
                           ]
                         : doc.tags[0]}
                     </span>

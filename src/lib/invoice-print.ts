@@ -1,123 +1,130 @@
-export type PrintableInvoiceStatus = 'DRAFT' | 'UNPAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
+import { toast } from "sonner";
+
+export type PrintableInvoiceStatus =
+  | "DRAFT"
+  | "UNPAID"
+  | "PAID"
+  | "OVERDUE"
+  | "CANCELLED";
 
 export type PrintableInvoice = {
-  id: string
-  invoiceNumber: string
-  status: PrintableInvoiceStatus
-  issueDate: string
-  dueDate?: string | null
-  subtotal: number
-  tax: number
-  discount: number
-  total: number
-  notes?: string | null
+  id: string;
+  invoiceNumber: string;
+  status: PrintableInvoiceStatus;
+  issueDate: string;
+  dueDate?: string | null;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  notes?: string | null;
   client: {
-    id?: string
-    name?: string | null
-    phone?: string | null
-    email?: string | null
-  }
+    id?: string;
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  };
   case?: {
-    id?: string
-    title?: string | null
-    caseNumber?: string | null
-  } | null
+    id?: string;
+    title?: string | null;
+    caseNumber?: string | null;
+  } | null;
   items: Array<{
-    id?: string
-    description: string
-    quantity: number
-    unitPrice: number
-    total?: number
-  }>
+    id?: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total?: number;
+  }>;
   payment?: {
-    id?: string
-    amount?: number
-    status?: string
-    paidAt?: string | null
-  } | null
+    id?: string;
+    amount?: number;
+    status?: string;
+    paidAt?: string | null;
+  } | null;
   tenant?: {
-    id?: string
-    name?: string | null
-    email?: string | null
-    phone?: string | null
-    address?: string | null
-    logoUrl?: string | null
-  } | null
-}
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    logoUrl?: string | null;
+  } | null;
+};
 
 export const invoiceStatusLabels: Record<PrintableInvoiceStatus, string> = {
-  DRAFT: 'مسودة',
-  UNPAID: 'غير مدفوعة',
-  PAID: 'مدفوعة',
-  OVERDUE: 'متأخرة',
-  CANCELLED: 'ملغاة',
-}
+  DRAFT: "مسودة",
+  UNPAID: "غير مدفوعة",
+  PAID: "مدفوعة",
+  OVERDUE: "متأخرة",
+  CANCELLED: "ملغاة",
+};
 
 export function formatInvoiceNumber(invoiceNumber?: string | null) {
-  if (!invoiceNumber) return '#INV'
-  return invoiceNumber.startsWith('#') ? invoiceNumber : `#${invoiceNumber}`
+  if (!invoiceNumber) return "#INV";
+  return invoiceNumber.startsWith("#") ? invoiceNumber : `#${invoiceNumber}`;
 }
 
 export function safeInvoiceFilename(invoiceNumber?: string | null) {
-  const clean = (invoiceNumber || 'invoice')
-    .replace(/^#/, '')
-    .replace(/[^a-zA-Z0-9\-_\u0600-\u06FF]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+  const clean = (invoiceNumber || "invoice")
+    .replace(/^#/, "")
+    .replace(/[^a-zA-Z0-9\-_\u0600-\u06FF]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 
-  return clean || 'invoice'
+  return clean || "invoice";
 }
 
 export function normalizeWhatsAppPhone(phone?: string | null) {
-  if (!phone) return ''
+  if (!phone) return "";
 
-  const cleaned = phone.replace(/[^\d+]/g, '')
+  const cleaned = phone.replace(/[^\d+]/g, "");
 
-  if (cleaned.startsWith('+')) return cleaned.replace('+', '')
-  if (cleaned.startsWith('00')) return cleaned.slice(2)
-  if (cleaned.startsWith('0')) return `962${cleaned.slice(1)}`
+  if (cleaned.startsWith("+")) return cleaned.replace("+", "");
+  if (cleaned.startsWith("00")) return cleaned.slice(2);
+  if (cleaned.startsWith("0")) return `962${cleaned.slice(1)}`;
 
-  return cleaned
+  return cleaned;
 }
 
 function money(value?: number | null) {
-  return new Intl.NumberFormat('ar-JO', {
-    style: 'currency',
-    currency: 'JOD',
+  return new Intl.NumberFormat("ar-JO", {
+    style: "currency",
+    currency: "JOD",
     maximumFractionDigits: 2,
-  }).format(Number(value || 0))
+  }).format(Number(value || 0));
 }
 
 function date(value?: string | Date | null) {
-  if (!value) return '-'
+  if (!value) return "-";
 
   try {
-    return new Intl.DateTimeFormat('ar-JO', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date(value))
+    return new Intl.DateTimeFormat("ar-JO", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(value));
   } catch {
-    return '-'
+    return "-";
   }
 }
 
 function escapeHtml(value: unknown) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 export function buildInvoiceWhatsAppMessage(invoice: PrintableInvoice) {
-  const tenantName = invoice.tenant?.name || 'Viresto'
+  const tenantName = invoice.tenant?.name || "Viresto";
   const caseText = invoice.case
-    ? `${invoice.case.title || '-'}${invoice.case.caseNumber ? ` - ${invoice.case.caseNumber}` : ''}`
-    : 'بدون قضية'
+    ? `${invoice.case.title || "-"}${invoice.case.caseNumber ? ` - ${invoice.case.caseNumber}` : ""}`
+    : "بدون قضية";
 
-  return `مرحبًا ${invoice.client?.name || ''}
+  return `مرحبًا ${invoice.client?.name || ""}
 
 نرسل لكم تفاصيل الفاتورة:
 
@@ -131,23 +138,24 @@ export function buildInvoiceWhatsAppMessage(invoice: PrintableInvoice) {
 يرجى مراجعة الفاتورة، ولأي استفسار يمكنكم التواصل معنا.
 
 مع التحية،
-${tenantName}`.trim()
+${tenantName}`.trim();
 }
 
 export function buildInvoicePrintHtml(invoice: PrintableInvoice) {
-  const tenant = invoice.tenant
-  const tenantName = tenant?.name || 'Viresto'
-  const tenantEmail = tenant?.email || 'Legal SaaS Platform'
-  const tenantPhone = tenant?.phone || ''
-  const tenantAddress = tenant?.address || ''
-  const invoiceNo = formatInvoiceNumber(invoice.invoiceNumber)
+  const tenant = invoice.tenant;
+  const tenantName = tenant?.name || "Viresto";
+  const tenantEmail = tenant?.email || "Legal SaaS Platform";
+  const tenantPhone = tenant?.phone || "";
+  const tenantAddress = tenant?.address || "";
+  const invoiceNo = formatInvoiceNumber(invoice.invoiceNumber);
   const caseText = invoice.case
-    ? `${invoice.case.title || '-'}${invoice.case.caseNumber ? ` - ${invoice.case.caseNumber}` : ''}`
-    : 'بدون قضية'
+    ? `${invoice.case.title || "-"}${invoice.case.caseNumber ? ` - ${invoice.case.caseNumber}` : ""}`
+    : "بدون قضية";
 
   const rows = invoice.items
     .map((item, index) => {
-      const lineTotal = item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)
+      const lineTotal =
+        item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0);
       return `
         <tr>
           <td class="center">${index + 1}</td>
@@ -156,9 +164,9 @@ export function buildInvoicePrintHtml(invoice: PrintableInvoice) {
           <td>${money(item.unitPrice)}</td>
           <td class="strong">${money(lineTotal)}</td>
         </tr>
-      `
+      `;
     })
-    .join('')
+    .join("");
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -287,7 +295,7 @@ export function buildInvoicePrintHtml(invoice: PrintableInvoice) {
         </div>
         <div>
           <h1>${escapeHtml(tenantName)}</h1>
-          <p>${escapeHtml(tenantEmail)}${tenantPhone ? `<br/>${escapeHtml(tenantPhone)}` : ''}${tenantAddress ? `<br/>${escapeHtml(tenantAddress)}` : ''}</p>
+          <p>${escapeHtml(tenantEmail)}${tenantPhone ? `<br/>${escapeHtml(tenantPhone)}` : ""}${tenantAddress ? `<br/>${escapeHtml(tenantAddress)}` : ""}</p>
         </div>
       </div>
 
@@ -309,15 +317,15 @@ export function buildInvoicePrintHtml(invoice: PrintableInvoice) {
       <div class="two-col">
         <div class="box">
           <h3>بيانات الموكل</h3>
-          <div class="value">${escapeHtml(invoice.client?.name || '-')}</div>
-          <div class="muted">${escapeHtml(invoice.client?.phone || '-')}</div>
-          <div class="muted">${escapeHtml(invoice.client?.email || '-')}</div>
+          <div class="value">${escapeHtml(invoice.client?.name || "-")}</div>
+          <div class="muted">${escapeHtml(invoice.client?.phone || "-")}</div>
+          <div class="muted">${escapeHtml(invoice.client?.email || "-")}</div>
         </div>
         <div class="box">
           <h3>بيانات القضية</h3>
           <div class="value">${escapeHtml(caseText)}</div>
           <div class="muted">الحالة المالية: ${escapeHtml(invoiceStatusLabels[invoice.status])}</div>
-          <div class="muted">${invoice.payment ? 'مرتبطة بدفعة' : 'لا توجد دفعة مرتبطة'}</div>
+          <div class="muted">${invoice.payment ? "مرتبطة بدفعة" : "لا توجد دفعة مرتبطة"}</div>
         </div>
       </div>
 
@@ -337,7 +345,7 @@ export function buildInvoicePrintHtml(invoice: PrintableInvoice) {
       <div class="bottom">
         <div class="notes">
           <h3>ملاحظات</h3>
-          <p>${escapeHtml(invoice.notes || 'لا توجد ملاحظات إضافية.')}</p>
+          <p>${escapeHtml(invoice.notes || "لا توجد ملاحظات إضافية.")}</p>
         </div>
         <div class="totals">
           <div class="total-row"><span>المجموع الفرعي</span><strong>${money(invoice.subtotal)}</strong></div>
@@ -360,18 +368,18 @@ export function buildInvoicePrintHtml(invoice: PrintableInvoice) {
   </main>
   <script>window.onload = function () { window.print() }</script>
 </body>
-</html>`
+</html>`;
 }
 
 export function printInvoiceDocument(invoice: PrintableInvoice) {
-  const printWindow = window.open('', '_blank', 'width=1000,height=800')
+  const printWindow = window.open("", "_blank", "width=1000,height=800");
 
   if (!printWindow) {
-    alert('يرجى السماح بفتح النوافذ المنبثقة لطباعة الفاتورة')
-    return
+    toast.error("يرجى السماح بفتح النوافذ المنبثقة لطباعة الفاتورة");
+    return;
   }
 
-  printWindow.document.open()
-  printWindow.document.write(buildInvoicePrintHtml(invoice))
-  printWindow.document.close()
+  printWindow.document.open();
+  printWindow.document.write(buildInvoicePrintHtml(invoice));
+  printWindow.document.close();
 }

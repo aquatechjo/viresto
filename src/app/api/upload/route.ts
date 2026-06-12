@@ -36,15 +36,19 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
 
     const file = form.get("file") as File | null;
-    let clientId = form.get("clientId") as string | null;
-    const caseId = form.get("caseId") as string | null;
+    const caseIdRaw = form.get("caseId");
     const notesRaw = form.get("notes");
     const tagsRaw = form.get("tags");
 
+    const caseId = typeof caseIdRaw === "string" ? caseIdRaw.trim() : "";
     const notes = typeof notesRaw === "string" ? notesRaw : null;
     const tagsValue = typeof tagsRaw === "string" ? tagsRaw : null;
 
     if (!file) return err("لم يتم إرسال ملف", 400);
+
+    if (!caseId) {
+      return err("يجب اختيار قضية قبل رفع المستند", 400);
+    }
 
     if (!allowedTypes.includes(file.type as any)) {
       return err(
@@ -79,55 +83,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (clientId) {
-      const client = await prisma.client.findFirst({
-        where: {
-          id: clientId,
-          tenantId: auth.user.tenantId,
-        },
-        select: {
-          id: true,
-          archivedAt: true,
-        },
-      });
-
-      if (!client) {
-        return err("الموكل غير موجود أو لا يتبع لهذا المكتب", 404);
-      }
-
-      if (client.archivedAt) {
-        return err("لا يمكن رفع مستند لموكل مؤرشف", 400);
-      }
-    }
-
-    if (caseId) {
-      const caseRecord = await prisma.case.findFirst({
-        where: {
-          id: caseId,
-          tenantId: auth.user.tenantId,
-          ...(clientId ? { clientId } : {}),
-        },
-        select: {
-          id: true,
-          clientId: true,
-          client: {
-            select: {
-              id: true,
-              archivedAt: true,
-            },
+    const caseRecord = await prisma.case.findFirst({
+      where: {
+        id: caseId,
+        tenantId: auth.user.tenantId,
+      },
+      select: {
+        id: true,
+        title: true,
+        clientId: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
           },
         },
-      });
+      },
+    });
 
-      if (!caseRecord) {
-        return err("القضية غير موجودة أو لا تتبع لهذا المكتب", 404);
-      }
+    if (!caseRecord) {
+      return err("القضية غير موجودة أو لا تتبع لهذا المكتب", 404);
+    }
 
-      if (caseRecord.client?.archivedAt) {
-        return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 400);
-      }
-
-      if (!clientId) clientId = caseRecord.clientId;
+    if (caseRecord.client?.archivedAt) {
+      return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 400);
     }
 
     const documentsLimitCheck = await assertTenantCanCreate(
@@ -215,8 +195,8 @@ export async function POST(req: NextRequest) {
     const doc = await prisma.document.create({
       data: {
         tenantId: auth.user.tenantId,
-        clientId: clientId || null,
-        caseId: caseId || null,
+        clientId: caseRecord.clientId,
+        caseId: caseRecord.id,
         fileName: file.name,
         fileType: file.type,
         fileUrl: d.secure_url,
@@ -256,9 +236,9 @@ export async function POST(req: NextRequest) {
       tenantId: auth.user.tenantId,
       type: "DOCUMENT_UPLOADED",
       title: "تم رفع مستند",
-      message: file.name,
-      entityType: caseId ? "CASE" : "DOCUMENT",
-      entityId: caseId || doc.id,
+      message: `${file.name} — ${caseRecord.title}`,
+      entityType: "CASE",
+      entityId: caseRecord.id,
     });
 
     return ok({

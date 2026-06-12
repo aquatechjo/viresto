@@ -467,7 +467,7 @@ export const translations = {
       client: "الموكل",
       status: "الحالة",
       fee: "الأتعاب",
-      openClientFile: "فتح ملف الموكل",
+      openClientFile: "عرض ملف الموكل",
       statuses: {
         OPEN: "مفتوحة",
         IN_PROGRESS: "جارية",
