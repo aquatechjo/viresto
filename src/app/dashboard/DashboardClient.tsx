@@ -7,7 +7,7 @@ import StatCard from '@/components/ui/StatCard'
 import { formatCurrency, formatTime } from '@/lib/utils'
 import type { Locale } from '@/lib/i18n'
 import { useLocale } from '@/lib/useLocale'
-
+import AppLoader from "@/components/ui/AppLoader"
 const AIAssistant = dynamic(() => import('@/components/dashboard/AIAssistant'), {
   ssr: false,
   loading: () => (
@@ -621,7 +621,9 @@ export default function DashboardPage() {
   const recentDocuments = useMemo(() => documents.slice(0, 5), [documents])
   const firstAppointment = stats?.todayAppts?.[0]
 
-  if (loading) return <PageLoader />
+if (loading) {
+  return <AppLoader fullScreen={false} text="جاري تحميل لوحة التحكم..." />
+}
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 text-start stagger">

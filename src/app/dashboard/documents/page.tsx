@@ -1,5 +1,5 @@
 "use client";
-
+import AppLoader from "@/components/ui/AppLoader"
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -412,7 +412,10 @@ export default function DocumentsPage() {
     }
   }
 
-  if (loading) return <PageLoader />;
+  if (loading) {
+  return <AppLoader fullScreen={false} />
+}
+;
 
   return (
     <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">

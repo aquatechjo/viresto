@@ -1,5 +1,5 @@
 'use client'
-
+import AppLoader from "@/components/ui/AppLoader"
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PageLoader from '@/components/ui/PageLoader'
@@ -271,7 +271,9 @@ export default function PaymentsPage() {
     setFilter('all')
   }
 
-  if (loading) return <PageLoader />
+if (loading) {
+  return <AppLoader fullScreen={false} />
+}
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">

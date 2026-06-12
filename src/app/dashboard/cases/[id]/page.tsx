@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-
+import AppLoader from "@/components/ui/AppLoader"
 import PageLoader from '@/components/ui/PageLoader'
 import Modal from '@/components/ui/Modal'
 import FormField from '@/components/ui/FormField'
@@ -1065,8 +1065,9 @@ export default function CaseDetailPage() {
     }
   }
 
-  if (loading) return <PageLoader />
-
+if (loading) {
+  return <AppLoader fullScreen={false} />
+}
   if (!c) {
     return (
       <div className="space-y-5 stagger" dir={isRtl ? 'rtl' : 'ltr'}>

@@ -2273,3 +2273,27 @@ select.input {
   background: #1f4d35 !important;
   color: #f0fdf4 !important;
 }
+
+@keyframes loadingBar {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  50% {
+    transform: translateX(80%);
+  }
+
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes loaderShine {
+  0% {
+    transform: translateX(-80px) rotate(12deg);
+  }
+
+  100% {
+    transform: translateX(140px) rotate(12deg);
+  }
+}

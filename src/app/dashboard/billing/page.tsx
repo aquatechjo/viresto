@@ -6,7 +6,7 @@ import PageLoader from "@/components/ui/PageLoader";
 import { formatLimit } from "@/lib/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
-
+import AppLoader from "@/components/ui/AppLoader"
 type SubscriptionStatus =
   | "TRIALING"
   | "ACTIVE"
@@ -405,7 +405,9 @@ export default function BillingPage() {
     return `${billing.daysLeftPrefix} ${data.tenant.trialDaysLeft} ${billing.day}`;
   }, [data, billing]);
 
-  if (loading) return <PageLoader />;
+if (loading) {
+  return <AppLoader fullScreen={false} />
+}
 
   if (!data) {
     return (

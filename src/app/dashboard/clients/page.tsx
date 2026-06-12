@@ -1,5 +1,5 @@
 "use client";
-
+import AppLoader from "@/components/ui/AppLoader"
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLoader from "@/components/ui/PageLoader";
@@ -83,7 +83,7 @@ const pageText = {
         name: "اسم الموكل",
         phone: "رقم الهاتف",
         email: "البريد الإلكتروني",
-        nationalId: "الرقم الوطني / رقم الهوية",
+        nationalId: "الرقم الوطني",
         address: "العنوان",
         notes: "ملاحظات",
       },
@@ -91,7 +91,7 @@ const pageText = {
         name: "اسم الموكل",
         phone: "رقم الهاتف",
         email: "البريد الإلكتروني",
-        nationalId: "الرقم الوطني / رقم الهوية",
+        nationalId: "الرقم الوطني",
         address: "العنوان",
         notes: "ملاحظات",
       },
@@ -101,10 +101,14 @@ const pageText = {
     },
     validation: {
       nameRequired: "اسم الموكل مطلوب.",
+      phoneRequired: "رقم الهاتف مطلوب.",
+      nationalIdRequired: "الرقم الوطني مطلوب.",
+      phoneInvalid: "رقم الهاتف يجب أن يتكون من 10 أرقام فقط.",
+      nationalIdInvalid: "الرقم الوطني يجب أن يتكون من 10 أرقام فقط.",
       nameTooLong: "اسم الموكل طويل جدًا.",
       phoneTooLong: "رقم الهاتف طويل جدًا.",
       emailTooLong: "البريد الإلكتروني طويل جدًا.",
-      nationalIdTooLong: "الرقم الوطني / رقم الهوية طويل جدًا.",
+      nationalIdTooLong: "الرقم الوطني طويل جدًا.",
       addressTooLong: "العنوان طويل جدًا.",
       notesTooLong: "الملاحظات طويلة جدًا.",
       invalidEmail: "البريد الإلكتروني غير صالح.",
@@ -139,7 +143,7 @@ const pageText = {
       clear: "Clear filters",
 
       activeClients: "Active",
-archivedClients: "Archived",
+      archivedClients: "Archived",
     },
     empty: {
       title: "No clients found",
@@ -169,7 +173,7 @@ archivedClients: "Archived",
         name: "Client name",
         phone: "Phone number",
         email: "Email",
-        nationalId: "National ID / Identity number",
+        nationalId: "National ID",
         address: "Address",
         notes: "Notes",
       },
@@ -177,7 +181,7 @@ archivedClients: "Archived",
         name: "Client name",
         phone: "Phone number",
         email: "Email address",
-        nationalId: "National ID / Identity number",
+        nationalId: "National ID",
         address: "Address",
         notes: "Notes",
       },
@@ -187,10 +191,14 @@ archivedClients: "Archived",
     },
     validation: {
       nameRequired: "Client name is required.",
+      phoneRequired: "Phone number is required.",
+      nationalIdRequired: "National ID is required.",
+      phoneInvalid: "Phone number must be exactly 10 digits.",
+      nationalIdInvalid: "National ID must be exactly 10 digits.",
       nameTooLong: "Client name is too long.",
       phoneTooLong: "Phone number is too long.",
       emailTooLong: "Email is too long.",
-      nationalIdTooLong: "National ID / identity number is too long.",
+      nationalIdTooLong: "National ID is too long.",
       addressTooLong: "Address is too long.",
       notesTooLong: "Notes are too long.",
       invalidEmail: "Email address is invalid.",
@@ -219,6 +227,10 @@ function formatDate(date: string, locale: LocaleKey) {
 
 function cleanValue(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "").slice(0, 10);
 }
 
 function isTooLong(value: string, max: number) {
@@ -259,7 +271,14 @@ function validateClientPayload(
   text: ClientsText,
 ) {
   if (!payload.name) return text.validation.nameRequired;
+  if (!payload.phone) return text.validation.phoneRequired;
+  if (!payload.nationalId) return text.validation.nationalIdRequired;
 
+  if (!/^\d{10}$/.test(payload.phone)) return text.validation.phoneInvalid;
+  if (!/^\d{10}$/.test(payload.nationalId))
+    return text.validation.nationalIdInvalid;
+  if (!payload.phone) return text.validation.phoneRequired;
+  if (!payload.nationalId) return text.validation.nationalIdRequired;
   if (isTooLong(payload.name, 120)) return text.validation.nameTooLong;
   if (isTooLong(payload.phone, 30)) return text.validation.phoneTooLong;
   if (isTooLong(payload.email, 120)) return text.validation.emailTooLong;
@@ -431,25 +450,28 @@ function CreateClientModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-black text-emerald-100">
-                {text.modal.labels.phone}
+                {text.modal.labels.phone}{" "}
+                <span className="text-red-300">*</span>
               </label>
               <input
                 dir={isRtl ? "rtl" : "ltr"}
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: isRtl ? "rtl" : "ltr",
-              }}
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
+                }}
                 name="viresto_client_phone"
-                type="tel"
-                inputMode="tel"
+                type="text"
+                inputMode="numeric"
+                pattern="\d{10}"
                 autoComplete="new-password"
-                maxLength={30}
+                maxLength={10}
                 placeholder={text.modal.placeholders.phone}
                 value={form.phone}
                 onChange={(event) =>
-                  setForm({ ...form, phone: event.target.value })
+                  setForm({ ...form, phone: digitsOnly(event.target.value) })
                 }
+                required
               />
             </div>
 
@@ -460,10 +482,10 @@ function CreateClientModal({
               <input
                 dir="ltr"
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: isRtl ? "rtl" : "ltr",
-              }}
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
+                }}
                 name="viresto_client_email"
                 type="email"
                 inputMode="email"
@@ -481,23 +503,31 @@ function CreateClientModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-black text-emerald-100">
-                {text.modal.labels.nationalId}
+                {text.modal.labels.nationalId}{" "}
+                <span className="text-red-300">*</span>
               </label>
               <input
                 dir={isRtl ? "rtl" : "ltr"}
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: isRtl ? "rtl" : "ltr",
-              }}
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
+                }}
+                type="text"
+                inputMode="numeric"
                 name="viresto_client_national_id"
                 autoComplete="new-password"
-                maxLength={30}
+                pattern="\d{10}"
+                maxLength={10}
                 placeholder={text.modal.placeholders.nationalId}
                 value={form.nationalId}
                 onChange={(event) =>
-                  setForm({ ...form, nationalId: event.target.value })
+                  setForm({
+                    ...form,
+                    nationalId: digitsOnly(event.target.value),
+                  })
                 }
+                required
               />
             </div>
 
@@ -508,10 +538,10 @@ function CreateClientModal({
               <input
                 dir={isRtl ? "rtl" : "ltr"}
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: isRtl ? "rtl" : "ltr",
-              }}
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
+                }}
                 name="viresto_client_address"
                 autoComplete="new-password"
                 maxLength={180}
@@ -581,34 +611,34 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
-const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
-const [showCreateModal, setShowCreateModal] = useState(false);
+  const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
+  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-const load = useCallback(async () => {
-  try {
-    setLoading(true);
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
 
-    const params = new URLSearchParams();
-    params.set("limit", "100");
-    params.set("archive", archiveFilter);
+      const params = new URLSearchParams();
+      params.set("limit", "100");
+      params.set("archive", archiveFilter);
 
-    const response = await fetch(`/api/clients?${params.toString()}`);
-    const data = await response.json().catch(() => ({}));
+      const response = await fetch(`/api/clients?${params.toString()}`);
+      const data = await response.json().catch(() => ({}));
 
-    setClients(
-      Array.isArray(data.data?.data)
-        ? data.data.data
-        : Array.isArray(data.data)
-          ? data.data
-          : [],
-    );
-  } catch {
-    setClients([]);
-  } finally {
-    setLoading(false);
-  }
-}, [archiveFilter]);
+      setClients(
+        Array.isArray(data.data?.data)
+          ? data.data.data
+          : Array.isArray(data.data)
+            ? data.data
+            : [],
+      );
+    } catch {
+      setClients([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [archiveFilter]);
 
   useEffect(() => {
     load();
@@ -618,11 +648,11 @@ const load = useCallback(async () => {
     event.preventDefault();
   }
 
-function clearFilters() {
-  setQ("");
-  setCaseFilter("all");
-  setArchiveFilter("active");
-}
+  function clearFilters() {
+    setQ("");
+    setCaseFilter("all");
+    setArchiveFilter("active");
+  }
 
   function openCreateModal() {
     setShowCreateModal(true);
@@ -678,7 +708,9 @@ function clearFilters() {
     );
   }).length;
 
-  if (loading) return <PageLoader />;
+  if (loading) {
+  return <AppLoader fullScreen={false} />
+};
 
   return (
     <>
@@ -788,108 +820,104 @@ function clearFilters() {
           ))}
         </div>
 
-{/* Filters */}
-<div className="card p-4">
-  <form onSubmit={search} className="grid grid-cols-1 gap-3">
-    <input
-      dir={isRtl ? 'rtl' : 'ltr'}
-      name="clientsSearch"
-      autoComplete="off"
-      value={q}
-      onChange={(event) => setQ(event.target.value)}
-      placeholder={text.filters.searchPlaceholder}
-      className={`input h-12 w-full ${isRtl ? '!text-right' : '!text-left'}`}
-      style={{
-        textAlign: isRtl ? 'right' : 'left',
-        direction: isRtl ? 'rtl' : 'ltr',
-      }}
-    />
-  </form>
+        {/* Filters */}
+        <div className="card p-4">
+          <form onSubmit={search} className="grid grid-cols-1 gap-3">
+            <input
+              dir={isRtl ? "rtl" : "ltr"}
+              name="clientsSearch"
+              autoComplete="off"
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder={text.filters.searchPlaceholder}
+              className={`input h-12 w-full ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+            />
+          </form>
 
-  <div
-    dir={isRtl ? 'rtl' : 'ltr'}
-    className="mt-4 flex flex-col gap-3"
-  >
-    <div className="flex flex-wrap justify-start gap-2">
-      {(
-        [
-          ['active', text.filters.activeClients],
-          ['archived', text.filters.archivedClients],
-          ['all', text.filters.allClients],
-        ] as [ArchiveFilter, string][]
-      ).map(([key, label]) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => setArchiveFilter(key)}
-          className="min-w-[112px] rounded-2xl px-4 py-2 text-xs font-black transition-all"
-          style={
-            archiveFilter === key
-              ? {
-                  background: 'rgba(245,200,66,0.18)',
-                  color: 'var(--text-1)',
-                  border: '1px solid rgba(245,200,66,0.35)',
+          <div
+            dir={isRtl ? "rtl" : "ltr"}
+            className="mt-4 flex w-full items-center gap-2 overflow-x-auto pb-1"
+          >
+            {(
+              [
+                ["active", text.filters.activeClients],
+                ["archived", text.filters.archivedClients],
+                ["all", text.filters.allClients],
+              ] as [ArchiveFilter, string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setArchiveFilter(key)}
+                className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
+                style={
+                  archiveFilter === key
+                    ? {
+                        background: "rgba(245,200,66,0.18)",
+                        color: "var(--text-1)",
+                        border: "1px solid rgba(245,200,66,0.35)",
+                      }
+                    : {
+                        background: "var(--green-soft)",
+                        color: "var(--text-2)",
+                        border: "1px solid var(--border)",
+                      }
                 }
-              : {
-                  background: 'var(--green-soft)',
-                  color: 'var(--text-2)',
-                  border: '1px solid var(--border)',
-                }
-          }
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+              >
+                {label}
+              </button>
+            ))}
 
-    <div className="flex flex-wrap justify-start gap-2">
-      {(
-        [
-          ['all', text.filters.all],
-          ['withCases', text.filters.withCases],
-          ['withoutCases', text.filters.withoutCases],
-        ] as [CaseFilter, string][]
-      ).map(([key, label]) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => setCaseFilter(key)}
-          className="min-w-[112px] rounded-2xl px-4 py-2 text-xs font-black transition-all"
-          style={
-            caseFilter === key
-              ? {
-                  background: 'rgba(245,200,66,0.18)',
-                  color: 'var(--text-1)',
-                  border: '1px solid rgba(245,200,66,0.35)',
+            {(
+              [
+                ["all", text.filters.all],
+                ["withCases", text.filters.withCases],
+                ["withoutCases", text.filters.withoutCases],
+              ] as [CaseFilter, string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setCaseFilter(key)}
+                className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
+                style={
+                  caseFilter === key
+                    ? {
+                        background: "rgba(245,200,66,0.18)",
+                        color: "var(--text-1)",
+                        border: "1px solid rgba(245,200,66,0.35)",
+                      }
+                    : {
+                        background: "var(--green-soft)",
+                        color: "var(--text-2)",
+                        border: "1px solid var(--border)",
+                      }
                 }
-              : {
-                  background: 'var(--green-soft)',
-                  color: 'var(--text-2)',
-                  border: '1px solid var(--border)',
-                }
-          }
-        >
-          {label}
-        </button>
-      ))}
+              >
+                {label}
+              </button>
+            ))}
 
-      {(q || caseFilter !== 'all' || archiveFilter !== 'active') && (
-        <button
-          type="button"
-          onClick={clearFilters}
-          className="min-w-[112px] rounded-2xl px-4 py-2 text-xs font-black transition-all"
-          style={{
-            background: 'var(--card)',
-            color: 'var(--text-2)',
-            border: '1px solid var(--border)',
-          }}
-        >
-          {text.filters.clear}
-        </button>
-      )}
-    </div>
-  </div>
-</div>
+            {(q || caseFilter !== "all" || archiveFilter !== "active") && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
+                style={{
+                  background: "var(--card)",
+                  color: "var(--text-2)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {text.filters.clear}
+              </button>
+            )}
+          </div>
+        </div>
         {/* Content */}
         {filteredClients.length === 0 ? (
           <div className="card p-8">
@@ -962,17 +990,17 @@ function clearFilters() {
                     </div>
 
                     {client.archivedAt && (
-  <span
-    className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black shadow-sm"
-    style={{
-      background: "rgba(245,158,11,0.16)",
-      borderColor: "rgba(245,158,11,0.38)",
-      color: "#f59e0b",
-    }}
-  >
-    {text.card.archived}
-  </span>
-)}
+                      <span
+                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black shadow-sm"
+                        style={{
+                          background: "rgba(245,158,11,0.16)",
+                          borderColor: "rgba(245,158,11,0.38)",
+                          color: "#f59e0b",
+                        }}
+                      >
+                        {text.card.archived}
+                      </span>
+                    )}
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
@@ -1013,69 +1041,69 @@ function clearFilters() {
                   </span>
                 </div>
 
-<div
-  dir={isRtl ? "rtl" : "ltr"}
-  className="mt-5 grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2"
-  style={{ borderColor: "var(--border)" }}
->
-  <div className="min-w-0">
-    <p
-      className="text-xs font-bold text-start"
-      style={{ color: "var(--text-3)" }}
-    >
-      {text.card.phone}
-    </p>
+                <div
+                  dir={isRtl ? "rtl" : "ltr"}
+                  className="mt-5 grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <div className="min-w-0">
+                    <p
+                      className="text-xs font-bold text-start"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {text.card.phone}
+                    </p>
 
-    <p
-      dir="ltr"
-      className={`
+                    <p
+                      dir="ltr"
+                      className={`
         mt-1 truncate text-sm font-semibold
         ${isRtl ? "text-right" : "text-left"}
       `}
-      style={{ color: "var(--text)" }}
-    >
-      {client.phone || text.card.dash}
-    </p>
-  </div>
+                      style={{ color: "var(--text)" }}
+                    >
+                      {client.phone || text.card.dash}
+                    </p>
+                  </div>
 
-  <div className="min-w-0">
-    <p
-      className="text-xs font-bold text-start"
-      style={{ color: "var(--text-3)" }}
-    >
-      {text.card.email}
-    </p>
+                  <div className="min-w-0">
+                    <p
+                      className="text-xs font-bold text-start"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {text.card.email}
+                    </p>
 
-    <p
-      dir="ltr"
-      className={`
+                    <p
+                      dir="ltr"
+                      className={`
         mt-1 truncate text-sm font-semibold
         ${isRtl ? "text-right" : "text-left"}
       `}
-      style={{ color: "var(--text)" }}
-    >
-      {client.email || text.card.dash}
-    </p>
-  </div>
+                      style={{ color: "var(--text)" }}
+                    >
+                      {client.email || text.card.dash}
+                    </p>
+                  </div>
 
-  {client.address && (
-    <div className="min-w-0 sm:col-span-2">
-      <p
-        className="text-xs font-bold text-start"
-        style={{ color: "var(--text-3)" }}
-      >
-        {text.card.address}
-      </p>
+                  {client.address && (
+                    <div className="min-w-0 sm:col-span-2">
+                      <p
+                        className="text-xs font-bold text-start"
+                        style={{ color: "var(--text-3)" }}
+                      >
+                        {text.card.address}
+                      </p>
 
-      <p
-        className="mt-1 line-clamp-1 text-start text-sm font-semibold"
-        style={{ color: "var(--text)" }}
-      >
-        {client.address}
-      </p>
-    </div>
-  )}
-</div>
+                      <p
+                        className="mt-1 line-clamp-1 text-start text-sm font-semibold"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {client.address}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

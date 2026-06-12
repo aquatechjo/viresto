@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
-
+import AppLoader from "@/components/ui/AppLoader"
 import Modal from '@/components/ui/Modal'
 import FormField from '@/components/ui/FormField'
 import PageLoader from '@/components/ui/PageLoader'
@@ -393,7 +393,9 @@ export default function AppointmentsPage() {
     setOpen(true)
   }
 
-  if (loading) return <PageLoader />
+if (loading) {
+  return <AppLoader fullScreen={false} />
+}
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">

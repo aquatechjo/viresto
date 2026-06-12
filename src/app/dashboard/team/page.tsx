@@ -1,5 +1,5 @@
 "use client";
-
+import AppLoader from "@/components/ui/AppLoader"
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
@@ -405,7 +405,10 @@ export default function TeamPage() {
     }
   }
 
-  if (loading) return <PageLoader />;
+ if (loading) {
+  return <AppLoader fullScreen={false} />
+}
+;
 
   if (currentRole && currentRole !== "ADMIN") {
     return (

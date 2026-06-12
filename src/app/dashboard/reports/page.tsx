@@ -1,5 +1,5 @@
 'use client'
-
+import AppLoader from "@/components/ui/AppLoader"
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import PageLoader from '@/components/ui/PageLoader'
@@ -682,7 +682,9 @@ export default function ReportsPage() {
     downloadCsv(`invoices-report-${year}.csv`, rows)
   }
 
-  if (loading) return <PageLoader />
+if (loading) {
+  return <AppLoader fullScreen={false} />
+}
 
   if (error) {
     return (

@@ -16,7 +16,7 @@ import {
 import PageLoader from "@/components/ui/PageLoader";
 import EmptyState from "@/components/ui/EmptyState";
 import { useLocale } from "@/lib/useLocale";
-
+import AppLoader from "@/components/ui/AppLoader"
 type Locale = "ar" | "en";
 
 interface ActivityItem {
@@ -526,7 +526,9 @@ export default function ActivityPage() {
     ).length,
   };
 
-  if (loading) return <PageLoader />;
+if (loading) {
+  return <AppLoader fullScreen={false} />
+}
 
   return (
     <div dir={fieldDir} className="space-y-5 stagger">

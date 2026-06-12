@@ -1,5 +1,5 @@
 "use client";
-
+import AppLoader from "@/components/ui/AppLoader"
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { toast } from "sonner";
@@ -729,7 +729,10 @@ export default function SettingsPage() {
     }
   }
 
-  if (loading) return <PageLoader />;
+  if (loading) {
+  return <AppLoader fullScreen={false} />
+}
+;
 
   if (!user) {
     return (

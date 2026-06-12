@@ -25,13 +25,29 @@ export const registerSchema = z.object({
 })
 
 export const clientSchema = z.object({
-  name:       z.string().min(1, 'الاسم مطلوب'),
-  email:      z.string().email().optional().or(z.literal('')),
-  phone:      z.string().optional(),
-  nationalId: z.string().optional(),
-  address:    z.string().optional(),
-  notes:      z.string().optional(),
+  name: z.string().trim().min(1, 'Client name is required').max(120),
+
+  email: z
+    .string()
+    .trim()
+    .email('Invalid email')
+    .optional()
+    .or(z.literal('')),
+
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\d{10}$/, 'Phone number must be exactly 10 digits'),
+
+  nationalId: z
+    .string()
+    .trim()
+    .regex(/^\d{10}$/, 'National ID must be exactly 10 digits'),
+
+  address: z.string().trim().optional().or(z.literal('')),
+  notes: z.string().trim().optional().or(z.literal('')),
 })
+
 
 export const caseSchema = z.object({
   clientId:    z.string().min(1, 'الموكل مطلوب'),
