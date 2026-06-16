@@ -1,25 +1,27 @@
-import crypto from 'crypto'
-import { prisma } from '@/lib/prisma'
+import crypto from "crypto";
+import { prisma } from "@/lib/prisma";
 
-type VerificationType = 'EMAIL' | 'WHATSAPP'
+type VerificationType = "EMAIL" | "WHATSAPP";
 
-const verificationSecret = process.env.VERIFICATION_SECRET || process.env.JWT_SECRET
+function getVerificationSecret() {
+  const secret = process.env.VERIFICATION_SECRET || process.env.JWT_SECRET;
 
-if (!verificationSecret) {
-  throw new Error('Missing VERIFICATION_SECRET or JWT_SECRET')
+  if (!secret) {
+    throw new Error("Missing VERIFICATION_SECRET or JWT_SECRET");
+  }
+
+  return secret;
 }
 
-const VERIFICATION_SECRET: string = verificationSecret
-
 export function generateOtpCode() {
-  return crypto.randomInt(100000, 999999).toString()
+  return crypto.randomInt(100000, 999999).toString();
 }
 
 export function hashOtpCode(code: string) {
   return crypto
-    .createHmac('sha256', String(VERIFICATION_SECRET))
+    .createHmac("sha256", getVerificationSecret())
     .update(code)
-    .digest('hex')
+    .digest("hex");
 }
 
 export async function createVerificationCode({
@@ -27,12 +29,12 @@ export async function createVerificationCode({
   type,
   expiresInMinutes = 10,
 }: {
-  userId: string
-  type: VerificationType
-  expiresInMinutes?: number
+  userId: string;
+  type: VerificationType;
+  expiresInMinutes?: number;
 }) {
-  const code = generateOtpCode()
-  const codeHash = hashOtpCode(code)
+  const code = generateOtpCode();
+  const codeHash = hashOtpCode(code);
 
   await prisma.verificationCode.updateMany({
     where: {
@@ -43,7 +45,7 @@ export async function createVerificationCode({
     data: {
       usedAt: new Date(),
     },
-  })
+  });
 
   await prisma.verificationCode.create({
     data: {
@@ -52,9 +54,9 @@ export async function createVerificationCode({
       codeHash,
       expiresAt: new Date(Date.now() + expiresInMinutes * 60 * 1000),
     },
-  })
+  });
 
-  return code
+  return code;
 }
 
 export async function verifyCode({
@@ -62,11 +64,11 @@ export async function verifyCode({
   type,
   code,
 }: {
-  userId: string
-  type: VerificationType
-  code: string
+  userId: string;
+  type: VerificationType;
+  code: string;
 }) {
-  const codeHash = hashOtpCode(code)
+  const codeHash = hashOtpCode(code);
 
   const verificationCode = await prisma.verificationCode.findFirst({
     where: {
@@ -75,29 +77,29 @@ export async function verifyCode({
       usedAt: null,
     },
     orderBy: {
-      createdAt: 'desc',
+      createdAt: "desc",
     },
-  })
+  });
 
   if (!verificationCode) {
     return {
       ok: false,
-      reason: 'NOT_FOUND' as const,
-    }
+      reason: "NOT_FOUND" as const,
+    };
   }
 
   if (verificationCode.expiresAt < new Date()) {
     return {
       ok: false,
-      reason: 'EXPIRED' as const,
-    }
+      reason: "EXPIRED" as const,
+    };
   }
 
   if (verificationCode.attempts >= 5) {
     return {
       ok: false,
-      reason: 'TOO_MANY_ATTEMPTS' as const,
-    }
+      reason: "TOO_MANY_ATTEMPTS" as const,
+    };
   }
 
   if (verificationCode.codeHash !== codeHash) {
@@ -110,25 +112,33 @@ export async function verifyCode({
           increment: 1,
         },
       },
-    })
+    });
 
     return {
       ok: false,
-      reason: 'INVALID' as const,
-    }
+      reason: "INVALID" as const,
+    };
   }
 
-  await prisma.verificationCode.update({
+  const consumed = await prisma.verificationCode.updateMany({
     where: {
       id: verificationCode.id,
+      usedAt: null,
     },
     data: {
       usedAt: new Date(),
     },
-  })
+  });
+
+  if (consumed.count !== 1) {
+    return {
+      ok: false,
+      reason: "NOT_FOUND" as const,
+    };
+  }
 
   return {
     ok: true,
-    reason: 'APPROVED' as const,
-  }
+    reason: "APPROVED" as const,
+  };
 }

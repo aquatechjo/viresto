@@ -1,54 +1,67 @@
-import { SignJWT, jwtVerify } from 'jose'
-import { cookies } from 'next/headers'
+import { SignJWT, jwtVerify } from "jose";
+import { cookies } from "next/headers";
 
 export interface JWTPayload {
-  userId: string
-  tenantId: string
-  email: string
-  name: string
-  role: string
-  sessionId?: string
-  isSystemAdmin?: boolean
+  userId: string;
+  tenantId: string;
+  email: string;
+  name: string;
+  role: string;
+  sessionId?: string;
+  isSystemAdmin?: boolean;
 }
 
-export const COOKIE = 'ld_token'
-const TTL_SEC = 60 * 60 * 24 * 7
+export const COOKIE = "ld_token";
+const TTL_SEC = 60 * 60 * 24 * 7;
+const JWT_ISSUER = "viresto";
+const JWT_AUDIENCE = "viresto-app";
 
 const secret = () => {
-  const value = process.env.JWT_SECRET
+  const value = process.env.JWT_SECRET;
 
   if (!value) {
-    throw new Error('JWT_SECRET is required')
+    throw new Error("JWT_SECRET is required");
   }
 
-  return new TextEncoder().encode(value)
-}
+  if (value.length < 32) {
+    throw new Error("JWT_SECRET must be at least 32 characters");
+  }
+
+  return new TextEncoder().encode(value);
+};
 
 export async function signToken(payload: JWTPayload): Promise<string> {
   return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.userId)
+    .setIssuer(JWT_ISSUER)
+    .setAudience(JWT_AUDIENCE)
     .setIssuedAt()
     .setExpirationTime(`${TTL_SEC}s`)
-    .sign(secret())
+    .sign(secret());
 }
 
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, secret())
-    return payload as unknown as JWTPayload
+    const { payload } = await jwtVerify(token, secret(), {
+      algorithms: ["HS256"],
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    });
+
+    return payload as unknown as JWTPayload;
   } catch {
-    return null
+    return null;
   }
 }
 
 export async function getSession(): Promise<JWTPayload | null> {
-  const jar = await cookies()
-  const token = jar.get(COOKIE)?.value
+  const jar = await cookies();
+  const token = jar.get(COOKIE)?.value;
 
-  if (!token) return null
+  if (!token) return null;
 
-  return verifyToken(token)
+  return verifyToken(token);
 }
 
 export function buildCookie(token: string) {
@@ -56,21 +69,21 @@ export function buildCookie(token: string) {
     name: COOKIE,
     value: token,
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
-    path: '/',
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
     maxAge: TTL_SEC,
-  }
+  };
 }
 
 export function clearCookie() {
   return {
     name: COOKIE,
-    value: '',
+    value: "",
     maxAge: 0,
-    path: '/',
+    path: "/",
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
-  }
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+  };
 }

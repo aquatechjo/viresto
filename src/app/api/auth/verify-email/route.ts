@@ -5,8 +5,12 @@ import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { createVerificationCode, verifyCode } from "@/lib/verification";
 import { sendWhatsappVerificationCode } from "@/lib/whatsapp";
+import { checkRateLimit } from "@/lib/rate-limit";
 
-async function createAndSendWhatsappCode(user: { id: string; phone: string | null }) {
+async function createAndSendWhatsappCode(user: {
+  id: string;
+  phone: string | null;
+}) {
   if (!user.phone) {
     return {
       ok: false as const,
@@ -42,6 +46,21 @@ export async function POST(req: NextRequest) {
       .toLowerCase();
     const code = String(body.code || "").trim();
 
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rl = await checkRateLimit(`${ip}:${email || "unknown"}`, {
+      keyPrefix: "verify-email",
+      max: 10,
+      windowMs: 10 * 60 * 1000,
+    });
+
+    if (!rl.allowed) {
+      return err("تم تجاوز عدد محاولات التحقق. حاول لاحقاً.", 429);
+    }
+
     if (!email || !code) {
       return err("البريد الإلكتروني ورمز التحقق مطلوبان", 400);
     }
@@ -64,7 +83,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      return err("المستخدم غير موجود", 404);
+      return err("رمز التحقق غير صحيح أو منتهي", 400);
     }
 
     if (user.emailVerifiedAt && user.phoneVerifiedAt) {

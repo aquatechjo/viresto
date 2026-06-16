@@ -1,30 +1,32 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { ok, err, notFound } from '@/lib/api-response'
-import cloudinary, { generateSignedFileUrl } from '@/lib/cloudinary'
-import { logActivity } from '@/lib/activity'
-import { requireRole, getRequestMeta } from '@/lib/api-auth'
-import { apiHandler } from '@/lib/api-handler'
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { ok, err, notFound } from "@/lib/api-response";
+import cloudinary, { generateSignedFileUrl } from "@/lib/cloudinary";
+import { logActivity } from "@/lib/activity";
+import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { apiHandler } from "@/lib/api-handler";
+import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { verifySameOrigin } from "@/lib/csrf";
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ id: string }> };
 
-function getResourceType(fileType?: string | null): 'image' | 'raw' | 'video' {
-  if (fileType?.startsWith('image/')) return 'image'
-  if (fileType === 'application/pdf') return 'image'
-  if (fileType?.startsWith('video/')) return 'video'
-  return 'raw'
+function getResourceType(fileType?: string | null): "image" | "raw" | "video" {
+  if (fileType?.startsWith("image/")) return "image";
+  if (fileType === "application/pdf") return "image";
+  if (fileType?.startsWith("video/")) return "video";
+  return "raw";
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
 
     if (auth.error || !auth.user) {
-      return auth.error
+      return auth.error;
     }
 
-    const meta = getRequestMeta(req)
-    const { id } = await params
+    const meta = getRequestMeta(req);
+    const { id } = await params;
 
     const doc = await prisma.document.findFirst({
       where: {
@@ -38,51 +40,63 @@ export async function GET(req: NextRequest, { params }: Params) {
         publicId: true,
         caseId: true,
       },
-    })
+    });
 
     if (!doc) {
-      return notFound('المستند غير موجود')
+      return notFound("المستند غير موجود");
     }
 
     if (!doc.publicId) {
-      return notFound('رابط المستند غير متاح')
+      return notFound("رابط المستند غير متاح");
     }
 
     const url = generateSignedFileUrl(
       doc.publicId,
-      getResourceType(doc.fileType)
-    )
+      getResourceType(doc.fileType),
+    );
 
     await logActivity({
       tenantId: auth.user.tenantId,
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
-      type: 'DOCUMENT_VIEWED',
-      title: 'تم فتح مستند',
+      type: "DOCUMENT_VIEWED",
+      title: "تم فتح مستند",
       message: doc.fileName,
-      entityType: 'DOCUMENT',
+      entityType: "DOCUMENT",
       entityId: doc.id,
-    })
+    });
 
     return ok({
       url,
       expiresIn: 300,
       fileName: doc.fileName,
-    })
-  })
+    });
+  });
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
 
     if (auth.error || !auth.user) {
-      return auth.error
+      return auth.error;
     }
 
-    const meta = getRequestMeta(req)
-    const { id } = await params
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "حذف مستند",
+    );
+
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+
+    const meta = getRequestMeta(req);
+    const { id } = await params;
 
     const exists = await prisma.document.findFirst({
       where: {
@@ -114,28 +128,28 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     if (!exists) {
-      return notFound('المستند غير موجود')
+      return notFound("المستند غير موجود");
     }
 
     const isArchivedClient = Boolean(
-      exists.client?.archivedAt || exists.case?.client?.archivedAt
-    )
+      exists.client?.archivedAt || exists.case?.client?.archivedAt,
+    );
 
     if (isArchivedClient) {
-      return err('لا يمكن حذف مستند مرتبط بموكل مؤرشف', 400)
+      return err("لا يمكن حذف مستند مرتبط بموكل مؤرشف", 400);
     }
 
     if (exists.publicId) {
       try {
         await cloudinary.uploader.destroy(exists.publicId, {
           resource_type: getResourceType(exists.fileType),
-          type: 'authenticated',
-        })
+          type: "authenticated",
+        });
       } catch (e) {
-        console.error('Cloudinary delete failed:', e)
+        console.error("Cloudinary delete failed:", e);
       }
     }
 
@@ -143,20 +157,20 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       where: {
         id: exists.id,
       },
-    })
+    });
 
     await logActivity({
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
-      type: 'DOCUMENT_DELETED',
-      title: exists.caseId ? 'تم حذف مستند من القضية' : 'تم حذف مستند',
+      type: "DOCUMENT_DELETED",
+      title: exists.caseId ? "تم حذف مستند من القضية" : "تم حذف مستند",
       message: exists.fileName,
-      entityType: exists.caseId ? 'CASE' : 'DOCUMENT',
+      entityType: exists.caseId ? "CASE" : "DOCUMENT",
       entityId: exists.caseId || exists.id,
-    })
+    });
 
-    return ok({ deleted: true })
-  })
+    return ok({ deleted: true });
+  });
 }

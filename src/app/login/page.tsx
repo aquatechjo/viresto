@@ -72,6 +72,8 @@ const ambientIcons = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const publicRegisterEnabled =
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true";
 
   const [form, setForm] = useState({
     email: "",
@@ -527,20 +529,22 @@ export default function LoginPage() {
                   </motion.button>
                 </form>
 
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.55 }}
-                  className="mt-5 text-center text-sm font-semibold text-slate-600 dark:text-emerald-100/75"
-                >
-                  ليس لديك حساب؟{" "}
-                  <Link
-                    href="/register"
-                    className="font-black text-[#1f4639] hover:underline dark:text-emerald-300"
+                {publicRegisterEnabled && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.55 }}
+                    className="mt-5 text-center text-sm font-semibold text-slate-600 dark:text-emerald-100/75"
                   >
-                    سجّل مكتبك
-                  </Link>
-                </motion.p>
+                    ليس لديك حساب؟{" "}
+                    <Link
+                      href="/register"
+                      className="font-black text-[#1f4639] hover:underline dark:text-emerald-300"
+                    >
+                      سجّل مكتبك
+                    </Link>
+                  </motion.p>
+                )}
               </div>
             </div>
           </motion.div>

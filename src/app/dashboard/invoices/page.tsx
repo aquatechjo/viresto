@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 import PageLoader from '@/components/ui/PageLoader'
 import EmptyState from '@/components/ui/EmptyState'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/useLocale'
+import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
+import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 import {
   buildInvoiceWhatsAppMessage,
@@ -169,7 +172,7 @@ const COPY = {
       chooseClient: 'اختر الموكل',
       case: 'القضية',
       noCase: 'بدون قضية',
-      archivedWarning: 'لا يمكن إنشاء فاتورة جديدة لموكل مؤرشف أو قضية مرتبطة بموكل مؤرشف.',
+      archivedWarning: 'سيتم إنشاء الفاتورة لموكل مؤرشف. يمكن التحصيل والتعديل، لكن لا يمكن حذف الفاتورة لاحقًا لحماية السجل المالي.',
       dueDate: 'تاريخ الاستحقاق',
       notes: 'ملاحظات',
       notesPlaceholder: 'مثال: الدفعة الأولى من الأتعاب',
@@ -183,10 +186,10 @@ const COPY = {
     },
     messages: {
       chooseClient: 'اختار الموكل',
-      archivedCreateBlocked: 'لا يمكن إنشاء فاتورة لموكل مؤرشف',
+      archivedCreateBlocked: 'يمكن إنشاء فاتورة لموكل مؤرشف، لكن لا يمكن حذفها لاحقًا لحماية السجل المالي.',
       addOneItem: 'أضف بند واحد على الأقل',
       createError: 'حدث خطأ أثناء إنشاء الفاتورة',
-      archivedStatusBlocked: 'الفاتورة مرتبطة بموكل مؤرشف. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.',
+      archivedStatusBlocked: 'يمكن تعديل حالة فاتورة الموكل المؤرشف، لكن لا يمكن حذفها لحماية السجل المالي.',
       paidNeedsCase: 'لا يمكن تعليم الفاتورة كمدفوعة لأنها غير مرتبطة بقضية',
       paidLinkedPaymentConfirm: 'سيتم تسجيل دفعة مرتبطة بالقضية عند تعليم الفاتورة كمدفوعة. هل تريد المتابعة؟',
       statusUpdateError: 'تعذر تحديث حالة الفاتورة',
@@ -283,7 +286,7 @@ const COPY = {
       chooseClient: 'Choose client',
       case: 'Case',
       noCase: 'No case',
-      archivedWarning: 'A new invoice cannot be created for an archived client or a case linked to an archived client.',
+      archivedWarning: 'This invoice will be created for an archived client. Collection and editing are allowed, but deletion is blocked to protect the financial record.',
       dueDate: 'Due date',
       notes: 'Notes',
       notesPlaceholder: 'Example: first legal-fee installment',
@@ -297,10 +300,10 @@ const COPY = {
     },
     messages: {
       chooseClient: 'Choose a client',
-      archivedCreateBlocked: 'Cannot create an invoice for an archived client',
+      archivedCreateBlocked: 'You can create an invoice for an archived client, but it cannot be deleted later to protect the financial record.',
       addOneItem: 'Add at least one item',
       createError: 'An error occurred while creating the invoice',
-      archivedStatusBlocked: 'This invoice is linked to an archived client. Only Paid or Cancelled status is allowed.',
+      archivedStatusBlocked: 'You can update the status of an archived-client invoice, but it cannot be deleted to protect the financial record.',
       paidNeedsCase: 'The invoice cannot be marked as paid because it is not linked to a case',
       paidLinkedPaymentConfirm: 'This invoice is paid and linked to a payment. The linked payment status will be updated according to the new status. Continue?',
       statusUpdateError: 'Could not update invoice status',
@@ -365,9 +368,6 @@ function isArchivedInvoice(invoice: Invoice) {
   return Boolean(invoice.client?.archivedAt || invoice.case?.client?.archivedAt)
 }
 
-function isAllowedArchivedStatus(nextStatus: InvoiceStatus) {
-  return nextStatus === 'PAID' || nextStatus === 'CANCELLED'
-}
 
 function money(value: number, locale: Locale) {
   if (!Number.isFinite(value) || value === 0) {
@@ -382,11 +382,18 @@ function money(value: number, locale: Locale) {
   })}`
 }
 
+function getBlockFallback(locale: Locale) {
+  return locale === 'en'
+    ? 'The subscription has ended. This page is available in read-only mode until renewal.'
+    : 'انتهى الاشتراك. هذه الصفحة متاحة للقراءة فقط إلى حين التجديد.'
+}
+
 export default function InvoicesPage() {
   const router = useRouter()
   const localeState = useLocale() as { locale?: Locale }
   const locale = localeState?.locale === 'en' ? 'en' : 'ar'
   const isRtl = locale === 'ar'
+  const writeAccess = useTenantWriteAccess(locale)
   const copy = COPY[locale]
 
   const fieldStyle = {
@@ -409,6 +416,35 @@ export default function InvoicesPage() {
   ]
 
   const formatMoney = (value: number) => money(value, locale)
+
+  function confirmToast(message: string) {
+    return new Promise<boolean>((resolve) => {
+      let settled = false
+
+      const toastId = toast(message, {
+        duration: 10000,
+        action: {
+          label: locale === 'ar' ? 'تأكيد' : 'Confirm',
+          onClick: () => {
+            if (settled) return
+            settled = true
+            toast.dismiss(toastId)
+            resolve(true)
+          },
+        },
+        onDismiss: () => {
+          if (settled) return
+          settled = true
+          resolve(false)
+        },
+        onAutoClose: () => {
+          if (settled) return
+          settled = true
+          resolve(false)
+        },
+      })
+    })
+  }
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientOption[]>([])
@@ -436,9 +472,7 @@ export default function InvoicesPage() {
   const filteredCases = useMemo(() => {
     if (!clientId) return []
 
-    return cases.filter((item) => {
-      return item.clientId === clientId && !item.client?.archivedAt
-    })
+    return cases.filter((item) => item.clientId === clientId)
   }, [cases, clientId])
 
   const selectedClient = useMemo(() => {
@@ -506,8 +540,8 @@ export default function InvoicesPage() {
 
       const [invoiceRes, clientRes, caseRes] = await Promise.all([
         fetch(`/api/invoices?${params.toString()}`, { cache: 'no-store' }),
-        fetch('/api/clients?limit=100', { cache: 'no-store' }),
-        fetch('/api/cases?limit=100', { cache: 'no-store' }),
+        fetch('/api/clients?limit=100&includeArchivedClients=true', { cache: 'no-store' }),
+        fetch('/api/cases?limit=100&includeArchivedClients=true', { cache: 'no-store' }),
       ])
 
       if (
@@ -528,8 +562,8 @@ export default function InvoicesPage() {
       if (!caseRes.ok) console.error('Cases request failed:', caseRes.status)
 
       setInvoices(safeList(invoiceData))
-      setClients(safeList(clientData).filter((client: ClientOption) => !client.archivedAt))
-      setCases(safeList(caseData).filter((item: CaseOption) => !item.client?.archivedAt))
+      setClients(safeList(clientData))
+      setCases(safeList(caseData))
     } catch (error) {
       console.error('Invoices load failed:', error)
       setInvoices([])
@@ -592,20 +626,20 @@ export default function InvoicesPage() {
   async function createInvoice(event: FormEvent) {
     event.preventDefault()
 
-    if (!clientId) {
-      alert(copy.messages.chooseClient)
+    if (!writeAccess.canWrite) {
+      toast.error(writeAccess.message || getBlockFallback(locale))
       return
     }
 
-    if (selectedArchivedContext) {
-      alert(copy.messages.archivedCreateBlocked)
+    if (!clientId) {
+      toast.error(copy.messages.chooseClient)
       return
     }
 
     const cleanItems = items.filter((item) => item.description.trim())
 
     if (cleanItems.length === 0) {
-      alert(copy.messages.addOneItem)
+      toast.error(copy.messages.addOneItem)
       return
     }
 
@@ -629,15 +663,16 @@ export default function InvoicesPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        alert(getMessage(data, copy.messages.createError))
+        toast.error(getMessage(data, copy.messages.createError))
         return
       }
 
+      toast.success(locale === 'ar' ? 'تم إنشاء الفاتورة' : 'Invoice created')
       setOpen(false)
       resetForm()
       await load()
     } catch {
-      alert(copy.messages.createError)
+      toast.error(copy.messages.createError)
     } finally {
       setSaving(false)
     }
@@ -646,22 +681,18 @@ export default function InvoicesPage() {
   async function updateStatus(invoice: Invoice, nextStatus: InvoiceStatus) {
     if (invoice.status === nextStatus) return
 
-    const archivedInvoice = isArchivedInvoice(invoice)
-
-    if (archivedInvoice && !isAllowedArchivedStatus(nextStatus)) {
-      alert(copy.messages.archivedStatusBlocked)
+    if (!writeAccess.canWrite) {
+      toast.error(writeAccess.message || getBlockFallback(locale))
       return
     }
 
     if (nextStatus === 'PAID' && !invoice.case) {
-      alert(copy.messages.paidNeedsCase)
+      toast.error(copy.messages.paidNeedsCase)
       return
     }
 
     if (invoice.payment && invoice.status === 'PAID' && nextStatus !== 'PAID') {
-      const confirmed = confirm(
-        copy.messages.paidLinkedPaymentConfirm
-      )
+      const confirmed = await confirmToast(copy.messages.paidLinkedPaymentConfirm)
 
       if (!confirmed) return
     }
@@ -675,27 +706,34 @@ export default function InvoicesPage() {
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      alert(getMessage(data, copy.messages.statusUpdateError))
+      toast.error(getMessage(data, copy.messages.statusUpdateError))
       return
     }
 
+    toast.success(locale === 'ar' ? 'تم تحديث حالة الفاتورة' : 'Invoice status updated')
     await load()
   }
 
   async function deleteInvoice(invoice: Invoice) {
+    if (!writeAccess.canWrite) {
+      toast.error(writeAccess.message || getBlockFallback(locale))
+      return
+    }
+
     const archivedInvoice = isArchivedInvoice(invoice)
 
     if (archivedInvoice) {
-      alert(copy.messages.archivedDeleteBlocked)
+      toast.error(copy.messages.archivedDeleteBlocked)
       return
     }
 
     if (invoice.payment) {
-      alert(copy.messages.linkedPaymentDeleteBlocked)
+      toast.error(copy.messages.linkedPaymentDeleteBlocked)
       return
     }
 
-    if (!confirm(copy.messages.confirmDelete)) return
+    const confirmed = await confirmToast(copy.messages.confirmDelete)
+    if (!confirmed) return
 
     const response = await fetch(`/api/invoices/${invoice.id}`, {
       method: 'DELETE',
@@ -704,10 +742,11 @@ export default function InvoicesPage() {
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      alert(getMessage(data, copy.messages.deleteError))
+      toast.error(getMessage(data, copy.messages.deleteError))
       return
     }
 
+    toast.success(locale === 'ar' ? 'تم حذف الفاتورة' : 'Invoice deleted')
     await load()
   }
 
@@ -719,7 +758,7 @@ export default function InvoicesPage() {
     const phone = normalizeWhatsAppPhone(invoice.client?.phone)
 
     if (!phone) {
-      alert(copy.messages.noPhone)
+      toast.error(copy.messages.noPhone)
       return
     }
 
@@ -748,6 +787,11 @@ export default function InvoicesPage() {
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">
+      <SubscriptionReadOnlyBanner
+        visible={!writeAccess.canWrite}
+        message={writeAccess.message}
+        isRtl={isRtl}
+      />
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6"
@@ -792,7 +836,9 @@ export default function InvoicesPage() {
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="btn"
+              disabled={!writeAccess.canWrite}
+              title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : copy.actions.create}
+              className="btn disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: '#fff',
                 color: 'var(--sidebar)',
@@ -962,7 +1008,12 @@ export default function InvoicesPage() {
             }
             action={
               invoices.length === 0 ? (
-                <button onClick={() => setOpen(true)} className="btn btn-primary">
+                <button
+                  onClick={() => setOpen(true)}
+                  disabled={!writeAccess.canWrite}
+                  title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : copy.actions.create}
+                  className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+                >
                   {copy.actions.create}
                 </button>
               ) : (
@@ -1151,30 +1202,17 @@ export default function InvoicesPage() {
                             dir={isRtl ? 'rtl' : 'ltr'}
                             style={fieldStyle}
                             value={invoice.status}
+                            disabled={!writeAccess.canWrite}
+                            title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : copy.messages.changeStatusAria(invoice.invoiceNumber)}
                             onChange={(event) =>
                               updateStatus(invoice, event.target.value as InvoiceStatus)
                             }
-                            className="input h-9 min-w-[130px] text-xs"
+                            className="input h-9 min-w-[130px] text-xs disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            <option
-                              value="DRAFT"
-                              disabled={archivedInvoice && invoice.status !== 'DRAFT'}
-                            >
-                              {copy.statuses.DRAFT}
-                            </option>
-                            <option
-                              value="UNPAID"
-                              disabled={archivedInvoice && invoice.status !== 'UNPAID'}
-                            >
-                              {copy.statuses.UNPAID}
-                            </option>
+                            <option value="DRAFT">{copy.statuses.DRAFT}</option>
+                            <option value="UNPAID">{copy.statuses.UNPAID}</option>
                             <option value="PAID">{copy.statuses.PAID}</option>
-                            <option
-                              value="OVERDUE"
-                              disabled={archivedInvoice && invoice.status !== 'OVERDUE'}
-                            >
-                              {copy.statuses.OVERDUE}
-                            </option>
+                            <option value="OVERDUE">{copy.statuses.OVERDUE}</option>
                             <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
                           </select>
 
@@ -1197,9 +1235,11 @@ export default function InvoicesPage() {
                           <button
                             type="button"
                             onClick={() => deleteInvoice(invoice)}
-                            disabled={!!invoice.payment || archivedInvoice}
+                            disabled={!writeAccess.canWrite || !!invoice.payment || archivedInvoice}
                             title={
-                              archivedInvoice
+                              !writeAccess.canWrite
+                                ? writeAccess.message || getBlockFallback(locale)
+                                : archivedInvoice
                                 ? copy.messages.deleteTitleArchived
                                 : invoice.payment
                                   ? copy.messages.deleteTitlePayment
@@ -1345,7 +1385,7 @@ export default function InvoicesPage() {
                   {copy.modal.items}
                 </h3>
 
-                <button type="button" onClick={addItem} className="btn btn-ghost">
+                <button type="button" onClick={addItem} disabled={!writeAccess.canWrite} className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-60">
                   {copy.actions.addItem}
                 </button>
               </div>
@@ -1399,8 +1439,8 @@ export default function InvoicesPage() {
                     <button
                       type="button"
                       onClick={() => removeItem(index)}
-                      disabled={items.length === 1}
-                      className="rounded-xl px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-40"
+                      disabled={!writeAccess.canWrite || items.length === 1}
+                      className="rounded-xl px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {copy.actions.delete}
                     </button>
@@ -1461,7 +1501,8 @@ export default function InvoicesPage() {
 
               <button
                 type="submit"
-                disabled={saving || selectedArchivedContext}
+                disabled={saving || !writeAccess.canWrite}
+                title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : copy.actions.saveInvoice}
                 className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? copy.actions.saving : copy.actions.saveInvoice}

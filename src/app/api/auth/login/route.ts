@@ -11,6 +11,7 @@ import { logActivity } from "@/lib/log-activity";
 import { getLocationFromIp } from "@/lib/geo";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
+import { decryptText } from "@/lib/encryption";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -38,7 +39,8 @@ export async function POST(req: NextRequest) {
       return err(parsed.error.issues[0]?.message || "بيانات غير صالحة", 400);
     }
 
-    const { email, password } = parsed.data;
+    const email = parsed.data.email.trim().toLowerCase();
+    const password = parsed.data.password;
 
     const user = await prisma.user.findFirst({
       where: { email },
@@ -68,16 +70,18 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      await logActivity({
-        req,
-        tenantId: user?.tenantId || "unknown",
-        actorId: user?.id || null,
-        type: "LOGIN_FAILED",
-        title: "محاولة تسجيل دخول فاشلة",
-        message: email,
-        entityType: "AUTH",
-        entityId: user?.id || null,
-      });
+      if (user) {
+        await logActivity({
+          req,
+          tenantId: user.tenantId,
+          actorId: user.id,
+          type: "LOGIN_FAILED",
+          title: "محاولة تسجيل دخول فاشلة",
+          message: email,
+          entityType: "AUTH",
+          entityId: user.id,
+        });
+      }
 
       return err("بيانات الدخول غير صحيحة", 401);
     }
@@ -143,8 +147,18 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      if (!/^\d{6}$/.test(code)) {
+        return err("رمز التحقق الثنائي يجب أن يكون 6 أرقام", 400);
+      }
+
+      const twoFactorSecret = decryptText(user.twoFactorSecret);
+
+      if (!twoFactorSecret) {
+        return err("إعدادات التحقق الثنائي غير مكتملة", 403);
+      }
+
       const valid = speakeasy.totp.verify({
-        secret: user.twoFactorSecret,
+        secret: twoFactorSecret,
         encoding: "base32",
         token: code,
         window: 1,

@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-
+import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { clientSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
+import { verifySameOrigin } from "@/lib/csrf";
 import {
   encryptText,
   decryptText,
@@ -64,8 +65,21 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
+
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "تعديل البيانات",
+    );
+
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+
     const meta = getRequestMeta(req);
 
     const tenant = await prisma.tenant.findUnique({
@@ -223,9 +237,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
     const auth = await requireRole(req, ["ADMIN"]);
     if (auth.error || !auth.user) return auth.error;
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "حذف البيانات",
+    );
 
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
     const meta = getRequestMeta(req);
 
     const tenant = await prisma.tenant.findUnique({

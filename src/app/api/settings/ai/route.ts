@@ -5,6 +5,7 @@ import { apiHandler } from '@/lib/api-handler'
 import { requireRole } from '@/lib/api-auth'
 import { verifySameOrigin } from '@/lib/csrf'
 import { logActivity } from '@/lib/log-activity'
+import { assertTenantCanWrite } from '@/lib/billing-limits'
 
 export async function PATCH(req: NextRequest) {
   return apiHandler(async () => {
@@ -15,6 +16,15 @@ export async function PATCH(req: NextRequest) {
 
     if (auth.error || !auth.user) {
       return auth.error
+    }
+
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      'تعديل إعدادات الذكاء الاصطناعي'
+    )
+
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status)
     }
 
     const body = await req.json().catch(() => ({}))

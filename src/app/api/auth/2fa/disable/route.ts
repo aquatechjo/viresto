@@ -1,28 +1,28 @@
-import { NextRequest } from 'next/server'
-import bcrypt from 'bcryptjs'
-import speakeasy from 'speakeasy'
-import { verifySameOrigin } from '@/lib/csrf'
-import { prisma } from '@/lib/prisma'
-import { ok, err } from '@/lib/api-response'
-import { requireRole } from '@/lib/api-auth'
-import { apiHandler } from '@/lib/api-handler'
-
+import { NextRequest } from "next/server";
+import bcrypt from "bcryptjs";
+import speakeasy from "speakeasy";
+import { verifySameOrigin } from "@/lib/csrf";
+import { prisma } from "@/lib/prisma";
+import { ok, err } from "@/lib/api-response";
+import { requireRole } from "@/lib/api-auth";
+import { apiHandler } from "@/lib/api-handler";
+import { decryptText } from "@/lib/encryption";
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
-    const csrf = verifySameOrigin(req)
-     if (csrf) return csrf
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
 
     if (auth.error || !auth.user) {
-      return auth.error
+      return auth.error;
     }
 
-    const body = await req.json().catch(() => ({}))
-    const password = String(body.password ?? '')
-    const code = String(body.code ?? '').trim()
+    const body = await req.json().catch(() => ({}));
+    const password = String(body.password ?? "");
+    const code = String(body.code ?? "").trim();
 
     if (!password || !code) {
-      return err('كلمة المرور ورمز التحقق مطلوبان', 400)
+      return err("كلمة المرور ورمز التحقق مطلوبان", 400);
     }
 
     const user = await prisma.user.findFirst({
@@ -36,31 +36,37 @@ export async function POST(req: NextRequest) {
         twoFactorSecret: true,
         twoFactorEnabled: true,
       },
-    })
+    });
 
     if (!user) {
-      return err('المستخدم غير موجود', 404)
+      return err("المستخدم غير موجود", 404);
     }
 
     if (!user.twoFactorEnabled || !user.twoFactorSecret) {
-      return err('التحقق الثنائي غير مفعّل', 400)
+      return err("التحقق الثنائي غير مفعّل", 400);
     }
 
-    const passwordOk = await bcrypt.compare(password, user.passwordHash)
+    const passwordOk = await bcrypt.compare(password, user.passwordHash);
 
     if (!passwordOk) {
-      return err('كلمة المرور غير صحيحة', 401)
+      return err("كلمة المرور غير صحيحة", 401);
+    }
+
+    const twoFactorSecret = decryptText(user.twoFactorSecret);
+
+    if (!twoFactorSecret) {
+      return err("إعدادات التحقق الثنائي غير مكتملة", 403);
     }
 
     const codeOk = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
-      encoding: 'base32',
+      secret: twoFactorSecret,
+      encoding: "base32",
       token: code,
       window: 1,
-    })
+    });
 
     if (!codeOk) {
-      return err('رمز التحقق غير صحيح', 401)
+      return err("رمز التحقق غير صحيح", 401);
     }
 
     await prisma.user.update({
@@ -71,10 +77,10 @@ export async function POST(req: NextRequest) {
         twoFactorEnabled: false,
         twoFactorSecret: null,
       },
-    })
+    });
 
     return ok({
       disabled: true,
-    })
-  })
-} 
+    });
+  });
+}

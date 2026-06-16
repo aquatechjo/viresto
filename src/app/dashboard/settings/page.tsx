@@ -1,5 +1,5 @@
 "use client";
-import AppLoader from "@/components/ui/AppLoader"
+import AppLoader from "@/components/ui/AppLoader";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { toast } from "sonner";
@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import PageLoader from "@/components/ui/PageLoader";
 import FormField from "@/components/ui/FormField";
 import { initials } from "@/lib/utils";
+import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
+import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 
 type Locale = "ar" | "en";
 
@@ -369,6 +371,12 @@ function InfoLine({
   );
 }
 
+function getSettingsBlockFallback(locale: Locale) {
+  return locale === "en"
+    ? "The subscription has ended. Office and AI settings are available in read-only mode until renewal."
+    : "انتهى الاشتراك. إعدادات المكتب والمساعد الذكي متاحة للقراءة فقط إلى حين التجديد.";
+}
+
 export default function SettingsPage() {
   const [locale, setLocale] = useState<Locale>("ar");
   const isArabic = locale === "ar";
@@ -377,6 +385,8 @@ export default function SettingsPage() {
   const textAlign = isArabic ? "right" : "left";
   const [pendingAiValue, setPendingAiValue] = useState<boolean | null>(null);
   const [showAiConfirm, setShowAiConfirm] = useState(false);
+  const writeAccess = useTenantWriteAccess(locale);
+
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -565,6 +575,11 @@ export default function SettingsPage() {
   async function saveCompany(event: FormEvent) {
     event.preventDefault();
 
+    if (!writeAccess.canWrite) {
+      toast.error(writeAccess.message || getSettingsBlockFallback(locale));
+      return;
+    }
+
     if (!company.name.trim()) {
       toast.error(copy.companyNameRequired);
       return;
@@ -615,6 +630,11 @@ export default function SettingsPage() {
   }
 
   async function applyAiValue(nextValue: boolean) {
+    if (!writeAccess.canWrite) {
+      toast.error(writeAccess.message || getSettingsBlockFallback(locale));
+      return;
+    }
+
     try {
       setSavingAi(true);
 
@@ -677,6 +697,7 @@ export default function SettingsPage() {
       setTwoFALoading(true);
 
       const response = await fetch("/api/auth/2fa/setup", {
+        method: "POST",
         cache: "no-store",
       });
 
@@ -730,10 +751,8 @@ export default function SettingsPage() {
   }
 
   if (loading) {
-  return <AppLoader fullScreen={false} />
-}
-;
-
+    return <AppLoader fullScreen={false} />;
+  }
   if (!user) {
     return (
       <div className="card p-10 text-center" dir={direction}>
@@ -756,6 +775,12 @@ export default function SettingsPage() {
   return (
     <>
       <div className="space-y-5 stagger" dir={direction} style={{ textAlign }}>
+        <SubscriptionReadOnlyBanner
+          visible={!writeAccess.canWrite}
+          message={writeAccess.message}
+          isRtl={isArabic}
+        />
+
         {/* Hero */}
         <div
           className="relative overflow-hidden rounded-[28px] border p-6"
@@ -1096,8 +1121,13 @@ export default function SettingsPage() {
 
                 <button
                   type="submit"
-                  disabled={savingCompany}
-                  className="btn btn-primary w-full"
+                  disabled={savingCompany || !writeAccess.canWrite}
+                  title={
+                    !writeAccess.canWrite
+                      ? writeAccess.message || getSettingsBlockFallback(locale)
+                      : copy.saveCompany
+                  }
+                  className="btn btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {savingCompany ? copy.saving : copy.saveCompany}
                 </button>
@@ -1146,8 +1176,13 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={toggleAi}
-                disabled={savingAi}
-                className="btn btn-primary mt-4"
+                disabled={savingAi || !writeAccess.canWrite}
+                title={
+                  !writeAccess.canWrite
+                    ? writeAccess.message || getSettingsBlockFallback(locale)
+                    : undefined
+                }
+                className="btn btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingAi
                   ? copy.savingAi
@@ -1382,8 +1417,13 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={confirmAiEnable}
-                disabled={savingAi}
-                className="btn btn-primary"
+                disabled={savingAi || !writeAccess.canWrite}
+                title={
+                  !writeAccess.canWrite
+                    ? writeAccess.message || getSettingsBlockFallback(locale)
+                    : undefined
+                }
+                className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingAi
                   ? copy.savingAi

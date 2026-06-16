@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
+import { verifySameOrigin } from "@/lib/csrf";
 
 type BillingInterval = "MONTHLY" | "YEARLY";
 
@@ -18,8 +19,18 @@ function addMonths(date: Date, months: number) {
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
     const auth = await requireRole(req, ["ADMIN"]);
     if (auth.error || !auth.user) return auth.error;
+
+    if (
+      process.env.BILLING_MANUAL_ADMIN_ENABLED !== "true" ||
+      !auth.user.isSystemAdmin
+    ) {
+      return err("تغيير الخطة يدوياً متاح لإدارة النظام فقط", 403);
+    }
 
     const body = await req.json().catch(() => null);
 

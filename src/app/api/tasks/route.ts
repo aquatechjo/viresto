@@ -1,24 +1,22 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { taskSchema } from '@/lib/validations'
-import { ok, err } from '@/lib/api-response'
-import { logActivity } from '@/lib/activity'
-import { apiHandler } from '@/lib/api-handler'
-import { requireRole, getRequestMeta } from '@/lib/api-auth'
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { taskSchema } from "@/lib/validations";
+import { ok, err } from "@/lib/api-response";
+import { logActivity } from "@/lib/activity";
+import { apiHandler } from "@/lib/api-handler";
+import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { verifySameOrigin } from "@/lib/csrf";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const completed = new URL(req.url).searchParams.get('completed')
+    const completed = new URL(req.url).searchParams.get("completed");
 
-    if (
-      completed !== null &&
-      completed !== 'true' &&
-      completed !== 'false'
-    ) {
-      return err('قيمة completed غير صالحة', 400)
+    if (completed !== null && completed !== "true" && completed !== "false") {
+      return err("قيمة completed غير صالحة", 400);
     }
 
     const data = await prisma.task.findMany({
@@ -26,7 +24,7 @@ export async function GET(req: NextRequest) {
         tenantId: auth.user.tenantId,
         ...(completed !== null
           ? {
-              completed: completed === 'true',
+              completed: completed === "true",
             }
           : {}),
       },
@@ -52,19 +50,31 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: [{ completed: 'asc' }, { dueDate: 'asc' }],
-    })
+      orderBy: [{ completed: "asc" }, { dueDate: "asc" }],
+    });
 
-    return ok(data)
-  })
+    return ok(data);
+  });
 }
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
 
-    const meta = getRequestMeta(req)
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
+
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "إنشاء مهمة",
+    );
+
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+
+    const meta = getRequestMeta(req);
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: auth.user.tenantId },
@@ -72,31 +82,31 @@ export async function POST(req: NextRequest) {
         isSuspended: true,
         status: true,
       },
-    })
+    });
 
     if (!tenant) {
-      return err('المكتب غير موجود', 404)
+      return err("المكتب غير موجود", 404);
     }
 
-    if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-      return err('لا يمكن إنشاء مهام لأن المكتب موقوف', 403)
+    if (tenant.isSuspended || tenant.status === "SUSPENDED") {
+      return err("لا يمكن إنشاء مهام لأن المكتب موقوف", 403);
     }
 
-    if (tenant.status === 'EXPIRED') {
-      return err('لا يمكن إنشاء مهام لأن الاشتراك منتهي', 403)
+    if (tenant.status === "EXPIRED") {
+      return err("لا يمكن إنشاء مهام لأن الاشتراك منتهي", 403);
     }
 
-    const body = await req.json().catch(() => ({}))
-    const parsed = taskSchema.safeParse(body)
+    const body = await req.json().catch(() => ({}));
+    const parsed = taskSchema.safeParse(body);
 
     if (!parsed.success) {
-      return err('بيانات غير صالحة', 400, parsed.error.flatten())
+      return err("بيانات غير صالحة", 400, parsed.error.flatten());
     }
 
-    const { clientId, caseId } = parsed.data
+    const { clientId, caseId } = parsed.data;
 
-    let linkedClientId = clientId || null
-    let linkedClientArchivedAt: Date | null = null
+    let linkedClientId = clientId || null;
+    let linkedClientArchivedAt: Date | null = null;
 
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
@@ -108,17 +118,17 @@ export async function POST(req: NextRequest) {
           id: true,
           archivedAt: true,
         },
-      })
+      });
 
       if (!clientExists) {
-        return err('لا يمكن ربط المهمة بموكل لا يتبع هذا المكتب', 403)
+        return err("لا يمكن ربط المهمة بموكل لا يتبع هذا المكتب", 403);
       }
 
       if (clientExists.archivedAt) {
-        return err('لا يمكن إنشاء مهمة لموكل مؤرشف', 400)
+        return err("لا يمكن إنشاء مهمة لموكل مؤرشف", 400);
       }
 
-      linkedClientArchivedAt = clientExists.archivedAt
+      linkedClientArchivedAt = clientExists.archivedAt;
     }
 
     if (caseId) {
@@ -138,40 +148,40 @@ export async function POST(req: NextRequest) {
             },
           },
         },
-      })
+      });
 
       if (!caseExists) {
         return err(
-          'لا يمكن ربط المهمة بقضية لا تتبع هذا المكتب أو لا تتبع الموكل المحدد',
-          403
-        )
+          "لا يمكن ربط المهمة بقضية لا تتبع هذا المكتب أو لا تتبع الموكل المحدد",
+          403,
+        );
       }
 
       if (caseExists.client?.archivedAt) {
-        return err('لا يمكن إنشاء مهمة لقضية موكلها مؤرشف', 400)
+        return err("لا يمكن إنشاء مهمة لقضية موكلها مؤرشف", 400);
       }
 
-      linkedClientId = caseExists.clientId
-      linkedClientArchivedAt = caseExists.client?.archivedAt ?? null
+      linkedClientId = caseExists.clientId;
+      linkedClientArchivedAt = caseExists.client?.archivedAt ?? null;
     }
 
     if (linkedClientArchivedAt) {
-      return err('لا يمكن إنشاء مهمة مرتبطة بموكل مؤرشف', 400)
+      return err("لا يمكن إنشاء مهمة مرتبطة بموكل مؤرشف", 400);
     }
 
-    let dueDate: Date | undefined
+    let dueDate: Date | undefined;
 
     if (parsed.data.dueDate !== undefined) {
-      const date = new Date(parsed.data.dueDate)
+      const date = new Date(parsed.data.dueDate);
 
       if (Number.isNaN(date.getTime())) {
-        return err('تاريخ المهمة غير صالح', 400)
+        return err("تاريخ المهمة غير صالح", 400);
       }
 
-      dueDate = date
+      dueDate = date;
     }
 
-    const { dueDate: _dueDate, ...rest } = parsed.data
+    const { dueDate: _dueDate, ...rest } = parsed.data;
 
     const task = await prisma.task.create({
       data: {
@@ -202,20 +212,20 @@ export async function POST(req: NextRequest) {
           },
         },
       },
-    })
+    });
 
     await logActivity({
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
-      type: 'TASK_CREATED',
-      title: 'تم إضافة مهمة',
+      type: "TASK_CREATED",
+      title: "تم إضافة مهمة",
       message: task.title,
-      entityType: caseId ? 'CASE' : 'TASK',
+      entityType: caseId ? "CASE" : "TASK",
       entityId: caseId || task.id,
-    })
+    });
 
-    return ok(task, 201)
-  })
+    return ok(task, 201);
+  });
 }

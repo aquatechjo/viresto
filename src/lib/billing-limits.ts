@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 
-export type LimitedBillingResource = "users" | "clients" | "cases" | "documents";
+export type LimitedBillingResource =
+  | "users"
+  | "clients"
+  | "cases"
+  | "documents";
 
 export interface TenantBillingLimits {
   subscriptionId: string | null;
@@ -23,7 +27,30 @@ export interface TenantBillingLimits {
   };
 }
 
-const BLOCKED_STATUSES = new Set(["CANCELLED", "EXPIRED", "UNPAID"]);
+const BLOCKED_STATUSES = new Set([
+  "CANCELLED",
+  "EXPIRED",
+  "UNPAID",
+  "PAST_DUE",
+  "MISSING",
+]);
+
+function getEffectiveSubscriptionStatus(
+  status: string,
+  currentPeriodEnd?: Date | null,
+) {
+  const now = new Date();
+
+  if (
+    currentPeriodEnd &&
+    currentPeriodEnd.getTime() <= now.getTime() &&
+    ["TRIALING", "ACTIVE", "PAST_DUE"].includes(status)
+  ) {
+    return "EXPIRED";
+  }
+
+  return status;
+}
 
 function statusCanCreate(status: string) {
   return !BLOCKED_STATUSES.has(status);
@@ -37,6 +64,10 @@ function getBlockReason(status: string) {
       return "انتهى الاشتراك. يرجى تجديد الاشتراك للمتابعة.";
     case "UNPAID":
       return "الاشتراك غير مدفوع. يرجى إتمام الدفع للمتابعة.";
+    case "PAST_DUE":
+      return "يوجد تأخير في الدفع. يرجى تجديد الاشتراك للمتابعة.";
+    case "MISSING":
+      return "لا يوجد اشتراك مفعّل لهذا المكتب.";
     default:
       return null;
   }
@@ -51,6 +82,7 @@ export async function getTenantBillingLimits(
     select: {
       id: true,
       status: true,
+      currentPeriodEnd: true,
       plan: {
         select: {
           id: true,
@@ -68,7 +100,11 @@ export async function getTenantBillingLimits(
   });
 
   if (subscription?.plan) {
-    const status = subscription.status;
+    const status = getEffectiveSubscriptionStatus(
+      subscription.status,
+      subscription.currentPeriodEnd,
+    );
+
     const canCreate = statusCanCreate(status);
 
     return {
@@ -93,7 +129,6 @@ export async function getTenantBillingLimits(
     };
   }
 
-  // fallback مؤقت للمكاتب التي لا تملك Subscription لأي سبب
   return {
     subscriptionId: null,
     subscriptionStatus: "MISSING",
@@ -113,6 +148,54 @@ export async function getTenantBillingLimits(
       storageMb: 0,
       aiEnabled: false,
     },
+  };
+}
+
+export async function assertTenantCanWrite(
+  tenantId: string,
+  action = "تنفيذ هذا الإجراء",
+) {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      id: true,
+      isSuspended: true,
+      status: true,
+    },
+  });
+
+  if (!tenant) {
+    return {
+      ok: false as const,
+      status: 404,
+      message: "المكتب غير موجود.",
+    };
+  }
+
+  if (tenant.isSuspended || tenant.status === "SUSPENDED") {
+    return {
+      ok: false as const,
+      status: 403,
+      message: `لا يمكن ${action} لأن المكتب موقوف.`,
+    };
+  }
+
+  const billing = await getTenantBillingLimits(tenantId);
+
+  if (!billing.canCreate) {
+    return {
+      ok: false as const,
+      status: 402,
+      message:
+        billing.blockReason || `لا يمكن ${action} لأن الاشتراك غير نشط.`,
+      billing,
+    };
+  }
+
+  return {
+    ok: true as const,
+    status: 200,
+    billing,
   };
 }
 
@@ -218,22 +301,21 @@ export async function assertTenantCanUseStorage(
   tenantId: string,
   incomingBytes: number,
 ) {
-  const billing = await getTenantBillingLimits(tenantId)
+  const billing = await getTenantBillingLimits(tenantId);
 
   if (!billing.canCreate) {
     return {
       ok: false as const,
       message:
-        billing.blockReason ||
-        'لا يمكن رفع ملفات جديدة لأن الاشتراك غير نشط.',
+        billing.blockReason || "لا يمكن رفع ملفات جديدة لأن الاشتراك غير نشط.",
       billing,
       usedBytes: null,
       incomingBytes,
       limitBytes: null,
-    }
+    };
   }
 
-  const storageMb = billing.limits.storageMb
+  const storageMb = billing.limits.storageMb;
 
   if (storageMb === null) {
     return {
@@ -242,7 +324,7 @@ export async function assertTenantCanUseStorage(
       usedBytes: null,
       incomingBytes,
       limitBytes: null,
-    }
+    };
   }
 
   const result = await prisma.document.aggregate({
@@ -252,10 +334,10 @@ export async function assertTenantCanUseStorage(
     _sum: {
       fileSize: true,
     },
-  })
+  });
 
-  const usedBytes = result._sum.fileSize || 0
-  const limitBytes = storageMb * 1024 * 1024
+  const usedBytes = result._sum.fileSize || 0;
+  const limitBytes = storageMb * 1024 * 1024;
 
   if (usedBytes + incomingBytes > limitBytes) {
     return {
@@ -265,7 +347,7 @@ export async function assertTenantCanUseStorage(
       usedBytes,
       incomingBytes,
       limitBytes,
-    }
+    };
   }
 
   return {
@@ -274,5 +356,5 @@ export async function assertTenantCanUseStorage(
     usedBytes,
     incomingBytes,
     limitBytes,
-  }
+  };
 }

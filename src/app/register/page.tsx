@@ -7,6 +7,8 @@ import FormField from "@/components/ui/FormField";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const publicRegisterEnabled =
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true";
   const [form, setForm] = useState({
     tenantName: "",
     name: "",
@@ -53,6 +55,32 @@ export default function RegisterPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!publicRegisterEnabled) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center p-6"
+        style={{ background: "var(--bg)" }}
+      >
+        <div className="card w-full max-w-sm p-7 text-center">
+          <h1
+            className="text-xl font-black mb-3"
+            style={{ color: "var(--text)" }}
+          >
+            التسجيل غير متاح حالياً
+          </h1>
+
+          <p className="text-sm leading-7" style={{ color: "var(--text-3)" }}>
+            إنشاء الحسابات الجديدة يتم حالياً من خلال إدارة Viresto فقط.
+          </p>
+
+          <Link href="/login" className="btn btn-primary mt-6 w-full">
+            العودة إلى تسجيل الدخول
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -136,7 +164,7 @@ export default function RegisterPage() {
                   value={form.password}
                   onChange={update("password")}
                   className="input pl-14"
-                  placeholder="8 أحرف على الأقل"
+                  placeholder="مثال: Viresto@123"
                 />
 
                 <button
@@ -151,6 +179,12 @@ export default function RegisterPage() {
                   {showPassword ? "إخفاء" : "إظهار"}
                 </button>
               </div>
+              <p
+                className="mt-2 text-xs leading-6"
+                style={{ color: "var(--text-3)" }}
+              >
+                يجب أن تحتوي كلمة المرور على حرف كبير، حرف صغير، رقم، ورمز خاص.
+              </p>
             </FormField>
             <button
               type="submit"

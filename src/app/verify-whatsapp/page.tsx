@@ -23,6 +23,15 @@ function VerifyWhatsappContent() {
     setMessage("");
     setError("");
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim();
+
+    if (!cleanEmail || cleanCode.length !== 6) {
+      setError("يرجى إدخال البريد الإلكتروني ورمز تحقق صحيح");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/verify-whatsapp", {
         method: "POST",
@@ -30,8 +39,8 @@ function VerifyWhatsappContent() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email,
-          code,
+          email: cleanEmail,
+          code: cleanCode,
         }),
       });
 
@@ -87,7 +96,10 @@ function VerifyWhatsappContent() {
 
         <form onSubmit={submitVerification} className="space-y-5">
           <div>
-            <label htmlFor="email" className="mb-2 block text-sm font-bold text-white">
+            <label
+              htmlFor="email"
+              className="mb-2 block text-sm font-bold text-white"
+            >
               البريد الإلكتروني
             </label>
 
@@ -104,7 +116,10 @@ function VerifyWhatsappContent() {
           </div>
 
           <div>
-            <label htmlFor="code" className="mb-2 block text-sm font-bold text-white">
+            <label
+              htmlFor="code"
+              className="mb-2 block text-sm font-bold text-white"
+            >
               رمز الواتساب
             </label>
 

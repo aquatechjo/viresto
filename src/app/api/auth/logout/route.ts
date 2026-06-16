@@ -1,12 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { clearCookie, COOKIE, verifyToken } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { apiHandler } from '@/lib/api-handler'
+import { NextRequest, NextResponse } from "next/server";
+import { clearCookie, COOKIE, verifyToken } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { apiHandler } from "@/lib/api-handler";
+import { verifySameOrigin } from "@/lib/csrf";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
-    const token = req.cookies.get(COOKIE)?.value
-    const session = token ? await verifyToken(token) : null
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
+    const token = req.cookies.get(COOKIE)?.value;
+    const session = token ? await verifyToken(token) : null;
 
     if (session?.sessionId) {
       await prisma.session.updateMany({
@@ -18,11 +22,12 @@ export async function POST(req: NextRequest) {
         data: {
           isActive: false,
         },
-      })
+      });
     }
 
-    const res = NextResponse.json({ success: true })
-    res.cookies.set(clearCookie())
-    return res
-  })
+    const res = NextResponse.json({ success: true });
+    res.cookies.set(clearCookie());
+
+    return res;
+  });
 }

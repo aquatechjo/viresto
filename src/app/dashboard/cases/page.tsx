@@ -16,6 +16,8 @@ import {
   planLimitMessage,
 } from "@/lib/plan-ui";
 import { useLocale } from "@/lib/useLocale";
+import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
+import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 
 interface Case {
   id: string;
@@ -267,7 +269,8 @@ function PlanLimitBanner({
 export default function CasesPage() {
   const router = useRouter();
   const { locale, isRtl } = useLocale();
-  const text = COPY[locale === "ar" ? "ar" : "en"];
+  const localeKey = (locale === "ar" ? "ar" : "en") as keyof typeof COPY;
+  const text = COPY[localeKey];
 
   const [cases, setCases] = useState<Case[]>([]);
   const [clients, setClients] = useState<ClientOpt[]>([]);
@@ -278,6 +281,7 @@ export default function CasesPage() {
   const [form, setForm] = useState(INIT);
   const [saving, setSaving] = useState(false);
   const [planLimit, setPlanLimit] = useState("");
+  const writeAccess = useTenantWriteAccess(localeKey);
 
   const selectedClient = useMemo(() => {
     return clients.find((client) => client.id === form.clientId);
@@ -376,6 +380,11 @@ export default function CasesPage() {
   async function handleAdd(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || text.planLimitFallback);
+      return;
+    }
+
     if (!form.clientId || !form.title.trim()) {
       toast.error(text.requiredError);
       return;
@@ -437,6 +446,15 @@ export default function CasesPage() {
     setFilter("all");
   }
 
+  function openCreateCaseModal() {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || text.planLimitFallback);
+      return;
+    }
+
+    setOpen(true);
+  }
+
   return (
     <div
       className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
@@ -449,6 +467,12 @@ export default function CasesPage() {
           text={text}
         />
       )}
+
+      <SubscriptionReadOnlyBanner
+        visible={!writeAccess.canWrite}
+        message={writeAccess.message}
+        isRtl={isRtl}
+      />
 
       {/* Hero */}
       <div
@@ -498,8 +522,10 @@ export default function CasesPage() {
 
           <button
             type="button"
-            onClick={() => setOpen(true)}
-            className="btn h-11 shrink-0 px-5"
+            onClick={openCreateCaseModal}
+            disabled={!writeAccess.canWrite}
+            title={!writeAccess.canWrite ? writeAccess.message || text.planLimitFallback : text.hero.newCase}
+            className="btn h-11 shrink-0 px-5 disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               background: "#fff",
               color: "var(--sidebar)",
@@ -666,8 +692,10 @@ export default function CasesPage() {
             action={
               cases.length === 0 ? (
                 <button
-                  onClick={() => setOpen(true)}
-                  className="btn btn-primary"
+                  onClick={openCreateCaseModal}
+                  disabled={!writeAccess.canWrite}
+                  title={!writeAccess.canWrite ? writeAccess.message || text.planLimitFallback : text.empty.add}
+                  className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {text.empty.add}
                 </button>

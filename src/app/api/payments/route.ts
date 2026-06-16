@@ -1,32 +1,34 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { requireRole, getRequestMeta } from '@/lib/api-auth'
-import { paymentSchema } from '@/lib/validations'
-import { ok, err } from '@/lib/api-response'
-import { logActivity } from '@/lib/activity'
-import { apiHandler } from '@/lib/api-handler'
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { paymentSchema } from "@/lib/validations";
+import { ok, err } from "@/lib/api-response";
+import { logActivity } from "@/lib/activity";
+import { apiHandler } from "@/lib/api-handler";
+import { verifySameOrigin } from "@/lib/csrf";
 
-const allowedStatuses = ['PENDING', 'PAID', 'OVERDUE', 'CANCELLED'] as const
+const allowedStatuses = ["PENDING", "PAID", "OVERDUE", "CANCELLED"] as const;
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
 
     if (auth.error || !auth.user) {
-      return auth.error
+      return auth.error;
     }
 
-    const sp = new URL(req.url).searchParams
-    const caseId = sp.get('caseId')
-    const status = sp.get('status')
+    const sp = new URL(req.url).searchParams;
+    const caseId = sp.get("caseId");
+    const status = sp.get("status");
 
-    const limitRaw = Number(sp.get('limit') || 50)
+    const limitRaw = Number(sp.get("limit") || 50);
     const limit = Number.isNaN(limitRaw)
       ? 50
-      : Math.min(Math.max(limitRaw, 1), 100)
+      : Math.min(Math.max(limitRaw, 1), 100);
 
     if (status && !allowedStatuses.includes(status as any)) {
-      return err('حالة الدفعة غير صالحة', 400)
+      return err("حالة الدفعة غير صالحة", 400);
     }
 
     if (caseId) {
@@ -38,10 +40,10 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
         },
-      })
+      });
 
       if (!caseExists) {
-        return err('القضية غير موجودة داخل هذا المكتب', 404)
+        return err("القضية غير موجودة داخل هذا المكتب", 404);
       }
     }
 
@@ -66,23 +68,35 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: limit,
-    })
+    });
 
-    return ok(data)
-  })
+    return ok(data);
+  });
 }
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
 
     if (auth.error || !auth.user) {
-      return auth.error
+      return auth.error;
     }
 
-    const meta = getRequestMeta(req)
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "تسجيل دفعة",
+    );
+
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+
+    const meta = getRequestMeta(req);
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: auth.user.tenantId },
@@ -90,25 +104,25 @@ export async function POST(req: NextRequest) {
         isSuspended: true,
         status: true,
       },
-    })
+    });
 
     if (!tenant) {
-      return err('المكتب غير موجود', 404)
+      return err("المكتب غير موجود", 404);
     }
 
-    if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-      return err('لا يمكن تسجيل دفعات لأن المكتب موقوف', 403)
+    if (tenant.isSuspended || tenant.status === "SUSPENDED") {
+      return err("لا يمكن تسجيل دفعات لأن المكتب موقوف", 403);
     }
 
-    if (tenant.status === 'EXPIRED') {
-      return err('لا يمكن تسجيل دفعات لأن الاشتراك منتهي', 403)
+    if (tenant.status === "EXPIRED") {
+      return err("لا يمكن تسجيل دفعات لأن الاشتراك منتهي", 403);
     }
 
-    const body = await req.json().catch(() => ({}))
-    const parsed = paymentSchema.safeParse(body)
+    const body = await req.json().catch(() => ({}));
+    const parsed = paymentSchema.safeParse(body);
 
     if (!parsed.success) {
-      return err('بيانات غير صالحة', 400, parsed.error.flatten())
+      return err("بيانات غير صالحة", 400, parsed.error.flatten());
     }
 
     const c = await prisma.case.findFirst({
@@ -127,19 +141,17 @@ export async function POST(req: NextRequest) {
           },
         },
       },
-    })
+    });
 
     if (!c) {
-      return err('القضية غير موجودة', 404)
+      return err("القضية غير موجودة", 404);
     }
 
     const payment = await prisma.payment.create({
       data: {
         tenantId: auth.user.tenantId,
         ...parsed.data,
-        paidAt: parsed.data.paidAt
-          ? new Date(parsed.data.paidAt)
-          : new Date(),
+        paidAt: parsed.data.paidAt ? new Date(parsed.data.paidAt) : new Date(),
       },
       include: {
         case: {
@@ -156,22 +168,22 @@ export async function POST(req: NextRequest) {
           },
         },
       },
-    })
+    });
 
     await logActivity({
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
-      type: 'PAYMENT_CREATED',
+      type: "PAYMENT_CREATED",
       title: c.client?.archivedAt
-        ? 'تم تسجيل دفعة لقضية موكل مؤرشف'
-        : 'تم تسجيل دفعة جديدة',
+        ? "تم تسجيل دفعة لقضية موكل مؤرشف"
+        : "تم تسجيل دفعة جديدة",
       message: `${payment.amount} - ${c.title}`,
-      entityType: 'CASE',
+      entityType: "CASE",
       entityId: c.id,
-    })
+    });
 
-    return ok(payment, 201)
-  })
+    return ok(payment, 201);
+  });
 }

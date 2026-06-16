@@ -6,15 +6,19 @@ import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { verifyCode } from "@/lib/verification";
 import { signToken, buildCookie } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
-async function createLoginResponse(req: NextRequest, user: {
-  id: string;
-  tenantId: string;
-  name: string;
-  email: string;
-  role: "ADMIN" | "LAWYER" | "STAFF";
-  isSystemAdmin: boolean;
-}) {
+async function createLoginResponse(
+  req: NextRequest,
+  user: {
+    id: string;
+    tenantId: string;
+    name: string;
+    email: string;
+    role: "ADMIN" | "LAWYER" | "STAFF";
+    isSystemAdmin: boolean;
+  },
+) {
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     req.headers.get("x-real-ip") ??
@@ -66,6 +70,21 @@ export async function POST(req: NextRequest) {
       .toLowerCase();
     const code = String(body.code || "").trim();
 
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rl = await checkRateLimit(`${ip}:${email || "unknown"}`, {
+      keyPrefix: "verify-whatsapp",
+      max: 10,
+      windowMs: 10 * 60 * 1000,
+    });
+
+    if (!rl.allowed) {
+      return err("تم تجاوز عدد محاولات التحقق. حاول لاحقاً.", 429);
+    }
+
     if (!email || !code) {
       return err("البريد الإلكتروني ورمز التحقق مطلوبان", 400);
     }
@@ -85,18 +104,37 @@ export async function POST(req: NextRequest) {
         email: true,
         role: true,
         isSystemAdmin: true,
+        isActive: true,
         phone: true,
         emailVerifiedAt: true,
         phoneVerifiedAt: true,
+        tenant: {
+          select: {
+            isSuspended: true,
+            status: true,
+          },
+        },
       },
     });
 
     if (!user) {
-      return err("المستخدم غير موجود", 404);
+      return err("رمز التحقق غير صحيح أو منتهي", 400);
     }
 
     if (!user.emailVerifiedAt) {
       return err("يرجى تأكيد البريد الإلكتروني أولاً", 403);
+    }
+
+    if (!user.isActive) {
+      return err("الحساب غير فعال", 403);
+    }
+
+    if (user.tenant.isSuspended || user.tenant.status === "SUSPENDED") {
+      return err("المكتب موقوف", 403);
+    }
+
+    if (user.tenant.status === "EXPIRED") {
+      return err("اشتراك المكتب منتهي", 403);
     }
 
     if (user.phoneVerifiedAt) {

@@ -1,225 +1,249 @@
-'use client'
+"use client";
 
-import type { FormEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-
-import PageLoader from '@/components/ui/PageLoader'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import type { FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import PageLoader from "@/components/ui/PageLoader";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   buildInvoiceWhatsAppMessage,
   formatInvoiceNumber,
   normalizeWhatsAppPhone,
   printInvoiceDocument,
   safeInvoiceFilename,
-} from '@/lib/invoice-print'
+} from "@/lib/invoice-print";
 
-type InvoiceStatus = 'DRAFT' | 'UNPAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
+type InvoiceStatus = "DRAFT" | "UNPAID" | "PAID" | "OVERDUE" | "CANCELLED";
 
 type EditItem = {
-  description: string
-  quantity: number
-  unitPrice: number
-}
+  description: string;
+  quantity: number;
+  unitPrice: number;
+};
 
 interface Invoice {
-  id: string
-  invoiceNumber: string
-  status: InvoiceStatus
-  issueDate: string
-  dueDate?: string | null
-  subtotal: number
-  tax: number
-  discount: number
-  total: number
-  notes?: string | null
+  id: string;
+  invoiceNumber: string;
+  status: InvoiceStatus;
+  issueDate: string;
+  dueDate?: string | null;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  notes?: string | null;
   client: {
-    id: string
-    name: string
-    phone?: string | null
-    email?: string | null
-    archivedAt?: string | null
-  }
+    id: string;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    archivedAt?: string | null;
+  };
   case?: {
-    id: string
-    title: string
-    caseNumber?: string | null
+    id: string;
+    title: string;
+    caseNumber?: string | null;
     client?: {
-      id?: string
-      name?: string
-      archivedAt?: string | null
-    } | null
-  } | null
+      id?: string;
+      name?: string;
+      archivedAt?: string | null;
+    } | null;
+  } | null;
   items: Array<{
-    id: string
-    description: string
-    quantity: number
-    unitPrice: number
-    total: number
-  }>
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
   payment?: {
-    id: string
-    amount: number
-    status: string
-    paidAt?: string | null
-  } | null
+    id: string;
+    amount: number;
+    status: string;
+    paidAt?: string | null;
+  } | null;
   tenant?: {
-    id: string
-    name: string
-    email?: string | null
-    phone?: string | null
-    address?: string | null
-    logoUrl?: string | null
-  } | null
+    id: string;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    logoUrl?: string | null;
+  } | null;
 }
 
 const statusLabels: Record<InvoiceStatus, string> = {
-  DRAFT: 'مسودة',
-  UNPAID: 'غير مدفوعة',
-  PAID: 'مدفوعة',
-  OVERDUE: 'متأخرة',
-  CANCELLED: 'ملغاة',
-}
+  DRAFT: "مسودة",
+  UNPAID: "غير مدفوعة",
+  PAID: "مدفوعة",
+  OVERDUE: "متأخرة",
+  CANCELLED: "ملغاة",
+};
 
 const statusClasses: Record<InvoiceStatus, string> = {
-  DRAFT: 'badge badge-gray',
-  UNPAID: 'badge badge-amber',
-  PAID: 'badge badge-green',
-  OVERDUE: 'badge badge-red',
-  CANCELLED: 'badge badge-gray',
-}
+  DRAFT: "badge badge-gray",
+  UNPAID: "badge badge-amber",
+  PAID: "badge badge-green",
+  OVERDUE: "badge badge-red",
+  CANCELLED: "badge badge-gray",
+};
 
 function toDateInput(value?: string | null) {
-  if (!value) return ''
-  return new Date(value).toISOString().slice(0, 10)
+  if (!value) return "";
+  return new Date(value).toISOString().slice(0, 10);
 }
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function paymentStatusLabel(status?: string | null) {
   const map: Record<string, string> = {
-    PAID: 'مدفوعة',
-    PENDING: 'معلّقة',
-    OVERDUE: 'متأخرة',
-    CANCELLED: 'ملغاة',
-  }
+    PAID: "مدفوعة",
+    PENDING: "معلّقة",
+    OVERDUE: "متأخرة",
+    CANCELLED: "ملغاة",
+  };
 
-  return status ? map[status] ?? status : '-'
+  return status ? (map[status] ?? status) : "-";
 }
 
 function isArchivedInvoice(invoice: Invoice) {
-  return Boolean(invoice.client?.archivedAt || invoice.case?.client?.archivedAt)
+  return Boolean(
+    invoice.client?.archivedAt || invoice.case?.client?.archivedAt,
+  );
 }
 
-function isAllowedArchivedStatus(nextStatus: InvoiceStatus) {
-  return nextStatus === 'PAID' || nextStatus === 'CANCELLED'
-}
 
 function money(value: number) {
   if (!Number.isFinite(value) || value === 0) {
-    return '0 د.أ'
+    return "0 د.أ";
   }
 
-  return formatCurrency(value)
+  return formatCurrency(value);
 }
 
 export default function InvoiceDetailsPage() {
-  const params = useParams()
-  const router = useRouter()
-  const id = params.id as string
+  const params = useParams();
+  const router = useRouter();
+  const id = params.id as string;
 
-  const [invoice, setInvoice] = useState<Invoice | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [pdfLoading, setPdfLoading] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const [editDueDate, setEditDueDate] = useState('')
-  const [editTax, setEditTax] = useState(0)
-  const [editDiscount, setEditDiscount] = useState(0)
-  const [editNotes, setEditNotes] = useState('')
-  const [editItems, setEditItems] = useState<EditItem[]>([])
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editTax, setEditTax] = useState(0);
+  const [editDiscount, setEditDiscount] = useState(0);
+  const [editNotes, setEditNotes] = useState("");
+  const [editItems, setEditItems] = useState<EditItem[]>([]);
 
-  const invoiceRef = useRef<HTMLDivElement | null>(null)
+  const invoiceRef = useRef<HTMLDivElement | null>(null);
+  function confirmToast(message: string) {
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+
+      const toastId = toast(message, {
+        duration: 10000,
+        action: {
+          label: "تأكيد",
+          onClick: () => {
+            if (settled) return;
+            settled = true;
+            toast.dismiss(toastId);
+            resolve(true);
+          },
+        },
+        onDismiss: () => {
+          if (settled) return;
+          settled = true;
+          resolve(false);
+        },
+        onAutoClose: () => {
+          if (settled) return;
+          settled = true;
+          resolve(false);
+        },
+      });
+    });
+  }
 
   async function load() {
-    if (!id || id === 'undefined' || id === 'null') {
-      setInvoice(null)
-      setLoading(false)
-      return
+    if (!id || id === "undefined" || id === "null") {
+      setInvoice(null);
+      setLoading(false);
+      return;
     }
 
     try {
-      setLoading(true)
+      setLoading(true);
 
       const res = await fetch(`/api/invoices/${id}`, {
-        cache: 'no-store',
-      })
+        cache: "no-store",
+      });
 
       if (res.status === 401) {
-        window.location.href = '/login'
-        return
+        window.location.href = "/login";
+        return;
       }
 
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        console.error('Invoice load failed:', {
+        console.error("Invoice load failed:", {
           id,
           status: res.status,
           data,
-        })
+        });
 
-        setInvoice(null)
-        return
+        setInvoice(null);
+        return;
       }
 
-      setInvoice(data.data?.invoice ?? data.data ?? data.invoice ?? null)
+      setInvoice(data.data?.invoice ?? data.data ?? data.invoice ?? null);
     } catch (error) {
-      console.error('Invoice load error:', error)
-      setInvoice(null)
+      console.error("Invoice load error:", error);
+      setInvoice(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
-    if (id) load()
+    if (id) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [id]);
 
   function openEditModal() {
-    if (!invoice) return
+    if (!invoice) return;
 
-    if (isArchivedInvoice(invoice)) {
-      alert('لا يمكن تعديل بيانات فاتورة مرتبطة بموكل مؤرشف. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.')
-      return
+    if (invoice.status === "PAID") {
+      toast.error(
+        "لا يمكن تعديل البيانات المالية لفاتورة مدفوعة. غيّر الحالة أولًا إذا احتجت تعديلها.",
+      );
+      return;
     }
 
-    if (invoice.status === 'PAID') {
-      alert('لا يمكن تعديل البيانات المالية لفاتورة مدفوعة. غيّر الحالة أولًا إذا احتجت تعديلها.')
-      return
-    }
-
-    setEditDueDate(toDateInput(invoice.dueDate))
-    setEditTax(invoice.tax || 0)
-    setEditDiscount(invoice.discount || 0)
-    setEditNotes(invoice.notes || '')
+    setEditDueDate(toDateInput(invoice.dueDate));
+    setEditTax(invoice.tax || 0);
+    setEditDiscount(invoice.discount || 0);
+    setEditNotes(invoice.notes || "");
     setEditItems(
       invoice.items.map((item) => ({
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-      }))
-    )
-    setEditOpen(true)
+      })),
+    );
+    setEditOpen(true);
   }
 
   function updateEditItem(index: number, key: keyof EditItem, value: string) {
@@ -228,48 +252,43 @@ export default function InvoiceDetailsPage() {
         i === index
           ? {
               ...item,
-              [key]: key === 'description' ? value : Number(value || 0),
+              [key]: key === "description" ? value : Number(value || 0),
             }
-          : item
-      )
-    )
+          : item,
+      ),
+    );
   }
 
   function addEditItem() {
     setEditItems((prev) => [
       ...prev,
       {
-        description: '',
+        description: "",
         quantity: 1,
         unitPrice: 0,
       },
-    ])
+    ]);
   }
 
   function removeEditItem(index: number) {
-    setEditItems((prev) => prev.filter((_, i) => i !== index))
+    setEditItems((prev) => prev.filter((_, i) => i !== index));
   }
 
   const editSubtotal = roundMoney(
     editItems.reduce((sum, item) => {
-      const quantity = Number(item.quantity || 0)
-      const unitPrice = Number(item.unitPrice || 0)
-      return sum + quantity * unitPrice
-    }, 0)
-  )
+      const quantity = Number(item.quantity || 0);
+      const unitPrice = Number(item.unitPrice || 0);
+      return sum + quantity * unitPrice;
+    }, 0),
+  );
 
   const editTotal = roundMoney(
-    editSubtotal + Number(editTax || 0) - Number(editDiscount || 0)
-  )
+    editSubtotal + Number(editTax || 0) - Number(editDiscount || 0),
+  );
 
   async function submitEdit(e: FormEvent) {
-    e.preventDefault()
-    if (!invoice) return
-
-    if (isArchivedInvoice(invoice)) {
-      alert('لا يمكن تعديل بيانات فاتورة مرتبطة بموكل مؤرشف')
-      return
-    }
+    e.preventDefault();
+    if (!invoice) return;
 
     const cleanItems = editItems
       .map((item) => ({
@@ -277,34 +296,34 @@ export default function InvoiceDetailsPage() {
         quantity: Number(item.quantity || 0),
         unitPrice: Number(item.unitPrice || 0),
       }))
-      .filter((item) => item.description)
+      .filter((item) => item.description);
 
     if (cleanItems.length === 0) {
-      alert('أضف بند واحد على الأقل')
-      return
+      toast.error("أضف بند واحد على الأقل");
+      return;
     }
 
     if (cleanItems.some((item) => item.quantity <= 0 || item.unitPrice < 0)) {
-      alert('تأكد أن الكمية أكبر من صفر وأن سعر الوحدة غير سالب')
-      return
+      toast.error("تأكد أن الكمية أكبر من صفر وأن سعر الوحدة غير سالب");
+      return;
     }
 
     if (Number(editTax || 0) < 0 || Number(editDiscount || 0) < 0) {
-      alert('الضريبة والخصم لا يمكن أن تكون قيمهم سالبة')
-      return
+      toast.error("الضريبة والخصم لا يمكن أن تكون قيمهم سالبة");
+      return;
     }
 
     if (editTotal < 0) {
-      alert('الخصم لا يمكن أن يكون أكبر من المجموع والضريبة')
-      return
+      toast.error("الخصم لا يمكن أن يكون أكبر من المجموع والضريبة");
+      return;
     }
 
     try {
-      setSaving(true)
+      setSaving(true);
 
       const res = await fetch(`/api/invoices/${invoice.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dueDate: editDueDate || null,
           tax: Number(editTax || 0),
@@ -312,166 +331,167 @@ export default function InvoiceDetailsPage() {
           notes: editNotes,
           items: cleanItems,
         }),
-      })
+      });
 
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.message || data.error || 'تعذر تعديل الفاتورة')
-        return
+        toast.error(data.message || data.error || "تعذر تعديل الفاتورة");
+        return;
       }
 
-      setEditOpen(false)
-      await load()
+      toast.success("تم تعديل الفاتورة");
+      setEditOpen(false);
+      await load();
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   async function updateStatus(nextStatus: InvoiceStatus) {
-    if (!invoice || invoice.status === nextStatus) return
+    if (!invoice || invoice.status === nextStatus) return;
 
-    const archivedInvoice = isArchivedInvoice(invoice)
-
-    if (archivedInvoice && !isAllowedArchivedStatus(nextStatus)) {
-      alert('الفاتورة مرتبطة بموكل مؤرشف. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.')
-      return
+    if (nextStatus === "PAID" && !invoice.case) {
+      toast.error(
+        "لا يمكن تعليم الفاتورة كمدفوعة لأنها غير مرتبطة بقضية. اربطها بقضية أولًا حتى يتم إنشاء دفعة صحيحة.",
+      );
+      return;
     }
 
-    if (nextStatus === 'PAID' && !invoice.case) {
-      alert('لا يمكن تعليم الفاتورة كمدفوعة لأنها غير مرتبطة بقضية. اربطها بقضية أولًا حتى يتم إنشاء دفعة صحيحة.')
-      return
-    }
+    if (invoice.payment && invoice.status === "PAID" && nextStatus !== "PAID") {
+      const confirmed = await confirmToast(
+        "هذه الفاتورة مدفوعة ومرتبطة بدفعة. تغيير الحالة سيحدّث حالة الدفعة المرتبطة حسب الحالة الجديدة. هل تريد المتابعة؟",
+      );
 
-    if (invoice.payment && invoice.status === 'PAID' && nextStatus !== 'PAID') {
-      const ok = confirm(
-        'هذه الفاتورة مدفوعة ومرتبطة بدفعة. تغيير الحالة سيحدّث حالة الدفعة المرتبطة حسب الحالة الجديدة. هل تريد المتابعة؟'
-      )
-
-      if (!ok) return
+      if (!confirmed) return;
     }
 
     const res = await fetch(`/api/invoices/${invoice.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: nextStatus }),
-    })
+    });
 
-    const data = await res.json().catch(() => ({}))
+    const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      alert(data.message || data.error || 'تعذر تحديث حالة الفاتورة')
-      return
+      toast.error(data.message || data.error || "تعذر تحديث حالة الفاتورة");
+      return;
     }
 
-    await load()
+    toast.success("تم تحديث حالة الفاتورة");
+    await load();
   }
 
   async function deleteInvoice() {
-    if (!invoice) return
+    if (!invoice) return;
 
     if (isArchivedInvoice(invoice)) {
-      alert('لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف')
-      return
+      toast.error("لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف");
+      return;
     }
 
     if (invoice.payment) {
-      alert('لا يمكن حذف هذه الفاتورة لأنها مرتبطة بدفعة. عالج الدفعة المرتبطة أولًا ثم حاول مرة أخرى.')
-      return
+      toast.error(
+        "لا يمكن حذف هذه الفاتورة لأنها مرتبطة بدفعة. عالج الدفعة المرتبطة أولًا ثم حاول مرة أخرى.",
+      );
+      return;
     }
 
-    if (!confirm('هل أنت متأكد من حذف هذه الفاتورة؟')) return
+    const confirmed = await confirmToast("هل أنت متأكد من حذف هذه الفاتورة؟");
+    if (!confirmed) return;
 
     const res = await fetch(`/api/invoices/${invoice.id}`, {
-      method: 'DELETE',
-    })
+      method: "DELETE",
+    });
 
-    const data = await res.json().catch(() => ({}))
+    const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      alert(data.message || data.error || 'تعذر حذف الفاتورة')
-      return
+      toast.error(data.message || data.error || "تعذر حذف الفاتورة");
+      return;
     }
 
-    router.push('/dashboard/invoices')
+    toast.success("تم حذف الفاتورة");
+    router.push("/dashboard/invoices");
   }
 
   function sendInvoiceWhatsApp() {
-    if (!invoice) return
+    if (!invoice) return;
 
-    const phone = normalizeWhatsAppPhone(invoice.client?.phone)
+    const phone = normalizeWhatsAppPhone(invoice.client?.phone);
 
     if (!phone) {
-      alert('لا يوجد رقم هاتف محفوظ لهذا الموكل')
-      return
+      toast.error("لا يوجد رقم هاتف محفوظ لهذا الموكل");
+      return;
     }
 
     window.open(
       `https://wa.me/${phone}?text=${encodeURIComponent(buildInvoiceWhatsAppMessage(invoice))}`,
-      '_blank',
-      'noopener,noreferrer'
-    )
+      "_blank",
+      "noopener,noreferrer",
+    );
   }
 
   async function downloadInvoicePDF() {
-    if (!invoiceRef.current || !invoice) return
+    if (!invoiceRef.current || !invoice) return;
 
     try {
-      setPdfLoading(true)
+      setPdfLoading(true);
 
-      const html2canvas = (await import('html2canvas')).default
-      const { jsPDF } = await import('jspdf')
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
 
       const canvas = await html2canvas(invoiceRef.current, {
         scale: 2,
         useCORS: true,
-        backgroundColor: '#ffffff',
-      })
+        backgroundColor: "#ffffff",
+      });
 
-      const imgData = canvas.toDataURL('image/png')
+      const imgData = canvas.toDataURL("image/png");
 
       const pdf = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: 'a4',
-      })
+        orientation: "p",
+        unit: "mm",
+        format: "a4",
+      });
 
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      const margin = 10
-      const usableWidth = pageWidth - margin * 2
-      const imgWidth = usableWidth
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const usableWidth = pageWidth - margin * 2;
+      const imgWidth = usableWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      let heightLeft = imgHeight
-      let position = margin
+      let heightLeft = imgHeight;
+      let position = margin;
 
-      pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight - margin * 2
+      pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight - margin * 2;
 
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight + margin
-        pdf.addPage()
-        pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight)
-        heightLeft -= pageHeight - margin * 2
+        position = heightLeft - imgHeight + margin;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight - margin * 2;
       }
 
-      pdf.save(`${safeInvoiceFilename(invoice.invoiceNumber)}.pdf`)
+      pdf.save(`${safeInvoiceFilename(invoice.invoiceNumber)}.pdf`);
     } catch (error) {
-      console.error(error)
-      alert('تعذر إنشاء ملف PDF')
+      console.error(error);
+      toast.error("تعذر إنشاء ملف PDF");
     } finally {
-      setPdfLoading(false)
+      setPdfLoading(false);
     }
   }
 
   function printInvoice() {
-    if (!invoice) return
-    printInvoiceDocument(invoice)
+    if (!invoice) return;
+    printInvoiceDocument(invoice);
   }
 
   if (!mounted || loading) {
-    return <PageLoader />
+    return <PageLoader />;
   }
 
   if (!invoice) {
@@ -481,33 +501,36 @@ export default function InvoiceDetailsPage() {
           className="relative overflow-hidden rounded-[28px] border p-6"
           style={{
             background:
-              'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-            borderColor: 'rgba(255,255,255,0.12)',
-            boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+              "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
+            borderColor: "rgba(255,255,255,0.12)",
+            boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
           }}
         >
-          <h1 className="text-2xl font-black text-white">الفاتورة غير موجودة</h1>
+          <h1 className="text-2xl font-black text-white">
+            الفاتورة غير موجودة
+          </h1>
 
           <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-            تعذر العثور على الفاتورة المطلوبة، أو أنها حُذفت، أو أن الرابط غير صحيح.
+            تعذر العثور على الفاتورة المطلوبة، أو أنها حُذفت، أو أن الرابط غير
+            صحيح.
           </p>
         </div>
 
         <div className="card p-8 text-center">
           <button
-            onClick={() => router.push('/dashboard/invoices')}
+            onClick={() => router.push("/dashboard/invoices")}
             className="btn btn-primary"
           >
             رجوع للفواتير
           </button>
         </div>
       </div>
-    )
+    );
   }
 
-  const tenantName = invoice.tenant?.name || 'Viresto'
-  const archivedInvoice = isArchivedInvoice(invoice)
-  const canEditFinancials = invoice.status !== 'PAID' && !archivedInvoice
+  const tenantName = invoice.tenant?.name || "Viresto";
+  const archivedInvoice = isArchivedInvoice(invoice);
+  const canEditFinancials = invoice.status !== "PAID";
 
   return (
     <div className="space-y-5 stagger print:space-y-4 print:bg-white print:text-black">
@@ -516,25 +539,25 @@ export default function InvoiceDetailsPage() {
         className="relative overflow-hidden rounded-[28px] border p-6 print:hidden"
         style={{
           background:
-            'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-          borderColor: 'rgba(255,255,255,0.12)',
-          boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
+          borderColor: "rgba(255,255,255,0.12)",
+          boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
         }}
       >
         <div
           className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: 'rgba(245, 200, 66, 0.16)' }}
+          style={{ background: "rgba(245, 200, 66, 0.16)" }}
         />
 
         <div
           className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: 'rgba(255,255,255,0.08)' }}
+          style={{ background: "rgba(255,255,255,0.08)" }}
         />
 
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <button
-              onClick={() => router.push('/dashboard/invoices')}
+              onClick={() => router.push("/dashboard/invoices")}
               className="mb-3 rounded-full px-3 py-1 text-xs font-black text-white/80 transition hover:bg-white/10"
             >
               ← رجوع للفواتير
@@ -543,9 +566,9 @@ export default function InvoiceDetailsPage() {
             <div
               className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
               style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.18)",
               }}
             >
               تفاصيل الفاتورة
@@ -556,15 +579,16 @@ export default function InvoiceDetailsPage() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              عرض بيانات الفاتورة، البنود، الموكل، القضية، الدفعة المرتبطة، وإجراءات الطباعة والإرسال.
+              عرض بيانات الفاتورة، البنود، الموكل، القضية، الدفعة المرتبطة،
+              وإجراءات الطباعة والإرسال.
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <span
                 className="rounded-full px-3 py-1 text-xs font-black"
                 style={{
-                  background: 'rgba(255,255,255,0.14)',
-                  color: '#fff',
+                  background: "rgba(255,255,255,0.14)",
+                  color: "#fff",
                 }}
               >
                 الحالة: {statusLabels[invoice.status]}
@@ -573,8 +597,8 @@ export default function InvoiceDetailsPage() {
               <span
                 className="rounded-full px-3 py-1 text-xs font-black"
                 style={{
-                  background: 'rgba(245,200,66,0.18)',
-                  color: '#fff',
+                  background: "rgba(245,200,66,0.18)",
+                  color: "#fff",
                 }}
               >
                 الإجمالي: {money(invoice.total)}
@@ -584,9 +608,9 @@ export default function InvoiceDetailsPage() {
                 <span
                   className="rounded-full px-3 py-1 text-xs font-black"
                   style={{
-                    background: '#fff7ed',
-                    color: '#b45309',
-                    border: '1px solid rgba(180, 83, 9, 0.18)',
+                    background: "#fff7ed",
+                    color: "#b45309",
+                    border: "1px solid rgba(180, 83, 9, 0.18)",
                   }}
                 >
                   موكل مؤرشف
@@ -598,17 +622,17 @@ export default function InvoiceDetailsPage() {
           <div className="flex flex-wrap gap-2">
             <button
               onClick={openEditModal}
-              disabled={archivedInvoice}
+              disabled={invoice.status === "PAID"}
               title={
-                archivedInvoice
-                  ? 'لا يمكن تعديل بيانات فاتورة مرتبطة بموكل مؤرشف'
-                  : 'تعديل الفاتورة'
+                invoice.status === "PAID"
+                  ? "لا يمكن تعديل البيانات المالية لفاتورة مدفوعة"
+                  : "تعديل الفاتورة"
               }
               className="btn disabled:cursor-not-allowed disabled:opacity-60"
               style={{
-                background: '#fff',
-                color: 'var(--sidebar)',
-                borderColor: 'rgba(255,255,255,0.32)',
+                background: "#fff",
+                color: "var(--sidebar)",
+                borderColor: "rgba(255,255,255,0.32)",
               }}
             >
               تعديل
@@ -618,9 +642,9 @@ export default function InvoiceDetailsPage() {
               onClick={printInvoice}
               className="btn"
               style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                borderColor: 'rgba(255,255,255,0.22)',
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                borderColor: "rgba(255,255,255,0.22)",
               }}
             >
               طباعة
@@ -631,21 +655,21 @@ export default function InvoiceDetailsPage() {
               disabled={pdfLoading}
               className="btn"
               style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                borderColor: 'rgba(255,255,255,0.22)',
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                borderColor: "rgba(255,255,255,0.22)",
               }}
             >
-              {pdfLoading ? 'جاري إنشاء PDF...' : 'PDF'}
+              {pdfLoading ? "جاري إنشاء PDF..." : "PDF"}
             </button>
 
             <button
               onClick={sendInvoiceWhatsApp}
               className="btn"
               style={{
-                background: 'rgba(34,197,94,0.18)',
-                color: '#fff',
-                borderColor: 'rgba(34,197,94,0.32)',
+                background: "rgba(34,197,94,0.18)",
+                color: "#fff",
+                borderColor: "rgba(34,197,94,0.32)",
               }}
             >
               واتساب
@@ -656,16 +680,16 @@ export default function InvoiceDetailsPage() {
               disabled={archivedInvoice || !!invoice.payment}
               title={
                 archivedInvoice
-                  ? 'لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف'
+                  ? "لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف"
                   : invoice.payment
-                    ? 'لا يمكن حذف فاتورة مرتبطة بدفعة'
-                    : 'حذف الفاتورة'
+                    ? "لا يمكن حذف فاتورة مرتبطة بدفعة"
+                    : "حذف الفاتورة"
               }
               className="btn disabled:cursor-not-allowed disabled:opacity-60"
               style={{
-                background: 'rgba(239,68,68,0.18)',
-                color: '#fff',
-                borderColor: 'rgba(239,68,68,0.32)',
+                background: "rgba(239,68,68,0.18)",
+                color: "#fff",
+                borderColor: "rgba(239,68,68,0.32)",
               }}
             >
               حذف
@@ -710,11 +734,11 @@ export default function InvoiceDetailsPage() {
           <div className="card p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-black" style={{ color: 'var(--text)' }}>
+                <h2 className="font-black" style={{ color: "var(--text)" }}>
                   حالة الفاتورة
                 </h2>
 
-                <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+                <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
                   غيّر حالة الفاتورة حسب التحصيل
                 </p>
               </div>
@@ -730,25 +754,10 @@ export default function InvoiceDetailsPage() {
               className="input"
               aria-label="تغيير حالة الفاتورة"
             >
-              <option
-                value="DRAFT"
-                disabled={archivedInvoice && invoice.status !== 'DRAFT'}
-              >
-                مسودة
-              </option>
-              <option
-                value="UNPAID"
-                disabled={archivedInvoice && invoice.status !== 'UNPAID'}
-              >
-                غير مدفوعة
-              </option>
+              <option value="DRAFT">مسودة</option>
+              <option value="UNPAID">غير مدفوعة</option>
               <option value="PAID">مدفوعة</option>
-              <option
-                value="OVERDUE"
-                disabled={archivedInvoice && invoice.status !== 'OVERDUE'}
-              >
-                متأخرة
-              </option>
+              <option value="OVERDUE">متأخرة</option>
               <option value="CANCELLED">ملغاة</option>
             </select>
 
@@ -756,9 +765,9 @@ export default function InvoiceDetailsPage() {
               <div
                 className="mt-4 rounded-2xl border p-4 text-sm font-bold"
                 style={{
-                  borderColor: 'var(--border)',
-                  background: 'var(--green-soft)',
-                  color: 'var(--sidebar)',
+                  borderColor: "var(--border)",
+                  background: "var(--green-soft)",
+                  color: "var(--sidebar)",
                 }}
               >
                 هذه الفاتورة مرتبطة بدفعة.
@@ -769,18 +778,19 @@ export default function InvoiceDetailsPage() {
               <div
                 className="mt-4 rounded-2xl border p-4 text-sm font-bold"
                 style={{
-                  borderColor: 'rgba(180, 83, 9, 0.22)',
-                  background: '#fff7ed',
-                  color: '#b45309',
+                  borderColor: "rgba(180, 83, 9, 0.22)",
+                  background: "#fff7ed",
+                  color: "#b45309",
                 }}
               >
-                هذه الفاتورة مرتبطة بموكل مؤرشف. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.
+                هذه الفاتورة مرتبطة بموكل مؤرشف. يمكن تعديل بيانات الفاتورة
+                وتحديث حالتها، لكن لا يمكن حذفها لحماية السجل المالي.
               </div>
             )}
           </div>
 
           <div className="card p-5">
-            <h2 className="font-black" style={{ color: 'var(--text)' }}>
+            <h2 className="font-black" style={{ color: "var(--text)" }}>
               بيانات الموكل
             </h2>
 
@@ -793,9 +803,9 @@ export default function InvoiceDetailsPage() {
                 <div
                   className="rounded-2xl border p-3 text-xs font-black"
                   style={{
-                    background: '#fff7ed',
-                    color: '#b45309',
-                    borderColor: 'rgba(180, 83, 9, 0.18)',
+                    background: "#fff7ed",
+                    color: "#b45309",
+                    borderColor: "rgba(180, 83, 9, 0.18)",
                   }}
                 >
                   موكل مؤرشف
@@ -805,26 +815,32 @@ export default function InvoiceDetailsPage() {
           </div>
 
           <div className="card p-5">
-            <h2 className="font-black" style={{ color: 'var(--text)' }}>
+            <h2 className="font-black" style={{ color: "var(--text)" }}>
               بيانات القضية
             </h2>
 
             <div className="mt-4 space-y-3">
-              <MiniLine label="القضية" value={invoice.case?.title || 'بدون قضية'} />
+              <MiniLine
+                label="القضية"
+                value={invoice.case?.title || "بدون قضية"}
+              />
               <MiniLine label="رقم القضية" value={invoice.case?.caseNumber} />
             </div>
           </div>
 
           <div className="card p-5">
-            <h2 className="font-black" style={{ color: 'var(--text)' }}>
+            <h2 className="font-black" style={{ color: "var(--text)" }}>
               التواريخ
             </h2>
 
             <div className="mt-4 space-y-3">
-              <MiniLine label="تاريخ الإصدار" value={formatDate(invoice.issueDate)} />
+              <MiniLine
+                label="تاريخ الإصدار"
+                value={formatDate(invoice.issueDate)}
+              />
               <MiniLine
                 label="تاريخ الاستحقاق"
-                value={invoice.dueDate ? formatDate(invoice.dueDate) : '-'}
+                value={invoice.dueDate ? formatDate(invoice.dueDate) : "-"}
               />
             </div>
           </div>
@@ -835,7 +851,7 @@ export default function InvoiceDetailsPage() {
           <div
             ref={invoiceRef}
             className="rounded-[28px] border bg-white p-6 text-black shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none"
-            style={{ borderColor: 'var(--border)' }}
+            style={{ borderColor: "var(--border)" }}
           >
             {/* Print Header */}
             <div className="mb-6 rounded-3xl bg-[#12382d] p-6 text-white print:rounded-none">
@@ -852,13 +868,13 @@ export default function InvoiceDetailsPage() {
 
                   <h1 className="text-3xl font-black">{tenantName}</h1>
                   <p className="mt-1 text-sm text-white/80">
-                    {invoice.tenant?.email || 'نظام إدارة مكاتب المحاماة'}
+                    {invoice.tenant?.email || "نظام إدارة مكاتب المحاماة"}
                   </p>
                   <p className="mt-1 text-sm text-white/80">
-                    {invoice.tenant?.phone || ''}
+                    {invoice.tenant?.phone || ""}
                   </p>
                   <p className="mt-1 text-sm text-white/80">
-                    {invoice.tenant?.address || ''}
+                    {invoice.tenant?.address || ""}
                   </p>
                 </div>
 
@@ -871,8 +887,8 @@ export default function InvoiceDetailsPage() {
                     تاريخ الإصدار: {formatDate(invoice.issueDate)}
                   </p>
                   <p className="mt-1 text-sm">
-                    تاريخ الاستحقاق:{' '}
-                    {invoice.dueDate ? formatDate(invoice.dueDate) : '-'}
+                    تاريخ الاستحقاق:{" "}
+                    {invoice.dueDate ? formatDate(invoice.dueDate) : "-"}
                   </p>
                 </div>
               </div>
@@ -881,22 +897,24 @@ export default function InvoiceDetailsPage() {
             {/* Invoice Meta */}
             <div
               className="mb-5 overflow-hidden rounded-3xl border"
-              style={{ borderColor: 'var(--border)' }}
+              style={{ borderColor: "var(--border)" }}
             >
               <div className="grid md:grid-cols-3">
                 <div className="border-b p-5 md:border-b-0 md:border-l">
                   <p className="text-sm font-bold text-slate-500">الموكل</p>
-                  <p className="mt-1 font-black">{invoice.client?.name || '-'}</p>
-                  <p className="mt-1 text-sm">{invoice.client?.phone || '-'}</p>
-                  <p className="mt-1 text-sm">{invoice.client?.email || '-'}</p>
+                  <p className="mt-1 font-black">
+                    {invoice.client?.name || "-"}
+                  </p>
+                  <p className="mt-1 text-sm">{invoice.client?.phone || "-"}</p>
+                  <p className="mt-1 text-sm">{invoice.client?.email || "-"}</p>
 
                   {archivedInvoice && (
                     <span
                       className="mt-3 inline-flex rounded-full px-2.5 py-1 text-[11px] font-black"
                       style={{
-                        background: '#fff7ed',
-                        color: '#b45309',
-                        border: '1px solid rgba(180, 83, 9, 0.18)',
+                        background: "#fff7ed",
+                        color: "#b45309",
+                        border: "1px solid rgba(180, 83, 9, 0.18)",
                       }}
                     >
                       موكل مؤرشف
@@ -907,18 +925,22 @@ export default function InvoiceDetailsPage() {
                 <div className="border-b p-5 md:border-b-0 md:border-l">
                   <p className="text-sm font-bold text-slate-500">القضية</p>
                   <p className="mt-1 font-black">
-                    {invoice.case ? invoice.case.title : 'بدون قضية'}
+                    {invoice.case ? invoice.case.title : "بدون قضية"}
                   </p>
-                  <p className="mt-1 text-sm">{invoice.case?.caseNumber || '-'}</p>
+                  <p className="mt-1 text-sm">
+                    {invoice.case?.caseNumber || "-"}
+                  </p>
                 </div>
 
                 <div className="p-5">
                   <p className="text-sm font-bold text-slate-500">الحالة</p>
-                  <p className="mt-1 font-black">{statusLabels[invoice.status]}</p>
+                  <p className="mt-1 font-black">
+                    {statusLabels[invoice.status]}
+                  </p>
                   <p className="mt-1 text-sm">
                     {invoice.payment
                       ? `دفعة: ${paymentStatusLabel(invoice.payment.status)}`
-                      : 'لا توجد دفعة مرتبطة'}
+                      : "لا توجد دفعة مرتبطة"}
                   </p>
                 </div>
               </div>
@@ -927,7 +949,7 @@ export default function InvoiceDetailsPage() {
             {/* Items */}
             <div
               className="overflow-hidden rounded-3xl border"
-              style={{ borderColor: 'var(--border)' }}
+              style={{ borderColor: "var(--border)" }}
             >
               <div className="border-b p-5">
                 <h2 className="text-xl font-black">بنود الفاتورة</h2>
@@ -976,7 +998,7 @@ export default function InvoiceDetailsPage() {
             {invoice.payment && (
               <div
                 className="mt-5 rounded-3xl border p-5"
-                style={{ borderColor: 'var(--border)' }}
+                style={{ borderColor: "var(--border)" }}
               >
                 <h2 className="text-xl font-black">الدفعة المرتبطة</h2>
 
@@ -996,11 +1018,13 @@ export default function InvoiceDetailsPage() {
                   </div>
 
                   <div>
-                    <p className="text-sm font-bold text-slate-500">تاريخ الدفع</p>
+                    <p className="text-sm font-bold text-slate-500">
+                      تاريخ الدفع
+                    </p>
                     <p className="mt-1 font-black">
                       {invoice.payment.paidAt
                         ? formatDate(invoice.payment.paidAt)
-                        : '-'}
+                        : "-"}
                     </p>
                   </div>
                 </div>
@@ -1010,7 +1034,7 @@ export default function InvoiceDetailsPage() {
             {invoice.notes && (
               <div
                 className="mt-5 rounded-3xl border p-5"
-                style={{ borderColor: 'var(--border)' }}
+                style={{ borderColor: "var(--border)" }}
               >
                 <h2 className="text-xl font-black">ملاحظات</h2>
                 <p className="mt-3 leading-8">{invoice.notes}</p>
@@ -1033,12 +1057,16 @@ export default function InvoiceDetailsPage() {
           >
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>
+                <h2
+                  className="text-xl font-black"
+                  style={{ color: "var(--text)" }}
+                >
                   تعديل الفاتورة
                 </h2>
 
-                <p className="mt-1 text-sm" style={{ color: 'var(--text-3)' }}>
-                  تعديل التواريخ والبنود والضريبة والخصم. لا يمكن تعديل فاتورة مدفوعة.
+                <p className="mt-1 text-sm" style={{ color: "var(--text-3)" }}>
+                  تعديل التواريخ والبنود والضريبة والخصم. لا يمكن تعديل فاتورة
+                  مدفوعة.
                 </p>
               </div>
 
@@ -1051,29 +1079,17 @@ export default function InvoiceDetailsPage() {
               </button>
             </div>
 
-            {archivedInvoice && (
+            {!canEditFinancials && (
               <div
                 className="mb-4 rounded-2xl border p-4 text-sm font-bold"
                 style={{
-                  borderColor: 'rgba(180, 83, 9, 0.22)',
-                  background: '#fff7ed',
-                  color: '#b45309',
+                  borderColor: "#fbbf24",
+                  background: "var(--amber-soft)",
+                  color: "#92400e",
                 }}
               >
-                هذه الفاتورة مرتبطة بموكل مؤرشف، لذلك لا يمكن تعديل بياناتها. المسموح فقط تغيير الحالة إلى مدفوعة أو ملغاة.
-              </div>
-            )}
-
-            {!canEditFinancials && !archivedInvoice && (
-              <div
-                className="mb-4 rounded-2xl border p-4 text-sm font-bold"
-                style={{
-                  borderColor: '#fbbf24',
-                  background: 'var(--amber-soft)',
-                  color: '#92400e',
-                }}
-              >
-                هذه الفاتورة مدفوعة، لذلك تم منع تعديل البيانات المالية لحماية السجلات.
+                هذه الفاتورة مدفوعة، لذلك تم منع تعديل البيانات المالية لحماية
+                السجلات.
               </div>
             )}
 
@@ -1118,7 +1134,7 @@ export default function InvoiceDetailsPage() {
 
             <div className="mt-5">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="font-black" style={{ color: 'var(--text)' }}>
+                <h3 className="font-black" style={{ color: "var(--text)" }}>
                   البنود
                 </h3>
 
@@ -1137,12 +1153,12 @@ export default function InvoiceDetailsPage() {
                   <div
                     key={index}
                     className="grid gap-3 rounded-2xl border p-3 md:grid-cols-[1fr_120px_140px_90px]"
-                    style={{ borderColor: 'var(--border)' }}
+                    style={{ borderColor: "var(--border)" }}
                   >
                     <input
                       value={item.description}
                       onChange={(e) =>
-                        updateEditItem(index, 'description', e.target.value)
+                        updateEditItem(index, "description", e.target.value)
                       }
                       placeholder="وصف البند"
                       className="input"
@@ -1155,7 +1171,7 @@ export default function InvoiceDetailsPage() {
                       step="0.01"
                       value={item.quantity}
                       onChange={(e) =>
-                        updateEditItem(index, 'quantity', e.target.value)
+                        updateEditItem(index, "quantity", e.target.value)
                       }
                       placeholder="الكمية"
                       className="input"
@@ -1168,7 +1184,7 @@ export default function InvoiceDetailsPage() {
                       step="0.01"
                       value={item.unitPrice}
                       onChange={(e) =>
-                        updateEditItem(index, 'unitPrice', e.target.value)
+                        updateEditItem(index, "unitPrice", e.target.value)
                       }
                       placeholder="سعر الوحدة"
                       className="input"
@@ -1203,7 +1219,7 @@ export default function InvoiceDetailsPage() {
             <div className="mt-5 flex justify-end">
               <div
                 className="w-full max-w-sm space-y-2 rounded-2xl border p-4"
-                style={{ borderColor: 'var(--border)' }}
+                style={{ borderColor: "var(--border)" }}
               >
                 <MoneyLine label="المجموع الفرعي" value={editSubtotal} />
                 <MoneyLine label="الضريبة" value={Number(editTax || 0)} />
@@ -1230,14 +1246,14 @@ export default function InvoiceDetailsPage() {
                 disabled={saving || !canEditFinancials}
                 className="btn btn-primary"
               >
-                {saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
+                {saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
               </button>
             </div>
           </form>
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function InfoCard({
@@ -1246,38 +1262,38 @@ function InfoCard({
   hint,
   tone,
 }: {
-  label: string
-  value: string | number
-  hint: string
-  tone?: 'green' | 'amber' | 'red'
+  label: string;
+  value: string | number;
+  hint: string;
+  tone?: "green" | "amber" | "red";
 }) {
   const style =
-    tone === 'green'
+    tone === "green"
       ? {
-          background: 'var(--green-soft)',
-          color: 'var(--sidebar)',
+          background: "var(--green-soft)",
+          color: "var(--sidebar)",
         }
-      : tone === 'amber'
+      : tone === "amber"
         ? {
-            background: 'var(--amber-soft)',
-            color: '#92400e',
+            background: "var(--amber-soft)",
+            color: "#92400e",
           }
-        : tone === 'red'
+        : tone === "red"
           ? {
-              background: 'var(--red-soft)',
-              color: '#dc2626',
+              background: "var(--red-soft)",
+              color: "#dc2626",
             }
           : {
-              background: 'var(--card)',
-              color: 'var(--text)',
-            }
+              background: "var(--card)",
+              color: "var(--text)",
+            };
 
   return (
     <div
       className="card p-5"
       style={{
         background: style.background,
-        borderColor: 'var(--border)',
+        borderColor: "var(--border)",
       }}
     >
       <p className="text-xs font-black" style={{ color: style.color }}>
@@ -1288,53 +1304,41 @@ function InfoCard({
         {value}
       </p>
 
-      <p className="mt-1 text-xs font-bold" style={{ color: 'var(--text-3)' }}>
+      <p className="mt-1 text-xs font-bold" style={{ color: "var(--text-3)" }}>
         {hint}
       </p>
     </div>
-  )
+  );
 }
 
-function MiniLine({
-  label,
-  value,
-}: {
-  label: string
-  value?: string | null
-}) {
+function MiniLine({ label, value }: { label: string; value?: string | null }) {
   return (
     <div
       className="rounded-2xl border p-3"
       style={{
-        borderColor: 'var(--border)',
-        background: 'var(--card)',
+        borderColor: "var(--border)",
+        background: "var(--card)",
       }}
     >
-      <p className="text-xs font-black" style={{ color: 'var(--text-3)' }}>
+      <p className="text-xs font-black" style={{ color: "var(--text-3)" }}>
         {label}
       </p>
 
       <p
         className="mt-1 break-words text-sm font-bold"
-        style={{ color: value ? 'var(--text)' : 'var(--text-3)' }}
+        style={{ color: value ? "var(--text)" : "var(--text-3)" }}
       >
-        {value || 'غير محدد'}
+        {value || "غير محدد"}
       </p>
     </div>
-  )
+  );
 }
 
-function MoneyLine({
-  label,
-  value,
-}: {
-  label: string
-  value: number
-}) {
+function MoneyLine({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex justify-between text-sm">
       <span>{label}</span>
       <strong>{money(value)}</strong>
     </div>
-  )
+  );
 }

@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const publicRegisterEnabled = process.env.PUBLIC_REGISTER_ENABLED === "true";
+    const publicRegisterEnabled =
+      process.env.PUBLIC_REGISTER_ENABLED === "true";
 
     if (!publicRegisterEnabled) {
       return err("إنشاء الحسابات غير متاح حالياً", 403);
@@ -40,8 +41,8 @@ export async function POST(req: NextRequest) {
 
     const rl = await checkRateLimit(ip, {
       keyPrefix: "register",
-      max: 30,
-      windowMs: 10 * 60 * 1000,
+      max: 5,
+      windowMs: 60 * 60 * 1000,
     });
 
     if (!rl.allowed) {
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
       return err("البريد الإلكتروني مستخدم مسبقاً", 409);
     }
 
-    const baseSlug = slugify(tenantName);
+    const baseSlug = slugify(tenantName) || `office-${Date.now().toString(36)}`;
     let slug = baseSlug;
     let i = 1;
 

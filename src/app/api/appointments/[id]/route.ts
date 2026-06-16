@@ -1,12 +1,14 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { appointmentSchema } from '@/lib/validations'
-import { ok, err, notFound } from '@/lib/api-response'
-import { apiHandler } from '@/lib/api-handler'
-import { requireRole, getRequestMeta } from '@/lib/api-auth'
-import { logActivity } from '@/lib/activity'
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { appointmentSchema } from "@/lib/validations";
+import { ok, err, notFound } from "@/lib/api-response";
+import { apiHandler } from "@/lib/api-handler";
+import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { logActivity } from "@/lib/activity";
+import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { verifySameOrigin } from "@/lib/csrf";
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ id: string }> };
 
 async function ensureTenantActive(tenantId: string) {
   const tenant = await prisma.tenant.findUnique({
@@ -15,34 +17,46 @@ async function ensureTenantActive(tenantId: string) {
       isSuspended: true,
       status: true,
     },
-  })
+  });
 
   if (!tenant) {
-    return err('المكتب غير موجود', 404)
+    return err("المكتب غير موجود", 404);
   }
 
-  if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-    return err('لا يمكن تنفيذ العملية لأن المكتب موقوف', 403)
+  if (tenant.isSuspended || tenant.status === "SUSPENDED") {
+    return err("لا يمكن تنفيذ العملية لأن المكتب موقوف", 403);
   }
 
-  if (tenant.status === 'EXPIRED') {
-    return err('لا يمكن تنفيذ العملية لأن الاشتراك منتهي', 403)
+  if (tenant.status === "EXPIRED") {
+    return err("لا يمكن تنفيذ العملية لأن الاشتراك منتهي", 403);
   }
 
-  return null
+  return null;
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
 
-    const meta = getRequestMeta(req)
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const tenantError = await ensureTenantActive(auth.user.tenantId)
-    if (tenantError) return tenantError
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "تعديل موعد",
+    );
 
-    const { id } = await params
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+
+    const meta = getRequestMeta(req);
+
+    const tenantError = await ensureTenantActive(auth.user.tenantId);
+    if (tenantError) return tenantError;
+
+    const { id } = await params;
 
     const exists = await prisma.appointment.findFirst({
       where: {
@@ -74,59 +88,59 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     if (!exists) {
-      return notFound('الموعد غير موجود')
+      return notFound("الموعد غير موجود");
     }
 
     const isCurrentlyArchivedClient = Boolean(
-      exists.client?.archivedAt || exists.case?.client?.archivedAt
-    )
+      exists.client?.archivedAt || exists.case?.client?.archivedAt,
+    );
 
     if (isCurrentlyArchivedClient) {
-      return err('لا يمكن تعديل موعد مرتبط بموكل مؤرشف', 400)
+      return err("لا يمكن تعديل موعد مرتبط بموكل مؤرشف", 400);
     }
 
-    const body = await req.json().catch(() => ({}))
-    const parsed = appointmentSchema.partial().safeParse(body)
+    const body = await req.json().catch(() => ({}));
+    const parsed = appointmentSchema.partial().safeParse(body);
 
     if (!parsed.success) {
-      return err('بيانات غير صالحة', 400, parsed.error.flatten())
+      return err("بيانات غير صالحة", 400, parsed.error.flatten());
     }
 
     if (Object.keys(parsed.data).length === 0) {
-      return err('لا توجد بيانات للتعديل', 400)
+      return err("لا توجد بيانات للتعديل", 400);
     }
 
-    let startTime: Date | undefined
-    let endTime: Date | undefined | null
+    let startTime: Date | undefined;
+    let endTime: Date | undefined | null;
 
     if (parsed.data.startTime !== undefined) {
-      startTime = new Date(parsed.data.startTime)
+      startTime = new Date(parsed.data.startTime);
 
       if (Number.isNaN(startTime.getTime())) {
-        return err('تاريخ بداية الموعد غير صالح', 400)
+        return err("تاريخ بداية الموعد غير صالح", 400);
       }
     }
 
     if (parsed.data.endTime !== undefined) {
       if (parsed.data.endTime) {
-        endTime = new Date(parsed.data.endTime)
+        endTime = new Date(parsed.data.endTime);
 
         if (Number.isNaN(endTime.getTime())) {
-          return err('تاريخ نهاية الموعد غير صالح', 400)
+          return err("تاريخ نهاية الموعد غير صالح", 400);
         }
       } else {
-        endTime = null
+        endTime = null;
       }
     }
 
-    const finalStart = startTime ?? exists.startTime
-    const finalEnd = endTime !== undefined ? endTime : exists.endTime
+    const finalStart = startTime ?? exists.startTime;
+    const finalEnd = endTime !== undefined ? endTime : exists.endTime;
 
     if (finalEnd && finalEnd <= finalStart) {
-      return err('تاريخ نهاية الموعد يجب أن يكون بعد تاريخ البداية', 400)
+      return err("تاريخ نهاية الموعد يجب أن يكون بعد تاريخ البداية", 400);
     }
 
     const {
@@ -135,10 +149,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       clientId,
       caseId,
       ...rest
-    } = parsed.data
+    } = parsed.data;
 
-    let linkedClientId =
-      clientId !== undefined ? clientId : exists.clientId
+    let linkedClientId = clientId !== undefined ? clientId : exists.clientId;
 
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
@@ -150,14 +163,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           id: true,
           archivedAt: true,
         },
-      })
+      });
 
       if (!clientExists) {
-        return err('لا يمكن ربط الموعد بموكل لا يتبع هذا المكتب', 403)
+        return err("لا يمكن ربط الموعد بموكل لا يتبع هذا المكتب", 403);
       }
 
       if (clientExists.archivedAt) {
-        return err('لا يمكن ربط الموعد بموكل مؤرشف', 400)
+        return err("لا يمكن ربط الموعد بموكل مؤرشف", 400);
       }
     }
 
@@ -178,20 +191,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             },
           },
         },
-      })
+      });
 
       if (!caseExists) {
         return err(
-          'لا يمكن ربط الموعد بقضية لا تتبع هذا المكتب أو لا تتبع الموكل المحدد',
-          403
-        )
+          "لا يمكن ربط الموعد بقضية لا تتبع هذا المكتب أو لا تتبع الموكل المحدد",
+          403,
+        );
       }
 
       if (caseExists.client?.archivedAt) {
-        return err('لا يمكن ربط الموعد بقضية موكلها مؤرشف', 400)
+        return err("لا يمكن ربط الموعد بقضية موكلها مؤرشف", 400);
       }
 
-      linkedClientId = caseExists.clientId
+      linkedClientId = caseExists.clientId;
     }
 
     const updated = await prisma.appointment.update({
@@ -227,9 +240,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
-    const activityCaseId = updated.caseId || exists.caseId
+    const activityCaseId = updated.caseId || exists.caseId;
 
     if (activityCaseId) {
       await logActivity({
@@ -237,29 +250,41 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
         tenantId: auth.user.tenantId,
-        type: 'CASE_UPDATED',
-        title: 'تم تعديل موعد',
+        type: "CASE_UPDATED",
+        title: "تم تعديل موعد",
         message: updated.title,
-        entityType: 'CASE',
+        entityType: "CASE",
         entityId: activityCaseId,
-      })
+      });
     }
 
-    return ok(updated)
-  })
+    return ok(updated);
+  });
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
-    if (auth.error || !auth.user) return auth.error
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
 
-    const meta = getRequestMeta(req)
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const tenantError = await ensureTenantActive(auth.user.tenantId)
-    if (tenantError) return tenantError
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "حذف موعد",
+    );
 
-    const { id } = await params
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+
+    const meta = getRequestMeta(req);
+
+    const tenantError = await ensureTenantActive(auth.user.tenantId);
+    if (tenantError) return tenantError;
+
+    const { id } = await params;
 
     const exists = await prisma.appointment.findFirst({
       where: {
@@ -289,25 +314,25 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     if (!exists) {
-      return notFound('الموعد غير موجود')
+      return notFound("الموعد غير موجود");
     }
 
     const isArchivedClient = Boolean(
-      exists.client?.archivedAt || exists.case?.client?.archivedAt
-    )
+      exists.client?.archivedAt || exists.case?.client?.archivedAt,
+    );
 
     if (isArchivedClient) {
-      return err('لا يمكن حذف موعد مرتبط بموكل مؤرشف', 400)
+      return err("لا يمكن حذف موعد مرتبط بموكل مؤرشف", 400);
     }
 
     await prisma.appointment.delete({
       where: {
         id: exists.id,
       },
-    })
+    });
 
     if (exists.caseId) {
       await logActivity({
@@ -315,14 +340,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
         tenantId: auth.user.tenantId,
-        type: 'CASE_UPDATED',
-        title: 'تم حذف موعد',
+        type: "CASE_UPDATED",
+        title: "تم حذف موعد",
         message: exists.title,
-        entityType: 'CASE',
+        entityType: "CASE",
         entityId: exists.caseId,
-      })
+      });
     }
 
-    return ok({ deleted: true })
-  })
+    return ok({ deleted: true });
+  });
 }

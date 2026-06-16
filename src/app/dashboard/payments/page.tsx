@@ -6,6 +6,8 @@ import PageLoader from '@/components/ui/PageLoader'
 import EmptyState from '@/components/ui/EmptyState'
 import { translations, type Locale } from '@/lib/i18n'
 import { useLocale } from '@/lib/useLocale'
+import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
+import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 
 interface Payment {
   amount: number
@@ -189,6 +191,7 @@ export default function PaymentsPage() {
   const localeState = useLocale() as { locale?: Locale; t?: typeof translations.ar }
   const locale: Locale = localeState?.locale === 'en' ? 'en' : 'ar'
   const isRtl = locale === 'ar'
+  const writeAccess = useTenantWriteAccess(locale)
   const i18nPayments = localeState?.t?.payments ?? translations[locale]?.payments
   const copy = i18nPayments ?? FALLBACK_PAYMENTS_COPY[locale]
 
@@ -277,6 +280,11 @@ if (loading) {
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">
+      <SubscriptionReadOnlyBanner
+        visible={!writeAccess.canWrite}
+        message={writeAccess.message}
+        isRtl={isRtl}
+      />
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6 text-start"

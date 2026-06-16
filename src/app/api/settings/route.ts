@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { ok, err } from '@/lib/api-response'
-import { apiHandler } from '@/lib/api-handler'
-import { requireRole } from '@/lib/api-auth'
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { ok, err } from "@/lib/api-response";
+import { apiHandler } from "@/lib/api-handler";
+import { requireRole } from "@/lib/api-auth";
+import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { verifySameOrigin } from "@/lib/csrf";
 
 const tenantSelect = {
   id: true,
@@ -15,43 +17,59 @@ const tenantSelect = {
   plan: true,
   aiEnabled: true,
   aiConsentAt: true,
-} as const
+} as const;
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: auth.user.tenantId },
       select: tenantSelect,
-    })
+    });
 
-    if (!tenant) return err('الشركة غير موجودة', 404)
+    if (!tenant) return err("الشركة غير موجودة", 404);
 
-    return ok(tenant)
-  })
+    return ok(tenant);
+  });
 }
 
 export async function PATCH(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN'])
-    if (auth.error || !auth.user) return auth.error
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
 
-    const body = await req.json().catch(() => ({}))
+    const auth = await requireRole(req, ["ADMIN"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const name = typeof body.name === 'string' ? body.name.trim() : undefined
-    const email = typeof body.email === 'string' ? body.email.trim() : undefined
-    const phone = typeof body.phone === 'string' ? body.phone.trim() : undefined
-    const address = typeof body.address === 'string' ? body.address.trim() : undefined
-    const logoUrl = typeof body.logoUrl === 'string' ? body.logoUrl.trim() : undefined
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "تعديل إعدادات المكتب",
+    );
 
-    if (name !== undefined && name.length < 2) {
-      return err('اسم الشركة قصير جدًا', 400)
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
     }
 
-    if (email && !email.includes('@')) {
-      return err('البريد الإلكتروني غير صالح', 400)
+    const body = await req.json().catch(() => ({}));
+
+    const name = typeof body.name === "string" ? body.name.trim() : undefined;
+    const email =
+      typeof body.email === "string" ? body.email.trim() : undefined;
+    const phone =
+      typeof body.phone === "string" ? body.phone.trim() : undefined;
+    const address =
+      typeof body.address === "string" ? body.address.trim() : undefined;
+    const logoUrl =
+      typeof body.logoUrl === "string" ? body.logoUrl.trim() : undefined;
+
+    if (name !== undefined && name.length < 2) {
+      return err("اسم الشركة قصير جدًا", 400);
+    }
+
+    if (email && !email.includes("@")) {
+      return err("البريد الإلكتروني غير صالح", 400);
     }
 
     const tenant = await prisma.tenant.update({
@@ -64,8 +82,8 @@ export async function PATCH(req: NextRequest) {
         ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}),
       },
       select: tenantSelect,
-    })
+    });
 
-    return ok(tenant)
-  })
+    return ok(tenant);
+  });
 }

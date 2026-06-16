@@ -2,9 +2,12 @@
 import AppLoader from "@/components/ui/AppLoader"
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import PageLoader from "@/components/ui/PageLoader";
 import EmptyState from "@/components/ui/EmptyState";
 import { useLocale } from "@/lib/useLocale";
+import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
+import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -614,6 +617,7 @@ export default function ClientsPage() {
   const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
   const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const writeAccess = useTenantWriteAccess(localeKey);
 
   const load = useCallback(async () => {
     try {
@@ -655,6 +659,11 @@ export default function ClientsPage() {
   }
 
   function openCreateModal() {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || text.validation.planLimit);
+      return;
+    }
+
     setShowCreateModal(true);
   }
 
@@ -715,6 +724,12 @@ export default function ClientsPage() {
   return (
     <>
       <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 text-start stagger">
+        <SubscriptionReadOnlyBanner
+          visible={!writeAccess.canWrite}
+          message={writeAccess.message}
+          isRtl={isRtl}
+        />
+
         {/* Hero */}
         <div
           className="relative overflow-hidden rounded-[28px] border p-6"
@@ -758,7 +773,9 @@ export default function ClientsPage() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl px-5 text-sm font-black transition hover:scale-[1.01]"
+              disabled={!writeAccess.canWrite}
+              title={!writeAccess.canWrite ? writeAccess.message || text.validation.planLimit : text.newClient}
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl px-5 text-sm font-black transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: "#fff",
                 color: "var(--sidebar)",
@@ -934,7 +951,9 @@ export default function ClientsPage() {
                   <button
                     type="button"
                     onClick={openCreateModal}
-                    className="btn btn-primary"
+                    disabled={!writeAccess.canWrite}
+                    title={!writeAccess.canWrite ? writeAccess.message || text.validation.planLimit : text.empty.addClient}
+                    className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {text.empty.addClient}
                   </button>

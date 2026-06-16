@@ -1,62 +1,72 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import Link from "next/link";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 function VerifyEmailContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const initialEmail = searchParams.get('email') || ''
+  const initialEmail = searchParams.get("email") || "";
 
-  const [email, setEmail] = useState(initialEmail)
-  const [code, setCode] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   async function submitVerification(e: React.FormEvent) {
-    e.preventDefault()
+    e.preventDefault();
 
-    setLoading(true)
-    setMessage('')
-    setError('')
+    setLoading(true);
+    setMessage("");
+    setError("");
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim();
+
+    if (!cleanEmail || cleanCode.length !== 6) {
+      setError("يرجى إدخال البريد الإلكتروني ورمز تحقق صحيح");
+      setLoading(false);
+      return;
+    }
 
     try {
-      const res = await fetch('/api/auth/verify-email', {
-        method: 'POST',
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email,
-          code,
+          email: cleanEmail,
+          code: cleanCode,
         }),
-      })
+      });
 
-      const data = await res.json()
+      const data = await res.json();
 
       if (!res.ok || !data?.success) {
-        setError(data?.message || data?.error || 'تعذر تأكيد البريد الإلكتروني')
-        return
+        setError(
+          data?.message || data?.error || "تعذر تأكيد البريد الإلكتروني",
+        );
+        return;
       }
 
-      const next = data?.data?.next
-      setMessage(data?.data?.message || 'تم تأكيد البريد الإلكتروني بنجاح')
+      const next = data?.data?.next;
+      setMessage(data?.data?.message || "تم تأكيد البريد الإلكتروني بنجاح");
 
       setTimeout(() => {
-        if (next === 'LOGIN') {
-          router.push('/login')
-          return
+        if (next === "LOGIN") {
+          router.push("/login");
+          return;
         }
 
-        router.push(`/verify-whatsapp?email=${encodeURIComponent(email)}`)
-      }, 900)
+        router.push(`/verify-whatsapp?email=${encodeURIComponent(cleanEmail)}`);
+      }, 900);
     } catch {
-      setError('حدث خطأ أثناء الاتصال بالخادم')
+      setError("حدث خطأ أثناء الاتصال بالخادم");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -87,7 +97,10 @@ function VerifyEmailContent() {
 
         <form onSubmit={submitVerification} className="space-y-5">
           <div>
-            <label htmlFor="email" className="mb-2 block text-sm font-bold text-white">
+            <label
+              htmlFor="email"
+              className="mb-2 block text-sm font-bold text-white"
+            >
               البريد الإلكتروني
             </label>
 
@@ -104,7 +117,10 @@ function VerifyEmailContent() {
           </div>
 
           <div>
-            <label htmlFor="code" className="mb-2 block text-sm font-bold text-white">
+            <label
+              htmlFor="code"
+              className="mb-2 block text-sm font-bold text-white"
+            >
               رمز التحقق
             </label>
 
@@ -115,7 +131,7 @@ function VerifyEmailContent() {
               maxLength={6}
               value={code}
               onChange={(e) =>
-                setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
               }
               placeholder="123456"
               className="w-full rounded-2xl border border-emerald-300/30 bg-transparent px-4 py-4 text-center text-2xl font-black tracking-[0.35em] text-emerald-100 outline-none transition placeholder:text-emerald-300/35 focus:border-emerald-300"
@@ -128,19 +144,19 @@ function VerifyEmailContent() {
             disabled={loading || code.length !== 6}
             className="w-full rounded-2xl bg-emerald-300/25 px-5 py-4 text-sm font-black text-white transition hover:bg-emerald-300/35 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? 'جاري التحقق...' : 'تأكيد البريد الإلكتروني'}
+            {loading ? "جاري التحقق..." : "تأكيد البريد الإلكتروني"}
           </button>
         </form>
 
         <div className="mt-6 text-center text-sm font-semibold text-emerald-100/60">
-          لديك حساب؟{' '}
+          لديك حساب؟{" "}
           <Link href="/login" className="text-emerald-200 hover:text-white">
             سجل دخولك
           </Link>
         </div>
       </div>
     </main>
-  )
+  );
 }
 
 export default function VerifyEmailPage() {
@@ -159,5 +175,5 @@ export default function VerifyEmailPage() {
     >
       <VerifyEmailContent />
     </Suspense>
-  )
+  );
 }

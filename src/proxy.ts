@@ -97,6 +97,15 @@ export async function proxy(req: NextRequest) {
     return applySecurityHeaders(NextResponse.next());
   }
 
+  if (
+    pathname === "/register" &&
+    process.env.PUBLIC_REGISTER_ENABLED !== "true"
+  ) {
+    return applySecurityHeaders(
+      NextResponse.redirect(new URL("/login", req.url)),
+    );
+  }
+
   const token = req.cookies.get("ld_token")?.value;
 
   if (!token && !isPublicPath(pathname)) {
@@ -125,7 +134,13 @@ export async function proxy(req: NextRequest) {
       requestHeaders.set("x-tenant-id", String(payload.tenantId));
       requestHeaders.set("x-user-role", String(payload.role));
 
-      if (pathname === "/login" || pathname === "/") {
+      if (
+        pathname === "/" ||
+        pathname === "/login" ||
+        pathname === "/register" ||
+        pathname === "/verify-email" ||
+        pathname === "/verify-whatsapp"
+      ) {
         return applySecurityHeaders(
           NextResponse.redirect(new URL("/dashboard", req.url)),
         );

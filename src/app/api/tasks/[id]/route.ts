@@ -1,12 +1,14 @@
-import { NextRequest } from 'next/server'
-import { TaskPriority } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
-import { ok, err, notFound } from '@/lib/api-response'
-import { apiHandler } from '@/lib/api-handler'
-import { requireRole, getRequestMeta } from '@/lib/api-auth'
-import { logActivity } from '@/lib/activity'
+import { NextRequest } from "next/server";
+import { TaskPriority } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { ok, err, notFound } from "@/lib/api-response";
+import { apiHandler } from "@/lib/api-handler";
+import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { logActivity } from "@/lib/activity";
+import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { verifySameOrigin } from "@/lib/csrf";
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ id: string }> };
 
 async function ensureTenantActive(tenantId: string) {
   const tenant = await prisma.tenant.findUnique({
@@ -15,34 +17,46 @@ async function ensureTenantActive(tenantId: string) {
       isSuspended: true,
       status: true,
     },
-  })
+  });
 
   if (!tenant) {
-    return err('المكتب غير موجود', 404)
+    return err("المكتب غير موجود", 404);
   }
 
-  if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-    return err('لا يمكن تنفيذ العملية لأن المكتب موقوف', 403)
+  if (tenant.isSuspended || tenant.status === "SUSPENDED") {
+    return err("لا يمكن تنفيذ العملية لأن المكتب موقوف", 403);
   }
 
-  if (tenant.status === 'EXPIRED') {
-    return err('لا يمكن تنفيذ العملية لأن الاشتراك منتهي', 403)
+  if (tenant.status === "EXPIRED") {
+    return err("لا يمكن تنفيذ العملية لأن الاشتراك منتهي", 403);
   }
 
-  return null
+  return null;
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
 
-    const meta = getRequestMeta(req)
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const tenantError = await ensureTenantActive(auth.user.tenantId)
-    if (tenantError) return tenantError
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "تعديل مهمة",
+    );
 
-    const { id } = await params
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+
+    const meta = getRequestMeta(req);
+
+    const tenantError = await ensureTenantActive(auth.user.tenantId);
+    if (tenantError) return tenantError;
+
+    const { id } = await params;
 
     const exists = await prisma.task.findFirst({
       where: {
@@ -73,77 +87,76 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     if (!exists) {
-      return notFound('المهمة غير موجودة')
+      return notFound("المهمة غير موجودة");
     }
 
-    const body = await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({}));
 
     const data: {
-      completed?: boolean
-      title?: string
-      priority?: TaskPriority
-      dueDate?: Date | null
-    } = {}
+      completed?: boolean;
+      title?: string;
+      priority?: TaskPriority;
+      dueDate?: Date | null;
+    } = {};
 
-    if ('completed' in body) {
-      data.completed = Boolean(body.completed)
+    if ("completed" in body) {
+      data.completed = Boolean(body.completed);
     }
 
-    if ('title' in body) {
-      const title = String(body.title).trim()
+    if ("title" in body) {
+      const title = String(body.title).trim();
 
       if (!title) {
-        return err('عنوان المهمة مطلوب', 400)
+        return err("عنوان المهمة مطلوب", 400);
       }
 
       if (title.length > 200) {
-        return err('عنوان المهمة طويل جدًا', 400)
+        return err("عنوان المهمة طويل جدًا", 400);
       }
 
-      data.title = title
+      data.title = title;
     }
 
-    if ('priority' in body) {
-      const priority = String(body.priority).toUpperCase()
+    if ("priority" in body) {
+      const priority = String(body.priority).toUpperCase();
 
       if (!Object.values(TaskPriority).includes(priority as TaskPriority)) {
-        return err('أولوية المهمة غير صحيحة', 400)
+        return err("أولوية المهمة غير صحيحة", 400);
       }
 
-      data.priority = priority as TaskPriority
+      data.priority = priority as TaskPriority;
     }
 
-    if ('dueDate' in body) {
+    if ("dueDate" in body) {
       if (body.dueDate) {
-        const date = new Date(body.dueDate)
+        const date = new Date(body.dueDate);
 
         if (Number.isNaN(date.getTime())) {
-          return err('تاريخ المهمة غير صالح', 400)
+          return err("تاريخ المهمة غير صالح", 400);
         }
 
-        data.dueDate = date
+        data.dueDate = date;
       } else {
-        data.dueDate = null
+        data.dueDate = null;
       }
     }
 
     if (Object.keys(data).length === 0) {
-      return err('لا توجد بيانات للتعديل', 400)
+      return err("لا توجد بيانات للتعديل", 400);
     }
 
     const isArchivedClient = Boolean(
-      exists.client?.archivedAt || exists.case?.client?.archivedAt
-    )
+      exists.client?.archivedAt || exists.case?.client?.archivedAt,
+    );
 
     const onlyCompletionChange =
-      Object.keys(data).length === 1 &&
-      typeof data.completed === 'boolean'
+      Object.keys(data).length === 1 && typeof data.completed === "boolean";
 
     if (isArchivedClient && !onlyCompletionChange) {
-      return err('لا يمكن تعديل بيانات مهمة مرتبطة بموكل مؤرشف', 400)
+      return err("لا يمكن تعديل بيانات مهمة مرتبطة بموكل مؤرشف", 400);
     }
 
     const updated = await prisma.task.update({
@@ -173,44 +186,56 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     if (exists.caseId) {
       const title =
-        'completed' in data
+        "completed" in data
           ? data.completed
-            ? 'تم إكمال مهمة'
-            : 'تم إعادة فتح مهمة'
-          : 'تم تعديل مهمة'
+            ? "تم إكمال مهمة"
+            : "تم إعادة فتح مهمة"
+          : "تم تعديل مهمة";
 
       await logActivity({
         actorId: auth.user.userId,
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
         tenantId: auth.user.tenantId,
-        type: 'CASE_UPDATED',
+        type: "CASE_UPDATED",
         title,
         message: updated.title,
-        entityType: 'CASE',
+        entityType: "CASE",
         entityId: exists.caseId,
-      })
+      });
     }
 
-    return ok(updated)
-  })
+    return ok(updated);
+  });
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
-    if (auth.error || !auth.user) return auth.error
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
 
-    const meta = getRequestMeta(req)
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const tenantError = await ensureTenantActive(auth.user.tenantId)
-    if (tenantError) return tenantError
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "حذف مهمة",
+    );
 
-    const { id } = await params
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+
+    const meta = getRequestMeta(req);
+
+    const tenantError = await ensureTenantActive(auth.user.tenantId);
+    if (tenantError) return tenantError;
+
+    const { id } = await params;
 
     const exists = await prisma.task.findFirst({
       where: {
@@ -240,25 +265,25 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     if (!exists) {
-      return notFound('المهمة غير موجودة')
+      return notFound("المهمة غير موجودة");
     }
 
     const isArchivedClient = Boolean(
-      exists.client?.archivedAt || exists.case?.client?.archivedAt
-    )
+      exists.client?.archivedAt || exists.case?.client?.archivedAt,
+    );
 
     if (isArchivedClient) {
-      return err('لا يمكن حذف مهمة مرتبطة بموكل مؤرشف', 400)
+      return err("لا يمكن حذف مهمة مرتبطة بموكل مؤرشف", 400);
     }
 
     await prisma.task.delete({
       where: {
         id: exists.id,
       },
-    })
+    });
 
     if (exists.caseId) {
       await logActivity({
@@ -266,14 +291,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
         tenantId: auth.user.tenantId,
-        type: 'CASE_UPDATED',
-        title: 'تم حذف مهمة',
+        type: "CASE_UPDATED",
+        title: "تم حذف مهمة",
         message: exists.title,
-        entityType: 'CASE',
+        entityType: "CASE",
         entityId: exists.caseId,
-      })
+      });
     }
 
-    return ok({ deleted: true })
-  })
+    return ok({ deleted: true });
+  });
 }

@@ -132,27 +132,21 @@ export default function TopBar() {
     <header
       dir="ltr"
       className={`
-      sticky top-0 z-20 flex min-h-[72px] min-w-0 flex-wrap items-center gap-3
-      border-b border-slate-200 bg-white/85 py-3 shadow-sm backdrop-blur-[18px]
-      transition-colors dark:border-[#2d4a3e] dark:bg-[#0d241a]/95
-      sm:flex-nowrap sm:gap-4 lg:h-[72px] lg:py-0
-      ${isRtl ? "pr-[72px] pl-4 lg:pr-6 lg:pl-6" : "pl-[72px] pr-4 lg:pl-6 lg:pr-6"}
-    `}
+        sticky top-0 z-20 flex min-h-[72px] min-w-0 flex-wrap items-center gap-3
+        border-b border-slate-200 bg-white/85 py-3 shadow-sm backdrop-blur-[18px]
+        transition-colors dark:border-[#2d4a3e] dark:bg-[#0d241a]/95
+        sm:flex-nowrap sm:gap-4 lg:h-[72px] lg:py-0
+        ${
+          isRtl
+            ? "pr-[72px] pl-4 lg:pr-6 lg:pl-6"
+            : "pl-[72px] pr-4 lg:pl-6 lg:pr-6"
+        }
+      `}
     >
-      {/* Title */}
-      <div
-        dir={isRtl ? "rtl" : "ltr"}
-        className="order-1 min-w-0 shrink-0 text-left sm:w-auto"
-      >
-        <h1 className="max-w-[42vw] truncate text-sm font-black text-slate-800 dark:text-emerald-50 sm:max-w-[180px] lg:max-w-[240px]">
-          {title}
-        </h1>
-      </div>
-
       {/* Search */}
       <div
         ref={ref}
-        className="order-3 relative w-full min-w-0 flex-[1_0_100%] sm:order-2 sm:min-w-[220px] sm:flex-1 lg:max-w-[720px]"
+        className="order-1 relative w-full min-w-0 flex-[1_0_100%] sm:order-4 sm:min-w-[220px] sm:flex-1 lg:max-w-[720px]"
       >
         <span
           className={`
@@ -323,8 +317,16 @@ export default function TopBar() {
         )}
       </div>
 
+      {/* Account */}
+      <div className="order-3 flex shrink-0 items-center sm:order-2">
+        <ProfileMenu />
+      </div>
+
       {/* Controls */}
-      <div className="order-2 flex shrink-0 items-center gap-2 sm:order-3">
+      <div className="order-4 flex shrink-0 items-center gap-2 sm:order-3">
+        <ThemeToggle />
+        <LanguageToggle />
+
         <span
           className="
             hidden h-11 items-center gap-1.5 rounded-2xl border border-slate-200
@@ -336,10 +338,16 @@ export default function TopBar() {
         >
           📅 {dateStr}
         </span>
+      </div>
 
-        <LanguageToggle />
-        <ThemeToggle />
-        <ProfileMenu />
+      {/* Title */}
+      <div
+        dir={isRtl ? "rtl" : "ltr"}
+        className="order-2 min-w-0 shrink-0 text-right sm:order-1 sm:w-auto"
+      >
+        <h1 className="max-w-[42vw] truncate text-sm font-black text-slate-800 dark:text-emerald-50 sm:max-w-[180px] lg:max-w-[240px]">
+          {title}
+        </h1>
       </div>
     </header>
   );

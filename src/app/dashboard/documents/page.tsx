@@ -14,6 +14,8 @@ import {
 } from "@/lib/plan-ui";
 import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
+import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
+import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 
 interface Doc {
   id: string;
@@ -187,6 +189,7 @@ export default function DocumentsPage() {
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
   const [planLimit, setPlanLimit] = useState("");
   const [preview, setPreview] = useState<Doc | null>(null);
+  const writeAccess = useTenantWriteAccess(locale);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -302,6 +305,11 @@ export default function DocumentsPage() {
   }
 
   async function upload(file: File) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || d.messages.planLimitFallback);
+      return;
+    }
+
     if (file.size > 10 * 1024 * 1024) {
       toast.error(d.messages.fileTooLarge);
       return;
@@ -370,6 +378,11 @@ export default function DocumentsPage() {
   }
 
   async function performDelete(id: string) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || d.messages.planLimitFallback);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/documents/${id}`, {
         method: "DELETE",
@@ -449,6 +462,11 @@ export default function DocumentsPage() {
   }
 
   async function handleSummarize(id: string) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || d.messages.aiPlanLimitFallback);
+      return;
+    }
+
     try {
       setPlanLimit("");
       const toastId = toast.loading(d.messages.summarizing);
@@ -494,6 +512,12 @@ export default function DocumentsPage() {
         />
       )}
 
+      <SubscriptionReadOnlyBanner
+        visible={!writeAccess.canWrite}
+        message={writeAccess.message}
+        isRtl={isRtl}
+      />
+
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6"
@@ -536,13 +560,20 @@ export default function DocumentsPage() {
 
           <button
             type="button"
-            disabled={selectedArchivedContext}
+            disabled={!writeAccess.canWrite || selectedArchivedContext}
             title={
-              selectedArchivedContext
-                ? d.messages.archivedUploadBlocked
-                : d.actions.upload
+              !writeAccess.canWrite
+                ? writeAccess.message || d.messages.planLimitFallback
+                : selectedArchivedContext
+                  ? d.messages.archivedUploadBlocked
+                  : d.actions.upload
             }
             onClick={() => {
+              if (!writeAccess.canWrite) {
+                toast.warning(writeAccess.message || d.messages.planLimitFallback);
+                return;
+              }
+
               if (selectedArchivedContext) {
                 toast.warning(d.messages.archivedUploadBlocked);
                 return;
@@ -707,6 +738,11 @@ export default function DocumentsPage() {
             event.preventDefault();
             setDragging(false);
 
+            if (!writeAccess.canWrite) {
+              toast.warning(writeAccess.message || d.messages.planLimitFallback);
+              return;
+            }
+
             if (!caseId) {
               toast.error(linkCopy.caseRequired);
               return;
@@ -721,6 +757,11 @@ export default function DocumentsPage() {
             if (file) upload(file);
           }}
           onClick={() => {
+            if (!writeAccess.canWrite) {
+              toast.warning(writeAccess.message || d.messages.planLimitFallback);
+              return;
+            }
+
             if (!caseId) {
               toast.error(linkCopy.caseRequired);
               return;
@@ -734,7 +775,7 @@ export default function DocumentsPage() {
             fileInputRef.current?.click();
           }}
           className={`card flex min-h-[160px] flex-col items-center justify-center p-6 text-center transition-all ${
-            selectedArchivedContext
+            !writeAccess.canWrite || selectedArchivedContext
               ? "cursor-not-allowed opacity-60"
               : "cursor-pointer"
           }`}
@@ -747,7 +788,7 @@ export default function DocumentsPage() {
             aria-label={d.upload.fileAria}
             ref={fileInputRef}
             type="file"
-            disabled={selectedArchivedContext}
+            disabled={!writeAccess.canWrite || selectedArchivedContext}
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -919,8 +960,17 @@ export default function DocumentsPage() {
               docs.length === 0 ? (
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="btn btn-primary"
+                  onClick={() => {
+                    if (!writeAccess.canWrite) {
+                      toast.warning(writeAccess.message || d.messages.planLimitFallback);
+                      return;
+                    }
+
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={!writeAccess.canWrite}
+                  title={!writeAccess.canWrite ? writeAccess.message || d.messages.planLimitFallback : d.actions.upload}
+                  className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   + {d.actions.upload}
                 </button>
@@ -1051,7 +1101,9 @@ export default function DocumentsPage() {
                   <button
                     type="button"
                     onClick={() => handleSummarize(doc.id)}
-                    className="btn flex-1"
+                    disabled={!writeAccess.canWrite}
+                    title={!writeAccess.canWrite ? writeAccess.message || d.messages.aiPlanLimitFallback : d.actions.summarizeAi}
+                    className="btn flex-1 disabled:cursor-not-allowed disabled:opacity-60"
                     style={{
                       minWidth: 90,
                       background: "#7c3aed",
@@ -1063,13 +1115,20 @@ export default function DocumentsPage() {
 
                   <button
                     type="button"
-                    disabled={archivedDoc}
+                    disabled={!writeAccess.canWrite || archivedDoc}
                     title={
-                      archivedDoc
-                        ? d.messages.archivedDeleteBlocked
-                        : d.actions.delete
+                      !writeAccess.canWrite
+                        ? writeAccess.message || d.messages.planLimitFallback
+                        : archivedDoc
+                          ? d.messages.archivedDeleteBlocked
+                          : d.actions.delete
                     }
                     onClick={() => {
+                      if (!writeAccess.canWrite) {
+                        toast.warning(writeAccess.message || d.messages.planLimitFallback);
+                        return;
+                      }
+
                       if (archivedDoc) {
                         toast.warning(d.messages.archivedDeleteBlocked);
                         return;

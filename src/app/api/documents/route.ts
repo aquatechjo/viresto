@@ -5,7 +5,11 @@ import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { logActivity } from "@/lib/log-activity";
-import { assertTenantCanCreate } from "@/lib/billing-limits";
+import {
+  assertTenantCanCreate,
+  assertTenantCanWrite,
+} from "@/lib/billing-limits";
+import { verifySameOrigin } from "@/lib/csrf";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -97,8 +101,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
     if (auth.error || !auth.user) return auth.error;
+
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "إضافة مستند",
+    );
+
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
 
     const limitCheck = await assertTenantCanCreate(
       auth.user.tenantId,

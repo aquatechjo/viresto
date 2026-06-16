@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, CreditCard, LogOut, Settings } from 'lucide-react'
+import { ChevronDown, LogOut, Settings } from 'lucide-react'
 
 import { useLocale } from '@/lib/useLocale'
 
@@ -127,14 +127,6 @@ export default function ProfileMenu() {
               href="/dashboard/settings"
               icon={<Settings className="h-4 w-4" />}
               label={text.settings}
-              isRtl={isRtl}
-              onClick={() => setOpen(false)}
-            />
-
-            <MenuLink
-              href="/dashboard/billing"
-              icon={<CreditCard className="h-4 w-4" />}
-              label={text.billing}
               isRtl={isRtl}
               onClick={() => setOpen(false)}
             />

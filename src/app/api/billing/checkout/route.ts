@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { getPaymentProvider } from "@/lib/billing/provider";
 import { BillingInterval } from "@/lib/billing/types";
+import { verifySameOrigin } from "@/lib/csrf";
 
 function isBillingInterval(value: unknown): value is BillingInterval {
   return value === "MONTHLY" || value === "YEARLY";
@@ -23,6 +24,23 @@ function getBaseUrl(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
+    if (process.env.BILLING_ENABLED !== "true") {
+      return err(
+        "الدفع الإلكتروني غير متاح حالياً. لتفعيل أو تجديد الاشتراك يرجى التواصل مع إدارة Viresto.",
+        403,
+      );
+    }
+
+    if (process.env.BILLING_SELF_SERVICE_ENABLED !== "true") {
+      return err(
+        "تغيير الخطة من داخل النظام غير متاح حالياً. يرجى التواصل مع إدارة Viresto.",
+        403,
+      );
+    }
+
     const auth = await requireRole(req, ["ADMIN"]);
     if (auth.error || !auth.user) return auth.error;
 

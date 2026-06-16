@@ -224,8 +224,8 @@ export default function BillingPage() {
       ? "سجل دفعات الاشتراك"
       : "Subscription payment history",
     changeComingSoon: isArabic
-      ? "تغيير الخطة سيتم ربطه في الخطوة التالية."
-      : "Plan changes will be connected in the next step.",
+      ? "الدفع الإلكتروني وتغيير الخطة من داخل النظام غير متاحين حالياً. لتفعيل أو تجديد الاشتراك يرجى التواصل مع إدارة Viresto."
+      : "Online payments and in-app plan changes are currently disabled. Please contact Viresto management to activate or renew your subscription.",
     aiEnabled: isArabic ? "مفعل" : "Enabled",
     aiDisabled: isArabic ? "غير مفعل" : "Disabled",
     storage: isArabic ? "التخزين" : "Storage",
@@ -243,46 +243,11 @@ export default function BillingPage() {
 
   const [data, setData] = useState<BillingData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [changingPlan, setChangingPlan] = useState<string | null>(null);
 
   async function changePlan(planCode: string) {
-    if (!planCode || changingPlan) return;
+    if (!planCode) return;
 
-    setChangingPlan(planCode);
-
-    const res = await fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        planCode,
-        interval: "MONTHLY",
-      }),
-    });
-
-    const json = await res.json().catch(() => ({}));
-
-    if (!res.ok || !json.success) {
-      toast.error(
-        json.message ||
-          (isArabic ? "تعذر بدء عملية الدفع" : "Could not start checkout"),
-      );
-      setChangingPlan(null);
-      return;
-    }
-
-    const checkoutUrl = json.data?.checkoutUrl;
-
-    if (!checkoutUrl) {
-      toast.error(
-        isArabic ? "رابط الدفع غير متوفر" : "Checkout URL is missing",
-      );
-      setChangingPlan(null);
-      return;
-    }
-
-    window.location.href = checkoutUrl;
+    toast.info(labels.changeComingSoon);
   }
 
   async function load() {
@@ -318,77 +283,13 @@ export default function BillingPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-
     const checkout = params.get("checkout");
-    const provider = params.get("provider");
-    const plan = params.get("plan");
-    const interval = params.get("interval") || "MONTHLY";
 
-    if (checkout === "cancelled") {
-      toast.error(isArabic ? "تم إلغاء عملية الدفع" : "Checkout was cancelled");
+    if (!checkout) return;
 
-      window.history.replaceState({}, "", "/dashboard/billing");
-      load();
-      return;
-    }
-
-    if (checkout !== "success") return;
-
-    if (provider !== "manual") {
-      toast.info(
-        isArabic
-          ? "تم الرجوع من صفحة الدفع. سيتم تحديث الاشتراك بعد تأكيد الدفع."
-          : "Returned from checkout. Subscription will update after payment confirmation.",
-      );
-
-      window.history.replaceState({}, "", "/dashboard/billing");
-      load();
-      return;
-    }
-
-    if (!plan) return;
-
-    async function activateManualCheckout() {
-      setChangingPlan(plan);
-
-      const res = await fetch("/api/billing/change-plan", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          planCode: plan,
-          interval,
-        }),
-      });
-
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok || !json.success) {
-        toast.error(
-          json.message ||
-            (isArabic
-              ? "تعذر تفعيل الاشتراك"
-              : "Could not activate subscription"),
-        );
-        setChangingPlan(null);
-        return;
-      }
-
-      toast.success(
-        isArabic
-          ? "تم تفعيل الاشتراك بنجاح"
-          : "Subscription activated successfully",
-      );
-
-      window.history.replaceState({}, "", "/dashboard/billing");
-
-      await load();
-      setChangingPlan(null);
-    }
-
-    activateManualCheckout();
-  }, [isArabic]);
+    toast.info(labels.changeComingSoon);
+    window.history.replaceState({}, "", "/dashboard/billing");
+  }, [labels.changeComingSoon]);
 
   const trialLabel = useMemo(() => {
     if (!data?.tenant.trialEndsAt) return billing.noTrial;
@@ -678,19 +579,13 @@ if (loading) {
 
                 <button
                   type="button"
-                  disabled={active || changingPlan === plan.code}
+                  disabled={active}
                   className={`mt-5 w-full ${
                     active ? "btn btn-ghost opacity-70" : "btn btn-primary"
                   }`}
                   onClick={() => changePlan(plan.code)}
                 >
-                  {active
-                    ? billing.currentPlanButton
-                    : changingPlan === plan.code
-                      ? isArabic
-                        ? "جاري التغيير..."
-                        : "Changing..."
-                      : billing.requestUpgrade}
+                  {active ? billing.currentPlanButton : billing.requestUpgrade}
                 </button>
               </div>
             );

@@ -11,6 +11,8 @@ import EmptyState from '@/components/ui/EmptyState'
 import { formatTime } from '@/lib/utils'
 import { translations, type Locale } from '@/lib/i18n'
 import { useLocale } from '@/lib/useLocale'
+import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
+import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 
 const AppointmentsCalendar = dynamic(() => import('./AppointmentsCalendar'), {
   ssr: false,
@@ -108,6 +110,36 @@ export default function AppointmentsPage() {
   const common = t.common ?? translations.ar.common
   const isRtl = locale === 'ar'
   const typeLabels = TYPE_LABELS[locale] ?? TYPE_LABELS.ar
+  const appointmentLogCopy =
+    locale === 'ar'
+      ? {
+          title: 'سجل المواعيد',
+          subtitle: 'كل المواعيد مرتبة حسب التاريخ من الأقدم إلى الأحدث',
+          count: 'موعد',
+          emptyTitle: 'لا يوجد سجل مواعيد حالياً',
+          emptySub: 'عند إضافة موعد جديد سيظهر هنا تلقائياً.',
+          emptyFilteredSub: 'لا توجد مواعيد مطابقة للبحث أو نوع الموعد المحدد.',
+          clearFilters: 'مسح الفلاتر',
+          noClient: 'بدون موكل',
+          noCase: 'بدون قضية',
+          noLocation: 'بدون مكان',
+          noDescription: 'لا توجد ملاحظات',
+          endTime: 'ينتهي',
+        }
+      : {
+          title: 'Appointments log',
+          subtitle: 'All appointments sorted by date from oldest to newest',
+          count: 'appointments',
+          emptyTitle: 'No appointment log yet',
+          emptySub: 'New appointments will appear here automatically.',
+          emptyFilteredSub: 'No appointments match the current search or type filter.',
+          clearFilters: 'Clear filters',
+          noClient: 'No client',
+          noCase: 'No case',
+          noLocation: 'No location',
+          noDescription: 'No notes',
+          endTime: 'Ends',
+        }
   const fieldDir = {
     dir: (isRtl ? 'rtl' : 'ltr') as 'rtl' | 'ltr',
     style: {
@@ -136,10 +168,11 @@ export default function AppointmentsPage() {
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const writeAccess = useTenantWriteAccess(locale)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true)
+      if (!options?.silent) setLoading(true)
 
       const [appointmentsRes, clientsRes] = await Promise.all([
         fetch('/api/appointments?includeArchivedClients=true'),
@@ -171,10 +204,13 @@ export default function AppointmentsPage() {
       )
     } catch {
       toast.error(a.messages.loadError)
-      setAppts([])
-      setClients([])
+
+      if (!options?.silent) {
+        setAppts([])
+        setClients([])
+      }
     } finally {
-      setLoading(false)
+      if (!options?.silent) setLoading(false)
     }
   }, [])
 
@@ -203,18 +239,6 @@ export default function AppointmentsPage() {
     [appts, todayKey]
   )
 
-  const upcomingAppts = useMemo(
-    () =>
-      appts
-        .filter((appt) => new Date(appt.startTime).getTime() >= now.getTime())
-        .sort(
-          (a, b) =>
-            new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-        )
-        .slice(0, 5),
-    [appts, now]
-  )
-
   const courtSessions = appts.filter((appt) => appt.type === 'COURT_SESSION').length
   const deadlines = appts.filter((appt) => appt.type === 'DEADLINE').length
 
@@ -234,6 +258,49 @@ export default function AppointmentsPage() {
       return matchesType && matchesSearch
     })
   }, [appts, search, typeFilter])
+
+  const appointmentLog = useMemo(
+    () =>
+      [...filteredAppts].sort(
+        (first, second) =>
+          new Date(first.startTime).getTime() - new Date(second.startTime).getTime()
+      ),
+    [filteredAppts]
+  )
+
+  const appointmentLogGroups = useMemo(() => {
+    const groups = new Map<string, Appt[]>()
+
+    for (const appt of appointmentLog) {
+      const date = new Date(appt.startTime)
+      const key = Number.isNaN(date.getTime())
+        ? 'invalid-date'
+        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+            date.getDate()
+          ).padStart(2, '0')}`
+
+      groups.set(key, [...(groups.get(key) ?? []), appt])
+    }
+
+    return Array.from(groups.entries()).map(([key, items]) => ({
+      key,
+      label:
+        key === 'invalid-date'
+          ? '-'
+          : new Date(items[0].startTime).toLocaleDateString(
+              locale === 'ar' ? 'ar-JO' : 'en-US',
+              {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              }
+            ),
+      items,
+    }))
+  }, [appointmentLog, locale])
+
+  const hasActiveFilters = Boolean(search.trim()) || typeFilter !== 'all'
 
   const calendarEvents = useMemo(
     () =>
@@ -277,6 +344,11 @@ export default function AppointmentsPage() {
 
   async function saveAppointment(event: React.FormEvent) {
     event.preventDefault()
+
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || a.messages.saveError)
+      return
+    }
 
     if (!form.title.trim() || !form.startTime) {
       toast.error(a.messages.requiredTitleTime)
@@ -324,7 +396,7 @@ export default function AppointmentsPage() {
       toast.success(editMode ? a.messages.updateSuccess : a.messages.createSuccess)
       setOpen(false)
       resetForm()
-      load()
+      load({ silent: true })
     } catch {
       toast.error(a.messages.saveUnexpectedError)
     } finally {
@@ -333,6 +405,11 @@ export default function AppointmentsPage() {
   }
 
   async function deleteAppointment(id: string) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || a.messages.deleteError)
+      return
+    }
+
     if (selectedAppt && isArchivedAppt(selectedAppt)) {
       toast.warning(a.messages.archivedDeleteBlocked)
       return
@@ -353,13 +430,82 @@ export default function AppointmentsPage() {
       toast.success(a.messages.deleteSuccess)
       setDetailsOpen(false)
       setSelectedAppt(null)
-      load()
+      load({ silent: true })
     } catch {
       toast.error(a.messages.deleteUnexpectedError)
     }
   }
 
+  async function updateAppointmentDateRange({
+    id,
+    start,
+    end,
+    successMessage,
+    errorMessage,
+    revert,
+  }: {
+    id: string
+    start?: Date | null
+    end?: Date | null
+    successMessage: string
+    errorMessage: string
+    revert: () => void
+  }) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || errorMessage)
+      revert()
+      return
+    }
+
+    if (!start) {
+      toast.error(errorMessage)
+      revert()
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startTime: start.toISOString(),
+          ...(end ? { endTime: end.toISOString() } : {}),
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || !data.success) {
+        toast.error(data.message || errorMessage)
+        revert()
+        return
+      }
+
+      toast.success(successMessage)
+      setAppts((previous) =>
+        previous.map((appt) =>
+          appt.id === id
+            ? {
+                ...appt,
+                startTime: start.toISOString(),
+                ...(end ? { endTime: end.toISOString() } : {}),
+              }
+            : appt
+        )
+      )
+      load({ silent: true })
+    } catch {
+      toast.error(errorMessage)
+      revert()
+    }
+  }
+
   function openCreateModal(startTime?: string) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || a.messages.saveError)
+      return
+    }
+
     resetForm()
 
     setForm((previous) => ({
@@ -371,6 +517,11 @@ export default function AppointmentsPage() {
   }
 
   function openEditModal(appt: Appt) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || a.messages.saveError)
+      return
+    }
+
     if (isArchivedAppt(appt)) {
       toast.warning(a.messages.archivedEditBlocked)
       return
@@ -399,6 +550,12 @@ if (loading) {
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">
+      <SubscriptionReadOnlyBanner
+        visible={!writeAccess.canWrite}
+        message={writeAccess.message}
+        isRtl={isRtl}
+      />
+
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6"
@@ -441,7 +598,9 @@ if (loading) {
 
           <button
             onClick={() => openCreateModal()}
-            className="btn shrink-0"
+            disabled={!writeAccess.canWrite}
+            title={!writeAccess.canWrite ? writeAccess.message || a.messages.saveError : a.actions.newAppointment}
+            className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               background: '#fff',
               color: 'var(--sidebar)',
@@ -542,186 +701,240 @@ if (loading) {
         </div>
       </div>
 
-      {/* Calendar + Upcoming */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
-        <div className="card p-4">
-          <AppointmentsCalendar
-            locale={locale}
-            events={calendarEvents}
-            onEventDrop={async (info) => {
-              const appt = info.event.extendedProps as Appt
+      {/* Calendar */}
+      <div className="card p-4">
+        <AppointmentsCalendar
+          locale={locale}
+          events={calendarEvents}
+          onEventDrop={async (info) => {
+            const appt = info.event.extendedProps as Appt
 
-              if (isArchivedAppt(appt)) {
-                toast.warning(a.messages.archivedEditBlocked)
-                info.revert()
-                return
-              }
+            if (!writeAccess.canWrite) {
+              toast.warning(writeAccess.message || a.messages.moveError)
+              info.revert()
+              return
+            }
 
-              const response = await fetch(`/api/appointments/${info.event.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  startTime: info.event.start?.toISOString(),
-                }),
-              })
+            if (isArchivedAppt(appt)) {
+              toast.warning(a.messages.archivedEditBlocked)
+              info.revert()
+              return
+            }
 
-              const data = await response.json().catch(() => ({}))
+            await updateAppointmentDateRange({
+              id: info.event.id,
+              start: info.event.start,
+              end: info.event.end,
+              successMessage: a.messages.moveSuccess,
+              errorMessage: a.messages.moveError,
+              revert: () => info.revert(),
+            })
+          }}
+          onEventResize={async (info) => {
+            const appt = info.event.extendedProps as Appt
 
-              if (response.ok && data.success) {
-                toast.success(a.messages.moveSuccess)
-                load()
-              } else {
-                toast.error(data.message || a.messages.moveError)
-                info.revert()
-              }
-            }}
-            onEventResize={async (info) => {
-              const appt = info.event.extendedProps as Appt
+            if (!writeAccess.canWrite) {
+              toast.warning(writeAccess.message || a.messages.resizeError)
+              info.revert()
+              return
+            }
 
-              if (isArchivedAppt(appt)) {
-                toast.warning(a.messages.archivedEditBlocked)
-                info.revert()
-                return
-              }
+            if (isArchivedAppt(appt)) {
+              toast.warning(a.messages.archivedEditBlocked)
+              info.revert()
+              return
+            }
 
-              const response = await fetch(`/api/appointments/${info.event.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  startTime: info.event.start?.toISOString(),
-                  endTime: info.event.end?.toISOString(),
-                }),
-              })
+            await updateAppointmentDateRange({
+              id: info.event.id,
+              start: info.event.start,
+              end: info.event.end,
+              successMessage: a.messages.resizeSuccess,
+              errorMessage: a.messages.resizeError,
+              revert: () => info.revert(),
+            })
+          }}
+          onDateClick={(info) => openCreateModal(info.dateStr)}
+          onEventClick={(info) => {
+            const appt = info.event.extendedProps as Appt
 
-              const data = await response.json().catch(() => ({}))
+            setSelectedAppt(appt)
+            setDetailsOpen(true)
+          }}
+        />
+      </div>
 
-              if (response.ok && data.success) {
-                toast.success(a.messages.resizeSuccess)
-                load()
-              } else {
-                toast.error(data.message || a.messages.resizeError)
-                info.revert()
-              }
-            }}
-            onDateClick={(info) => openCreateModal(info.dateStr)}
-            onEventClick={(info) => {
-              const appt = info.event.extendedProps as Appt
+      {/* Appointments Log */}
+      <div className="card overflow-hidden p-0 text-start">
+        <div
+          className="flex flex-col gap-3 border-b p-5 md:flex-row md:items-center md:justify-between"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <div>
+            <h2 className="text-lg font-black" style={{ color: 'var(--text)' }}>
+              {appointmentLogCopy.title}
+            </h2>
 
-              setSelectedAppt(appt)
-              setDetailsOpen(true)
-            }}
-          />
-        </div>
-
-        <div className="card p-5 text-start">
-          <div className="mb-4">
-            <h3 className="font-black" style={{ color: 'var(--text)' }}>
-              {a.upcoming.title}
-            </h3>
-
-            <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-              {a.upcoming.subtitle}
+            <p className="mt-1 text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+              {appointmentLogCopy.subtitle}
             </p>
           </div>
 
-          {upcomingAppts.length === 0 ? (
-            <EmptyState
-              icon="📅"
-              title={a.empty.upcomingTitle}
-              sub={a.empty.upcomingSub}
-            />
-          ) : (
-            <div className="space-y-3">
-              {upcomingAppts.map((appt) => {
-                const archivedAppt = isArchivedAppt(appt)
+          <div className="flex flex-wrap items-center gap-2">
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="rounded-2xl px-4 py-2 text-xs font-black transition-all hover:-translate-y-0.5"
+                style={{
+                  background: 'var(--card)',
+                  color: 'var(--text-2)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                {appointmentLogCopy.clearFilters}
+              </button>
+            )}
 
-                return (
-                  <div
-                    key={appt.id}
-                    onClick={() => {
-                      setSelectedAppt(appt)
-                      setDetailsOpen(true)
-                    }}
-                    className="cursor-pointer rounded-2xl border p-3 transition-all hover:-translate-y-0.5"
-                    style={{
-                      borderColor: 'var(--border)',
-                      background: 'var(--card)',
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className="mt-1 h-full min-h-[42px] w-1 rounded-full"
-                        style={{
-                          background: TYPE_COLOR[appt.type] ?? 'var(--text-3)',
-                        }}
-                      />
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <span
-                            className="rounded-full px-2.5 py-1 text-[11px] font-black"
-                            style={{
-                              background: 'var(--green-soft)',
-                              color: 'var(--sidebar)',
-                            }}
-                          >
-                            {typeLabels[appt.type] ?? appt.type}
-                          </span>
-
-                          <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-                            {formatTime(appt.startTime)}
-                          </span>
-                        </div>
-
-                        <p
-                          className="mt-2 truncate text-sm font-black"
-                          style={{ color: 'var(--text)' }}
-                        >
-                          {appt.title}
-                        </p>
-
-                        <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                          {formatDate(appt.startTime, locale)}
-                        </p>
-
-                        {appt.client?.name && (
-                          <p
-                            className="mt-1 truncate text-xs"
-                            style={{ color: 'var(--text-2)' }}
-                          >
-                            👤 {appt.client.name}
-                          </p>
-                        )}
-
-                        {archivedAppt && (
-                          <span
-                            className="mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-black"
-                            style={{
-                              background: '#fff7ed',
-                              color: '#b45309',
-                              border: '1px solid rgba(180, 83, 9, 0.18)',
-                            }}
-                          >
-                            {a.labels.archivedClient}
-                          </span>
-                        )}
-
-                        {appt.location && (
-                          <p
-                            className="mt-1 truncate text-xs"
-                            style={{ color: 'var(--text-2)' }}
-                          >
-                            📍 {appt.location}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+            <span
+              className="rounded-2xl px-4 py-2 text-xs font-black"
+              style={{
+                background: 'var(--green-soft)',
+                color: 'var(--sidebar)',
+              }}
+            >
+              {appointmentLog.length} {appointmentLogCopy.count}
+            </span>
+          </div>
         </div>
+
+        {appointmentLog.length === 0 ? (
+          <div className="p-5">
+            <EmptyState
+              icon="🗓️"
+              title={appointmentLogCopy.emptyTitle}
+              sub={hasActiveFilters ? appointmentLogCopy.emptyFilteredSub : appointmentLogCopy.emptySub}
+            />
+          </div>
+        ) : (
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            {appointmentLogGroups.map((group) => (
+              <div key={group.key} className="p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-black" style={{ color: 'var(--text)' }}>
+                    {group.label}
+                  </h3>
+
+                  <span className="text-xs font-bold" style={{ color: 'var(--text-3)' }}>
+                    {group.items.length} {appointmentLogCopy.count}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {group.items.map((appt) => {
+                    const archivedAppt = isArchivedAppt(appt)
+
+                    return (
+                      <button
+                        key={appt.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAppt(appt)
+                          setDetailsOpen(true)
+                        }}
+                        className="w-full rounded-3xl border p-4 text-start transition-all hover:-translate-y-0.5"
+                        style={{
+                          borderColor: 'var(--border)',
+                          background: 'var(--card)',
+                        }}
+                      >
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[160px_1fr_auto] lg:items-center">
+                          <div
+                            className="rounded-2xl border px-4 py-3"
+                            style={{
+                              borderColor: 'var(--border)',
+                              background: 'var(--green-soft)',
+                            }}
+                          >
+                            <p className="text-sm font-black" style={{ color: 'var(--sidebar)' }}>
+                              {formatTime(appt.startTime)}
+                            </p>
+
+                            {appt.endTime && (
+                              <p className="mt-1 text-[11px] font-bold" style={{ color: 'var(--text-3)' }}>
+                                {appointmentLogCopy.endTime} {formatTime(appt.endTime)}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full"
+                                style={{ background: TYPE_COLOR[appt.type] ?? 'var(--text-3)' }}
+                              />
+
+                              <span
+                                className="rounded-full px-2.5 py-1 text-[11px] font-black"
+                                style={{
+                                  background: 'var(--green-soft)',
+                                  color: 'var(--sidebar)',
+                                }}
+                              >
+                                {typeLabels[appt.type] ?? appt.type}
+                              </span>
+
+                              {archivedAppt && (
+                                <span
+                                  className="rounded-full px-2.5 py-1 text-[11px] font-black"
+                                  style={{
+                                    background: '#fff7ed',
+                                    color: '#b45309',
+                                    border: '1px solid rgba(180, 83, 9, 0.18)',
+                                  }}
+                                >
+                                  {a.labels.archivedClient}
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="mt-2 truncate text-base font-black" style={{ color: 'var(--text)' }}>
+                              {appt.title}
+                            </p>
+
+                            {appt.description ? (
+                              <p className="mt-1 line-clamp-2 text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+                                {appt.description}
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+                                {appointmentLogCopy.noDescription}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 text-xs font-bold lg:min-w-[220px]">
+                            <span className="truncate" style={{ color: 'var(--text-2)' }}>
+                              👤 {appt.client?.name || appointmentLogCopy.noClient}
+                            </span>
+
+                            <span className="truncate" style={{ color: 'var(--text-2)' }}>
+                              ⚖️ {appt.case?.title || appointmentLogCopy.noCase}
+                            </span>
+
+                            <span className="truncate" style={{ color: 'var(--text-2)' }}>
+                              📍 {appt.location || appointmentLogCopy.noLocation}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Modal */}

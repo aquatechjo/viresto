@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { verifySameOrigin } from "@/lib/csrf";
 import { caseSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
-import { assertTenantCanCreate } from "@/lib/billing-limits";
-
+import { assertTenantCanCreate, assertTenantCanWrite } from "@/lib/billing-limits";
 const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
 export async function GET(req: NextRequest) {
@@ -143,9 +143,19 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "إضافة قضية",
+    );
 
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
     const limitCheck = await assertTenantCanCreate(auth.user.tenantId, "cases");
 
     if (!limitCheck.ok) {

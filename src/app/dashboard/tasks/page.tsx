@@ -9,6 +9,8 @@ import PageLoader from '@/components/ui/PageLoader'
 import { formatDate } from '@/lib/utils'
 import { translations, type Locale } from '@/lib/i18n'
 import { useLocale } from '@/lib/useLocale'
+import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
+import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 
 interface Task {
   id: string
@@ -167,6 +169,7 @@ export default function TasksPage() {
   const [caseFilter, setCaseFilter] = useState('all')
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const writeAccess = useTenantWriteAccess(locale)
 
   const now = useMemo(() => new Date(), [])
 
@@ -259,6 +262,11 @@ export default function TasksPage() {
   })
 
   async function toggle(id: string, completed: boolean) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || taskCopy.messages.updateError)
+      return
+    }
+
     try {
       const response = await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
@@ -282,11 +290,21 @@ export default function TasksPage() {
   }
 
   function del(id: string) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || taskCopy.messages.deleteError)
+      return
+    }
+
     setDeleteId(id)
   }
 
   async function confirmDelete() {
     if (!deleteId) return
+
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || taskCopy.messages.deleteError)
+      return
+    }
 
     try {
       setDeleteLoading(true)
@@ -314,6 +332,11 @@ export default function TasksPage() {
 
   async function handleAdd(event: React.FormEvent) {
     event.preventDefault()
+
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || taskCopy.messages.createError)
+      return
+    }
 
     if (!form.title.trim()) {
       toast.error(taskCopy.messages.titleRequired)
@@ -359,8 +382,23 @@ export default function TasksPage() {
     setFilter('all')
   }
 
+  function openCreateTaskModal() {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || taskCopy.messages.createError)
+      return
+    }
+
+    setOpen(true)
+  }
+
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">
+      <SubscriptionReadOnlyBanner
+        visible={!writeAccess.canWrite}
+        message={writeAccess.message}
+        isRtl={isRtl}
+      />
+
       {/* Header */}
       <div
         className="relative overflow-hidden rounded-[28px] border p-6 text-start"
@@ -402,8 +440,10 @@ export default function TasksPage() {
           </div>
 
           <button
-            onClick={() => setOpen(true)}
-            className="btn shrink-0"
+            onClick={openCreateTaskModal}
+            disabled={!writeAccess.canWrite}
+            title={!writeAccess.canWrite ? writeAccess.message || taskCopy.messages.createError : taskCopy.actions.newTask}
+            className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               background: '#fff',
               color: 'var(--sidebar)',
@@ -548,7 +588,7 @@ export default function TasksPage() {
             }
             action={
               tasks.length === 0 ? (
-                <button onClick={() => setOpen(true)} className="btn btn-primary">
+                <button onClick={openCreateTaskModal} disabled={!writeAccess.canWrite} title={!writeAccess.canWrite ? writeAccess.message || taskCopy.messages.createError : taskCopy.actions.addTask} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60">
                   {taskCopy.actions.addTask}
                 </button>
               ) : (
@@ -575,7 +615,9 @@ export default function TasksPage() {
                   <button
                     aria-label={taskCopy.card.toggleAria}
                     onClick={() => toggle(task.id, !task.completed)}
-                    className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black transition-all"
+                    disabled={!writeAccess.canWrite}
+                    title={!writeAccess.canWrite ? writeAccess.message || taskCopy.messages.updateError : taskCopy.card.toggleAria}
+                    className="mt-1 flex h-7 w-7 disabled:cursor-not-allowed disabled:opacity-50 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black transition-all"
                     style={{
                       borderColor: 'var(--sidebar)',
                       background: task.completed ? 'var(--sidebar)' : 'transparent',
@@ -676,13 +718,20 @@ export default function TasksPage() {
 
                   <button
                     aria-label={taskCopy.actions.deleteTask}
-                    disabled={archivedTask}
+                    disabled={!writeAccess.canWrite || archivedTask}
                     title={
-                      archivedTask
-                        ? taskCopy.messages.archivedDeleteBlocked
-                        : taskCopy.actions.deleteTask
+                      !writeAccess.canWrite
+                        ? writeAccess.message || taskCopy.messages.deleteError
+                        : archivedTask
+                          ? taskCopy.messages.archivedDeleteBlocked
+                          : taskCopy.actions.deleteTask
                     }
                     onClick={() => {
+                      if (!writeAccess.canWrite) {
+                        toast.warning(writeAccess.message || taskCopy.messages.deleteError)
+                        return
+                      }
+
                       if (archivedTask) {
                         toast.warning(taskCopy.messages.archivedDeleteBlocked)
                         return

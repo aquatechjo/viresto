@@ -1,167 +1,200 @@
-'use client'
+"use client";
 
-import { useEffect, useMemo, useState } from 'react'
-
-import PageLoader from '@/components/ui/PageLoader'
-import EmptyState from '@/components/ui/EmptyState'
-import { formatDate } from '@/lib/utils'
-import { parseDevice } from '@/lib/device'
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import PageLoader from "@/components/ui/PageLoader";
+import EmptyState from "@/components/ui/EmptyState";
+import { formatDate } from "@/lib/utils";
+import { parseDevice } from "@/lib/device";
 
 interface SessionItem {
-  id: string
-  ipAddress?: string
-  userAgent?: string
-  country?: string
-  city?: string
-  lastActivityAt: string
-  createdAt: string
-  isCurrent: boolean
+  id: string;
+  ipAddress?: string;
+  userAgent?: string;
+  country?: string;
+  city?: string;
+  lastActivityAt: string;
+  createdAt: string;
+  isCurrent: boolean;
 }
 
 function getLocation(session: SessionItem) {
-  if (session.city && session.country) return `${session.city}, ${session.country}`
-  if (session.city) return session.city
-  if (session.country) return session.country
-  return 'غير معروف'
+  if (session.city && session.country)
+    return `${session.city}, ${session.country}`;
+  if (session.city) return session.city;
+  if (session.country) return session.country;
+  return "غير معروف";
 }
 
 function getSessionRisk(session: SessionItem) {
-  if (!session.ipAddress || session.ipAddress === 'Unknown') return 'medium'
-  if (!session.userAgent) return 'medium'
-  return 'low'
+  if (!session.ipAddress || session.ipAddress === "Unknown") return "medium";
+  if (!session.userAgent) return "medium";
+  return "low";
 }
 
 function riskLabel(risk: string) {
-  if (risk === 'high') return 'مرتفع'
-  if (risk === 'medium') return 'متوسط'
-  return 'منخفض'
+  if (risk === "high") return "مرتفع";
+  if (risk === "medium") return "متوسط";
+  return "منخفض";
 }
 
 function riskBadge(risk: string) {
-  if (risk === 'high') return 'badge badge-red'
-  if (risk === 'medium') return 'badge badge-amber'
-  return 'badge badge-green'
+  if (risk === "high") return "badge badge-red";
+  if (risk === "medium") return "badge badge-amber";
+  return "badge badge-green";
 }
 
 export default function SessionsClient() {
-  const [loading, setLoading] = useState(true)
-  const [sessions, setSessions] = useState<SessionItem[]>([])
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  function confirmToast(message: string) {
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+
+      const toastId = toast(message, {
+        duration: 10000,
+        action: {
+          label: "تأكيد",
+          onClick: () => {
+            if (settled) return;
+            settled = true;
+            toast.dismiss(toastId);
+            resolve(true);
+          },
+        },
+        onDismiss: () => {
+          if (settled) return;
+          settled = true;
+          resolve(false);
+        },
+        onAutoClose: () => {
+          if (settled) return;
+          settled = true;
+          resolve(false);
+        },
+      });
+    });
+  }
 
   async function load() {
     try {
-      setLoading(true)
+      setLoading(true);
 
-      const res = await fetch('/api/auth/session/list', {
-        cache: 'no-store',
-      })
+      const res = await fetch("/api/auth/session/list", {
+        cache: "no-store",
+      });
 
       if (res.status === 401) {
-        window.location.href = '/login'
-        return
+        window.location.href = "/login";
+        return;
       }
 
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success !== false) {
-        setSessions(Array.isArray(data.data) ? data.data : [])
+        setSessions(Array.isArray(data.data) ? data.data : []);
       } else {
-        setSessions([])
+        setSessions([]);
       }
     } catch (error) {
-      console.error('Sessions load failed:', error)
-      setSessions([])
+      console.error("Sessions load failed:", error);
+      setSessions([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function revokeOtherSessions() {
-    const confirmed = window.confirm(
-      'هل أنت متأكد من إنهاء جميع الجلسات الأخرى؟ سيتم تسجيل خروج كل الأجهزة باستثناء جهازك الحالي.'
-    )
+    const confirmed = await confirmToast(
+      "هل أنت متأكد من إنهاء جميع الجلسات الأخرى؟ سيتم تسجيل خروج كل الأجهزة باستثناء جهازك الحالي.",
+    );
 
-    if (!confirmed) return
+    if (!confirmed) return;
 
     try {
-      setActionLoading('others')
+      setActionLoading("others");
 
-      const res = await fetch('/api/auth/session/revoke-others', {
-        method: 'POST',
-      })
+      const res = await fetch("/api/auth/session/revoke-others", {
+        method: "POST",
+      });
 
       if (res.status === 401) {
-        window.location.href = '/login'
-        return
+        window.location.href = "/login";
+        return;
       }
 
-      await load()
+      await load();
+      toast.success("تم إنهاء الجلسات الأخرى");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
   }
 
   async function revokeSession(sessionId: string) {
-    const confirmed = window.confirm('هل تريد تسجيل الخروج من هذا الجهاز؟')
-    if (!confirmed) return
+    const confirmed = await confirmToast("هل تريد تسجيل الخروج من هذا الجهاز؟");
+    if (!confirmed) return;
 
     try {
-      setActionLoading(sessionId)
+      setActionLoading(sessionId);
 
-      const res = await fetch('/api/auth/session/revoke', {
-        method: 'POST',
+      const res = await fetch("/api/auth/session/revoke", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ sessionId }),
-      })
+      });
 
       if (res.status === 401) {
-        window.location.href = '/login'
-        return
+        window.location.href = "/login";
+        return;
       }
 
-      await load()
+      await load();
+      toast.success('تم إنهاء الجلسة')
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
   }
 
   useEffect(() => {
-    load()
-  }, [])
+    load();
+  }, []);
 
   const filteredSessions = useMemo(() => {
-    const query = search.trim().toLowerCase()
+    const query = search.trim().toLowerCase();
 
-    if (!query) return sessions
+    if (!query) return sessions;
 
     return sessions.filter((session) => {
-      const device = parseDevice(session.userAgent).toLowerCase()
-      const ip = session.ipAddress?.toLowerCase() || ''
-      const country = session.country?.toLowerCase() || ''
-      const city = session.city?.toLowerCase() || ''
+      const device = parseDevice(session.userAgent).toLowerCase();
+      const ip = session.ipAddress?.toLowerCase() || "";
+      const country = session.country?.toLowerCase() || "";
+      const city = session.city?.toLowerCase() || "";
 
       return (
         device.includes(query) ||
         ip.includes(query) ||
         country.includes(query) ||
         city.includes(query)
-      )
-    })
-  }, [sessions, search])
+      );
+    });
+  }, [sessions, search]);
 
   const stats = useMemo(() => {
-    const current = sessions.filter((session) => session.isCurrent).length
-    const others = sessions.filter((session) => !session.isCurrent).length
+    const current = sessions.filter((session) => session.isCurrent).length;
+    const others = sessions.filter((session) => !session.isCurrent).length;
     const unknownIp = sessions.filter(
-      (session) => !session.ipAddress || session.ipAddress === 'Unknown'
-    ).length
+      (session) => !session.ipAddress || session.ipAddress === "Unknown",
+    ).length;
 
     const locations = new Set(
-      sessions.map((session) => getLocation(session)).filter((location) => location !== 'غير معروف')
-    )
+      sessions
+        .map((session) => getLocation(session))
+        .filter((location) => location !== "غير معروف"),
+    );
 
     return {
       total: sessions.length,
@@ -169,11 +202,11 @@ export default function SessionsClient() {
       others,
       unknownIp,
       locations: locations.size,
-    }
-  }, [sessions])
+    };
+  }, [sessions]);
 
   if (loading) {
-    return <PageLoader />
+    return <PageLoader />;
   }
 
   return (
@@ -183,19 +216,19 @@ export default function SessionsClient() {
         className="relative overflow-hidden rounded-[28px] border p-6"
         style={{
           background:
-            'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-          borderColor: 'rgba(255,255,255,0.12)',
-          boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
+          borderColor: "rgba(255,255,255,0.12)",
+          boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
         }}
       >
         <div
           className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: 'rgba(245, 200, 66, 0.16)' }}
+          style={{ background: "rgba(245, 200, 66, 0.16)" }}
         />
 
         <div
           className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: 'rgba(255,255,255,0.08)' }}
+          style={{ background: "rgba(255,255,255,0.08)" }}
         />
 
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -203,9 +236,9 @@ export default function SessionsClient() {
             <div
               className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
               style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.18)",
               }}
             >
               Active Sessions
@@ -216,7 +249,8 @@ export default function SessionsClient() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              راقب الأجهزة المتصلة بحسابك، وتحقق من آخر نشاط، وأنهِ أي جلسة غير معروفة لحماية الحساب.
+              راقب الأجهزة المتصلة بحسابك، وتحقق من آخر نشاط، وأنهِ أي جلسة غير
+              معروفة لحماية الحساب.
             </p>
           </div>
 
@@ -226,9 +260,9 @@ export default function SessionsClient() {
               onClick={load}
               className="btn"
               style={{
-                background: '#fff',
-                color: 'var(--sidebar)',
-                borderColor: 'rgba(255,255,255,0.32)',
+                background: "#fff",
+                color: "var(--sidebar)",
+                borderColor: "rgba(255,255,255,0.32)",
               }}
             >
               تحديث
@@ -237,17 +271,17 @@ export default function SessionsClient() {
             <button
               type="button"
               onClick={revokeOtherSessions}
-              disabled={actionLoading === 'others' || stats.others === 0}
+              disabled={actionLoading === "others" || stats.others === 0}
               className="btn"
               style={{
-                background: 'rgba(239,68,68,0.18)',
-                color: '#fff',
-                borderColor: 'rgba(239,68,68,0.32)',
+                background: "rgba(239,68,68,0.18)",
+                color: "#fff",
+                borderColor: "rgba(239,68,68,0.32)",
               }}
             >
-              {actionLoading === 'others'
-                ? 'جاري الإنهاء...'
-                : 'إنهاء الجلسات الأخرى'}
+              {actionLoading === "others"
+                ? "جاري الإنهاء..."
+                : "إنهاء الجلسات الأخرى"}
             </button>
           </div>
         </div>
@@ -257,39 +291,39 @@ export default function SessionsClient() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           {
-            label: 'إجمالي الجلسات',
+            label: "إجمالي الجلسات",
             value: stats.total,
-            hint: 'كل الأجهزة المتصلة',
-            bg: 'var(--card)',
-            color: 'var(--text)',
+            hint: "كل الأجهزة المتصلة",
+            bg: "var(--card)",
+            color: "var(--text)",
           },
           {
-            label: 'الجلسة الحالية',
+            label: "الجلسة الحالية",
             value: stats.current,
-            hint: 'هذا الجهاز',
-            bg: 'var(--green-soft)',
-            color: 'var(--sidebar)',
+            hint: "هذا الجهاز",
+            bg: "var(--green-soft)",
+            color: "var(--sidebar)",
           },
           {
-            label: 'أجهزة أخرى',
+            label: "أجهزة أخرى",
             value: stats.others,
-            hint: 'جلسات يمكن إنهاؤها',
-            bg: stats.others > 0 ? 'var(--amber-soft)' : 'var(--card)',
-            color: stats.others > 0 ? '#92400e' : 'var(--text)',
+            hint: "جلسات يمكن إنهاؤها",
+            bg: stats.others > 0 ? "var(--amber-soft)" : "var(--card)",
+            color: stats.others > 0 ? "#92400e" : "var(--text)",
           },
           {
-            label: 'مواقع مختلفة',
+            label: "مواقع مختلفة",
             value: stats.locations,
-            hint: 'حسب بيانات IP',
-            bg: 'var(--card)',
-            color: 'var(--text)',
+            hint: "حسب بيانات IP",
+            bg: "var(--card)",
+            color: "var(--text)",
           },
           {
-            label: 'IP غير معروف',
+            label: "IP غير معروف",
             value: stats.unknownIp,
-            hint: 'يحتاج مراجعة',
-            bg: stats.unknownIp > 0 ? 'var(--red-soft)' : 'var(--card)',
-            color: stats.unknownIp > 0 ? '#dc2626' : 'var(--text)',
+            hint: "يحتاج مراجعة",
+            bg: stats.unknownIp > 0 ? "var(--red-soft)" : "var(--card)",
+            color: stats.unknownIp > 0 ? "#dc2626" : "var(--text)",
           },
         ].map((item) => (
           <div
@@ -297,18 +331,24 @@ export default function SessionsClient() {
             className="card p-5"
             style={{
               background: item.bg,
-              borderColor: 'var(--border)',
+              borderColor: "var(--border)",
             }}
           >
             <p className="text-xs font-black" style={{ color: item.color }}>
               {item.label}
             </p>
 
-            <p className="mt-2 text-3xl font-black" style={{ color: item.color }}>
+            <p
+              className="mt-2 text-3xl font-black"
+              style={{ color: item.color }}
+            >
               {item.value}
             </p>
 
-            <p className="mt-1 text-xs font-bold" style={{ color: 'var(--text-3)' }}>
+            <p
+              className="mt-1 text-xs font-bold"
+              style={{ color: "var(--text-3)" }}
+            >
               {item.hint}
             </p>
           </div>
@@ -327,7 +367,7 @@ export default function SessionsClient() {
 
           <button
             type="button"
-            onClick={() => setSearch('')}
+            onClick={() => setSearch("")}
             className="btn btn-ghost whitespace-nowrap"
           >
             مسح البحث
@@ -340,12 +380,13 @@ export default function SessionsClient() {
         <div
           className="rounded-[24px] border p-4 text-sm font-bold leading-7"
           style={{
-            borderColor: '#fbbf24',
-            background: 'var(--amber-soft)',
-            color: '#92400e',
+            borderColor: "#fbbf24",
+            background: "var(--amber-soft)",
+            color: "#92400e",
           }}
         >
-          يوجد {stats.others} جلسة أخرى نشطة. إذا كنت لا تتعرف على أي جهاز، أنهِ الجلسة فورًا وغيّر كلمة المرور.
+          يوجد {stats.others} جلسة أخرى نشطة. إذا كنت لا تتعرف على أي جهاز، أنهِ
+          الجلسة فورًا وغيّر كلمة المرور.
         </div>
       )}
 
@@ -357,8 +398,8 @@ export default function SessionsClient() {
             title="لا توجد جلسات"
             sub={
               sessions.length === 0
-                ? 'لا توجد جلسات نشطة حاليًا.'
-                : 'لا توجد جلسات مطابقة للبحث الحالي.'
+                ? "لا توجد جلسات نشطة حاليًا."
+                : "لا توجد جلسات مطابقة للبحث الحالي."
             }
           />
         </div>
@@ -366,34 +407,40 @@ export default function SessionsClient() {
         <div className="card overflow-hidden p-0">
           <div
             className="flex flex-col gap-2 border-b px-5 py-4 md:flex-row md:items-center md:justify-between"
-            style={{ borderColor: 'var(--border)' }}
+            style={{ borderColor: "var(--border)" }}
           >
             <div>
-              <h2 className="font-black" style={{ color: 'var(--text)' }}>
+              <h2 className="font-black" style={{ color: "var(--text)" }}>
                 قائمة الجلسات
               </h2>
 
-              <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
                 {filteredSessions.length} جلسة ظاهرة من أصل {sessions.length}
               </p>
             </div>
 
-            <span className={stats.others > 0 ? 'badge badge-amber' : 'badge badge-green'}>
-              {stats.others > 0 ? 'يوجد أجهزة أخرى' : 'هذا الجهاز فقط'}
+            <span
+              className={
+                stats.others > 0 ? "badge badge-amber" : "badge badge-green"
+              }
+            >
+              {stats.others > 0 ? "يوجد أجهزة أخرى" : "هذا الجهاز فقط"}
             </span>
           </div>
 
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div className="divide-y" style={{ borderColor: "var(--border)" }}>
             {filteredSessions.map((session) => {
-              const risk = getSessionRisk(session)
-              const device = parseDevice(session.userAgent)
+              const risk = getSessionRisk(session);
+              const device = parseDevice(session.userAgent);
 
               return (
                 <div
                   key={session.id}
                   className="p-5 transition-all hover:bg-black/[0.02]"
                   style={{
-                    background: session.isCurrent ? 'var(--green-soft)' : 'transparent',
+                    background: session.isCurrent
+                      ? "var(--green-soft)"
+                      : "transparent",
                   }}
                 >
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -401,23 +448,26 @@ export default function SessionsClient() {
                       <div
                         className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl"
                         style={{
-                          background: session.isCurrent ? '#fff' : 'var(--input-bg)',
-                          color: 'var(--sidebar)',
+                          background: session.isCurrent
+                            ? "#fff"
+                            : "var(--input-bg)",
+                          color: "var(--sidebar)",
                         }}
                       >
-                        {session.isCurrent ? '🟢' : '🖥️'}
+                        {session.isCurrent ? "🟢" : "🖥️"}
                       </div>
 
                       <div className="min-w-0">
                         <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <span className="font-black" style={{ color: 'var(--text)' }}>
-                            {session.isCurrent ? 'الجلسة الحالية' : 'جهاز متصل'}
+                          <span
+                            className="font-black"
+                            style={{ color: "var(--text)" }}
+                          >
+                            {session.isCurrent ? "الجلسة الحالية" : "جهاز متصل"}
                           </span>
 
                           {session.isCurrent && (
-                            <span className="badge badge-green">
-                              Current
-                            </span>
+                            <span className="badge badge-green">Current</span>
                           )}
 
                           <span className={riskBadge(risk)}>
@@ -425,26 +475,33 @@ export default function SessionsClient() {
                           </span>
                         </div>
 
-                        <p className="break-words text-sm font-bold" style={{ color: 'var(--text-2)' }}>
-                          {device || 'جهاز غير معروف'}
+                        <p
+                          className="break-words text-sm font-bold"
+                          style={{ color: "var(--text-2)" }}
+                        >
+                          {device || "جهاز غير معروف"}
                         </p>
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
                           <span
                             className="rounded-full px-3 py-1"
                             style={{
-                              background: session.isCurrent ? '#fff' : 'var(--input-bg)',
-                              color: 'var(--text-3)',
+                              background: session.isCurrent
+                                ? "#fff"
+                                : "var(--input-bg)",
+                              color: "var(--text-3)",
                             }}
                           >
-                            IP: {session.ipAddress || 'Unknown'}
+                            IP: {session.ipAddress || "Unknown"}
                           </span>
 
                           <span
                             className="rounded-full px-3 py-1"
                             style={{
-                              background: session.isCurrent ? '#fff' : 'var(--input-bg)',
-                              color: 'var(--text-3)',
+                              background: session.isCurrent
+                                ? "#fff"
+                                : "var(--input-bg)",
+                              color: "var(--text-3)",
                             }}
                           >
                             🌍 {getLocation(session)}
@@ -455,15 +512,25 @@ export default function SessionsClient() {
 
                     <div className="min-w-[220px] space-y-3 text-sm xl:text-left">
                       <div>
-                        <span style={{ color: 'var(--text-3)' }}>آخر نشاط:</span>
-                        <div className="font-black" style={{ color: 'var(--text)' }}>
+                        <span style={{ color: "var(--text-3)" }}>
+                          آخر نشاط:
+                        </span>
+                        <div
+                          className="font-black"
+                          style={{ color: "var(--text)" }}
+                        >
                           {formatDate(session.lastActivityAt)}
                         </div>
                       </div>
 
                       <div>
-                        <span style={{ color: 'var(--text-3)' }}>تسجيل الدخول:</span>
-                        <div className="font-black" style={{ color: 'var(--text)' }}>
+                        <span style={{ color: "var(--text-3)" }}>
+                          تسجيل الدخول:
+                        </span>
+                        <div
+                          className="font-black"
+                          style={{ color: "var(--text)" }}
+                        >
                           {formatDate(session.createdAt)}
                         </div>
                       </div>
@@ -476,18 +543,18 @@ export default function SessionsClient() {
                           className="rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600 transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {actionLoading === session.id
-                            ? 'جاري الإنهاء...'
-                            : 'تسجيل الخروج من هذا الجهاز'}
+                            ? "جاري الإنهاء..."
+                            : "تسجيل الخروج من هذا الجهاز"}
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }

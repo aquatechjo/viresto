@@ -1,55 +1,56 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { requireRole, getRequestMeta } from '@/lib/api-auth'
-import { caseSchema } from '@/lib/validations'
-import { ok, err, notFound } from '@/lib/api-response'
-import { logActivity } from '@/lib/activity'
-import { apiHandler } from '@/lib/api-handler'
-import { decryptText } from '@/lib/encryption'
-
-type Params = { params: Promise<{ id: string }> }
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { caseSchema } from "@/lib/validations";
+import { ok, err, notFound } from "@/lib/api-response";
+import { logActivity } from "@/lib/activity";
+import { verifySameOrigin } from "@/lib/csrf";
+import { apiHandler } from "@/lib/api-handler";
+import { decryptText } from "@/lib/encryption";
+import { assertTenantCanWrite } from "@/lib/billing-limits";
+type Params = { params: Promise<{ id: string }> };
 
 function safeDecrypt(value?: string | null) {
-  if (!value) return null
+  if (!value) return null;
 
   try {
-    return decryptText(value)
+    return decryptText(value);
   } catch {
-    return value
+    return value;
   }
 }
 
-async function ensureTenantActive(tenantId: string, action: 'تعديل' | 'حذف') {
+async function ensureTenantActive(tenantId: string, action: "تعديل" | "حذف") {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
     select: {
       isSuspended: true,
       status: true,
     },
-  })
+  });
 
   if (!tenant) {
-    return err('المكتب غير موجود', 404)
+    return err("المكتب غير موجود", 404);
   }
 
-  if (tenant.isSuspended || tenant.status === 'SUSPENDED') {
-    return err(`لا يمكن ${action} القضايا لأن المكتب موقوف`, 403)
+  if (tenant.isSuspended || tenant.status === "SUSPENDED") {
+    return err(`لا يمكن ${action} القضايا لأن المكتب موقوف`, 403);
   }
 
-  if (tenant.status === 'EXPIRED') {
-    return err(`لا يمكن ${action} القضايا لأن الاشتراك منتهي`, 403)
+  if (tenant.status === "EXPIRED") {
+    return err(`لا يمكن ${action} القضايا لأن الاشتراك منتهي`, 403);
   }
 
-  return null
+  return null;
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const { id } = await params
-    const tenantId = auth.user.tenantId
+    const { id } = await params;
+    const tenantId = auth.user.tenantId;
 
     const c = await prisma.case.findFirst({
       where: {
@@ -80,11 +81,11 @@ export async function GET(req: NextRequest, { params }: Params) {
               },
             },
           },
-          orderBy: { paidAt: 'desc' },
+          orderBy: { paidAt: "desc" },
         },
         appointments: {
           where: { tenantId },
-          orderBy: { startTime: 'asc' },
+          orderBy: { startTime: "asc" },
         },
         documents: {
           where: { tenantId },
@@ -98,14 +99,14 @@ export async function GET(req: NextRequest, { params }: Params) {
             tags: true,
             createdAt: true,
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
         },
         tasks: {
           where: { tenantId },
           orderBy: [
-            { completed: 'asc' },
-            { dueDate: 'asc' },
-            { createdAt: 'desc' },
+            { completed: "asc" },
+            { dueDate: "asc" },
+            { createdAt: "desc" },
           ],
         },
         invoices: {
@@ -128,48 +129,48 @@ export async function GET(req: NextRequest, { params }: Params) {
               },
             },
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
         },
       },
-    })
+    });
 
     if (!c) {
-      return notFound('القضية غير موجودة')
+      return notFound("القضية غير موجودة");
     }
 
-    const paymentIds = c.payments.map((p) => p.id)
-    const appointmentIds = c.appointments.map((a) => a.id)
-    const documentIds = c.documents.map((d) => d.id)
-    const taskIds = c.tasks.map((t) => t.id)
-    const invoiceIds = c.invoices.map((i) => i.id)
+    const paymentIds = c.payments.map((p) => p.id);
+    const appointmentIds = c.appointments.map((a) => a.id);
+    const documentIds = c.documents.map((d) => d.id);
+    const taskIds = c.tasks.map((t) => t.id);
+    const invoiceIds = c.invoices.map((i) => i.id);
 
     const activityFilters = [
-      { entityType: 'CASE', entityId: c.id },
+      { entityType: "CASE", entityId: c.id },
       ...(paymentIds.length
-        ? [{ entityType: 'PAYMENT', entityId: { in: paymentIds } }]
+        ? [{ entityType: "PAYMENT", entityId: { in: paymentIds } }]
         : []),
       ...(appointmentIds.length
-        ? [{ entityType: 'APPOINTMENT', entityId: { in: appointmentIds } }]
+        ? [{ entityType: "APPOINTMENT", entityId: { in: appointmentIds } }]
         : []),
       ...(documentIds.length
-        ? [{ entityType: 'DOCUMENT', entityId: { in: documentIds } }]
+        ? [{ entityType: "DOCUMENT", entityId: { in: documentIds } }]
         : []),
       ...(taskIds.length
-        ? [{ entityType: 'TASK', entityId: { in: taskIds } }]
+        ? [{ entityType: "TASK", entityId: { in: taskIds } }]
         : []),
       ...(invoiceIds.length
-        ? [{ entityType: 'INVOICE', entityId: { in: invoiceIds } }]
+        ? [{ entityType: "INVOICE", entityId: { in: invoiceIds } }]
         : []),
-    ]
+    ];
 
     const activities = await prisma.activity.findMany({
       where: {
         tenantId,
         OR: activityFilters,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: 50,
-    })
+    });
 
     return ok({
       ...c,
@@ -181,20 +182,30 @@ export async function GET(req: NextRequest, { params }: Params) {
         address: safeDecrypt(c.client.address),
       },
       activities,
-    })
-  })
+    });
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
-    if (auth.error || !auth.user) return auth.error
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
 
-    const meta = getRequestMeta(req)
-    const tenantError = await ensureTenantActive(auth.user.tenantId, 'تعديل')
-    if (tenantError) return tenantError
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    if (auth.error || !auth.user) return auth.error;
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "تعديل البيانات",
+    );
 
-    const { id } = await params
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+    const meta = getRequestMeta(req);
+    const tenantError = await ensureTenantActive(auth.user.tenantId, "تعديل");
+    if (tenantError) return tenantError;
+
+    const { id } = await params;
 
     const exists = await prisma.case.findFirst({
       where: {
@@ -214,25 +225,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     if (!exists) {
-      return notFound('القضية غير موجودة')
+      return notFound("القضية غير موجودة");
     }
 
     if (exists.client?.archivedAt) {
-      return err('لا يمكن تعديل قضية مرتبطة بموكل مؤرشف', 400)
+      return err("لا يمكن تعديل قضية مرتبطة بموكل مؤرشف", 400);
     }
 
-    const body = await req.json().catch(() => ({}))
-    const parsed = caseSchema.partial().safeParse(body)
+    const body = await req.json().catch(() => ({}));
+    const parsed = caseSchema.partial().safeParse(body);
 
     if (!parsed.success) {
-      return err('بيانات غير صالحة', 400, parsed.error.flatten())
+      return err("بيانات غير صالحة", 400, parsed.error.flatten());
     }
 
     if (Object.keys(parsed.data).length === 0) {
-      return err('لا توجد بيانات للتعديل', 400)
+      return err("لا توجد بيانات للتعديل", 400);
     }
 
     if (parsed.data.clientId) {
@@ -246,14 +257,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           name: true,
           archivedAt: true,
         },
-      })
+      });
 
       if (!clientExists) {
-        return err('لا يمكن ربط القضية بموكل لا يتبع هذا المكتب', 403)
+        return err("لا يمكن ربط القضية بموكل لا يتبع هذا المكتب", 403);
       }
 
       if (clientExists.archivedAt) {
-        return err('لا يمكن ربط القضية بموكل مؤرشف', 400)
+        return err("لا يمكن ربط القضية بموكل مؤرشف", 400);
       }
     }
 
@@ -265,10 +276,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           NOT: { id },
         },
         select: { id: true },
-      })
+      });
 
       if (duplicate) {
-        return err('رقم القضية مستخدم مسبقًا', 409)
+        return err("رقم القضية مستخدم مسبقًا", 409);
       }
     }
 
@@ -284,39 +295,49 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     const statusChanged =
-      parsed.data.status !== undefined && parsed.data.status !== exists.status
+      parsed.data.status !== undefined && parsed.data.status !== exists.status;
 
     await logActivity({
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
-      type: statusChanged ? 'CASE_STATUS_CHANGED' : 'CASE_UPDATED',
-      title: statusChanged ? 'تم تغيير حالة القضية' : 'تم تعديل قضية',
+      type: statusChanged ? "CASE_STATUS_CHANGED" : "CASE_UPDATED",
+      title: statusChanged ? "تم تغيير حالة القضية" : "تم تعديل قضية",
       message: statusChanged
         ? `${exists.status} → ${updated.status}`
         : updated.title,
-      entityType: 'CASE',
+      entityType: "CASE",
       entityId: updated.id,
-    })
+    });
 
-    return ok(updated)
-  })
+    return ok(updated);
+  });
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN'])
-    if (auth.error || !auth.user) return auth.error
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
 
-    const meta = getRequestMeta(req)
-    const tenantError = await ensureTenantActive(auth.user.tenantId, 'حذف')
-    if (tenantError) return tenantError
+    const auth = await requireRole(req, ["ADMIN"]);
+    if (auth.error || !auth.user) return auth.error;
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "حذف البيانات",
+    );
 
-    const { id } = await params
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
+    const meta = getRequestMeta(req);
+    const tenantError = await ensureTenantActive(auth.user.tenantId, "حذف");
+    if (tenantError) return tenantError;
+
+    const { id } = await params;
 
     const exists = await prisma.case.findFirst({
       where: {
@@ -334,14 +355,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           },
         },
       },
-    })
+    });
 
     if (!exists) {
-      return notFound('القضية غير موجودة')
+      return notFound("القضية غير موجودة");
     }
 
     if (exists.client?.archivedAt) {
-      return err('لا يمكن حذف قضية مرتبطة بموكل مؤرشف', 400)
+      return err("لا يمكن حذف قضية مرتبطة بموكل مؤرشف", 400);
     }
 
     const [
@@ -381,14 +402,18 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           caseId: exists.id,
         },
       }),
-    ])
+    ]);
 
     const relatedTotal =
-      paymentsCount + appointmentsCount + documentsCount + tasksCount + invoicesCount
+      paymentsCount +
+      appointmentsCount +
+      documentsCount +
+      tasksCount +
+      invoicesCount;
 
     if (relatedTotal > 0) {
       return err(
-        'لا يمكن حذف القضية لأنها تحتوي على عناصر مرتبطة. احذف أو انقل المواعيد والمهام والمستندات والدفعات والفواتير أولًا.',
+        "لا يمكن حذف القضية لأنها تحتوي على عناصر مرتبطة. احذف أو انقل المواعيد والمهام والمستندات والدفعات والفواتير أولًا.",
         409,
         {
           payments: paymentsCount,
@@ -396,26 +421,26 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           documents: documentsCount,
           tasks: tasksCount,
           invoices: invoicesCount,
-        }
-      )
+        },
+      );
     }
 
     await prisma.case.delete({
       where: { id: exists.id },
-    })
+    });
 
     await logActivity({
       actorId: auth.user.userId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
-      type: 'CASE_DELETED',
-      title: 'تم حذف قضية',
+      type: "CASE_DELETED",
+      title: "تم حذف قضية",
       message: exists.title,
-      entityType: 'CASE',
+      entityType: "CASE",
       entityId: exists.id,
-    })
+    });
 
-    return ok({ deleted: true })
-  })
+    return ok({ deleted: true });
+  });
 }

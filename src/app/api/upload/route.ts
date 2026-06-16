@@ -3,10 +3,12 @@ import { ok, err } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
+import { verifySameOrigin } from "@/lib/csrf";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import {
   assertTenantCanCreate,
   assertTenantCanUseStorage,
+  assertTenantCanWrite,
 } from "@/lib/billing-limits";
 
 const allowedTypes = [
@@ -20,8 +22,20 @@ const allowedTypes = [
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
     if (auth.error || !auth.user) return auth.error;
+
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "رفع مستند",
+    );
+
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
 
     const meta = getRequestMeta(req);
 

@@ -4,7 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
-import { assertTenantCanCreate } from "@/lib/billing-limits";
+import {
+  assertTenantCanCreate,
+  assertTenantCanWrite,
+} from "@/lib/billing-limits";
+import { verifySameOrigin } from "@/lib/csrf";
 
 const allowedRoles = ["ADMIN", "LAWYER", "STAFF"] as const;
 
@@ -40,8 +44,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
     const auth = await requireRole(req, ["ADMIN"]);
     if (auth.error || !auth.user) return auth.error;
+
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "إضافة مستخدم",
+    );
+
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status);
+    }
 
     const body = await req.json().catch(() => ({}));
 

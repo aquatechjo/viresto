@@ -3,7 +3,14 @@ import { ManualBillingProvider } from './providers/manual'
 import { TapBillingProvider } from './providers/tap'
 
 export function getPaymentProvider(): PaymentProvider {
-  const provider = process.env.PAYMENT_PROVIDER || 'MANUAL'
+  const provider = process.env.PAYMENT_PROVIDER || 'DISABLED'
+
+  if (
+    process.env.NODE_ENV === 'production' &&
+    provider.toUpperCase() === 'MANUAL'
+  ) {
+    throw new Error('Manual payment provider is not allowed in production')
+  }
 
   switch (provider.toUpperCase()) {
     case 'TAP':
@@ -13,6 +20,6 @@ export function getPaymentProvider(): PaymentProvider {
       return new ManualBillingProvider()
 
     default:
-      return new ManualBillingProvider()
+      throw new Error('Payment provider is disabled')
   }
 }

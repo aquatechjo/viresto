@@ -1,9 +1,11 @@
 'use client'
 import AppLoader from "@/components/ui/AppLoader"
+import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import PageLoader from '@/components/ui/PageLoader'
 import { useLocale } from '@/lib/useLocale'
+import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 
 const REPORT_COPY = {
@@ -25,6 +27,7 @@ const REPORT_COPY = {
       paymentsCsv: 'دفعات CSV',
       invoicesCsv: 'فواتير CSV',
       retry: 'إعادة المحاولة',
+      exportLocked: 'التصدير متاح بعد تجديد الاشتراك.',
     },
     error: {
       title: 'التقارير',
@@ -98,6 +101,7 @@ const REPORT_COPY = {
       paymentsCsv: 'Payments CSV',
       invoicesCsv: 'Invoices CSV',
       retry: 'Retry',
+      exportLocked: 'Export is available after renewing the subscription.',
     },
     error: {
       title: 'Reports',
@@ -327,6 +331,9 @@ export default function ReportsPage() {
   const fieldStyle = { textAlign: isRtl ? 'right' : 'left', direction: isRtl ? 'rtl' : 'ltr' } as CSSProperties
   const controlClass = 'input min-h-[48px] w-full text-start'
   const actionButtonClass = 'btn btn-ghost min-h-[48px] w-full justify-center whitespace-nowrap'
+  const { canWrite, message: accessMessage } = useTenantWriteAccess(locale)
+  const exportDisabled = !canWrite
+  const exportDisabledTitle = accessMessage || copy.actions.exportLocked
 
   const [reportType, setReportType] = useState<ReportType>('yearly')
   const [year, setYear] = useState(new Date().getFullYear())
@@ -510,7 +517,7 @@ export default function ReportsPage() {
     : []
 
   async function exportFullExcel() {
-    if (!data) return
+    if (!data || exportDisabled) return
 
     const { exportSheetsExcel } = await import('@/lib/export')
 
@@ -550,7 +557,7 @@ export default function ReportsPage() {
   }
 
   async function exportFullPdf() {
-    if (!data) return
+    if (!data || exportDisabled) return
 
     const { exportReportPDF } = await import('@/lib/export')
 
@@ -638,7 +645,7 @@ export default function ReportsPage() {
   }
 
   function exportPayments() {
-    if (!data) return
+    if (!data || exportDisabled) return
 
     const rows = [
       ['القضية', 'الموكل', 'المبلغ', 'الحالة', 'طريقة الدفع', 'التاريخ'],
@@ -656,7 +663,7 @@ export default function ReportsPage() {
   }
 
   function exportInvoices() {
-    if (!data) return
+    if (!data || exportDisabled) return
 
     const rows = [
       [
@@ -743,6 +750,12 @@ if (loading) {
       `}</style>
 
       <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger text-start">
+        <SubscriptionReadOnlyBanner
+          visible={exportDisabled}
+          message={accessMessage}
+          isRtl={isRtl}
+        />
+
         {/* Hero */}
         <div
           className="relative overflow-hidden rounded-[28px] border p-6 print:hidden"
@@ -787,8 +800,12 @@ if (loading) {
 
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => window.print()}
-                className="btn"
+                onClick={() => {
+                  if (!exportDisabled) window.print()
+                }}
+                disabled={exportDisabled}
+                title={exportDisabled ? exportDisabledTitle : copy.actions.print}
+                className="btn disabled:cursor-not-allowed disabled:opacity-60"
                 style={{
                   background: '#fff',
                   color: 'var(--sidebar)',
@@ -800,7 +817,9 @@ if (loading) {
 
               <button
                 onClick={exportFullPdf}
-                className="btn"
+                disabled={exportDisabled}
+                title={exportDisabled ? exportDisabledTitle : copy.actions.fullPdf}
+                className="btn disabled:cursor-not-allowed disabled:opacity-60"
                 style={{
                   background: 'rgba(255,255,255,0.14)',
                   color: '#fff',
@@ -812,7 +831,9 @@ if (loading) {
 
               <button
                 onClick={exportFullExcel}
-                className="btn"
+                disabled={exportDisabled}
+                title={exportDisabled ? exportDisabledTitle : copy.actions.fullExcel}
+                className="btn disabled:cursor-not-allowed disabled:opacity-60"
                 style={{
                   background: 'rgba(245,200,66,0.18)',
                   color: '#fff',
@@ -967,14 +988,18 @@ if (loading) {
 
             <button
               onClick={exportPayments}
-              className={actionButtonClass}
+              disabled={exportDisabled}
+              title={exportDisabled ? exportDisabledTitle : copy.actions.paymentsCsv}
+              className={`${actionButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
             >
               {copy.actions.paymentsCsv}
             </button>
 
             <button
               onClick={exportInvoices}
-              className={actionButtonClass}
+              disabled={exportDisabled}
+              title={exportDisabled ? exportDisabledTitle : copy.actions.invoicesCsv}
+              className={`${actionButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
             >
               {copy.actions.invoicesCsv}
             </button>
