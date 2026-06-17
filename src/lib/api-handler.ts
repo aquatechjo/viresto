@@ -1,24 +1,24 @@
-import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
+import { err } from '@/lib/api-response'
 
-export async function apiHandler<T>(
-  fn: () => Promise<Response>
-): Promise<Response> {
+export async function apiHandler(handler: () => Promise<Response>) {
   try {
-    return await fn()
-  } catch (error: any) {
+    return await handler()
+  } catch (error) {
     console.error('[API_ERROR]', error)
 
-    const message =
-      process.env.NODE_ENV === 'production'
-        ? 'حدث خطأ غير متوقع'
-        : error?.message || 'حدث خطأ غير متوقع'
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      return err('تعذر الاتصال بقاعدة البيانات. حاول مرة أخرى بعد قليل.', 503)
+    }
 
-    return NextResponse.json(
-      {
-        success: false,
-        message,
-      },
-      { status: 500 }
-    )
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return err('تعذر تنفيذ العملية على قاعدة البيانات.', 500)
+    }
+
+    if (error instanceof Prisma.PrismaClientValidationError) {
+      return err('طلب غير صالح لقاعدة البيانات.', 400)
+    }
+
+    return err('حدث خطأ غير متوقع. حاول مرة أخرى.', 500)
   }
 }
