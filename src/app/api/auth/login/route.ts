@@ -63,7 +63,6 @@ export async function POST(req: NextRequest) {
           select: {
             isSuspended: true,
             status: true,
-            trialEndsAt: true,
           },
         },
       },
@@ -98,19 +97,8 @@ export async function POST(req: NextRequest) {
       return err("تم إيقاف هذا المكتب مؤقتًا. تواصل مع الدعم.", 403);
     }
 
-    if (
-      user.tenant.status === "SUSPENDED" ||
-      user.tenant.status === "EXPIRED"
-    ) {
-      return err("اشتراك المكتب غير فعال. يرجى تجديد الاشتراك.", 403);
-    }
-
-    if (
-      user.tenant.trialEndsAt &&
-      user.tenant.trialEndsAt < new Date() &&
-      user.tenant.status === "TRIAL"
-    ) {
-      return err("انتهت الفترة التجريبية. يرجى ترقية الاشتراك.", 403);
+    if (user.tenant.status === "SUSPENDED") {
+      return err("تم إيقاف هذا المكتب مؤقتًا. تواصل مع الدعم.", 403);
     }
 
     if (!user.emailVerifiedAt) {

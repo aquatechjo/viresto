@@ -21,8 +21,7 @@ export async function GET(req: NextRequest) {
     if (auth.error || !auth.user) return auth.error;
 
     const { searchParams } = new URL(req.url);
-    const sp = new URL(req.url).searchParams;
-    const q = sp.get("q")?.trim();
+    const q = searchParams.get("q")?.trim();
 
     const normalizedEmail = q ? normalizeEmail(q) : null;
     const normalizedPhone = q ? normalizePhone(q) : null;
@@ -31,8 +30,8 @@ export async function GET(req: NextRequest) {
     const phoneHash = normalizedPhone ? hashSearchValue(normalizedPhone) : null;
     const nationalIdHash = q ? hashSearchValue(q.trim()) : null;
 
-    const pageRaw = Number(sp.get("page") || 1);
-    const limitRaw = Number(sp.get("limit") || 10);
+    const pageRaw = Number(searchParams.get("page") || 1);
+    const limitRaw = Number(searchParams.get("limit") || 10);
 
     const page = Number.isNaN(pageRaw) ? 1 : Math.max(pageRaw, 1);
     const limit = Number.isNaN(limitRaw)
@@ -41,8 +40,11 @@ export async function GET(req: NextRequest) {
 
     const skip = (page - 1) * limit;
 
-    const archive = searchParams.get("archive") || "active";
-
+    const archiveParam = searchParams.get("archive");
+    const archive =
+      archiveParam === "archived" || archiveParam === "all"
+        ? archiveParam
+        : "active";
     const where = {
       tenantId: auth.user.tenantId,
 
@@ -118,15 +120,12 @@ export async function POST(req: NextRequest) {
     );
 
     if (!limitCheck.ok) {
-      return err(limitCheck.message, limitCheck.billing.canCreate ? 400 : 402, {
-        code: limitCheck.billing.canCreate
-          ? "PLAN_LIMIT_REACHED"
-          : "SUBSCRIPTION_INACTIVE",
+      const isPlanLimit = limitCheck.billing?.canCreate === true;
+
+      return err(limitCheck.message, isPlanLimit ? 400 : 402, {
+        code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
         resource: "clients",
-        used: limitCheck.used,
-        limit: limitCheck.limit,
-        plan: limitCheck.billing.plan,
-        subscriptionStatus: limitCheck.billing.subscriptionStatus,
+        billing: limitCheck.billing ?? null,
       });
     }
 
@@ -160,6 +159,45 @@ export async function POST(req: NextRequest) {
         ? hashSearchValue(normalizedNationalId)
         : null,
     };
+
+    
+
+const duplicateConditions = [
+  ...(secureData.phoneHash ? [{ phoneHash: secureData.phoneHash }] : []),
+  ...(secureData.nationalIdHash
+    ? [{ nationalIdHash: secureData.nationalIdHash }]
+    : []),
+  ...(secureData.emailHash ? [{ emailHash: secureData.emailHash }] : []),
+];
+
+const duplicateClient =
+  duplicateConditions.length > 0
+    ? await prisma.client.findFirst({
+        where: {
+          tenantId: auth.user.tenantId,
+          OR: duplicateConditions,
+        },
+        select: {
+          id: true,
+          name: true,
+          archivedAt: true,
+        },
+      })
+    : null;
+
+    if (duplicateClient) {
+      return err(
+        duplicateClient.archivedAt
+          ? "يوجد موكل مؤرشف بنفس البيانات. يمكنك استعادته بدل إنشاء موكل جديد."
+          : "يوجد موكل بنفس البيانات داخل المكتب.",
+        409,
+        {
+          code: "CLIENT_DUPLICATE",
+          clientId: duplicateClient.id,
+          archived: !!duplicateClient.archivedAt,
+        },
+      );
+    }
 
     const client = await prisma.client.create({
       data: {

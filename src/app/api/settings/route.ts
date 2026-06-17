@@ -56,20 +56,45 @@ export async function PATCH(req: NextRequest) {
 
     const name = typeof body.name === "string" ? body.name.trim() : undefined;
     const email =
-      typeof body.email === "string" ? body.email.trim() : undefined;
+      typeof body.email === "string"
+        ? body.email.trim().toLowerCase()
+        : undefined;
     const phone =
       typeof body.phone === "string" ? body.phone.trim() : undefined;
     const address =
       typeof body.address === "string" ? body.address.trim() : undefined;
-    const logoUrl =
-      typeof body.logoUrl === "string" ? body.logoUrl.trim() : undefined;
 
     if (name !== undefined && name.length < 2) {
       return err("اسم الشركة قصير جدًا", 400);
     }
 
-    if (email && !email.includes("@")) {
+    if (name !== undefined && name.length > 120) {
+      return err("اسم الشركة طويل جدًا", 400);
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return err("البريد الإلكتروني غير صالح", 400);
+    }
+
+    if (email !== undefined && email.length > 160) {
+      return err("البريد الإلكتروني طويل جدًا", 400);
+    }
+
+    if (phone !== undefined && phone.length > 30) {
+      return err("رقم الهاتف طويل جدًا", 400);
+    }
+
+    if (address !== undefined && address.length > 300) {
+      return err("العنوان طويل جدًا", 400);
+    }
+
+    if (
+      name === undefined &&
+      email === undefined &&
+      phone === undefined &&
+      address === undefined
+    ) {
+      return err("لا توجد بيانات للتعديل", 400);
     }
 
     const tenant = await prisma.tenant.update({
@@ -79,7 +104,6 @@ export async function PATCH(req: NextRequest) {
         ...(email !== undefined ? { email: email || null } : {}),
         ...(phone !== undefined ? { phone: phone || null } : {}),
         ...(address !== undefined ? { address: address || null } : {}),
-        ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}),
       },
       select: tenantSelect,
     });

@@ -125,8 +125,18 @@ export default function SessionsClient() {
         return;
       }
 
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.success === false) {
+        toast.error(data.message || "تعذر إنهاء الجلسات الأخرى");
+        return;
+      }
+
       await load();
       toast.success("تم إنهاء الجلسات الأخرى");
+    } catch (error) {
+      console.error("Revoke other sessions failed:", error);
+      toast.error("حدث خطأ أثناء إنهاء الجلسات الأخرى");
     } finally {
       setActionLoading(null);
     }
@@ -152,8 +162,18 @@ export default function SessionsClient() {
         return;
       }
 
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.success === false) {
+        toast.error(data.message || "تعذر إنهاء الجلسة");
+        return;
+      }
+
       await load();
-      toast.success('تم إنهاء الجلسة')
+      toast.success("تم إنهاء الجلسة");
+    } catch (error) {
+      console.error("Revoke session failed:", error);
+      toast.error("حدث خطأ أثناء إنهاء الجلسة");
     } finally {
       setActionLoading(null);
     }

@@ -1,25 +1,36 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
-import { ok, err } from "@/lib/api-response";
+import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { logActivity } from "@/lib/activity";
-import { invoiceUpdateSchema } from "@/lib/validations";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { invoiceCreateSchema } from "@/lib/validations";
 import { verifySameOrigin } from "@/lib/csrf";
+import { decryptText } from "@/lib/encryption";
 
 type Params = { params: Promise<{ id: string }> };
 
-type InvoiceStatus = "DRAFT" | "UNPAID" | "PAID" | "OVERDUE" | "CANCELLED";
+const allowedStatuses = [
+  "DRAFT",
+  "UNPAID",
+  "PAID",
+  "OVERDUE",
+  "CANCELLED",
+] as const;
+
+type InvoiceStatusValue = (typeof allowedStatuses)[number];
+
+type CalculatedItem = {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+};
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
-function hasFinancialChanges(data: Record<string, unknown>) {
-  return ["clientId", "caseId", "tax", "discount", "items"].some(
-    (key) => key in data,
-  );
 }
 
 function calculateTotals(
@@ -31,7 +42,7 @@ function calculateTotals(
   taxInput = 0,
   discountInput = 0,
 ) {
-  const items = itemsInput.map((item) => {
+  const items: CalculatedItem[] = itemsInput.map((item) => {
     const quantity = roundMoney(Number(item.quantity));
     const unitPrice = roundMoney(Number(item.unitPrice));
 
@@ -69,6 +80,36 @@ function calculateTotals(
   };
 }
 
+function decryptInvoiceClient<T extends { client?: any }>(invoice: T | null) {
+  if (!invoice?.client) return invoice;
+
+  return {
+    ...invoice,
+    client: {
+      ...invoice.client,
+      email: decryptText(invoice.client.email),
+      phone: decryptText(invoice.client.phone),
+      nationalId: decryptText(invoice.client.nationalId),
+      address: decryptText(invoice.client.address),
+      notes: decryptText(invoice.client.notes),
+    },
+  };
+}
+
+function normalizeInvoiceItems(
+  items: Array<{
+    description: string;
+    quantity: number | string | Prisma.Decimal;
+    unitPrice: number | string | Prisma.Decimal;
+  }>,
+) {
+  return items.map((item) => ({
+    description: item.description,
+    quantity: Number(item.quantity),
+    unitPrice: Number(item.unitPrice),
+  }));
+}
+
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
@@ -82,26 +123,31 @@ export async function GET(req: NextRequest, { params }: Params) {
         tenantId: auth.user.tenantId,
       },
       include: {
-        tenant: {
+        client: true,
+        case: {
           select: {
             id: true,
-            name: true,
-            email: true,
-            phone: true,
-            address: true,
-            logoUrl: true,
+            title: true,
+            caseNumber: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
           },
         },
-        client: true,
-        case: true,
         items: true,
         payment: true,
       },
     });
 
-    if (!invoice) return err("الفاتورة غير موجودة", 404);
+    if (!invoice) {
+      return notFound("الفاتورة غير موجودة");
+    }
 
-    return ok(invoice);
+    return ok(decryptInvoiceClient(invoice));
   });
 }
 
@@ -124,16 +170,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const meta = getRequestMeta(req);
     const { id } = await params;
-    const body = await req.json().catch(() => ({}));
-    const parsed = invoiceUpdateSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return err("بيانات الفاتورة غير صالحة", 400, parsed.error.flatten());
-    }
-
-    if (Object.keys(parsed.data).length === 0) {
-      return err("لا توجد بيانات للتعديل", 400);
-    }
 
     const invoice = await prisma.invoice.findFirst({
       where: {
@@ -141,136 +177,267 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         tenantId: auth.user.tenantId,
       },
       include: {
+        client: true,
+        case: {
+          select: {
+            id: true,
+            title: true,
+            caseNumber: true,
+            clientId: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
         items: true,
         payment: true,
       },
     });
 
-    if (!invoice) return err("الفاتورة غير موجودة", 404);
+    if (!invoice) {
+      return notFound("الفاتورة غير موجودة");
+    }
 
-    const financialChanges = hasFinancialChanges(parsed.data);
+    const body = await req.json().catch(() => ({}));
+    const statusRaw =
+      typeof body.status === "string" ? body.status.trim().toUpperCase() : undefined;
 
-    if (financialChanges && invoice.status === "PAID") {
+    if (statusRaw !== undefined && !allowedStatuses.includes(statusRaw as any)) {
+      return err("حالة الفاتورة غير صالحة", 400);
+    }
+
+    const parsed = invoiceCreateSchema.partial().safeParse(body);
+
+    if (!parsed.success) {
+      return err("بيانات الفاتورة غير صالحة", 400, parsed.error.flatten());
+    }
+
+    const hasStatusUpdate = statusRaw !== undefined;
+
+    if (Object.keys(parsed.data).length === 0 && !hasStatusUpdate) {
+      return err("لا توجد بيانات للتعديل", 400);
+    }
+
+    const data = parsed.data;
+
+    const paidLocked =
+      invoice.status === "PAID" || invoice.payment?.status === "PAID";
+
+    const hasFinancialChanges =
+      data.items !== undefined ||
+      data.tax !== undefined ||
+      data.discount !== undefined ||
+      data.clientId !== undefined ||
+      data.caseId !== undefined;
+
+    if (paidLocked && hasFinancialChanges) {
       return err(
-        "لا يمكن تعديل بيانات مالية لفاتورة مدفوعة. غيّر الحالة أولًا ثم عدّلها.",
+        "لا يمكن تعديل البيانات المالية لفاتورة مدفوعة أو مرتبطة بدفعة مدفوعة",
         409,
       );
     }
 
-    if (financialChanges && invoice.payment?.status === "PAID") {
-      return err("لا يمكن تعديل فاتورة مرتبطة بدفعة مدفوعة", 409);
+    if (
+      invoice.payment?.status === "PAID" &&
+      statusRaw !== undefined &&
+      statusRaw !== "PAID"
+    ) {
+      return err("لا يمكن تغيير حالة فاتورة مرتبطة بدفعة مدفوعة", 409);
     }
 
-    const nextClientId = parsed.data.clientId ?? invoice.clientId;
-    const nextCaseId =
-      parsed.data.caseId !== undefined
-        ? parsed.data.caseId || null
-        : invoice.caseId;
-    const nextStatus = (parsed.data.status ?? invoice.status) as InvoiceStatus;
+    let dueDateUpdate: Date | null | undefined;
 
-    const client = await prisma.client.findFirst({
-      where: {
-        id: nextClientId,
-        tenantId: auth.user.tenantId,
-      },
-      select: { id: true, name: true },
-    });
+    if (data.dueDate !== undefined) {
+      if (data.dueDate) {
+        const date = new Date(data.dueDate);
 
-    if (!client) return err("الموكل غير موجود داخل هذا المكتب", 404);
+        if (Number.isNaN(date.getTime())) {
+          return err("تاريخ استحقاق الفاتورة غير صالح", 400);
+        }
+
+        dueDateUpdate = date;
+      } else {
+        dueDateUpdate = null;
+      }
+    }
+
+    const notesUpdate =
+      data.notes !== undefined ? data.notes?.trim() || null : undefined;
+
+    let nextClientId = data.clientId ?? invoice.clientId;
+    let nextCaseId =
+      data.caseId !== undefined ? data.caseId || null : invoice.caseId;
+
+    if (data.clientId) {
+      const client = await prisma.client.findFirst({
+        where: {
+          id: data.clientId,
+          tenantId: auth.user.tenantId,
+        },
+        select: {
+          id: true,
+          name: true,
+          archivedAt: true,
+        },
+      });
+
+      if (!client) {
+        return err("الموكل غير موجود داخل هذا المكتب", 404);
+      }
+    }
 
     if (nextCaseId) {
       const selectedCase = await prisma.case.findFirst({
         where: {
           id: nextCaseId,
           tenantId: auth.user.tenantId,
-          clientId: nextClientId,
+          ...(data.clientId ? { clientId: nextClientId } : {}),
         },
-        select: { id: true },
+        select: {
+          id: true,
+          clientId: true,
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+        },
       });
 
-      if (!selectedCase) return err("القضية غير موجودة لهذا الموكل", 404);
-    }
+      if (!selectedCase) {
+        return err("القضية غير موجودة لهذا الموكل أو لا تتبع هذا المكتب", 404);
+      }
 
-    if (nextStatus === "PAID" && !nextCaseId) {
-      return err(
-        "لا يمكن تعليم الفاتورة كمدفوعة قبل ربطها بقضية، لأن الدفعات مرتبطة بالقضايا",
-        400,
-      );
+      if (data.clientId && selectedCase.clientId !== data.clientId) {
+        return err("القضية لا تتبع الموكل المحدد", 400);
+      }
+
+      if (!data.clientId) {
+        nextClientId = selectedCase.clientId;
+      }
     }
 
     const itemsForTotals =
-      parsed.data.items ??
-      invoice.items.map((item) => ({
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-      }));
+      data.items !== undefined
+        ? data.items
+        : normalizeInvoiceItems(invoice.items);
 
-    const taxForTotals = parsed.data.tax ?? invoice.tax;
-    const discountForTotals = parsed.data.discount ?? invoice.discount;
-    const totals = calculateTotals(
-      itemsForTotals,
-      taxForTotals,
-      discountForTotals,
-    );
+    const shouldRecalculateTotals =
+      data.items !== undefined ||
+      data.tax !== undefined ||
+      data.discount !== undefined;
 
-    if (totals.error) {
+    const totals = shouldRecalculateTotals
+      ? calculateTotals(
+          itemsForTotals,
+          data.tax !== undefined ? data.tax : Number(invoice.tax),
+          data.discount !== undefined ? data.discount : Number(invoice.discount),
+        )
+      : null;
+
+    if (totals?.error) {
       return err(totals.error, 400);
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      if (parsed.data.items) {
-        await tx.invoiceItem.deleteMany({
-          where: { invoiceId: invoice.id },
-        });
-      }
+    const nextStatus = (statusRaw || invoice.status) as InvoiceStatusValue;
 
-      const updatedInvoice = await tx.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          ...(parsed.data.clientId !== undefined
-            ? { clientId: nextClientId }
-            : {}),
-          ...(parsed.data.caseId !== undefined ? { caseId: nextCaseId } : {}),
-          ...(parsed.data.status !== undefined ? { status: nextStatus } : {}),
-          ...(parsed.data.dueDate !== undefined
+    if (nextStatus === "PAID" && !nextCaseId) {
+      return err("لا يمكن تحويل الفاتورة إلى مدفوعة بدون ربطها بقضية", 400);
+    }
+
+    const shouldUpdateClientRelation =
+      data.clientId !== undefined || data.caseId !== undefined;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updateData: Prisma.InvoiceUpdateInput = {
+        ...(statusRaw !== undefined ? { status: nextStatus as any } : {}),
+        ...(shouldUpdateClientRelation
+          ? {
+              client: {
+                connect: {
+                  id: nextClientId,
+                },
+              },
+            }
+          : {}),
+        ...(data.caseId !== undefined
+          ? nextCaseId
             ? {
-                dueDate: parsed.data.dueDate
-                  ? new Date(parsed.data.dueDate)
-                  : null,
-              }
-            : {}),
-          ...(parsed.data.notes !== undefined
-            ? { notes: parsed.data.notes?.trim() || null }
-            : {}),
-          ...(financialChanges
-            ? {
-                subtotal: totals.subtotal,
-                tax: totals.tax,
-                discount: totals.discount,
-                total: totals.total,
-              }
-            : {}),
-          ...(parsed.data.items
-            ? {
-                items: {
-                  create: totals.items,
+                case: {
+                  connect: {
+                    id: nextCaseId,
+                  },
                 },
               }
-            : {}),
+            : {
+                case: {
+                  disconnect: true,
+                },
+              }
+          : {}),
+        ...(dueDateUpdate !== undefined ? { dueDate: dueDateUpdate } : {}),
+        ...(notesUpdate !== undefined ? { notes: notesUpdate } : {}),
+        ...(totals
+          ? {
+              subtotal: totals.subtotal,
+              tax: totals.tax,
+              discount: totals.discount,
+              total: totals.total,
+            }
+          : {}),
+        ...(data.items !== undefined && totals
+          ? {
+              items: {
+                deleteMany: {},
+                create: totals.items,
+              },
+            }
+          : {}),
+      };
+
+      const updatedInvoice = await tx.invoice.update({
+        where: {
+          id: invoice.id,
         },
+        data: updateData,
         include: {
           client: true,
-          case: true,
+          case: {
+            select: {
+              id: true,
+              title: true,
+              caseNumber: true,
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                  archivedAt: true,
+                },
+              },
+            },
+          },
           items: true,
           payment: true,
         },
       });
 
-      if (nextStatus === "PAID" && nextCaseId) {
+      const shouldSyncPaidPayment =
+        nextStatus === "PAID" &&
+        nextCaseId &&
+        (statusRaw === "PAID" || !updatedInvoice.payment);
+
+      if (shouldSyncPaidPayment) {
         if (updatedInvoice.payment) {
           await tx.payment.update({
-            where: { invoiceId: updatedInvoice.id },
+            where: {
+              invoiceId: updatedInvoice.id,
+            },
             data: {
               caseId: nextCaseId,
               amount: updatedInvoice.total,
@@ -295,28 +462,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
       }
 
-      if (nextStatus !== "PAID" && updatedInvoice.payment) {
-        await tx.payment.update({
-          where: { invoiceId: updatedInvoice.id },
-          data: {
-            status: nextStatus === "CANCELLED" ? "CANCELLED" : "PENDING",
-            notes: `دفعة مرتبطة بالفاتورة ${updatedInvoice.invoiceNumber}`,
-          },
-        });
-      }
-
-      return tx.invoice.findUnique({
-        where: { id: invoice.id },
-        include: {
-          client: true,
-          case: true,
-          items: true,
-          payment: true,
-        },
-      });
+      return updatedInvoice;
     });
-
-    const updateActivityCaseId = updated?.caseId ?? invoice.caseId;
 
     await logActivity({
       actorId: auth.user.userId,
@@ -324,15 +471,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
       type: "INVOICE_UPDATED",
-      title: updateActivityCaseId
-        ? "تم تعديل فاتورة مرتبطة بالقضية"
-        : "تم تعديل فاتورة",
-      message: invoice.invoiceNumber,
-      entityType: updateActivityCaseId ? "CASE" : "INVOICE",
-      entityId: updateActivityCaseId || invoice.id,
+      title: "تم تعديل فاتورة",
+      message: updated.invoiceNumber,
+      entityType: updated.caseId ? "CASE" : "INVOICE",
+      entityId: updated.caseId || updated.id,
     });
 
-    return ok(updated);
+    return ok(decryptInvoiceClient(updated));
   });
 }
 
@@ -363,23 +508,55 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       },
       include: {
         payment: true,
+        client: {
+          select: {
+            id: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            client: {
+              select: {
+                id: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    if (!invoice) return err("الفاتورة غير موجودة", 404);
+    if (!invoice) {
+      return notFound("الفاتورة غير موجودة");
+    }
+
+    const isArchivedClient = Boolean(
+      invoice.client?.archivedAt || invoice.case?.client?.archivedAt,
+    );
+
+    if (isArchivedClient) {
+      return err("لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف", 400);
+    }
 
     if (invoice.payment) {
       return err(
-        "لا يمكن حذف فاتورة مرتبطة بدفعة. غيّر حالة الفاتورة أو احذف الدفعة أولًا.",
+        "لا يمكن حذف فاتورة مرتبطة بدفعة. احذف الدفعة أو غيّر حالة الفاتورة أولًا.",
         409,
       );
     }
 
-    await prisma.invoice.delete({
-      where: { id: invoice.id },
+    const deleted = await prisma.invoice.deleteMany({
+      where: {
+        id: invoice.id,
+        tenantId: auth.user.tenantId,
+      },
     });
 
-    const deleteActivityCaseId = invoice.caseId;
+    if (deleted.count === 0) {
+      return notFound("الفاتورة غير موجودة");
+    }
 
     await logActivity({
       actorId: auth.user.userId,
@@ -387,12 +564,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       userAgent: meta.userAgent,
       tenantId: auth.user.tenantId,
       type: "INVOICE_DELETED",
-      title: deleteActivityCaseId
-        ? "تم حذف فاتورة مرتبطة بالقضية"
-        : "تم حذف فاتورة",
+      title: "تم حذف فاتورة",
       message: invoice.invoiceNumber,
-      entityType: deleteActivityCaseId ? "CASE" : "INVOICE",
-      entityId: deleteActivityCaseId || invoice.id,
+      entityType: invoice.caseId ? "CASE" : "INVOICE",
+      entityId: invoice.caseId || invoice.id,
     });
 
     return ok({ deleted: true });

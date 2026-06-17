@@ -4,10 +4,11 @@ import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { caseSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
-import { verifySameOrigin } from "@/lib/csrf";
 import { apiHandler } from "@/lib/api-handler";
 import { decryptText } from "@/lib/encryption";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { verifySameOrigin } from "@/lib/csrf";
+
 type Params = { params: Promise<{ id: string }> };
 
 function safeDecrypt(value?: string | null) {
@@ -18,30 +19,6 @@ function safeDecrypt(value?: string | null) {
   } catch {
     return value;
   }
-}
-
-async function ensureTenantActive(tenantId: string, action: "تعديل" | "حذف") {
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: {
-      isSuspended: true,
-      status: true,
-    },
-  });
-
-  if (!tenant) {
-    return err("المكتب غير موجود", 404);
-  }
-
-  if (tenant.isSuspended || tenant.status === "SUSPENDED") {
-    return err(`لا يمكن ${action} القضايا لأن المكتب موقوف`, 403);
-  }
-
-  if (tenant.status === "EXPIRED") {
-    return err(`لا يمكن ${action} القضايا لأن الاشتراك منتهي`, 403);
-  }
-
-  return null;
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
@@ -94,7 +71,6 @@ export async function GET(req: NextRequest, { params }: Params) {
             fileName: true,
             fileType: true,
             fileSize: true,
-            fileUrl: true,
             notes: true,
             tags: true,
             createdAt: true,
@@ -193,18 +169,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
+
     const writeCheck = await assertTenantCanWrite(
       auth.user.tenantId,
-      "تعديل البيانات",
+      "تعديل قضية",
     );
 
     if (!writeCheck.ok) {
       return err(writeCheck.message, writeCheck.status);
     }
-    const meta = getRequestMeta(req);
-    const tenantError = await ensureTenantActive(auth.user.tenantId, "تعديل");
-    if (tenantError) return tenantError;
 
+    const meta = getRequestMeta(req);
     const { id } = await params;
 
     const exists = await prisma.case.findFirst({
@@ -284,7 +259,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const updated = await prisma.case.update({
-      where: { id: exists.id },
+      where: {
+        id: exists.id,
+      },
       data: parsed.data,
       include: {
         client: {
@@ -325,18 +302,17 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const auth = await requireRole(req, ["ADMIN"]);
     if (auth.error || !auth.user) return auth.error;
+
     const writeCheck = await assertTenantCanWrite(
       auth.user.tenantId,
-      "حذف البيانات",
+      "حذف قضية",
     );
 
     if (!writeCheck.ok) {
       return err(writeCheck.message, writeCheck.status);
     }
-    const meta = getRequestMeta(req);
-    const tenantError = await ensureTenantActive(auth.user.tenantId, "حذف");
-    if (tenantError) return tenantError;
 
+    const meta = getRequestMeta(req);
     const { id } = await params;
 
     const exists = await prisma.case.findFirst({
@@ -425,9 +401,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       );
     }
 
-    await prisma.case.delete({
-      where: { id: exists.id },
+    const deleted = await prisma.case.deleteMany({
+      where: {
+        id: exists.id,
+        tenantId: auth.user.tenantId,
+      },
     });
+
+    if (deleted.count === 0) {
+      return notFound("القضية غير موجودة");
+    }
 
     await logActivity({
       actorId: auth.user.userId,

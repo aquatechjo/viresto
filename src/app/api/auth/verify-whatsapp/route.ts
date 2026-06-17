@@ -89,6 +89,10 @@ export async function POST(req: NextRequest) {
       return err("البريد الإلكتروني ورمز التحقق مطلوبان", 400);
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return err("البريد الإلكتروني غير صالح", 400);
+    }
+
     if (!/^\d{6}$/.test(code)) {
       return err("رمز التحقق يجب أن يكون 6 أرقام", 400);
     }
@@ -131,10 +135,6 @@ export async function POST(req: NextRequest) {
 
     if (user.tenant.isSuspended || user.tenant.status === "SUSPENDED") {
       return err("المكتب موقوف", 403);
-    }
-
-    if (user.tenant.status === "EXPIRED") {
-      return err("اشتراك المكتب منتهي", 403);
     }
 
     if (user.phoneVerifiedAt) {

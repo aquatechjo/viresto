@@ -98,26 +98,6 @@ export async function POST(req: NextRequest) {
 
     const meta = getRequestMeta(req);
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: auth.user.tenantId },
-      select: {
-        isSuspended: true,
-        status: true,
-      },
-    });
-
-    if (!tenant) {
-      return err("المكتب غير موجود", 404);
-    }
-
-    if (tenant.isSuspended || tenant.status === "SUSPENDED") {
-      return err("لا يمكن تسجيل دفعات لأن المكتب موقوف", 403);
-    }
-
-    if (tenant.status === "EXPIRED") {
-      return err("لا يمكن تسجيل دفعات لأن الاشتراك منتهي", 403);
-    }
-
     const body = await req.json().catch(() => ({}));
     const parsed = paymentSchema.safeParse(body);
 
@@ -146,12 +126,26 @@ export async function POST(req: NextRequest) {
     if (!c) {
       return err("القضية غير موجودة", 404);
     }
+    let paidAt: Date | undefined;
+
+    if (parsed.data.paidAt) {
+      const date = new Date(parsed.data.paidAt);
+
+      if (Number.isNaN(date.getTime())) {
+        return err("تاريخ الدفع غير صالح", 400);
+      }
+
+      paidAt = date;
+    } else if (parsed.data.status === "PAID") {
+      paidAt = new Date();
+    }
+    const { paidAt: _paidAt, ...paymentData } = parsed.data;
 
     const payment = await prisma.payment.create({
       data: {
         tenantId: auth.user.tenantId,
-        ...parsed.data,
-        paidAt: parsed.data.paidAt ? new Date(parsed.data.paidAt) : new Date(),
+        ...paymentData,
+        ...(paidAt !== undefined ? { paidAt } : {}),
       },
       include: {
         case: {

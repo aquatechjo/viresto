@@ -127,28 +127,6 @@ export async function POST(req: NextRequest) {
 
     const meta = getRequestMeta(req);
 
-    const tenant = await prisma.tenant.findUnique({
-      where: {
-        id: auth.user.tenantId,
-      },
-      select: {
-        isSuspended: true,
-        status: true,
-      },
-    });
-
-    if (!tenant) {
-      return err("المكتب غير موجود", 404);
-    }
-
-    if (tenant.isSuspended || tenant.status === "SUSPENDED") {
-      return err("لا يمكن إنشاء مواعيد لأن المكتب موقوف", 403);
-    }
-
-    if (tenant.status === "EXPIRED") {
-      return err("لا يمكن إنشاء مواعيد لأن الاشتراك منتهي", 403);
-    }
-
     const body = await req.json().catch(() => ({}));
     const parsed = appointmentSchema.safeParse(body);
 
@@ -174,7 +152,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { clientId, caseId } = parsed.data;
-
+    let linkedClientId = clientId || null;
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
         where: {
@@ -205,6 +183,7 @@ export async function POST(req: NextRequest) {
         },
         select: {
           id: true,
+          clientId: true,
           client: {
             select: {
               archivedAt: true,
@@ -219,17 +198,28 @@ export async function POST(req: NextRequest) {
           403,
         );
       }
+
       if (caseExists.client.archivedAt) {
         return err("لا يمكن إنشاء موعد لقضية مرتبطة بموكل مؤرشف", 400);
       }
+
+      linkedClientId = caseExists.clientId;
     }
+
+    const {
+      startTime: _startTime,
+      endTime: _endTime,
+      clientId: _clientId,
+      ...rest
+    } = parsed.data;
 
     const appt = await prisma.appointment.create({
       data: {
         tenantId: auth.user.tenantId,
-        ...parsed.data,
+        ...rest,
+        ...(linkedClientId ? { clientId: linkedClientId } : {}),
         startTime,
-        endTime,
+        ...(endTime ? { endTime } : {}),
       },
     });
 

@@ -7,32 +7,8 @@ import { ok, err, notFound } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
-
+import { Prisma } from "@prisma/client";
 type Params = { params: Promise<{ id: string }> };
-
-async function ensureTenantActive(tenantId: string, action: "تعديل" | "حذف") {
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: {
-      isSuspended: true,
-      status: true,
-    },
-  });
-
-  if (!tenant) {
-    return err("المكتب غير موجود", 404);
-  }
-
-  if (tenant.isSuspended || tenant.status === "SUSPENDED") {
-    return err(`لا يمكن ${action} الدفعات لأن المكتب موقوف`, 403);
-  }
-
-  if (tenant.status === "EXPIRED") {
-    return err(`لا يمكن ${action} الدفعات لأن الاشتراك منتهي`, 403);
-  }
-
-  return null;
-}
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
@@ -52,10 +28,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const meta = getRequestMeta(req);
-
-    const tenantError = await ensureTenantActive(auth.user.tenantId, "تعديل");
-    if (tenantError) return tenantError;
-
     const { id } = await params;
 
     const exists = await prisma.payment.findFirst({
@@ -66,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       select: {
         id: true,
         amount: true,
+        status: true,
         caseId: true,
         invoiceId: true,
         case: {
@@ -99,6 +72,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return err("لا توجد بيانات للتعديل", 400);
     }
 
+    if (
+      exists.invoiceId &&
+      parsed.data.caseId &&
+      parsed.data.caseId !== exists.caseId
+    ) {
+      return err("لا يمكن نقل دفعة مرتبطة بفاتورة إلى قضية أخرى", 409, {
+        invoiceId: exists.invoiceId,
+      });
+    }
+
     if (parsed.data.caseId) {
       const caseExists = await prisma.case.findFirst({
         where: {
@@ -125,6 +108,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     let paidAt: Date | undefined;
 
     if (parsed.data.paidAt !== undefined) {
+      if (!parsed.data.paidAt) {
+        return err("تاريخ الدفع لا يمكن أن يكون فارغًا", 400);
+      }
+
       const date = new Date(parsed.data.paidAt);
 
       if (Number.isNaN(date.getTime())) {
@@ -132,16 +119,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       paidAt = date;
+    } else if (parsed.data.status === "PAID" && exists.status !== "PAID") {
+      paidAt = new Date();
     }
-
     const { paidAt: _paidAt, ...rest } = parsed.data;
 
+    const updateData: Prisma.PaymentUncheckedUpdateInput = {
+      ...rest,
+      ...(paidAt !== undefined ? { paidAt } : {}),
+    };
+
     const updated = await prisma.payment.update({
-      where: { id: exists.id },
-      data: {
-        ...rest,
-        ...(paidAt !== undefined ? { paidAt } : {}),
+      where: {
+        id: exists.id,
       },
+      data: updateData,
       include: {
         case: {
           select: {
@@ -193,10 +185,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     }
 
     const meta = getRequestMeta(req);
-
-    const tenantError = await ensureTenantActive(auth.user.tenantId, "حذف");
-    if (tenantError) return tenantError;
-
     const { id } = await params;
 
     const exists = await prisma.payment.findFirst({
@@ -251,9 +239,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       );
     }
 
-    await prisma.payment.delete({
-      where: { id: exists.id },
+    const deleted = await prisma.payment.deleteMany({
+      where: {
+        id: exists.id,
+        tenantId: auth.user.tenantId,
+      },
     });
+
+    if (deleted.count === 0) {
+      return notFound("الدفعة غير موجودة");
+    }
 
     await logActivity({
       tenantId: auth.user.tenantId,

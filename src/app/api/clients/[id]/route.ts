@@ -17,6 +17,23 @@ import {
 
 type Params = { params: Promise<{ id: string }> };
 
+function decryptClient<T extends {
+  email?: string | null;
+  phone?: string | null;
+  nationalId?: string | null;
+  address?: string | null;
+  notes?: string | null;
+}>(client: T) {
+  return {
+    ...client,
+    email: decryptText(client.email),
+    phone: decryptText(client.phone),
+    nationalId: decryptText(client.nationalId),
+    address: decryptText(client.address),
+    notes: decryptText(client.notes),
+  };
+}
+
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
@@ -39,10 +56,22 @@ export async function GET(req: NextRequest, { params }: Params) {
               },
             },
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: {
+            createdAt: "desc",
+          },
         },
-        appointments: { orderBy: { startTime: "desc" }, take: 5 },
-        tasks: { orderBy: { createdAt: "desc" }, take: 5 },
+        appointments: {
+          orderBy: {
+            startTime: "desc",
+          },
+          take: 5,
+        },
+        tasks: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 5,
+        },
       },
     });
 
@@ -50,16 +79,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       return notFound("الموكل غير موجود");
     }
 
-    const decryptedClient = {
-      ...client,
-      email: decryptText(client.email),
-      phone: decryptText(client.phone),
-      nationalId: decryptText(client.nationalId),
-      address: decryptText(client.address),
-      notes: decryptText(client.notes),
-    };
-
-    return ok(decryptedClient);
+    return ok(decryptClient(client));
   });
 }
 
@@ -73,7 +93,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const writeCheck = await assertTenantCanWrite(
       auth.user.tenantId,
-      "تعديل البيانات",
+      "تعديل بيانات الموكل",
     );
 
     if (!writeCheck.ok) {
@@ -81,27 +101,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const meta = getRequestMeta(req);
-
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: auth.user.tenantId },
-      select: {
-        isSuspended: true,
-        status: true,
-      },
-    });
-
-    if (!tenant) {
-      return err("المكتب غير موجود", 404);
-    }
-
-    if (tenant.isSuspended || tenant.status === "SUSPENDED") {
-      return err("لا يمكن تعديل الموكلين لأن المكتب موقوف", 403);
-    }
-
-    if (tenant.status === "EXPIRED") {
-      return err("لا يمكن تعديل الموكلين لأن الاشتراك منتهي", 403);
-    }
-
     const { id } = await params;
 
     const exists = await prisma.client.findFirst({
@@ -112,6 +111,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       select: {
         id: true,
         name: true,
+        archivedAt: true,
       },
     });
 
@@ -122,8 +122,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = await req.json().catch(() => ({}));
 
     if (body?.action === "archive") {
+      if (exists.archivedAt) {
+        return err("الموكل مؤرشف مسبقًا", 400);
+      }
+
       const updated = await prisma.client.update({
-        where: { id: exists.id },
+        where: {
+          id: exists.id,
+        },
         data: {
           archivedAt: new Date(),
         },
@@ -142,19 +148,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       });
 
       return ok({
-        ...updated,
-        email: decryptText(updated.email),
-        phone: decryptText(updated.phone),
-        nationalId: decryptText(updated.nationalId),
-        address: decryptText(updated.address),
-        notes: decryptText(updated.notes),
+        ...decryptClient(updated),
         message: "تمت أرشفة الموكل بنجاح",
       });
     }
 
     if (body?.action === "restore") {
+      if (!exists.archivedAt) {
+        return err("الموكل غير مؤرشف", 400);
+      }
+
       const updated = await prisma.client.update({
-        where: { id: exists.id },
+        where: {
+          id: exists.id,
+        },
         data: {
           archivedAt: null,
         },
@@ -173,12 +180,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       });
 
       return ok({
-        ...updated,
-        email: decryptText(updated.email),
-        phone: decryptText(updated.phone),
-        nationalId: decryptText(updated.nationalId),
-        address: decryptText(updated.address),
-        notes: decryptText(updated.notes),
+        ...decryptClient(updated),
         message: "تمت استعادة الموكل بنجاح",
       });
     }
@@ -193,22 +195,66 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const normalizedPhone = normalizePhone(parsed.data.phone);
     const normalizedNationalId = parsed.data.nationalId.trim();
 
+    const emailHash = normalizedEmail ? hashSearchValue(normalizedEmail) : null;
+    const phoneHash = normalizedPhone ? hashSearchValue(normalizedPhone) : null;
+    const nationalIdHash = normalizedNationalId
+      ? hashSearchValue(normalizedNationalId)
+      : null;
+
+    const duplicateConditions = [
+      ...(phoneHash ? [{ phoneHash }] : []),
+      ...(nationalIdHash ? [{ nationalIdHash }] : []),
+      ...(emailHash ? [{ emailHash }] : []),
+    ];
+
+    const duplicateClient =
+      duplicateConditions.length > 0
+        ? await prisma.client.findFirst({
+            where: {
+              tenantId: auth.user.tenantId,
+              NOT: {
+                id: exists.id,
+              },
+              OR: duplicateConditions,
+            },
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          })
+        : null;
+
+    if (duplicateClient) {
+      return err(
+        duplicateClient.archivedAt
+          ? "يوجد موكل مؤرشف بنفس البيانات. يمكنك استعادته بدل استخدام نفس البيانات."
+          : "يوجد موكل آخر بنفس البيانات داخل المكتب.",
+        409,
+        {
+          code: "CLIENT_DUPLICATE",
+          clientId: duplicateClient.id,
+          archived: !!duplicateClient.archivedAt,
+        },
+      );
+    }
+
     const secureData = {
       ...parsed.data,
-
       email: encryptText(parsed.data.email || ""),
       phone: encryptText(parsed.data.phone),
       nationalId: encryptText(parsed.data.nationalId),
       address: encryptText(parsed.data.address || ""),
       notes: encryptText(parsed.data.notes || ""),
-
-      emailHash: normalizedEmail ? hashSearchValue(normalizedEmail) : null,
-      phoneHash: hashSearchValue(normalizedPhone),
-      nationalIdHash: hashSearchValue(normalizedNationalId),
+      emailHash,
+      phoneHash,
+      nationalIdHash,
     };
 
     const updated = await prisma.client.update({
-      where: { id: exists.id },
+      where: {
+        id: exists.id,
+      },
       data: secureData,
     });
 
@@ -224,14 +270,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       userAgent: meta.userAgent,
     });
 
-    return ok({
-      ...updated,
-      email: decryptText(updated.email),
-      phone: decryptText(updated.phone),
-      nationalId: decryptText(updated.nationalId),
-      address: decryptText(updated.address),
-      notes: decryptText(updated.notes),
-    });
+    return ok(decryptClient(updated));
   });
 }
 
@@ -242,36 +281,17 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const auth = await requireRole(req, ["ADMIN"]);
     if (auth.error || !auth.user) return auth.error;
+
     const writeCheck = await assertTenantCanWrite(
       auth.user.tenantId,
-      "حذف البيانات",
+      "حذف موكل",
     );
 
     if (!writeCheck.ok) {
       return err(writeCheck.message, writeCheck.status);
     }
+
     const meta = getRequestMeta(req);
-
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: auth.user.tenantId },
-      select: {
-        isSuspended: true,
-        status: true,
-      },
-    });
-
-    if (!tenant) {
-      return err("المكتب غير موجود", 404);
-    }
-
-    if (tenant.isSuspended || tenant.status === "SUSPENDED") {
-      return err("لا يمكن حذف الموكلين لأن المكتب موقوف", 403);
-    }
-
-    if (tenant.status === "EXPIRED") {
-      return err("لا يمكن حذف الموكلين لأن الاشتراك منتهي", 403);
-    }
-
     const { id } = await params;
 
     const exists = await prisma.client.findFirst({
@@ -282,11 +302,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       select: {
         id: true,
         name: true,
-        _count: {
-          select: {
-            cases: true,
-          },
-        },
       },
     });
 
@@ -294,16 +309,76 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return notFound("الموكل غير موجود");
     }
 
-    if (exists._count.cases > 0) {
+    const [
+      casesCount,
+      appointmentsCount,
+      documentsCount,
+      tasksCount,
+      invoicesCount,
+    ] = await prisma.$transaction([
+      prisma.case.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          clientId: exists.id,
+        },
+      }),
+      prisma.appointment.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          clientId: exists.id,
+        },
+      }),
+      prisma.document.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          clientId: exists.id,
+        },
+      }),
+      prisma.task.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          clientId: exists.id,
+        },
+      }),
+      prisma.invoice.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          clientId: exists.id,
+        },
+      }),
+    ]);
+
+    const relatedTotal =
+      casesCount +
+      appointmentsCount +
+      documentsCount +
+      tasksCount +
+      invoicesCount;
+
+    if (relatedTotal > 0) {
       return err(
-        "لا يمكن حذف موكل لديه قضايا مرتبطة. يمكنك أرشفته أو حذف القضايا أولًا.",
+        "لا يمكن حذف موكل لديه بيانات مرتبطة. يمكنك أرشفته بدل الحذف.",
         409,
+        {
+          cases: casesCount,
+          appointments: appointmentsCount,
+          documents: documentsCount,
+          tasks: tasksCount,
+          invoices: invoicesCount,
+        },
       );
     }
 
-    await prisma.client.delete({
-      where: { id: exists.id },
+    const deleted = await prisma.client.deleteMany({
+      where: {
+        id: exists.id,
+        tenantId: auth.user.tenantId,
+      },
     });
+
+    if (deleted.count === 0) {
+      return notFound("الموكل غير موجود");
+    }
 
     await logActivity({
       tenantId: auth.user.tenantId,

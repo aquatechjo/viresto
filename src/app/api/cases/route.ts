@@ -7,7 +7,8 @@ import { ok, err } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
-import { assertTenantCanCreate, assertTenantCanWrite } from "@/lib/billing-limits";
+import { assertTenantCanCreate } from "@/lib/billing-limits";
+
 const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
 export async function GET(req: NextRequest) {
@@ -148,26 +149,16 @@ export async function POST(req: NextRequest) {
 
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
-    const writeCheck = await assertTenantCanWrite(
-      auth.user.tenantId,
-      "إضافة قضية",
-    );
 
-    if (!writeCheck.ok) {
-      return err(writeCheck.message, writeCheck.status);
-    }
     const limitCheck = await assertTenantCanCreate(auth.user.tenantId, "cases");
 
     if (!limitCheck.ok) {
-      return err(limitCheck.message, limitCheck.billing.canCreate ? 400 : 402, {
-        code: limitCheck.billing.canCreate
-          ? "PLAN_LIMIT_REACHED"
-          : "SUBSCRIPTION_INACTIVE",
+      const isPlanLimit = limitCheck.billing?.canCreate === true;
+
+      return err(limitCheck.message, isPlanLimit ? 400 : 402, {
+        code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
         resource: "cases",
-        used: limitCheck.used,
-        limit: limitCheck.limit,
-        plan: limitCheck.billing.plan,
-        subscriptionStatus: limitCheck.billing.subscriptionStatus,
+        billing: limitCheck.billing ?? null,
       });
     }
 

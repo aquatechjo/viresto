@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { invoiceCreateSchema } from "@/lib/validations";
 import { verifySameOrigin } from "@/lib/csrf";
+import { decryptText } from "@/lib/encryption";
 
 const allowedStatuses = [
   "DRAFT",
@@ -169,7 +170,18 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return ok(invoices);
+    const decryptedInvoices = invoices.map((invoice) => ({
+      ...invoice,
+      client: invoice.client
+        ? {
+            ...invoice.client,
+            phone: decryptText(invoice.client.phone),
+            email: decryptText(invoice.client.email),
+          }
+        : invoice.client,
+    }));
+
+    return ok(decryptedInvoices);
   });
 }
 
@@ -200,7 +212,15 @@ export async function POST(req: NextRequest) {
 
     const data = parsed.data;
     const caseId = data.caseId || null;
-    const dueDate = data.dueDate ? new Date(data.dueDate) : null;
+    let dueDate: Date | null = null;
+
+    if (data.dueDate) {
+      dueDate = new Date(data.dueDate);
+
+      if (Number.isNaN(dueDate.getTime())) {
+        return err("تاريخ استحقاق الفاتورة غير صالح", 400);
+      }
+    }
     const notes = data.notes?.trim() || null;
     const totals = calculateTotals(data.items, data.tax, data.discount);
 

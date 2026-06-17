@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-real-ip") ||
       "unknown";
 
-    await prisma.session.updateMany({
+    const updated = await prisma.session.updateMany({
       where: {
         id: auth.user.sessionId,
         userId: auth.user.userId,
@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
       data: {
         lastActivityAt: new Date(),
         ipAddress: ip,
-        userAgent: req.headers.get("user-agent"),
+        userAgent: req.headers.get("user-agent") || "unknown",
       },
     });
 
-    return ok({ updated: true });
+    return ok({ updated: updated.count > 0 });
   });
 }

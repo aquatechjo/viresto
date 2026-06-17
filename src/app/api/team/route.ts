@@ -4,10 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
-import {
-  assertTenantCanCreate,
-  assertTenantCanWrite,
-} from "@/lib/billing-limits";
+import { assertTenantCanCreate } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 
 const allowedRoles = ["ADMIN", "LAWYER", "STAFF"] as const;
@@ -50,22 +47,23 @@ export async function POST(req: NextRequest) {
     const auth = await requireRole(req, ["ADMIN"]);
     if (auth.error || !auth.user) return auth.error;
 
-    const writeCheck = await assertTenantCanWrite(
-      auth.user.tenantId,
-      "إضافة مستخدم",
-    );
+    const limitCheck = await assertTenantCanCreate(auth.user.tenantId, "users");
 
-    if (!writeCheck.ok) {
-      return err(writeCheck.message, writeCheck.status);
+    if (!limitCheck.ok) {
+      const isPlanLimit = limitCheck.billing?.canCreate === true;
+
+      return err(limitCheck.message, isPlanLimit ? 400 : 402, {
+        code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
+        resource: "users",
+        billing: limitCheck.billing ?? null,
+      });
     }
 
     const body = await req.json().catch(() => ({}));
 
     const name = String(body.name ?? "").trim();
-    const email = String(body.email ?? "")
-      .trim()
-      .toLowerCase();
-    const role = String(body.role ?? "").toUpperCase();
+    const email = String(body.email ?? "").trim().toLowerCase();
+    const role = String(body.role ?? "").trim().toUpperCase();
     const password = String(body.password ?? "");
 
     if (!name || !email || !role || !password) {
@@ -76,35 +74,33 @@ export async function POST(req: NextRequest) {
       return err("اسم المستخدم غير صالح", 400);
     }
 
-    if (!email.includes("@")) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return err("البريد الإلكتروني غير صالح", 400);
+    }
+
+    if (email.length > 160) {
+      return err("البريد الإلكتروني طويل جدًا", 400);
     }
 
     if (password.length < 8) {
       return err("كلمة المرور يجب أن تكون 8 أحرف على الأقل", 400);
     }
 
-    if (!allowedRoles.includes(role as any)) {
+    if (password.length > 72) {
+      return err("كلمة المرور طويلة جدًا", 400);
+    }
+
+    if (!allowedRoles.includes(role as (typeof allowedRoles)[number])) {
       return err("صلاحية غير صحيحة", 400);
     }
 
-    const limitCheck = await assertTenantCanCreate(auth.user.tenantId, "users");
-
-    if (!limitCheck.ok) {
-      return err(limitCheck.message, limitCheck.billing.canCreate ? 400 : 402, {
-        code: limitCheck.billing.canCreate
-          ? "PLAN_LIMIT_REACHED"
-          : "SUBSCRIPTION_INACTIVE",
-        resource: "users",
-        used: limitCheck.used,
-        limit: limitCheck.limit,
-        plan: limitCheck.billing.plan,
-        subscriptionStatus: limitCheck.billing.subscriptionStatus,
-      });
-    }
-
     const existing = await prisma.user.findUnique({
-      where: { email },
+      where: {
+        email,
+      },
+      select: {
+        id: true,
+      },
     });
 
     if (existing) {
@@ -118,9 +114,10 @@ export async function POST(req: NextRequest) {
         tenantId: auth.user.tenantId,
         name,
         email,
-        role: role as any,
+        role: role as (typeof allowedRoles)[number],
         passwordHash,
         isActive: true,
+        isSystemAdmin: false,
       },
       select: {
         id: true,

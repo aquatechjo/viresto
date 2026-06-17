@@ -57,7 +57,7 @@ export async function requireAuth(req: NextRequest) {
       tenant: {
         isSuspended: false,
         status: {
-          notIn: ["SUSPENDED", "EXPIRED"],
+          not: "SUSPENDED",
         },
       },
       sessions: {

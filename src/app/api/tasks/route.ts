@@ -76,26 +76,6 @@ export async function POST(req: NextRequest) {
 
     const meta = getRequestMeta(req);
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: auth.user.tenantId },
-      select: {
-        isSuspended: true,
-        status: true,
-      },
-    });
-
-    if (!tenant) {
-      return err("المكتب غير موجود", 404);
-    }
-
-    if (tenant.isSuspended || tenant.status === "SUSPENDED") {
-      return err("لا يمكن إنشاء مهام لأن المكتب موقوف", 403);
-    }
-
-    if (tenant.status === "EXPIRED") {
-      return err("لا يمكن إنشاء مهام لأن الاشتراك منتهي", 403);
-    }
-
     const body = await req.json().catch(() => ({}));
     const parsed = taskSchema.safeParse(body);
 

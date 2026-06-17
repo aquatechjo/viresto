@@ -153,11 +153,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       }
     }
 
-    await prisma.document.delete({
+    const deleted = await prisma.document.deleteMany({
       where: {
         id: exists.id,
+        tenantId: auth.user.tenantId,
       },
     });
+
+    if (deleted.count === 0) {
+      return notFound("المستند غير موجود");
+    }
 
     await logActivity({
       actorId: auth.user.userId,

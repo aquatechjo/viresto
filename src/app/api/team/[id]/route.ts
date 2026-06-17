@@ -52,30 +52,69 @@ export async function PATCH(
       return err("لا يمكن تعديل حساب مدير النظام", 403);
     }
 
+    const role =
+      typeof body.role === "string"
+        ? body.role.trim().toUpperCase()
+        : undefined;
+
+    const hasRoleUpdate = role !== undefined;
+    const hasActiveUpdate = typeof body.isActive === "boolean";
+
+    if (!hasRoleUpdate && !hasActiveUpdate) {
+      return err("لا توجد بيانات للتعديل", 400);
+    }
+
+    if (hasRoleUpdate && !allowedRoles.includes(role as any)) {
+      return err("صلاحية غير صحيحة", 400);
+    }
+
     if (targetUser.id === auth.user.userId && body.isActive === false) {
       return err("لا يمكنك تعطيل حسابك الحالي", 400);
     }
 
     if (
       targetUser.id === auth.user.userId &&
-      body.role &&
-      body.role !== targetUser.role
+      hasRoleUpdate &&
+      role !== targetUser.role
     ) {
       return err("لا يمكنك تغيير صلاحية حسابك الحالي", 400);
     }
 
-    const role = body.role ? String(body.role).toUpperCase() : undefined;
+    const willLoseAdminRole =
+      targetUser.role === "ADMIN" &&
+      hasRoleUpdate &&
+      role !== "ADMIN";
 
-    if (role && !allowedRoles.includes(role as any)) {
-      return err("صلاحية غير صحيحة", 400);
+    const willBeDisabled =
+      targetUser.role === "ADMIN" &&
+      hasActiveUpdate &&
+      body.isActive === false;
+
+    if (willLoseAdminRole || willBeDisabled) {
+      const otherActiveAdmins = await prisma.user.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          id: {
+            not: targetUser.id,
+          },
+          role: "ADMIN",
+          isActive: true,
+          isSystemAdmin: false,
+        },
+      });
+
+      if (otherActiveAdmins === 0) {
+        return err("لا يمكن إزالة آخر مدير نشط داخل المكتب", 400);
+      }
     }
 
     const updated = await prisma.user.update({
-      where: { id: targetUser.id },
+      where: {
+        id: targetUser.id,
+      },
       data: {
-        role: role as any,
-        isActive:
-          typeof body.isActive === "boolean" ? body.isActive : undefined,
+        ...(hasRoleUpdate ? { role: role as any } : {}),
+        ...(hasActiveUpdate ? { isActive: body.isActive } : {}),
       },
       select: {
         id: true,
@@ -87,6 +126,19 @@ export async function PATCH(
         createdAt: true,
       },
     });
+
+    if (hasActiveUpdate && body.isActive === false) {
+      await prisma.session.updateMany({
+        where: {
+          userId: targetUser.id,
+          tenantId: auth.user.tenantId,
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+        },
+      });
+    }
 
     return ok(updated);
   });
@@ -105,7 +157,7 @@ export async function DELETE(
 
     const writeCheck = await assertTenantCanWrite(
       auth.user.tenantId,
-      "حذف مستخدم",
+      "تعطيل مستخدم",
     );
 
     if (!writeCheck.ok) {
@@ -115,7 +167,7 @@ export async function DELETE(
     const { id } = await params;
 
     if (id === auth.user.userId) {
-      return err("لا يمكنك حذف حسابك الحالي", 400);
+      return err("لا يمكنك تعطيل حسابك الحالي", 400);
     }
 
     const targetUser = await prisma.user.findFirst({
@@ -125,6 +177,8 @@ export async function DELETE(
       },
       select: {
         id: true,
+        role: true,
+        isActive: true,
         isSystemAdmin: true,
       },
     });
@@ -134,13 +188,50 @@ export async function DELETE(
     }
 
     if (targetUser.isSystemAdmin) {
-      return err("لا يمكن حذف حساب مدير النظام", 403);
+      return err("لا يمكن تعطيل حساب مدير النظام", 403);
     }
 
-    await prisma.user.delete({
-      where: { id: targetUser.id },
+    if (targetUser.role === "ADMIN" && targetUser.isActive) {
+      const otherActiveAdmins = await prisma.user.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          id: {
+            not: targetUser.id,
+          },
+          role: "ADMIN",
+          isActive: true,
+          isSystemAdmin: false,
+        },
+      });
+
+      if (otherActiveAdmins === 0) {
+        return err("لا يمكن تعطيل آخر مدير نشط داخل المكتب", 400);
+      }
+    }
+
+    await prisma.user.update({
+      where: {
+        id: targetUser.id,
+      },
+      data: {
+        isActive: false,
+      },
     });
 
-    return ok({ message: "تم حذف المستخدم بنجاح" });
+    await prisma.session.updateMany({
+      where: {
+        userId: targetUser.id,
+        tenantId: auth.user.tenantId,
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return ok({
+      disabled: true,
+      message: "تم تعطيل المستخدم بنجاح",
+    });
   });
 }

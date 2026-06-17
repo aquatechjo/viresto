@@ -44,7 +44,7 @@ function getEffectiveSubscriptionStatus(
   if (
     currentPeriodEnd &&
     currentPeriodEnd.getTime() <= now.getTime() &&
-    ["TRIALING", "ACTIVE", "PAST_DUE"].includes(status)
+    ["TRIAL", "TRIALING", "ACTIVE", "PAST_DUE"].includes(status)
   ) {
     return "EXPIRED";
   }
@@ -186,8 +186,7 @@ export async function assertTenantCanWrite(
     return {
       ok: false as const,
       status: 402,
-      message:
-        billing.blockReason || `لا يمكن ${action} لأن الاشتراك غير نشط.`,
+      message: billing.blockReason || `لا يمكن ${action} لأن الاشتراك غير نشط.`,
       billing,
     };
   }
@@ -203,7 +202,17 @@ export async function assertTenantCanCreate(
   tenantId: string,
   resource: LimitedBillingResource,
 ) {
-  const billing = await getTenantBillingLimits(tenantId);
+  const writeCheck = await assertTenantCanWrite(tenantId, "إنشاء عنصر جديد");
+
+  if (!writeCheck.ok) {
+    return {
+      ok: false as const,
+      message: writeCheck.message,
+      billing: writeCheck.billing ?? null,
+    };
+  }
+
+  const billing = writeCheck.billing;
 
   if (!billing.canCreate) {
     return {
@@ -301,7 +310,20 @@ export async function assertTenantCanUseStorage(
   tenantId: string,
   incomingBytes: number,
 ) {
-  const billing = await getTenantBillingLimits(tenantId);
+  const writeCheck = await assertTenantCanWrite(tenantId, "رفع ملفات جديدة");
+
+  if (!writeCheck.ok) {
+    return {
+      ok: false as const,
+      message: writeCheck.message,
+      billing: writeCheck.billing ?? null,
+      usedBytes: null,
+      incomingBytes,
+      limitBytes: null,
+    };
+  }
+
+  const billing = writeCheck.billing;
 
   if (!billing.canCreate) {
     return {

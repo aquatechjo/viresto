@@ -8,7 +8,6 @@ import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import {
   assertTenantCanCreate,
   assertTenantCanUseStorage,
-  assertTenantCanWrite,
 } from "@/lib/billing-limits";
 
 const allowedTypes = [
@@ -27,15 +26,6 @@ export async function POST(req: NextRequest) {
 
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
     if (auth.error || !auth.user) return auth.error;
-
-    const writeCheck = await assertTenantCanWrite(
-      auth.user.tenantId,
-      "رفع مستند",
-    );
-
-    if (!writeCheck.ok) {
-      return err(writeCheck.message, writeCheck.status);
-    }
 
     const meta = getRequestMeta(req);
 
@@ -130,20 +120,13 @@ export async function POST(req: NextRequest) {
     );
 
     if (!documentsLimitCheck.ok) {
-      return err(
-        documentsLimitCheck.message,
-        documentsLimitCheck.billing.canCreate ? 400 : 402,
-        {
-          code: documentsLimitCheck.billing.canCreate
-            ? "PLAN_LIMIT_REACHED"
-            : "SUBSCRIPTION_INACTIVE",
-          resource: "documents",
-          used: documentsLimitCheck.used,
-          limit: documentsLimitCheck.limit,
-          plan: documentsLimitCheck.billing.plan,
-          subscriptionStatus: documentsLimitCheck.billing.subscriptionStatus,
-        },
-      );
+      const isPlanLimit = documentsLimitCheck.billing?.canCreate === true;
+
+      return err(documentsLimitCheck.message, isPlanLimit ? 400 : 402, {
+        code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
+        resource: "documents",
+        billing: documentsLimitCheck.billing ?? null,
+      });
     }
 
     const storageLimitCheck = await assertTenantCanUseStorage(
@@ -152,21 +135,18 @@ export async function POST(req: NextRequest) {
     );
 
     if (!storageLimitCheck.ok) {
-      return err(
-        storageLimitCheck.message,
-        storageLimitCheck.billing.canCreate ? 400 : 402,
-        {
-          code: storageLimitCheck.billing.canCreate
-            ? "STORAGE_LIMIT_REACHED"
-            : "SUBSCRIPTION_INACTIVE",
-          resource: "storage",
-          usedBytes: storageLimitCheck.usedBytes,
-          incomingBytes: storageLimitCheck.incomingBytes,
-          limitBytes: storageLimitCheck.limitBytes,
-          plan: storageLimitCheck.billing.plan,
-          subscriptionStatus: storageLimitCheck.billing.subscriptionStatus,
-        },
-      );
+      const isStorageLimit = storageLimitCheck.billing?.canCreate === true;
+
+      return err(storageLimitCheck.message, isStorageLimit ? 400 : 402, {
+        code: isStorageLimit
+          ? "STORAGE_LIMIT_REACHED"
+          : "SUBSCRIPTION_INACTIVE",
+        resource: "storage",
+        billing: storageLimitCheck.billing ?? null,
+        usedBytes: storageLimitCheck.usedBytes,
+        incomingBytes: storageLimitCheck.incomingBytes,
+        limitBytes: storageLimitCheck.limitBytes,
+      });
     }
 
     const ts = Math.floor(Date.now() / 1000);
@@ -254,21 +234,23 @@ export async function POST(req: NextRequest) {
       entityType: "CASE",
       entityId: caseRecord.id,
     });
-
-    return ok({
-      document: {
-        id: doc.id,
-        fileName: doc.fileName,
-        fileType: doc.fileType,
-        fileSize: doc.fileSize,
-        notes: doc.notes,
-        tags: doc.tags,
-        createdAt: doc.createdAt,
-        clientId: doc.clientId,
-        caseId: doc.caseId,
-        client: doc.client,
-        case: doc.case,
+    return ok(
+      {
+        document: {
+          id: doc.id,
+          fileName: doc.fileName,
+          fileType: doc.fileType,
+          fileSize: doc.fileSize,
+          notes: doc.notes,
+          tags: doc.tags,
+          createdAt: doc.createdAt,
+          clientId: doc.clientId,
+          caseId: doc.caseId,
+          client: doc.client,
+          case: doc.case,
+        },
       },
-    });
+      201,
+    );
   });
 }

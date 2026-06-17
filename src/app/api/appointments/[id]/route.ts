@@ -10,30 +10,6 @@ import { verifySameOrigin } from "@/lib/csrf";
 
 type Params = { params: Promise<{ id: string }> };
 
-async function ensureTenantActive(tenantId: string) {
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: {
-      isSuspended: true,
-      status: true,
-    },
-  });
-
-  if (!tenant) {
-    return err("المكتب غير موجود", 404);
-  }
-
-  if (tenant.isSuspended || tenant.status === "SUSPENDED") {
-    return err("لا يمكن تنفيذ العملية لأن المكتب موقوف", 403);
-  }
-
-  if (tenant.status === "EXPIRED") {
-    return err("لا يمكن تنفيذ العملية لأن الاشتراك منتهي", 403);
-  }
-
-  return null;
-}
-
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
@@ -52,9 +28,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const meta = getRequestMeta(req);
-
-    const tenantError = await ensureTenantActive(auth.user.tenantId);
-    if (tenantError) return tenantError;
 
     const { id } = await params;
 
@@ -207,13 +180,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       linkedClientId = caseExists.clientId;
     }
 
+    const shouldUpdateClientRelation =
+      clientId !== undefined || caseId !== undefined;
+
     const updated = await prisma.appointment.update({
       where: {
         id: exists.id,
       },
       data: {
         ...rest,
-        ...(clientId !== undefined ? { clientId: linkedClientId } : {}),
+        ...(shouldUpdateClientRelation ? { clientId: linkedClientId } : {}),
         ...(caseId !== undefined ? { caseId } : {}),
         ...(startTime !== undefined ? { startTime } : {}),
         ...(endTime !== undefined ? { endTime } : {}),
@@ -281,9 +257,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const meta = getRequestMeta(req);
 
-    const tenantError = await ensureTenantActive(auth.user.tenantId);
-    if (tenantError) return tenantError;
-
     const { id } = await params;
 
     const exists = await prisma.appointment.findFirst({
@@ -328,11 +301,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return err("لا يمكن حذف موعد مرتبط بموكل مؤرشف", 400);
     }
 
-    await prisma.appointment.delete({
+    const deleted = await prisma.appointment.deleteMany({
       where: {
         id: exists.id,
+        tenantId: auth.user.tenantId,
       },
     });
+
+    if (deleted.count === 0) {
+      return notFound("الموعد غير موجود");
+    }
 
     if (exists.caseId) {
       await logActivity({

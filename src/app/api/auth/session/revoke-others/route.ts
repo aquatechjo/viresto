@@ -6,9 +6,10 @@ import { requireAuth } from "@/lib/api-auth";
 import { verifySameOrigin } from "@/lib/csrf";
 
 export async function POST(req: NextRequest) {
-  const csrfError = verifySameOrigin(req);
-  if (csrfError) return csrfError;
   return apiHandler(async () => {
+    const csrf = verifySameOrigin(req);
+    if (csrf) return csrf;
+
     const auth = await requireAuth(req);
     if (auth.error || !auth.user) return auth.error;
 

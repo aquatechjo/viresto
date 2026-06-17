@@ -127,8 +127,6 @@ const COPY = {
     save: "حفظ",
     name: "الاسم",
     emailShort: "البريد",
-    emailChangeDisabled:
-      "تغيير البريد الإلكتروني غير متاح حالياً لحماية تحقق الحساب",
     companyTitle: "بيانات المكتب",
     companySubtitle: "تظهر هذه البيانات في الفواتير والطباعة",
     companyName: "اسم المكتب / الشركة",
@@ -228,8 +226,6 @@ const COPY = {
     save: "Save",
     name: "Name",
     emailShort: "Email",
-    emailChangeDisabled:
-      "Email changes are currently disabled to protect account verification",
     companyTitle: "Office information",
     companySubtitle: "These details appear on invoices and printouts",
     companyName: "Office / company name",
@@ -485,6 +481,11 @@ export default function SettingsPage() {
       return;
     }
 
+    if (!profileForm.email.trim()) {
+      toast.error(copy.emailRequired);
+      return;
+    }
+
     try {
       setSavingProfile(true);
 
@@ -492,7 +493,8 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: profileForm.name.trim(),
+          name: profileForm.name,
+          email: profileForm.email,
         }),
       });
 
@@ -506,7 +508,8 @@ export default function SettingsPage() {
           previous
             ? {
                 ...previous,
-                name: data.data?.name ?? profileForm.name.trim(),
+                name: data.data?.name ?? profileForm.name,
+                email: data.data?.email ?? profileForm.email,
               }
             : previous,
         );
@@ -979,20 +982,18 @@ export default function SettingsPage() {
                     />
                   </FormField>
 
-                  <FormField label={copy.email}>
+                  <FormField label={copy.email} required>
                     <input
                       type="email"
                       value={profileForm.email}
-                      readOnly
-                      disabled
-                      className="input cursor-not-allowed opacity-70"
+                      onChange={(event) =>
+                        setProfileForm((previous) => ({
+                          ...previous,
+                          email: event.target.value,
+                        }))
+                      }
+                      className="input"
                     />
-                    <p
-                      className="mt-1 text-xs font-semibold"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      {copy.emailChangeDisabled}
-                    </p>
                   </FormField>
 
                   <div className="grid grid-cols-2 gap-2 pt-2">
