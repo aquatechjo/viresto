@@ -16,7 +16,7 @@ import {
 import PageLoader from "@/components/ui/PageLoader";
 import EmptyState from "@/components/ui/EmptyState";
 import { useLocale } from "@/lib/useLocale";
-import AppLoader from "@/components/ui/AppLoader"
+import AppLoader from "@/components/ui/AppLoader";
 type Locale = "ar" | "en";
 
 interface ActivityItem {
@@ -98,6 +98,7 @@ const COPY = {
       USER: "مستخدم",
       SESSION: "جلسة",
       TENANT: "مكتب",
+      AUTH: "المصادقة",
     },
     activities: {
       CLIENT_CREATED: "إضافة موكل",
@@ -128,11 +129,28 @@ const COPY = {
       INVOICE_DELETED: "حذف فاتورة",
       USER_LOGIN: "تسجيل دخول",
       USER_LOGOUT: "تسجيل خروج",
+      LOGIN_SUCCESS: "تم تسجيل الدخول بنجاح",
+      SUSPICIOUS_LOGIN: "تسجيل دخول من جهاز أو IP جديد",
+      LOGIN_FAILED: "فشل تسجيل الدخول",
+      PASSWORD_CHANGED: "تغيير كلمة المرور",
+      PASSWORD_RESET: "إعادة تعيين كلمة المرور",
+      PASSWORD_RESET_REQUEST: "طلب إعادة تعيين كلمة المرور",
+      "2FA_ENABLED": "تفعيل التحقق الثنائي",
+      "2FA_DISABLED": "تعطيل التحقق الثنائي",
+      TWO_FACTOR_ENABLED: "تفعيل التحقق الثنائي",
+      TWO_FACTOR_DISABLED: "تعطيل التحقق الثنائي",
       USER_CREATED: "إضافة مستخدم",
       USER_UPDATED: "تعديل مستخدم",
       USER_DISABLED: "تعطيل مستخدم",
       USER_ENABLED: "تفعيل مستخدم",
+      USER_DEACTIVATED: "تعطيل مستخدم",
+      USER_ACTIVATED: "تفعيل مستخدم",
       SESSION_REVOKED: "إلغاء جلسة",
+      SESSIONS_REVOKED: "إلغاء الجلسات",
+      TENANT_SUSPENDED: "تعليق المكتب",
+      TENANT_ACTIVATED: "تفعيل المكتب",
+      BILLING_STATUS_CHANGED: "تغيير حالة الاشتراك",
+      PLAN_CHANGED: "تغيير الخطة",
     },
   },
   en: {
@@ -195,6 +213,7 @@ const COPY = {
       USER: "User",
       SESSION: "Session",
       TENANT: "Office",
+      AUTH: "Authentication",
     },
     activities: {
       CLIENT_CREATED: "Client created",
@@ -225,11 +244,28 @@ const COPY = {
       INVOICE_DELETED: "Invoice deleted",
       USER_LOGIN: "User signed in",
       USER_LOGOUT: "User signed out",
+      LOGIN_SUCCESS: "Login successful",
+      SUSPICIOUS_LOGIN: "Login from a new device or IP",
+      LOGIN_FAILED: "Login failed",
+      PASSWORD_CHANGED: "Password changed",
+      PASSWORD_RESET: "Password reset",
+      PASSWORD_RESET_REQUEST: "Password reset requested",
+      "2FA_ENABLED": "Two-factor authentication enabled",
+      "2FA_DISABLED": "Two-factor authentication disabled",
+      TWO_FACTOR_ENABLED: "Two-factor authentication enabled",
+      TWO_FACTOR_DISABLED: "Two-factor authentication disabled",
       USER_CREATED: "User created",
       USER_UPDATED: "User updated",
       USER_DISABLED: "User disabled",
       USER_ENABLED: "User enabled",
+      USER_DEACTIVATED: "User deactivated",
+      USER_ACTIVATED: "User activated",
       SESSION_REVOKED: "Session revoked",
+      SESSIONS_REVOKED: "Sessions revoked",
+      TENANT_SUSPENDED: "Office suspended",
+      TENANT_ACTIVATED: "Office activated",
+      BILLING_STATUS_CHANGED: "Billing status changed",
+      PLAN_CHANGED: "Plan changed",
     },
   },
 } as const;
@@ -293,28 +329,68 @@ const RAW_ACTIVITY_ALIASES: Record<string, keyof typeof COPY.ar.activities> = {
   "User signed in": "USER_LOGIN",
   "تسجيل خروج": "USER_LOGOUT",
   "User signed out": "USER_LOGOUT",
+
+  "تم تسجيل الدخول بنجاح": "LOGIN_SUCCESS",
+  "LOGIN_SUCCESS": "LOGIN_SUCCESS",
+  "LOGIN SUCCESS": "LOGIN_SUCCESS",
+  "Login successful": "LOGIN_SUCCESS",
+
+  "جديد IP تسجيل دخول من جهاز أو": "SUSPICIOUS_LOGIN",
+  "تسجيل دخول من جهاز أو IP جديد": "SUSPICIOUS_LOGIN",
+  "SUSPICIOUS_LOGIN": "SUSPICIOUS_LOGIN",
+  "SUSPICIOUS LOGIN": "SUSPICIOUS_LOGIN",
+  "Login from a new device or IP": "SUSPICIOUS_LOGIN",
+
+  "فشل تسجيل الدخول": "LOGIN_FAILED",
+  "LOGIN_FAILED": "LOGIN_FAILED",
+  "LOGIN FAILED": "LOGIN_FAILED",
+  "Login failed": "LOGIN_FAILED",
+
+  "تغيير كلمة المرور": "PASSWORD_CHANGED",
+  "Password changed": "PASSWORD_CHANGED",
+  "إعادة تعيين كلمة المرور": "PASSWORD_RESET",
+  "Password reset": "PASSWORD_RESET",
+  "طلب إعادة تعيين كلمة المرور": "PASSWORD_RESET_REQUEST",
+  "Password reset requested": "PASSWORD_RESET_REQUEST",
+
+  "تفعيل التحقق الثنائي": "TWO_FACTOR_ENABLED",
+  "تعطيل التحقق الثنائي": "TWO_FACTOR_DISABLED",
+  "Two-factor authentication enabled": "TWO_FACTOR_ENABLED",
+  "Two-factor authentication disabled": "TWO_FACTOR_DISABLED",
+
+  "إلغاء جلسة": "SESSION_REVOKED",
+  "إلغاء الجلسات": "SESSIONS_REVOKED",
+  "Session revoked": "SESSION_REVOKED",
+  "Sessions revoked": "SESSIONS_REVOKED",
 };
 
 const TYPE_OPTIONS = [
   ["all", "all"],
-  ["CLIENT_CREATED", "clients"],
-  ["CASE_CREATED", "cases"],
-  ["APPOINTMENT_CREATED", "appointments"],
-  ["TASK_CREATED", "tasks"],
-  ["DOCUMENT_UPLOADED", "documents"],
-  ["PAYMENT_ADDED", "payments"],
-  ["INVOICE_CREATED", "invoices"],
-  ["USER_LOGIN", "security"],
+  ["clients", "clients"],
+  ["cases", "cases"],
+  ["appointments", "appointments"],
+  ["tasks", "tasks"],
+  ["documents", "documents"],
+  ["payments", "payments"],
+  ["invoices", "invoices"],
+  ["security", "security"],
 ] as const;
 
 function resolveActivityKey(
   value?: string | null,
 ): keyof typeof COPY.ar.activities | null {
   if (!value) return null;
-  const direct = value as keyof typeof COPY.ar.activities;
-  if (direct in COPY.ar.activities) return direct;
 
   const trimmed = value.trim();
+  const direct = trimmed as keyof typeof COPY.ar.activities;
+  if (direct in COPY.ar.activities) return direct;
+
+  const normalizedKey = trimmed
+    .replace(/[\s-]+/g, "_")
+    .toUpperCase() as keyof typeof COPY.ar.activities;
+
+  if (normalizedKey in COPY.ar.activities) return normalizedKey;
+
   if (trimmed in RAW_ACTIVITY_ALIASES) return RAW_ACTIVITY_ALIASES[trimmed];
 
   const compact = trimmed
@@ -322,6 +398,15 @@ function resolveActivityKey(
     .replace(/^New\s+/iu, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  const compactDirect = compact as keyof typeof COPY.ar.activities;
+  if (compactDirect in COPY.ar.activities) return compactDirect;
+
+  const compactNormalized = compact
+    .replace(/[\s-]+/g, "_")
+    .toUpperCase() as keyof typeof COPY.ar.activities;
+
+  if (compactNormalized in COPY.ar.activities) return compactNormalized;
 
   if (compact in RAW_ACTIVITY_ALIASES) return RAW_ACTIVITY_ALIASES[compact];
 
@@ -335,11 +420,11 @@ function activityLabel(value: string | null | undefined, locale: Locale) {
 }
 
 function displayActivityTitle(activity: ActivityItem, locale: Locale) {
-  const fromTitle = resolveActivityKey(activity.title);
-  if (fromTitle) return COPY[locale].activities[fromTitle];
-
   const fromType = resolveActivityKey(activity.type);
   if (fromType) return COPY[locale].activities[fromType];
+
+  const fromTitle = resolveActivityKey(activity.title);
+  if (fromTitle) return COPY[locale].activities[fromTitle];
 
   return activity.title || activityLabel(activity.type, locale);
 }
@@ -379,23 +464,38 @@ function categoryOf(type: string, title?: string | null) {
     normalized.includes("LOGIN") ||
     normalized.includes("LOGOUT") ||
     normalized.includes("SESSION") ||
+    normalized.includes("PASSWORD") ||
+    normalized.includes("2FA") ||
+    normalized.includes("TWO_FACTOR") ||
+    normalized.includes("AUTH") ||
     normalized.includes("تسجيل دخول") ||
-    normalized.includes("تسجيل خروج")
+    normalized.includes("تسجيل خروج") ||
+    normalized.includes("كلمة المرور") ||
+    normalized.includes("التحقق الثنائي")
   ) {
     return "security";
   }
 
-  if (
-    normalized.includes("PAYMENT") ||
-    normalized.includes("INVOICE") ||
-    normalized.includes("دفعة") ||
-    normalized.includes("فاتورة")
-  ) {
-    return "finance";
-  }
+  if (normalized.includes("PAYMENT") || normalized.includes("دفعة"))
+    return "payments";
+
+  if (normalized.includes("INVOICE") || normalized.includes("فاتورة"))
+    return "invoices";
+
+  if (normalized.includes("CLIENT") || normalized.includes("موكل"))
+    return "clients";
 
   if (normalized.includes("CASE") || normalized.includes("قضية"))
     return "cases";
+
+  if (normalized.includes("APPOINTMENT") || normalized.includes("موعد"))
+    return "appointments";
+
+  if (normalized.includes("TASK") || normalized.includes("مهمة"))
+    return "tasks";
+
+  if (normalized.includes("DOCUMENT") || normalized.includes("مستند"))
+    return "documents";
 
   return "other";
 }
@@ -462,8 +562,7 @@ export default function ActivityPage() {
       if (activities.length) setRefreshing(true);
       else setLoading(true);
 
-      const params = new URLSearchParams({ limit: "100" });
-      if (type !== "all") params.set("type", type);
+      const params = new URLSearchParams({ limit: "50" });
       if (search.trim()) params.set("q", search.trim());
 
       const res = await fetch(`/api/activity?${params.toString()}`);
@@ -491,9 +590,16 @@ export default function ActivityPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return activities;
 
     return activities.filter((activity) => {
+      const category = categoryOf(activity.type, activity.title);
+
+      if (type !== "all" && category !== type) {
+        return false;
+      }
+
+      if (!q) return true;
+
       const title = displayActivityTitle(activity, locale);
       const message = displayActivityMessage(activity, locale);
       const entity = entityLabel(activity.entityType, locale);
@@ -510,7 +616,7 @@ export default function ActivityPage() {
         activity.actor?.email?.toLowerCase().includes(q)
       );
     });
-  }, [activities, search, locale]);
+  }, [activities, search, locale, type]);
 
   const today = new Date().toDateString();
   const stats = {
@@ -521,14 +627,14 @@ export default function ActivityPage() {
     security: activities.filter(
       (activity) => categoryOf(activity.type, activity.title) === "security",
     ).length,
-    finance: activities.filter(
-      (activity) => categoryOf(activity.type, activity.title) === "finance",
+    finance: activities.filter((activity) =>
+      ["payments", "invoices"].includes(categoryOf(activity.type, activity.title)),
     ).length,
   };
 
-if (loading) {
-  return <AppLoader fullScreen={false} />
-}
+  if (loading) {
+    return <AppLoader fullScreen={false} />;
+  }
 
   return (
     <div dir={fieldDir} className="space-y-5 stagger">
