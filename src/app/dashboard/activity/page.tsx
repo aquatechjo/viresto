@@ -663,24 +663,17 @@ export default function ActivityPage() {
         />
 
         <div
-          className={`relative z-10 flex min-h-[126px] flex-col gap-5 xl:flex-row xl:items-center xl:justify-between ${
-            isRtl ? "" : "xl:flex-row-reverse"
-          }`}
+          dir="ltr"
+          className="relative z-10 grid min-h-[132px] gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center"
         >
-          <div className="flex shrink-0 items-center gap-2 self-center xl:self-auto">
-            <button
-              onClick={() => void load(true)}
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white px-5 py-3 text-sm font-black text-[var(--sidebar)] shadow-lg transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
-              {copy.hero.refresh}
-            </button>
-          </div>
-
-          <div className="text-start">
+          <div
+            dir={fieldDir}
+            className={`min-w-0 text-start ${
+              isRtl
+                ? "xl:col-start-2 xl:row-start-1 xl:justify-self-end xl:text-right"
+                : "xl:col-start-1 xl:row-start-1 xl:justify-self-start xl:text-left"
+            }`}
+          >
             <div
               className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
               style={{
@@ -692,13 +685,32 @@ export default function ActivityPage() {
               {copy.hero.badge}
             </div>
 
-            <h1 className="text-2xl font-black text-white">
+            <h1 className="text-2xl font-black text-white sm:text-3xl">
               {copy.hero.title}
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
               {copy.hero.subtitle}
             </p>
+          </div>
+
+          <div
+            className={`flex shrink-0 items-center ${
+              isRtl
+                ? "justify-start xl:col-start-1 xl:row-start-1 xl:justify-self-start"
+                : "justify-start xl:col-start-2 xl:row-start-1 xl:justify-self-end"
+            }`}
+          >
+            <button
+              onClick={() => void load(true)}
+              disabled={loading || refreshing}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white px-6 py-3 text-sm font-black text-[var(--sidebar)] shadow-lg transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+              />
+              {copy.hero.refresh}
+            </button>
           </div>
         </div>
       </div>
