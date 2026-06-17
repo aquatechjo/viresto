@@ -12,16 +12,13 @@ type Params = { params: Promise<{ id: string }> }
 function getResourceTypes(fileType?: string | null): ('image' | 'raw' | 'video')[] {
   if (fileType?.startsWith('video/')) return ['video']
   if (fileType?.startsWith('image/')) return ['image']
-  function getResourceTypes(fileType?: string | null): ('image' | 'raw' | 'video')[] {
-  if (fileType?.startsWith('video/')) return ['video']
-  if (fileType?.startsWith('image/')) return ['image']
+
   if (fileType === 'application/pdf') return ['image']
 
   return ['raw', 'image']
 }
 
-  return ['raw', 'image']
-}
+
 
 
 function getPublicIdCandidates(publicId: string, fileType?: string | null) {

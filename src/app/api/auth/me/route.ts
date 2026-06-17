@@ -1,15 +1,15 @@
-import { NextRequest } from 'next/server'
-import { ok, unauthorized } from '@/lib/api-response'
-import { requireAuth } from '@/lib/api-auth'
-import { prisma } from '@/lib/prisma'
-import { apiHandler } from '@/lib/api-handler'
+import { NextRequest } from "next/server";
+import { ok, unauthorized } from "@/lib/api-response";
+import { requireAuth } from "@/lib/api-auth";
+import { prisma } from "@/lib/prisma";
+import { apiHandler } from "@/lib/api-handler";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireAuth(req)
+    const auth = await requireAuth(req);
 
     if (auth.error || !auth.user) {
-      return auth.error
+      return auth.error;
     }
 
     const user = await prisma.user.findFirst({
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
         tenant: {
           isSuspended: false,
           status: {
-            notIn: ['SUSPENDED', 'EXPIRED'],
+            not: "SUSPENDED",
           },
         },
       },
@@ -44,12 +44,12 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-    })
+    });
 
     if (!user) {
-      return unauthorized()
+      return unauthorized();
     }
 
-    return ok(user)
-  })
+    return ok(user);
+  });
 }
