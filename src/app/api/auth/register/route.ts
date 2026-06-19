@@ -108,7 +108,6 @@ export async function POST(req: NextRequest) {
             passwordHash,
             role: "ADMIN",
             emailVerifiedAt: null,
-            phoneVerifiedAt: null,
           },
         },
       },

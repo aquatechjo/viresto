@@ -63,7 +63,7 @@ function VerifyEmailContent() {
           return;
         }
 
-        router.push(`/verify-whatsapp?email=${encodeURIComponent(cleanEmail)}`);
+        router.push("/login");
       }, 900);
     } catch {
       setError("حدث خطأ أثناء الاتصال بالخادم");
@@ -105,16 +105,6 @@ function VerifyEmailContent() {
 
       const next = data?.data?.next;
       setMessage(data?.data?.message || "تم إرسال كود تحقق جديد");
-
-      if (next === "WHATSAPP_VERIFICATION") {
-        setTimeout(() => {
-          const phone = data?.data?.phone || "";
-
-          router.push(
-            `/verify-whatsapp?email=${encodeURIComponent(cleanEmail)}&phone=${encodeURIComponent(phone)}`,
-          );
-        }, 900);
-      }
 
       if (next === "LOGIN") {
         setTimeout(() => {

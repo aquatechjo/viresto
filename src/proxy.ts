@@ -7,12 +7,10 @@ const publicPaths = [
   "/login",
   "/register",
   "/verify-email",
-  "/verify-whatsapp",
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/register",
   "/api/auth/verify-email",
-  "/api/auth/verify-whatsapp",
   "/api/auth/resend-verification",
   "/forgot-password",
   "/reset-password",
@@ -143,7 +141,6 @@ export async function proxy(req: NextRequest) {
         pathname === "/login" ||
         pathname === "/register" ||
         pathname === "/verify-email" ||
-        pathname === "/verify-whatsapp" ||
         pathname === "/forgot-password" ||
         pathname === "/reset-password"
       ) {

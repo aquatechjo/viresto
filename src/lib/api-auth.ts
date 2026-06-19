@@ -51,9 +51,6 @@ export async function requireAuth(req: NextRequest) {
       emailVerifiedAt: {
         not: null,
       },
-      phoneVerifiedAt: {
-        not: null,
-      },
       tenant: {
         isSuspended: false,
         status: {

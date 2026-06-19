@@ -6,7 +6,6 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createVerificationCode } from "@/lib/verification";
 import { sendVerificationEmail } from "@/lib/email";
-import { sendWhatsappVerificationCode } from "@/lib/whatsapp";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -50,7 +49,6 @@ export async function POST(req: NextRequest) {
         phone: true,
         isActive: true,
         emailVerifiedAt: true,
-        phoneVerifiedAt: true,
         tenant: {
           select: {
             isSuspended: true,
@@ -97,33 +95,6 @@ export async function POST(req: NextRequest) {
           message: "تم إرسال كود تأكيد جديد إلى بريدك الإلكتروني.",
           next: "EMAIL_VERIFICATION",
           email: user.email,
-        },
-      });
-    }
-
-    if (!user.phoneVerifiedAt) {
-      if (!user.phone) {
-        return err("لا يوجد رقم واتساب مرتبط بهذا الحساب", 400);
-      }
-
-      const code = await createVerificationCode({
-        userId: user.id,
-        type: "WHATSAPP",
-        expiresInMinutes: 10,
-      });
-
-      await sendWhatsappVerificationCode({
-        to: user.phone,
-        code,
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          message: "تم إرسال كود واتساب جديد.",
-          next: "WHATSAPP_VERIFICATION",
-          email: user.email,
-          phone: user.phone,
         },
       });
     }

@@ -56,10 +56,7 @@ export async function POST(req: NextRequest) {
         isSystemAdmin: true,
         twoFactorEnabled: true,
         twoFactorSecret: true,
-
         emailVerifiedAt: true,
-        phoneVerifiedAt: true,
-
         tenant: {
           select: {
             isSuspended: true,
@@ -107,15 +104,6 @@ export async function POST(req: NextRequest) {
         code: "EMAIL_NOT_VERIFIED",
         next: "EMAIL_VERIFICATION",
         email: user.email,
-      });
-    }
-
-    if (!user.phoneVerifiedAt) {
-      return err("يرجى تأكيد رقم الواتساب أولاً", 403, {
-        code: "WHATSAPP_NOT_VERIFIED",
-        next: "WHATSAPP_VERIFICATION",
-        email: user.email,
-        phone: user.phone,
       });
     }
 

@@ -1,8 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 
-type VerificationType = "EMAIL" | "WHATSAPP";
-
+type VerificationType = "EMAIL";
 function getVerificationSecret() {
   const secret = process.env.VERIFICATION_SECRET || process.env.JWT_SECRET;
 
