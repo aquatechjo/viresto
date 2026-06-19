@@ -13,6 +13,11 @@ const publicPaths = [
   "/api/auth/register",
   "/api/auth/verify-email",
   "/api/auth/verify-whatsapp",
+  "/api/auth/resend-verification",
+  "/forgot-password",
+  "/reset-password",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
 ];
 
 function isPublicPath(pathname: string) {
@@ -135,11 +140,12 @@ export async function proxy(req: NextRequest) {
       requestHeaders.set("x-user-role", String(payload.role));
 
       if (
-        pathname === "/" ||
         pathname === "/login" ||
         pathname === "/register" ||
         pathname === "/verify-email" ||
-        pathname === "/verify-whatsapp"
+        pathname === "/verify-whatsapp" ||
+        pathname === "/forgot-password" ||
+        pathname === "/reset-password"
       ) {
         return applySecurityHeaders(
           NextResponse.redirect(new URL("/dashboard", req.url)),

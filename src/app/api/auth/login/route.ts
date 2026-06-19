@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         tenantId: true,
+        phone: true,
         name: true,
         email: true,
         role: true,
@@ -114,6 +115,7 @@ export async function POST(req: NextRequest) {
         code: "WHATSAPP_NOT_VERIFIED",
         next: "WHATSAPP_VERIFICATION",
         email: user.email,
+        phone: user.phone,
       });
     }
 

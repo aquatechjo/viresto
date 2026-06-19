@@ -176,6 +176,7 @@ model User {
 
   @@unique([tenantId, email])
   @@index([tenantId])
+  passwordResetCodes PasswordResetCode[]
 }
 
 model Client {
@@ -524,4 +525,18 @@ model VerificationCode {
   createdAt DateTime @default(now())
 
   @@index([userId, type])
+}
+model PasswordResetCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

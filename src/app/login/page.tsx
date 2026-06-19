@@ -119,6 +119,7 @@ export default function LoginPage() {
       if (data.success) {
         toast.success("مرحباً بك في Viresto!");
         router.push("/dashboard");
+        return;
       }
       const code = data?.details?.code || data?.data?.code || data?.code;
 
@@ -126,6 +127,9 @@ export default function LoginPage() {
 
       const verifyEmail =
         data?.details?.email || data?.data?.email || data?.email || form.email;
+
+      const verifyPhone =
+        data?.details?.phone || data?.data?.phone || data?.phone || "";
 
       if (code === "EMAIL_NOT_VERIFIED" || next === "EMAIL_VERIFICATION") {
         toast.error(data?.message || "يرجى تأكيد البريد الإلكتروني أولاً");
@@ -138,9 +142,11 @@ export default function LoginPage() {
         next === "WHATSAPP_VERIFICATION"
       ) {
         toast.error(data?.message || "يرجى تأكيد رقم الواتساب أولاً");
+
         router.push(
-          `/verify-whatsapp?email=${encodeURIComponent(verifyEmail)}`,
+          `/verify-whatsapp?email=${encodeURIComponent(verifyEmail)}&phone=${encodeURIComponent(verifyPhone)}`,
         );
+
         return;
       }
 
@@ -510,6 +516,20 @@ export default function LoginPage() {
                         </button>
                       </div>
                     </FormField>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="flex justify-end"
+                  >
+                    <Link
+                      href="/forgot-password"
+                      className="text-sm font-black text-[#1f4639] transition hover:underline dark:text-emerald-300"
+                    >
+                      نسيت كلمة المرور؟
+                    </Link>
                   </motion.div>
 
                   <motion.button

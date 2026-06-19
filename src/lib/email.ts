@@ -35,7 +35,10 @@ function verificationEmailText(code: string) {
   return `رمز تأكيد البريد الإلكتروني الخاص بك في ${getAppName()} هو: ${code}\nتنتهي صلاحية الرمز خلال 10 دقائق.`;
 }
 
-export async function sendVerificationEmail({ to, code }: SendVerificationEmailInput) {
+export async function sendVerificationEmail({
+  to,
+  code,
+}: SendVerificationEmailInput) {
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
@@ -64,8 +67,61 @@ export async function sendVerificationEmail({ to, code }: SendVerificationEmailI
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(`Failed to send verification email: ${response.status} ${errorText}`);
+    throw new Error(
+      `Failed to send verification email: ${response.status} ${errorText}`,
+    );
   }
 
   return response.json().catch(() => ({ ok: true }));
+}
+
+type SendPasswordResetEmailInput = {
+  to: string;
+  code: string;
+};
+
+export async function sendPasswordResetEmail({
+  to,
+  code,
+}: SendPasswordResetEmailInput) {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV] Password reset code for ${to}: ${code}`);
+      return;
+    }
+
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: getEmailFrom(),
+      to,
+      subject: "رمز إعادة تعيين كلمة المرور - Viresto",
+      text: `رمز إعادة تعيين كلمة المرور هو: ${code}. الرمز صالح لمدة 10 دقائق.`,
+      html: `
+        <div dir="rtl" style="font-family: Arial, sans-serif; line-height: 1.8;">
+          <h2>إعادة تعيين كلمة المرور</h2>
+          <p>رمز إعادة تعيين كلمة المرور الخاص بك هو:</p>
+          <div style="font-size: 28px; font-weight: bold; letter-spacing: 6px; margin: 20px 0;">
+            ${code}
+          </div>
+          <p>الرمز صالح لمدة 10 دقائق.</p>
+          <p>إذا لم تطلب تغيير كلمة المرور، تجاهل هذه الرسالة.</p>
+        </div>
+      `,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to send password reset email: ${errorText}`);
+  }
 }

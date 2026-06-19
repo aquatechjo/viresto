@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 function VerifyEmailContent() {
@@ -13,9 +13,11 @@ function VerifyEmailContent() {
   const [email, setEmail] = useState(initialEmail);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  async function submitVerification(e: React.FormEvent) {
+
+  async function submitVerification(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     setLoading(true);
@@ -43,7 +45,7 @@ function VerifyEmailContent() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
         setError(
@@ -67,6 +69,62 @@ function VerifyEmailContent() {
       setError("حدث خطأ أثناء الاتصال بالخادم");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function resendCode() {
+    const cleanEmail = email.trim().toLowerCase();
+
+    setMessage("");
+    setError("");
+
+    if (!cleanEmail) {
+      setError("أدخل البريد الإلكتروني أولاً");
+      return;
+    }
+
+    setResending(true);
+
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.success) {
+        setError(data?.message || data?.error || "تعذر إعادة إرسال الكود");
+        return;
+      }
+
+      const next = data?.data?.next;
+      setMessage(data?.data?.message || "تم إرسال كود تحقق جديد");
+
+      if (next === "WHATSAPP_VERIFICATION") {
+        setTimeout(() => {
+          const phone = data?.data?.phone || "";
+
+          router.push(
+            `/verify-whatsapp?email=${encodeURIComponent(cleanEmail)}&phone=${encodeURIComponent(phone)}`,
+          );
+        }, 900);
+      }
+
+      if (next === "LOGIN") {
+        setTimeout(() => {
+          router.push("/login");
+        }, 900);
+      }
+    } catch {
+      setError("حدث خطأ أثناء إعادة إرسال الكود");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -147,6 +205,15 @@ function VerifyEmailContent() {
             {loading ? "جاري التحقق..." : "تأكيد البريد الإلكتروني"}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={resendCode}
+          disabled={resending}
+          className="mt-4 w-full rounded-2xl border border-emerald-300/25 px-5 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {resending ? "جاري إعادة الإرسال..." : "إعادة إرسال الكود"}
+        </button>
 
         <div className="mt-6 text-center text-sm font-semibold text-emerald-100/60">
           لديك حساب؟{" "}

@@ -1,22 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+function maskPhone(phone: string) {
+  const clean = phone.trim();
+
+  if (!clean) return "";
+
+  if (clean.length <= 6) return clean;
+
+  return `${clean.slice(0, 4)}****${clean.slice(-3)}`;
+}
 
 function VerifyWhatsappContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const initialEmail = searchParams.get("email") || "";
+  const initialPhone = searchParams.get("phone") || "";
 
-  const [email, setEmail] = useState(initialEmail);
+  const [email] = useState(initialEmail);
+  const [phone, setPhone] = useState(initialPhone);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  async function submitVerification(e: React.FormEvent) {
+  async function submitVerification(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     setLoading(true);
@@ -27,7 +40,7 @@ function VerifyWhatsappContent() {
     const cleanCode = code.trim();
 
     if (!cleanEmail || cleanCode.length !== 6) {
-      setError("يرجى إدخال البريد الإلكتروني ورمز تحقق صحيح");
+      setError("يرجى إدخال رمز تحقق صحيح");
       setLoading(false);
       return;
     }
@@ -44,7 +57,7 @@ function VerifyWhatsappContent() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
         setError(data?.message || data?.error || "تعذر تأكيد رقم الواتساب");
@@ -69,6 +82,64 @@ function VerifyWhatsappContent() {
     }
   }
 
+  async function resendCode() {
+    const cleanEmail = email.trim().toLowerCase();
+
+    setMessage("");
+    setError("");
+
+    if (!cleanEmail) {
+      setError("تعذر تحديد الحساب. ارجع إلى تسجيل الدخول وحاول مرة أخرى.");
+      return;
+    }
+
+    setResending(true);
+
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.success) {
+        setError(data?.message || data?.error || "تعذر إعادة إرسال الكود");
+        return;
+      }
+
+      const next = data?.data?.next;
+      const nextPhone = data?.data?.phone || "";
+
+      if (nextPhone) {
+        setPhone(nextPhone);
+      }
+
+      setMessage(data?.data?.message || "تم إرسال كود تحقق جديد");
+
+      if (next === "EMAIL_VERIFICATION") {
+        setTimeout(() => {
+          router.push(`/verify-email?email=${encodeURIComponent(cleanEmail)}`);
+        }, 900);
+      }
+
+      if (next === "LOGIN") {
+        setTimeout(() => {
+          router.push("/login");
+        }, 900);
+      }
+    } catch {
+      setError("حدث خطأ أثناء إعادة إرسال الكود");
+    } finally {
+      setResending(false);
+    }
+  }
+
   return (
     <main
       dir="rtl"
@@ -78,7 +149,7 @@ function VerifyWhatsappContent() {
         <div className="mb-7 text-center">
           <h1 className="text-2xl font-black">تأكيد رقم الواتساب</h1>
           <p className="mt-2 text-sm font-medium text-emerald-100/65">
-            أدخل رمز التحقق المكوّن من 6 أرقام
+            أدخل رمز التحقق المرسل إلى رقم الواتساب
           </p>
         </div>
 
@@ -97,21 +168,19 @@ function VerifyWhatsappContent() {
         <form onSubmit={submitVerification} className="space-y-5">
           <div>
             <label
-              htmlFor="email"
+              htmlFor="phone"
               className="mb-2 block text-sm font-bold text-white"
             >
-              البريد الإلكتروني
+              رقم الواتساب
             </label>
 
             <input
-              id="email"
+              id="phone"
               dir="ltr"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ahmed@law.jo"
-              className="w-full rounded-2xl border border-emerald-300/30 bg-transparent px-4 py-4 text-left text-emerald-100 outline-none transition placeholder:text-emerald-300/45 focus:border-emerald-300"
-              required
+              type="text"
+              value={phone ? maskPhone(phone) : "رقم الواتساب المسجل على الحساب"}
+              readOnly
+              className="w-full cursor-not-allowed rounded-2xl border border-emerald-300/30 bg-white/5 px-4 py-4 text-left text-emerald-100 outline-none"
             />
           </div>
 
@@ -146,6 +215,15 @@ function VerifyWhatsappContent() {
             {loading ? "جاري التحقق..." : "تأكيد رقم الواتساب"}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={resendCode}
+          disabled={resending}
+          className="mt-4 w-full rounded-2xl border border-emerald-300/25 px-5 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {resending ? "جاري إعادة الإرسال..." : "إعادة إرسال الكود"}
+        </button>
 
         <div className="mt-6 text-center text-sm font-semibold text-emerald-100/60">
           رجوع إلى{" "}
