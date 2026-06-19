@@ -77,6 +77,8 @@ const COPY = {
       local: "محلي",
       unavailable: "غير متاح",
       view: "عرض",
+      loadMore: "عرض المزيد",
+      loadingMore: "جاري تحميل المزيد...",
     },
     empty: {
       title: "لا توجد أنشطة",
@@ -192,6 +194,8 @@ const COPY = {
       local: "Local",
       unavailable: "Unavailable",
       view: "View",
+      loadMore: "Load more",
+      loadingMore: "Loading more...",
     },
     empty: {
       title: "No activities",
@@ -500,21 +504,36 @@ function categoryOf(type: string, title?: string | null) {
   return "other";
 }
 
-function safeActivities(data: any): ActivityItem[] {
+function safeActivityPayload(data: any): {
+  items: ActivityItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+} {
+  const payload = data?.data ?? data;
+
   const candidates = [
-    data,
-    data?.data,
+    payload?.items,
+    payload?.activities,
     data?.items,
     data?.activities,
-    data?.data?.items,
-    data?.data?.activities,
+    data,
   ];
 
   for (const candidate of candidates) {
-    if (Array.isArray(candidate)) return candidate;
+    if (Array.isArray(candidate)) {
+      return {
+        items: candidate,
+        nextCursor: typeof payload?.nextCursor === "string" ? payload.nextCursor : null,
+        hasMore: Boolean(payload?.hasMore),
+      };
+    }
   }
 
-  return [];
+  return {
+    items: [],
+    nextCursor: null,
+    hasMore: false,
+  };
 }
 
 function formatDateTime(value: string, locale: Locale) {
@@ -554,16 +573,31 @@ export default function ActivityPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [type, setType] = useState("all");
   const [search, setSearch] = useState("");
 
-  async function load(showToast = false) {
+  async function load({
+    showToast = false,
+    reset = true,
+  }: {
+    showToast?: boolean;
+    reset?: boolean;
+  } = {}) {
     try {
-      if (activities.length) setRefreshing(true);
-      else setLoading(true);
+      if (reset) {
+        if (activities.length) setRefreshing(true);
+        else setLoading(true);
+      } else {
+        if (!nextCursor || loadingMore) return;
+        setLoadingMore(true);
+      }
 
       const params = new URLSearchParams({ limit: "50" });
       if (search.trim()) params.set("q", search.trim());
+      if (!reset && nextCursor) params.set("cursor", nextCursor);
 
       const res = await fetch(`/api/activity?${params.toString()}`);
       const data = await res.json().catch(() => ({}));
@@ -573,20 +607,35 @@ export default function ActivityPage() {
         return;
       }
 
-      setActivities(safeActivities(data));
+      const payload = safeActivityPayload(data);
+
+      setActivities((current) => {
+        if (reset) return payload.items;
+
+        const existingIds = new Set(current.map((activity) => activity.id));
+        const uniqueNewItems = payload.items.filter(
+          (activity) => !existingIds.has(activity.id),
+        );
+
+        return [...current, ...uniqueNewItems];
+      });
+      setNextCursor(payload.nextCursor);
+      setHasMore(payload.hasMore);
+
       if (showToast) toast.success(copy.messages.refreshed);
     } catch {
       toast.error(copy.messages.loadException);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   }
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, locale]);
+  }, [locale]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -702,7 +751,7 @@ export default function ActivityPage() {
             }`}
           >
             <button
-              onClick={() => void load(true)}
+              onClick={() => void load({ showToast: true })}
               disabled={loading || refreshing}
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white px-6 py-3 text-sm font-black text-[var(--sidebar)] shadow-lg transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -922,6 +971,22 @@ export default function ActivityPage() {
               </tbody>
             </table>
           </div>
+
+          {hasMore ? (
+            <div className="flex justify-center border-t border-black/5 p-4 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => void load({ reset: false })}
+                disabled={loadingMore || refreshing}
+                className="inline-flex min-w-40 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 px-5 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`}
+                />
+                {loadingMore ? copy.table.loadingMore : copy.table.loadMore}
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
