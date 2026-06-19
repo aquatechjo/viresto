@@ -2,7 +2,6 @@
 import AppLoader from "@/components/ui/AppLoader"
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import PageLoader from '@/components/ui/PageLoader'
 import EmptyState from '@/components/ui/EmptyState'
 import { translations, type Locale } from '@/lib/i18n'
 import { useLocale } from '@/lib/useLocale'
@@ -204,6 +203,9 @@ export default function PaymentsPage() {
     textAlign: isRtl ? 'right' : 'left',
     direction: isRtl ? 'rtl' : 'ltr',
   } as const
+
+  const startAlignClass = isRtl ? 'text-right' : 'text-left'
+  const numericAlignClass = isRtl ? 'text-left' : 'text-right'
 
   const load = useCallback(async () => {
     try {
@@ -427,63 +429,53 @@ if (loading) {
 
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? 'rtl' : 'ltr'}>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_auto]">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,360px)]">
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={copy.filters.searchPlaceholder}
-            className="input"
+            className="input h-14"
             dir={isRtl ? 'rtl' : 'ltr'}
             style={fieldStyle}
           />
 
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="btn btn-ghost whitespace-nowrap"
-          >
-            {copy.filters.apply}
-          </button>
+          <div className="relative">
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value as PaymentFilter)}
+              className={`input h-14 w-full appearance-none ${isRtl ? 'pl-11' : 'pr-11'}`}
+              dir={isRtl ? 'rtl' : 'ltr'}
+              style={fieldStyle}
+              aria-label={copy.filters.apply}
+            >
+              {(
+                [
+                  ['all', copy.filters.chips.all],
+                  ['paid', copy.filters.chips.paid],
+                  ['pending', copy.filters.chips.pending],
+                  ['completed', copy.filters.chips.completed],
+                  ['archived', copy.filters.chips.archived],
+                ] as [PaymentFilter, string][]
+              ).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+
+            <span
+              className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm ${
+                isRtl ? 'left-4' : 'right-4'
+              }`}
+              style={{ color: 'var(--text-3)' }}
+            >
+              ▾
+            </span>
+          </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {(
-            [
-              ['all', copy.filters.chips.all],
-              ['paid', copy.filters.chips.paid],
-              ['pending', copy.filters.chips.pending],
-              ['completed', copy.filters.chips.completed],
-              ['archived', copy.filters.chips.archived],
-            ] as [PaymentFilter, string][]
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={
-                filter === key
-                  ? {
-                      background: key === 'archived' ? '#b45309' : 'var(--sidebar)',
-                      color: '#fff',
-                    }
-                  : {
-                      background:
-                        key === 'archived'
-                          ? 'rgba(180, 83, 9, 0.12)'
-                          : 'var(--green-soft)',
-                      color: key === 'archived' ? '#f59e0b' : 'var(--text-2)',
-                      border:
-                        key === 'archived'
-                          ? '1px solid rgba(180, 83, 9, 0.22)'
-                          : undefined,
-                    }
-              }
-            >
-              {label}
-            </button>
-          ))}
-
-          {(search || filter !== 'all') && (
+        {(search || filter !== 'all') && (
+          <div className={`mt-3 flex ${isRtl ? 'justify-start' : 'justify-end'}`}>
             <button
               type="button"
               onClick={clearFilters}
@@ -496,8 +488,8 @@ if (loading) {
             >
               {copy.filters.clear}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -544,162 +536,179 @@ if (loading) {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{copy.table.case}</th>
-                  <th>{copy.table.client}</th>
-                  <th>{copy.table.fees}</th>
-                  <th>{copy.table.collected}</th>
-                  <th>{copy.table.due}</th>
-                  <th>{copy.table.collectionRate}</th>
-                  <th>{copy.table.financialStatus}</th>
-                </tr>
-              </thead>
+            <div className="min-w-[980px]">
+              <div
+                className="grid grid-cols-[1fr_1.25fr_0.85fr_0.85fr_0.9fr_1.15fr_0.8fr] items-center gap-x-4 border-b px-5 py-3 text-[12px] font-black"
+                style={{
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-2)',
+                }}
+              >
+                <div className={startAlignClass}>{copy.table.case}</div>
+                <div className={startAlignClass}>{copy.table.client}</div>
+                <div className={numericAlignClass}>{copy.table.fees}</div>
+                <div className={numericAlignClass}>{copy.table.collected}</div>
+                <div className={numericAlignClass}>{copy.table.due}</div>
+                <div className="text-center">{copy.table.collectionRate}</div>
+                <div className="text-center">{copy.table.financialStatus}</div>
+              </div>
 
-              <tbody>
-                {filteredCases.map((item) => {
-                  const paidAmount = getPaidAmount(item)
-                  const pendingAmount = getPendingAmount(item)
-                  const remainingAmount = getRemainingAmount(item)
-                  const percent = getCollectionPercent(item)
-                  const completed = item.feeAgreed > 0 && paidAmount >= item.feeAgreed
-                  const archived = isArchivedCase(item)
+              {filteredCases.map((item) => {
+                const paidAmount = getPaidAmount(item)
+                const pendingAmount = getPendingAmount(item)
+                const remainingAmount = getRemainingAmount(item)
+                const percent = getCollectionPercent(item)
+                const completed =
+                  item.feeAgreed > 0 && paidAmount >= item.feeAgreed
+                const archived = isArchivedCase(item)
 
-                  return (
-                    <tr
-                      key={item.id}
-                      onClick={() => router.push(`/dashboard/cases/${item.id}`)}
-                      className="cursor-pointer"
-                    >
-                      <td>
-                        <div>
-                          <p className="font-mono text-xs font-bold">
-                            #{item.caseNumber?.split('/').pop() ?? item.id.slice(-4)}
-                          </p>
+                return (
+                  <div
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => router.push(`/dashboard/cases/${item.id}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        router.push(`/dashboard/cases/${item.id}`)
+                      }
+                    }}
+                    className="grid cursor-pointer grid-cols-[1fr_1.25fr_0.85fr_0.85fr_0.9fr_1.15fr_0.8fr] items-center gap-x-4 border-b px-5 py-4 transition hover:bg-white/[0.03] last:border-b-0 focus:outline-none focus:ring-2 focus:ring-emerald-300/25"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <div className={`min-w-0 ${startAlignClass}`}>
+                      <p className="font-mono text-[12px] font-black leading-5">
+                        #
+                        {item.caseNumber?.split('/').pop() ??
+                          item.id.slice(-4)}
+                      </p>
 
-                          <p
-                            className="max-w-[180px] truncate text-xs"
-                            style={{ color: 'var(--text-3)' }}
-                          >
-                            {item.title}
-                          </p>
-                        </div>
-                      </td>
-
-                      <td>
-                        <div className="flex flex-col gap-1">
-                          <span className="font-semibold">
-                            {item.client?.name ?? copy.labels.unknownClient}
-                          </span>
-
-                          {archived && (
-                            <span
-                              className="inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-black"
-                              style={{
-                                background: 'rgba(180, 83, 9, 0.12)',
-                                color: '#f59e0b',
-                                border: '1px solid rgba(180, 83, 9, 0.22)',
-                              }}
-                            >
-                              {copy.labels.archivedClient}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td>{money(item.feeAgreed, locale)}</td>
-
-                      <td className="font-bold" style={{ color: 'var(--sidebar)' }}>
-                        {money(paidAmount, locale)}
-                      </td>
-
-                      <td
-                        className="font-bold"
-                        style={{
-                          color: remainingAmount > 0 ? '#dc2626' : 'var(--text)',
-                        }}
+                      <p
+                        className="mt-0.5 block truncate text-[12px] font-bold leading-5"
+                        style={{ color: 'var(--text-3)', textAlign: isRtl ? 'right' : 'left' }}
                       >
-                        {money(remainingAmount, locale)}
-                      </td>
+                        {item.title}
+                      </p>
+                    </div>
 
-                      <td>
-                        <div className="flex min-w-[120px] items-center gap-2">
-                          <div
-                            className="h-2 flex-1 overflow-hidden rounded-full"
-                            style={{ background: 'var(--input-bg)' }}
-                          >
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{
-                                width: `${percent}%`,
-                                background:
-                                  percent >= 100
-                                    ? 'var(--sidebar)'
-                                    : percent >= 60
-                                      ? '#f59e0b'
-                                      : '#dc2626',
-                              }}
-                            />
-                          </div>
+                    <div className={`min-w-0 ${startAlignClass}`}>
+                      <p className="truncate text-sm font-black leading-5" style={{ textAlign: isRtl ? 'right' : 'left' }}>
+                        {item.client?.name ?? copy.labels.unknownClient}
+                      </p>
 
-                          <span
-                            className="w-9 text-xs font-bold"
-                            style={{ color: 'var(--text-2)' }}
-                          >
-                            {Math.round(percent)}%
-                          </span>
-                        </div>
-                      </td>
+                      {archived && (
+                        <span
+                          className="mt-1 inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-black"
+                          style={{
+                            background: 'rgba(180, 83, 9, 0.12)',
+                            color: '#f59e0b',
+                            border: '1px solid rgba(180, 83, 9, 0.22)',
+                          }}
+                        >
+                          {copy.labels.archivedClient}
+                        </span>
+                      )}
+                    </div>
 
-                      <td>
-                        <div className="flex flex-wrap gap-2">
-                          <span
-                            className="rounded-full px-3 py-1 text-xs font-black"
-                            style={
-                              completed
-                                ? {
-                                    background: 'var(--green-soft)',
-                                    color: 'var(--sidebar)',
-                                  }
-                                : pendingAmount > 0 || remainingAmount > 0
-                                  ? {
-                                      background: 'var(--red-soft)',
-                                      color: '#dc2626',
-                                    }
-                                  : {
-                                      background: 'var(--card)',
-                                      color: 'var(--text-3)',
-                                      border: '1px solid var(--border)',
-                                    }
-                            }
-                          >
-                            {completed
-                              ? copy.labels.completed
-                              : pendingAmount > 0 || remainingAmount > 0
-                                ? copy.labels.due
-                                : copy.labels.noPayments}
-                          </span>
+                    <div className={`${numericAlignClass} text-sm font-black`}>
+                      {money(item.feeAgreed, locale)}
+                    </div>
 
-                          {archived && (
-                            <span
-                              className="rounded-full px-3 py-1 text-xs font-black"
-                              style={{
-                                background: 'rgba(180, 83, 9, 0.12)',
-                                color: '#f59e0b',
-                                border: '1px solid rgba(180, 83, 9, 0.22)',
-                              }}
-                            >
-                              {copy.labels.archivedRecord}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                    <div
+                      className={`${numericAlignClass} text-sm font-black`}
+                      style={{
+                        color: paidAmount > 0 ? 'var(--sidebar)' : 'var(--text-3)',
+                        opacity: paidAmount > 0 ? 1 : 0.72,
+                      }}
+                    >
+                      {money(paidAmount, locale)}
+                    </div>
+
+                    <div
+                      className={`${numericAlignClass} text-sm font-black`}
+                      style={{
+                        color:
+                          remainingAmount > 0 ? '#ef4444' : 'var(--text)',
+                      }}
+                    >
+                      {money(remainingAmount, locale)}
+                    </div>
+
+                    <div className="flex items-center justify-center gap-2">
+                      <div
+                        className="h-2 w-24 overflow-hidden rounded-full"
+                        style={{ background: 'rgba(0, 0, 0, 0.22)' }}
+                      >
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${percent}%`,
+                            background:
+                              percent >= 100
+                                ? 'var(--sidebar)'
+                                : percent >= 60
+                                  ? '#f59e0b'
+                                  : '#dc2626',
+                          }}
+                        />
+                      </div>
+
+                      <span
+                        className="w-9 shrink-0 text-start text-[12px] font-black"
+                        style={{ color: 'var(--text-2)' }}
+                      >
+                        {Math.round(percent)}%
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap justify-center gap-2">
+                      <span
+                        className="rounded-full px-3 py-1.5 text-[12px] font-black"
+                        style={
+                          completed
+                            ? {
+                                background: 'rgba(16, 185, 129, 0.13)',
+                                color: 'var(--sidebar)',
+                                border: '1px solid rgba(16, 185, 129, 0.22)',
+                              }
+                            : pendingAmount > 0 || remainingAmount > 0
+                              ? {
+                                  background: 'rgba(239, 68, 68, 0.14)',
+                                  color: '#fecaca',
+                                  border: '1px solid rgba(239, 68, 68, 0.22)',
+                                }
+                              : {
+                                  background: 'var(--card)',
+                                  color: 'var(--text-3)',
+                                  border: '1px solid var(--border)',
+                                }
+                        }
+                      >
+                        {completed
+                          ? copy.labels.completed
+                          : pendingAmount > 0 || remainingAmount > 0
+                            ? copy.labels.due
+                            : copy.labels.noPayments}
+                      </span>
+
+                      {archived && (
+                        <span
+                          className="rounded-full px-3 py-1 text-xs font-black"
+                          style={{
+                            background: 'rgba(180, 83, 9, 0.12)',
+                            color: '#f59e0b',
+                            border: '1px solid rgba(180, 83, 9, 0.22)',
+                          }}
+                        >
+                          {copy.labels.archivedRecord}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}

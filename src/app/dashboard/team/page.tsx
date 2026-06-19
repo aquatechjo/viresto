@@ -1,5 +1,5 @@
 "use client";
-import AppLoader from "@/components/ui/AppLoader"
+import AppLoader from "@/components/ui/AppLoader";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
@@ -641,35 +641,8 @@ export default function TeamPage() {
           </button>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {[
-            ["all", copy.filters.all],
-            ["ADMIN", copy.stats.admins],
-            ["LAWYER", copy.filters.lawyers],
-            ["STAFF", copy.filters.staff],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setRoleFilter(key as "all" | Role)}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={
-                roleFilter === key
-                  ? {
-                      background: "var(--sidebar)",
-                      color: "#fff",
-                    }
-                  : {
-                      background: "var(--green-soft)",
-                      color: "var(--text-2)",
-                    }
-              }
-            >
-              {label}
-            </button>
-          ))}
-
-          {(search || roleFilter !== "all" || statusFilter !== "all") && (
+        {(search || roleFilter !== "all" || statusFilter !== "all") && (
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={clearFilters}
@@ -682,8 +655,8 @@ export default function TeamPage() {
             >
               {copy.filters.clear}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Main */}

@@ -77,7 +77,7 @@ const COPY = {
     viewBilling: "عرض الاشتراك",
     close: "إغلاق",
     archivedClientBadge: "موكل مؤرشف",
-    openClientFile: "عرض ملف الموكل ←",
+    openClientFile: "ملف الموكل ←",
     hero: {
       badge: "إدارة القضايا",
       title: "القضايا",
@@ -151,7 +151,7 @@ const COPY = {
     viewBilling: "View billing",
     close: "Close",
     archivedClientBadge: "Archived client",
-    openClientFile: "Open client file →",
+    openClientFile: "Client file →",
     hero: {
       badge: "Case management",
       title: "Cases",
@@ -595,58 +595,43 @@ export default function CasesPage() {
 
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px_auto]">
           <input
             dir={isRtl ? "rtl" : "ltr"}
             aria-label={text.filters.searchAria}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={text.filters.searchPlaceholder}
-            className={`input h-12 w-full ${isRtl ? "!text-right" : "!text-left"}`}
+            className={`input h-14 w-full ${isRtl ? "!text-right" : "!text-left"}`}
             style={{
               textAlign: isRtl ? "right" : "left",
               direction: isRtl ? "rtl" : "ltr",
             }}
           />
-        </div>
 
-        <div
-          className="mt-4 flex w-full flex-wrap gap-2"
-          dir={isRtl ? "rtl" : "ltr"}
-          style={{
-            justifyContent: "flex-start",
-            direction: isRtl ? "rtl" : "ltr",
-          }}
-        >
-          {STATUS_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key)}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={
-                filter === key
-                  ? {
-                      background: "var(--sidebar)",
-                      color: "#fff",
-                      border: "1px solid rgba(245, 200, 66, 0.35)",
-                    }
-                  : {
-                      background: "var(--green-soft)",
-                      color: "var(--text-2)",
-                      border: "1px solid transparent",
-                    }
-              }
-            >
-              {text.filters.statuses[key]}
-            </button>
-          ))}
+          <select
+            dir={isRtl ? "rtl" : "ltr"}
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as StatusFilter)}
+            className={`input h-14 w-full cursor-pointer ${isRtl ? "!text-right" : "!text-left"}`}
+            style={{
+              textAlign: isRtl ? "right" : "left",
+              direction: isRtl ? "rtl" : "ltr",
+            }}
+            aria-label={text.table.status}
+          >
+            {STATUS_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {text.filters.statuses[key]}
+              </option>
+            ))}
+          </select>
 
           {(search || filter !== "all") && (
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
+              className="h-14 rounded-2xl px-5 text-sm font-black transition-all"
               style={{
                 background: "var(--card)",
                 color: "var(--text-2)",
@@ -710,152 +695,147 @@ export default function CasesPage() {
       ) : (
         <div className="card overflow-hidden p-0">
           <div className="max-w-full overflow-x-auto">
-            <table className="data-table min-w-[980px]">
-              <thead>
-                <tr>
-                  <th>{text.table.case}</th>
-                  <th>{text.table.client}</th>
-                  <th>{text.table.fees}</th>
-                  <th>{text.table.paid}</th>
-                  <th>{text.table.remaining}</th>
-                  <th>{text.table.appointments}</th>
-                  <th>{text.table.documents}</th>
-                  <th>{text.table.status}</th>
-                  <th></th>
-                </tr>
-              </thead>
+            <div className="min-w-[1180px]">
+              <div className="grid grid-cols-[1fr_1.35fr_0.9fr_0.9fr_1fr_0.9fr_0.85fr_1fr_1.05fr] items-center gap-x-4 border-b border-emerald-300/20 px-5 py-4 text-sm font-black text-emerald-50/90">
+                <div className="text-start">{text.table.case}</div>
+                <div className="text-start">{text.table.client}</div>
+                <div className="text-end">{text.table.fees}</div>
+                <div className="text-end">{text.table.paid}</div>
+                <div className="text-end">{text.table.remaining}</div>
+                <div className="text-center">{text.table.appointments}</div>
+                <div className="text-center">{text.table.documents}</div>
+                <div className="text-center">{text.table.status}</div>
+                <div />
+              </div>
 
-              <tbody>
-                {filtered.map((item) => {
-                  const paidAmount = paid(item);
-                  const remainingAmount = remaining(item);
-                  const archivedClient = isArchivedClientCase(item);
+              {filtered.map((item) => {
+                const paidAmount = paid(item);
+                const remainingAmount = remaining(item);
+                const archivedClient = isArchivedClientCase(item);
 
-                  return (
-                    <tr
-                      key={item.id}
-                      onClick={() => router.push(`/dashboard/cases/${item.id}`)}
-                      className="cursor-pointer"
-                    >
-                      <td>
-                        <div className="min-w-0">
-                          <p className="font-mono text-sm font-bold">
-                            {item.caseNumber ?? `#${item.id.slice(-6)}`}
-                          </p>
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => router.push(`/dashboard/cases/${item.id}`)}
+                    className="grid cursor-pointer grid-cols-[1fr_1.35fr_0.9fr_0.9fr_1fr_0.9fr_0.85fr_1fr_1.05fr] items-center gap-x-4 border-b border-emerald-300/15 px-5 py-5 transition last:border-b-0 hover:bg-emerald-300/5"
+                  >
+                    <div className="min-w-0 text-start">
+                      <p dir="ltr" className="font-mono text-sm font-black text-emerald-50">
+                        {item.caseNumber ?? `#${item.id.slice(-6)}`}
+                      </p>
 
-                          <p
-                            className="max-w-[220px] truncate text-xs"
-                            style={{ color: "var(--text-3)" }}
-                          >
-                            {item.title}
-                          </p>
-                        </div>
-                      </td>
-
-                      <td className="whitespace-nowrap font-semibold">
-                        <div className="flex flex-col gap-1">
-                          <span>{item.client?.name}</span>
-
-                          {archivedClient && (
-                            <span
-                              className="w-fit rounded-full border px-2 py-0.5 text-[11px] font-black"
-                              style={{
-                                background: "#fff7ed",
-                                borderColor: "rgba(180, 83, 9, 0.22)",
-                                color: "#b45309",
-                              }}
-                            >
-                              {text.archivedClientBadge}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td
-                        dir="ltr"
-                        className={`whitespace-nowrap ${isRtl ? "text-right" : "text-left"}`}
-                      >
-                        {formatMoney(item.feeAgreed)}
-                      </td>
-
-                      <td
-                        dir="ltr"
-                        className={`whitespace-nowrap font-bold ${
+                      <p
+                        dir={isRtl ? "rtl" : "ltr"}
+                        className={`mt-1 max-w-[180px] truncate text-xs font-bold ${
                           isRtl ? "text-right" : "text-left"
                         }`}
-                        style={{ color: "var(--sidebar)" }}
+                        style={{ color: "var(--text-3)" }}
                       >
-                        {formatMoney(paidAmount)}
-                      </td>
+                        {item.title}
+                      </p>
+                    </div>
 
-                      <td
-                        dir="ltr"
-                        className={`whitespace-nowrap font-bold ${
-                          isRtl ? "text-right" : "text-left"
-                        }`}
-                        style={{
-                          color:
-                            remainingAmount > 0 ? "#dc2626" : "var(--text)",
-                        }}
-                      >
-                        {formatMoney(remainingAmount)}
-                      </td>
+                    <div className="min-w-0 text-start">
+                      <div className="flex flex-col items-start gap-1">
+                        <span
+                          dir={isRtl ? "rtl" : "ltr"}
+                          className={`max-w-[190px] truncate text-sm font-black text-emerald-50 ${
+                            isRtl ? "text-right" : "text-left"
+                          }`}
+                        >
+                          {item.client?.name}
+                        </span>
 
-                      <td className="whitespace-nowrap">
-                        {item._count?.appointments ?? 0}
-                      </td>
-
-                      <td className="whitespace-nowrap">
-                        {item._count?.documents ?? 0}
-                      </td>
-
-                      <td>
-                        <div className="flex flex-wrap gap-2">
+                        {archivedClient && (
                           <span
-                            className={
-                              STATUS_BADGE[item.status] ?? "badge badge-gray"
-                            }
-                          >
-                            {text.filters.statuses[
-                              item.status as keyof typeof text.filters.statuses
-                            ] ?? item.status}
-                          </span>
-
-                          {archivedClient && (
-                            <span
-                              className="rounded-full border px-2.5 py-1 text-xs font-black"
-                              style={{
-                                background: "#fff7ed",
-                                color: "#b45309",
-                                borderColor: "rgba(180, 83, 9, 0.22)",
-                              }}
-                            >
-                              {text.archivedClientBadge}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td onClick={(event) => event.stopPropagation()}>
-                        {item.client?.id && (
-                          <Link
-                            href={`/dashboard/clients/${item.client.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
+                            className="w-fit rounded-full border px-2 py-0.5 text-[11px] font-black"
                             style={{
-                              borderColor: "var(--border)",
-                              color: "var(--text-2)",
+                              background: "#fff7ed",
+                              borderColor: "rgba(180, 83, 9, 0.22)",
+                              color: "#b45309",
                             }}
-                            onClick={(event) => event.stopPropagation()}
                           >
-                            {text.openClientFile}
-                          </Link>
+                            {text.archivedClientBadge}
+                          </span>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+
+                    <div dir="ltr" className="text-end text-sm font-black text-emerald-50">
+                      {formatMoney(item.feeAgreed)}
+                    </div>
+
+                    <div
+                      dir="ltr"
+                      className="text-end text-sm font-black"
+                      style={{ color: "var(--sidebar)" }}
+                    >
+                      {formatMoney(paidAmount)}
+                    </div>
+
+                    <div
+                      dir="ltr"
+                      className="text-end text-sm font-black"
+                      style={{
+                        color: remainingAmount > 0 ? "#dc2626" : "var(--text)",
+                      }}
+                    >
+                      {formatMoney(remainingAmount)}
+                    </div>
+
+                    <div className="text-center text-sm font-black text-emerald-50/95">
+                      {item._count?.appointments ?? 0}
+                    </div>
+
+                    <div className="text-center text-sm font-black text-emerald-50/95">
+                      {item._count?.documents ?? 0}
+                    </div>
+
+                    <div className="flex justify-center">
+                      <div className="flex flex-wrap justify-center gap-2">
+                        <span className={STATUS_BADGE[item.status] ?? "badge badge-gray"}>
+                          {text.filters.statuses[
+                            item.status as keyof typeof text.filters.statuses
+                          ] ?? item.status}
+                        </span>
+
+                        {archivedClient && (
+                          <span
+                            className="rounded-full border px-2.5 py-1 text-xs font-black"
+                            style={{
+                              background: "#fff7ed",
+                              color: "#b45309",
+                              borderColor: "rgba(180, 83, 9, 0.22)",
+                            }}
+                          >
+                            {text.archivedClientBadge}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div
+                      className="flex justify-center"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {item.client?.id && (
+                        <Link
+                          href={`/dashboard/clients/${item.client.id}`}
+                          className="inline-flex min-w-[130px] items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
+                          style={{
+                            borderColor: "var(--border)",
+                            color: "var(--text-2)",
+                          }}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {text.openClientFile}
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

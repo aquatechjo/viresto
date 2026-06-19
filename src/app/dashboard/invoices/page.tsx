@@ -5,7 +5,7 @@ import type { CSSProperties, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
-import PageLoader from '@/components/ui/PageLoader'
+import AppLoader from '@/components/ui/AppLoader'
 import EmptyState from '@/components/ui/EmptyState'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/useLocale'
@@ -782,7 +782,7 @@ export default function InvoicesPage() {
   }
 
   if (!mounted || loading) {
-    return <PageLoader />
+    return <AppLoader fullScreen={false} />
   }
 
   return (

@@ -661,43 +661,35 @@ if (loading) {
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_.8fr_auto]" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div
+          className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]"
+          dir={isRtl ? 'rtl' : 'ltr'}
+        >
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={a.filters.searchPlaceholder}
-            className="input"
+            className="input h-14"
             {...fieldDir}
           />
-        </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {[
-            ['all', a.filters.chips.all],
-            ['COURT_SESSION', a.filters.chips.sessions],
-            ['MEETING', a.filters.chips.meetings],
-            ['PHONE_CALL', a.filters.chips.calls],
-            ['DEADLINE', a.filters.chips.deadlines],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTypeFilter(key)}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={
-                typeFilter === key
-                  ? {
-                      background: 'var(--sidebar)',
-                      color: '#fff',
-                    }
-                  : {
-                      background: 'var(--green-soft)',
-                      color: 'var(--text-2)',
-                    }
-              }
-            >
-              {label}
-            </button>
-          ))}
+          <select
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value)}
+            className="input h-14"
+            {...fieldDir}
+            aria-label={locale === 'ar' ? 'فلترة حسب نوع الموعد' : 'Filter by appointment type'}
+          >
+            <option value="all" dir={isRtl ? 'rtl' : 'ltr'}>
+              {a.filters.chips.all}
+            </option>
+
+            {Object.entries(typeLabels).map(([key, label]) => (
+              <option key={key} value={key} dir={isRtl ? 'rtl' : 'ltr'}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

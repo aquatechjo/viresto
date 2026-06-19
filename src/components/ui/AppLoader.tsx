@@ -1,12 +1,23 @@
+"use client";
+
+import { useLocale } from "@/lib/useLocale";
+
 export default function AppLoader({
-  text = "جاري تجهيز النظام...",
+  text,
   fullScreen = true,
 }: {
-  text?: string
-  fullScreen?: boolean
+  text?: string;
+  fullScreen?: boolean;
 }) {
+  const { locale } = useLocale();
+  const isArabic = locale === "ar";
+
+  const displayText =
+    text ?? (isArabic ? "جاري تجهيز النظام..." : "Preparing the system...");
+
   return (
     <div
+      dir={isArabic ? "rtl" : "ltr"}
       className={`flex items-center justify-center ${
         fullScreen ? "min-h-screen" : "min-h-[calc(100vh-88px)]"
       }`}
@@ -50,7 +61,7 @@ export default function AppLoader({
             className="mt-1 text-sm font-bold"
             style={{ color: "var(--text-2, #5f7569)" }}
           >
-            {text}
+            {displayText}
           </p>
         </div>
 
@@ -65,5 +76,5 @@ export default function AppLoader({
         </div>
       </div>
     </div>
-  )
+  );
 }

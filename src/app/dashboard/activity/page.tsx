@@ -153,6 +153,8 @@ const COPY = {
       TENANT_ACTIVATED: "تفعيل المكتب",
       BILLING_STATUS_CHANGED: "تغيير حالة الاشتراك",
       PLAN_CHANGED: "تغيير الخطة",
+      CLIENT_ARCHIVED: "تم أرشفة موكل",
+      CLIENT_RESTORED: "تم استعادة موكل",
     },
   },
   en: {
@@ -270,11 +272,22 @@ const COPY = {
       TENANT_ACTIVATED: "Office activated",
       BILLING_STATUS_CHANGED: "Billing status changed",
       PLAN_CHANGED: "Plan changed",
+      CLIENT_ARCHIVED: "Client archived",
+      CLIENT_RESTORED: "Client restored",
     },
   },
 } as const;
 
 const RAW_ACTIVITY_ALIASES: Record<string, keyof typeof COPY.ar.activities> = {
+  "تم أرشفة موكل": "CLIENT_ARCHIVED",
+  CLIENT_ARCHIVED: "CLIENT_ARCHIVED",
+  "CLIENT ARCHIVED": "CLIENT_ARCHIVED",
+  "Client archived": "CLIENT_ARCHIVED",
+
+  "تم استعادة موكل": "CLIENT_RESTORED",
+  CLIENT_RESTORED: "CLIENT_RESTORED",
+  "CLIENT RESTORED": "CLIENT_RESTORED",
+  "Client restored": "CLIENT_RESTORED",
   "إضافة موكل": "CLIENT_CREATED",
   "انشاء موكل": "CLIENT_CREATED",
   "إنشاء موكل": "CLIENT_CREATED",
@@ -335,18 +348,18 @@ const RAW_ACTIVITY_ALIASES: Record<string, keyof typeof COPY.ar.activities> = {
   "User signed out": "USER_LOGOUT",
 
   "تم تسجيل الدخول بنجاح": "LOGIN_SUCCESS",
-  "LOGIN_SUCCESS": "LOGIN_SUCCESS",
+  LOGIN_SUCCESS: "LOGIN_SUCCESS",
   "LOGIN SUCCESS": "LOGIN_SUCCESS",
   "Login successful": "LOGIN_SUCCESS",
 
   "جديد IP تسجيل دخول من جهاز أو": "SUSPICIOUS_LOGIN",
   "تسجيل دخول من جهاز أو IP جديد": "SUSPICIOUS_LOGIN",
-  "SUSPICIOUS_LOGIN": "SUSPICIOUS_LOGIN",
+  SUSPICIOUS_LOGIN: "SUSPICIOUS_LOGIN",
   "SUSPICIOUS LOGIN": "SUSPICIOUS_LOGIN",
   "Login from a new device or IP": "SUSPICIOUS_LOGIN",
 
   "فشل تسجيل الدخول": "LOGIN_FAILED",
-  "LOGIN_FAILED": "LOGIN_FAILED",
+  LOGIN_FAILED: "LOGIN_FAILED",
   "LOGIN FAILED": "LOGIN_FAILED",
   "Login failed": "LOGIN_FAILED",
 
@@ -523,7 +536,8 @@ function safeActivityPayload(data: any): {
     if (Array.isArray(candidate)) {
       return {
         items: candidate,
-        nextCursor: typeof payload?.nextCursor === "string" ? payload.nextCursor : null,
+        nextCursor:
+          typeof payload?.nextCursor === "string" ? payload.nextCursor : null,
         hasMore: Boolean(payload?.hasMore),
       };
     }
@@ -677,7 +691,9 @@ export default function ActivityPage() {
       (activity) => categoryOf(activity.type, activity.title) === "security",
     ).length,
     finance: activities.filter((activity) =>
-      ["payments", "invoices"].includes(categoryOf(activity.type, activity.title)),
+      ["payments", "invoices"].includes(
+        categoryOf(activity.type, activity.title),
+      ),
     ).length,
   };
 
@@ -854,15 +870,48 @@ export default function ActivityPage() {
       ) : (
         <div className="card overflow-hidden p-0">
           <div className="overflow-x-auto">
-            <table className="data-table w-full table-fixed text-sm [&_td]:!text-start [&_td]:align-middle [&_th]:!text-start" dir={fieldDir}>
+            <table
+              className="data-table w-full table-fixed text-sm [&_td]:!text-start [&_td]:align-middle [&_th]:!text-start"
+              dir={fieldDir}
+            >
               <thead>
                 <tr>
-                  <th className="w-[34%] !text-start" style={{ textAlign: fieldTextAlign }}>{copy.table.activity}</th>
-                  <th className="w-[20%] !text-start" style={{ textAlign: fieldTextAlign }}>{copy.table.user}</th>
-                  <th className="w-[13%] !text-start" style={{ textAlign: fieldTextAlign }}>{copy.table.entity}</th>
-                  <th className="w-[13%] !text-start" style={{ textAlign: fieldTextAlign }}>{copy.table.time}</th>
-                  <th className="w-[10%] !text-start" style={{ textAlign: fieldTextAlign }}>{copy.table.ip}</th>
-                  <th className="w-[10%] !text-start" style={{ textAlign: fieldTextAlign }}>{copy.table.action}</th>
+                  <th
+                    className="w-[34%] !text-start"
+                    style={{ textAlign: fieldTextAlign }}
+                  >
+                    {copy.table.activity}
+                  </th>
+                  <th
+                    className="w-[20%] !text-start"
+                    style={{ textAlign: fieldTextAlign }}
+                  >
+                    {copy.table.user}
+                  </th>
+                  <th
+                    className="w-[13%] !text-start"
+                    style={{ textAlign: fieldTextAlign }}
+                  >
+                    {copy.table.entity}
+                  </th>
+                  <th
+                    className="w-[13%] !text-start"
+                    style={{ textAlign: fieldTextAlign }}
+                  >
+                    {copy.table.time}
+                  </th>
+                  <th
+                    className="w-[10%] !text-start"
+                    style={{ textAlign: fieldTextAlign }}
+                  >
+                    {copy.table.ip}
+                  </th>
+                  <th
+                    className="w-[10%] !text-start"
+                    style={{ textAlign: fieldTextAlign }}
+                  >
+                    {copy.table.action}
+                  </th>
                 </tr>
               </thead>
 
@@ -873,7 +922,10 @@ export default function ActivityPage() {
 
                   return (
                     <tr key={activity.id}>
-                      <td className="!text-start align-middle" style={{ textAlign: fieldTextAlign }}>
+                      <td
+                        className="!text-start align-middle"
+                        style={{ textAlign: fieldTextAlign }}
+                      >
                         <div className="flex items-start justify-start gap-3 text-start">
                           <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-black/5">
                             <FileText
@@ -901,7 +953,10 @@ export default function ActivityPage() {
                         </div>
                       </td>
 
-                      <td className="!text-start align-middle" style={{ textAlign: fieldTextAlign }}>
+                      <td
+                        className="!text-start align-middle"
+                        style={{ textAlign: fieldTextAlign }}
+                      >
                         <div className="flex items-start justify-start gap-2 text-start">
                           <UserRound
                             className="h-4 w-4"
@@ -924,13 +979,19 @@ export default function ActivityPage() {
                         </div>
                       </td>
 
-                      <td className="!text-start align-middle" style={{ textAlign: fieldTextAlign }}>
+                      <td
+                        className="!text-start align-middle"
+                        style={{ textAlign: fieldTextAlign }}
+                      >
                         <span className="rounded-full bg-black/5 px-2 py-1 text-xs font-bold text-[var(--text-2)]">
                           {entityLabel(activity.entityType, locale)}
                         </span>
                       </td>
 
-                      <td className="!text-start align-middle" style={{ textAlign: fieldTextAlign }}>
+                      <td
+                        className="!text-start align-middle"
+                        style={{ textAlign: fieldTextAlign }}
+                      >
                         <div
                           className="text-sm font-bold"
                           style={{ color: "var(--text)" }}
@@ -945,13 +1006,19 @@ export default function ActivityPage() {
                         </div>
                       </td>
 
-                      <td className="!text-start align-middle" style={{ textAlign: fieldTextAlign }}>
+                      <td
+                        className="!text-start align-middle"
+                        style={{ textAlign: fieldTextAlign }}
+                      >
                         <span className="text-xs font-bold text-slate-600 dark:text-emerald-100/80">
                           {normalizeIp(activity.ipAddress, locale)}
                         </span>
                       </td>
 
-                      <td className="!text-start align-middle" style={{ textAlign: fieldTextAlign }}>
+                      <td
+                        className="!text-start align-middle"
+                        style={{ textAlign: fieldTextAlign }}
+                      >
                         {href ? (
                           <Link
                             href={href}
