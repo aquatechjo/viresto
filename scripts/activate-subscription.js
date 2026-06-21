@@ -14,7 +14,9 @@ async function main() {
   const months = Number(process.argv[4] || 1);
 
   if (!tenantEmail) {
-    throw new Error("Usage: node scripts/activate-subscription.js tenant@email.com PRO 1");
+    throw new Error(
+      "Usage: node scripts/activate-subscription.js tenant@email.com PRO 1",
+    );
   }
 
   const tenant = await prisma.tenant.findFirst({
@@ -35,6 +37,11 @@ async function main() {
   }
 
   const now = new Date();
+
+  await prisma.tenant.update({
+    where: { id: tenant.id },
+    data: { status: "ACTIVE" },
+  });
 
   const existing = await prisma.subscription.findFirst({
     where: { tenantId: tenant.id },
@@ -73,7 +80,9 @@ async function main() {
     });
   }
 
-  console.log(`Activated ${planCode} for ${tenant.name} until ${addMonths(now, months).toISOString()}`);
+  console.log(
+    `Activated ${planCode} for ${tenant.name} until ${addMonths(now, months).toISOString()}`,
+  );
 }
 
 main()
@@ -84,4 +93,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-  
