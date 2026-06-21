@@ -1,14 +1,20 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { Turnstile } from "@marsidev/react-turnstile";
 import FormField from "@/components/ui/FormField";
 
 export default function RegisterPage() {
   const router = useRouter();
+
   const publicRegisterEnabled =
     process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true";
+
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
+
   const [form, setForm] = useState({
     tenantName: "",
     name: "",
@@ -19,6 +25,13 @@ export default function RegisterPage() {
 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileKey, setTurnstileKey] = useState(0);
+
+  function resetTurnstile() {
+    setTurnstileToken("");
+    setTurnstileKey((current) => current + 1);
+  }
 
   function update(k: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -27,13 +40,27 @@ export default function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!turnstileSiteKey) {
+      toast.error("إعدادات التحقق الأمني غير مكتملة");
+      return;
+    }
+
+    if (!turnstileToken) {
+      toast.error("يرجى إكمال التحقق الأمني أولاً");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          turnstileToken,
+        }),
       });
 
       const data = await res.json();
@@ -48,9 +75,11 @@ export default function RegisterPage() {
 
         router.push(`/verify-email?email=${encodeURIComponent(verifyEmail)}`);
       } else {
-        toast.error(data.message ?? "حدث خطأ");
+        resetTurnstile();
+        toast.error(data.message ?? "تعذر إنشاء الحساب");
       }
     } catch {
+      resetTurnstile();
       toast.error("حدث خطأ في الاتصال");
     } finally {
       setLoading(false);
@@ -96,6 +125,7 @@ export default function RegisterPage() {
           >
             نظام المحامي
           </p>
+
           <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
             أنشئ مكتبك القانوني الآن
           </p>
@@ -108,6 +138,7 @@ export default function RegisterPage() {
           >
             تسجيل مكتب جديد
           </h1>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <FormField label="اسم المكتب القانوني" required>
               <input
@@ -119,6 +150,7 @@ export default function RegisterPage() {
                 placeholder="مكتب المنصوري للمحاماة"
               />
             </FormField>
+
             <FormField label="اسمك الكامل" required>
               <input
                 name="name"
@@ -129,6 +161,7 @@ export default function RegisterPage() {
                 placeholder="أحمد المنصوري"
               />
             </FormField>
+
             <FormField label="البريد الإلكتروني" required>
               <input
                 dir="ltr"
@@ -155,6 +188,7 @@ export default function RegisterPage() {
                 placeholder="07XXXXXXXX"
               />
             </FormField>
+
             <FormField label="كلمة المرور" required>
               <div className="relative">
                 <input
@@ -179,6 +213,7 @@ export default function RegisterPage() {
                   {showPassword ? "إخفاء" : "إظهار"}
                 </button>
               </div>
+
               <p
                 className="mt-2 text-xs leading-6"
                 style={{ color: "var(--text-3)" }}
@@ -186,10 +221,34 @@ export default function RegisterPage() {
                 يجب أن تحتوي كلمة المرور على حرف كبير، حرف صغير، رقم، ورمز خاص.
               </p>
             </FormField>
+
+            <div className="flex justify-center rounded-2xl border border-emerald-400/15 bg-white/[0.03] p-3">
+              {turnstileSiteKey ? (
+                <Turnstile
+                  key={turnstileKey}
+                  siteKey={turnstileSiteKey}
+                  onSuccess={(token) => setTurnstileToken(token)}
+                  onExpire={resetTurnstile}
+                  onError={resetTurnstile}
+                  options={{
+                    theme: "auto",
+                    language: "ar",
+                  }}
+                />
+              ) : (
+                <p
+                  className="text-center text-xs font-bold"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  التحقق الأمني غير مفعّل
+                </p>
+              )}
+            </div>
+
             <button
               type="submit"
-              disabled={loading}
-              className="btn btn-primary w-full py-2.5 mt-1"
+              disabled={loading || !turnstileToken}
+              className="btn btn-primary w-full py-2.5 mt-1 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
                 <span className="spinner spinner-sm" />
@@ -198,6 +257,7 @@ export default function RegisterPage() {
               )}
             </button>
           </form>
+
           <p
             className="text-center text-sm mt-4"
             style={{ color: "var(--text-3)" }}

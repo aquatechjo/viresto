@@ -58,12 +58,13 @@ function VerifyEmailContent() {
       setMessage(data?.data?.message || "تم تأكيد البريد الإلكتروني بنجاح");
 
       setTimeout(() => {
-        if (next === "LOGIN") {
-          router.push("/login");
+        if (next === "DASHBOARD") {
+          router.replace("/dashboard");
+          router.refresh();
           return;
         }
 
-        router.push("/login");
+        router.replace("/login");
       }, 900);
     } catch {
       setError("حدث خطأ أثناء الاتصال بالخادم");

@@ -44,10 +44,13 @@ function applySecurityHeaders(res: NextResponse) {
   );
 
   const isDev = process.env.NODE_ENV !== "production";
+  const turnstileSrc = "https://challenges.cloudflare.com";
 
   const scriptSrc = isDev
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval';"
-    : "script-src 'self' 'unsafe-inline';";
+    ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${turnstileSrc};`
+    : `script-src 'self' 'unsafe-inline' ${turnstileSrc};`;
+
+  const scriptSrcElem = `script-src-elem 'self' 'unsafe-inline' ${turnstileSrc};`;
 
   res.headers.set(
     "Content-Security-Policy",
@@ -55,9 +58,10 @@ function applySecurityHeaders(res: NextResponse) {
     default-src 'self';
     worker-src 'self' blob:;
     ${scriptSrc}
+    ${scriptSrcElem}
     img-src 'self' data: blob: https://res.cloudinary.com;
-    connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://api.openai.com https://*.upstash.io https://*.vercel-insights.com https://*.vercel-analytics.com;
-    frame-src 'self' https://res.cloudinary.com;
+    connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://api.openai.com https://*.upstash.io https://*.vercel-insights.com https://*.vercel-analytics.com https://challenges.cloudflare.com;
+    frame-src 'self' https://res.cloudinary.com https://challenges.cloudflare.com;
     frame-ancestors 'none';
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' data: https://fonts.gstatic.com;

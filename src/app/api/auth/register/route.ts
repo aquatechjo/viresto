@@ -9,6 +9,7 @@ import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { createVerificationCode } from "@/lib/verification";
 import { sendVerificationEmail } from "@/lib/email";
+import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 
 function normalizeJordanPhone(phone: string) {
   const cleaned = phone.replace(/\s+/g, "").trim();
@@ -34,15 +35,12 @@ export async function POST(req: NextRequest) {
       return err("إنشاء الحسابات غير متاح حالياً", 403);
     }
 
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      req.headers.get("x-real-ip") ??
-      "unknown";
+    const ip = getClientIp(req) ?? "unknown";
 
     const rl = await checkRateLimit(ip, {
       keyPrefix: "register",
       max: 5,
-      windowMs: 60 * 60 * 1000,
+      windowMs: 30 * 60 * 1000,
     });
 
     if (!rl.allowed) {
@@ -50,7 +48,20 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const parsed = registerSchema.safeParse(body);
+
+    const turnstile = await verifyTurnstileToken(
+      body.turnstileToken,
+      ip === "unknown" ? undefined : ip,
+    );
+
+    if (!turnstile.success) {
+      return err("فشل التحقق الأمني. حدّث الصفحة وحاول مرة أخرى.", 403);
+    }
+
+    const bodyForValidation = { ...body };
+    delete bodyForValidation.turnstileToken;
+
+    const parsed = registerSchema.safeParse(bodyForValidation);
 
     if (!parsed.success) {
       return err("بيانات غير صالحة", 400, parsed.error.flatten());

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { verifyCode } from "@/lib/verification";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { signToken, buildCookie } from "@/lib/auth";
+import { getLocationFromIp } from "@/lib/geo";
+import { logActivity } from "@/lib/log-activity";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -48,13 +52,37 @@ export async function POST(req: NextRequest) {
       },
       select: {
         id: true,
+        tenantId: true,
+        name: true,
         email: true,
+        role: true,
+        isActive: true,
+        isSystemAdmin: true,
         emailVerifiedAt: true,
+        twoFactorEnabled: true,
+        tenant: {
+          select: {
+            isSuspended: true,
+            status: true,
+          },
+        },
       },
     });
 
     if (!user) {
       return err("رمز التحقق غير صحيح أو منتهي", 400);
+    }
+
+    if (!user.isActive) {
+      return err("هذا الحساب معطل. تواصل مع مدير المكتب.", 403);
+    }
+
+    if (!user.tenant || !user.tenantId) {
+      return err("المكتب غير موجود", 403);
+    }
+
+    if (user.tenant.isSuspended || user.tenant.status === "SUSPENDED") {
+      return err("تم إيقاف هذا المكتب مؤقتًا. تواصل مع الدعم.", 403);
     }
 
     if (user.emailVerifiedAt) {
@@ -96,14 +124,67 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    if (user.twoFactorEnabled) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          message:
+            "تم تأكيد البريد الإلكتروني بنجاح. سجّل الدخول لإكمال التحقق الثنائي.",
+          emailVerified: true,
+          next: "LOGIN",
+          email: user.email,
+        },
+      });
+    }
+
+    const location = await getLocationFromIp(ip);
+
+    const session = await prisma.session.create({
+      data: {
+        userId: user.id,
+        tenantId: user.tenantId,
+        tokenHash: crypto.randomUUID(),
+        ipAddress: ip,
+        userAgent: req.headers.get("user-agent"),
+        country: location.country,
+        city: location.city,
+      },
+    });
+
+    const token = await signToken({
+      userId: user.id,
+      tenantId: user.tenantId,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      sessionId: session.id,
+      isSystemAdmin: user.isSystemAdmin,
+    });
+
+    const res = NextResponse.json({
       success: true,
       data: {
-        message: "تم تأكيد البريد الإلكتروني بنجاح. يمكنك تسجيل الدخول الآن.",
+        message: "تم تأكيد البريد الإلكتروني بنجاح. جاري إدخالك إلى لوحة التحكم.",
         emailVerified: true,
-        next: "LOGIN",
+        authenticated: true,
+        next: "DASHBOARD",
         email: user.email,
       },
     });
+
+    res.cookies.set(buildCookie(token));
+
+    await logActivity({
+      req,
+      tenantId: user.tenantId,
+      actorId: user.id,
+      type: "LOGIN_SUCCESS",
+      title: "تم تسجيل الدخول بعد تأكيد البريد الإلكتروني",
+      message: user.email,
+      entityType: "AUTH",
+      entityId: user.id,
+    });
+
+    return res;
   });
 }
