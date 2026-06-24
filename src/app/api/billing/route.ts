@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
+import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
 
 function getUsagePercent(used: number, limit: number | null) {
   if (!limit || limit <= 0) return null;
@@ -248,7 +249,12 @@ export async function GET(req: NextRequest) {
       )
       .map(([key, item]) => ({ key, percent: item.percent }));
 
-    const subscriptionStatus = subscription?.status ?? "TRIALING";
+    const subscriptionStatus = subscription
+      ? getEffectiveSubscriptionStatus(
+          subscription.status,
+          subscription.currentPeriodEnd,
+        )
+      : "MISSING";
     const subscriptionTrialEndsAt =
       subscription?.trialEndsAt ?? tenant.trialEndsAt;
     const subscriptionCurrentPeriodEnd =

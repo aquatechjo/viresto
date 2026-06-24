@@ -11,6 +11,9 @@ import { createVerificationCode } from "@/lib/verification";
 import { sendVerificationEmail } from "@/lib/email";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 
+const TRIAL_DAYS = 7;
+const TRIAL_PLAN_CODE = "PRO";
+
 function normalizeJordanPhone(phone: string) {
   const cleaned = phone.replace(/\s+/g, "").trim();
 
@@ -21,6 +24,12 @@ function normalizeJordanPhone(phone: string) {
   }
 
   return cleaned;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
 }
 
 export async function POST(req: NextRequest) {
@@ -97,6 +106,21 @@ export async function POST(req: NextRequest) {
       return err("البريد الإلكتروني مستخدم مسبقاً", 409);
     }
 
+    const trialPlan = await prisma.billingPlan.findUnique({
+      where: {
+        code: TRIAL_PLAN_CODE,
+      },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+      },
+    });
+
+    if (!trialPlan) {
+      return err("خطة التجربة غير موجودة. تأكد من تشغيل seed للخطط.", 500);
+    }
+
     const baseSlug = slugify(tenantName) || `office-${Date.now().toString(36)}`;
     let slug = baseSlug;
     let i = 1;
@@ -107,24 +131,46 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const tenant = await prisma.tenant.create({
-      data: {
-        name: tenantName,
-        slug,
-        users: {
-          create: {
-            name,
-            email,
-            phone: normalizedPhone,
-            passwordHash,
-            role: "ADMIN",
-            emailVerifiedAt: null,
+    const trialStartsAt = new Date();
+    const trialEndsAt = addDays(trialStartsAt, TRIAL_DAYS);
+
+    const tenant = await prisma.$transaction(async (tx) => {
+      const createdTenant = await tx.tenant.create({
+        data: {
+          name: tenantName,
+          slug,
+          status: "ACTIVE",
+          users: {
+            create: {
+              name,
+              email,
+              phone: normalizedPhone,
+              passwordHash,
+              role: "ADMIN",
+              emailVerifiedAt: null,
+            },
           },
         },
-      },
-      include: {
-        users: true,
-      },
+        include: {
+          users: true,
+        },
+      });
+
+      await tx.subscription.create({
+        data: {
+          tenantId: createdTenant.id,
+          planId: trialPlan.id,
+          status: "TRIALING",
+          interval: "MONTHLY",
+          amount: 0,
+          currency: "JOD",
+          trialEndsAt: trialEndsAt,
+          currentPeriodStart: trialStartsAt,
+          currentPeriodEnd: trialEndsAt,
+        },
+      });
+
+      return createdTenant;
     });
 
     const adminUser = tenant.users[0];
@@ -144,10 +190,17 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         data: {
-          message: "تم إنشاء المكتب. أرسلنا رمز تأكيد إلى بريدك الإلكتروني.",
+          message:
+            "تم إنشاء المكتب. حصلت على تجربة مجانية لمدة 7 أيام، وأرسلنا رمز تأكيد إلى بريدك الإلكتروني.",
           requiresVerification: true,
           next: "EMAIL_VERIFICATION",
           email: adminUser.email,
+          trial: {
+            plan: trialPlan.code,
+            days: TRIAL_DAYS,
+            startsAt: trialStartsAt,
+            endsAt: trialEndsAt,
+          },
         },
       },
       { status: 201 },

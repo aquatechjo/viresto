@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import PageLoader from "@/components/ui/PageLoader";
 import { formatLimit } from "@/lib/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
-import AppLoader from "@/components/ui/AppLoader"
+import AppLoader from "@/components/ui/AppLoader";
 type SubscriptionStatus =
   | "TRIALING"
   | "ACTIVE"
@@ -176,6 +175,59 @@ function getStatusLabel(status: string | undefined, isArabic: boolean) {
   }
 }
 
+function getEffectiveBillingStatus(
+  status: SubscriptionStatus | string | undefined,
+  currentPeriodEnd?: string | null,
+  trialEndsAt?: string | null,
+): SubscriptionStatus {
+  const safeStatus = status as SubscriptionStatus | undefined;
+  const endDateValue = currentPeriodEnd ?? trialEndsAt ?? null;
+
+  if (
+    endDateValue &&
+    safeStatus &&
+    ["TRIALING", "ACTIVE", "PAST_DUE"].includes(safeStatus)
+  ) {
+    const endDate = new Date(endDateValue);
+
+    if (!Number.isNaN(endDate.getTime()) && endDate.getTime() <= Date.now()) {
+      return "EXPIRED";
+    }
+  }
+
+  if (
+    safeStatus &&
+    [
+      "TRIALING",
+      "ACTIVE",
+      "PAST_DUE",
+      "CANCELLED",
+      "EXPIRED",
+      "UNPAID",
+    ].includes(safeStatus)
+  ) {
+    return safeStatus;
+  }
+
+  return "EXPIRED";
+}
+
+function getStatusToneFromStatus(status: SubscriptionStatus): StatusTone {
+  switch (status) {
+    case "ACTIVE":
+      return "success";
+    case "TRIALING":
+      return "warning";
+    case "CANCELLED":
+      return "muted";
+    case "PAST_DUE":
+    case "UNPAID":
+    case "EXPIRED":
+    default:
+      return "danger";
+  }
+}
+
 function getPlanFeatures(plan: BillingPlan, isArabic: boolean) {
   const features = [
     isArabic
@@ -292,7 +344,21 @@ export default function BillingPage() {
   }, [labels.changeComingSoon]);
 
   const trialLabel = useMemo(() => {
-    if (!data?.tenant.trialEndsAt) return billing.noTrial;
+    if (!data?.tenant.trialEndsAt && !data?.subscription?.trialEndsAt) {
+      return billing.noTrial;
+    }
+
+    const effectiveStatus = getEffectiveBillingStatus(
+      data.subscription?.status ?? data.tenant.subscriptionStatus,
+      data.subscription?.currentPeriodEnd ?? data.period?.currentPeriodEnd,
+      data.subscription?.trialEndsAt ??
+        data.period?.trialEndsAt ??
+        data.tenant.trialEndsAt,
+    );
+
+    if (effectiveStatus === "EXPIRED") {
+      return isArabic ? "انتهت الفترة التجريبية" : "Trial expired";
+    }
 
     if (
       data.tenant.trialDaysLeft === null ||
@@ -301,14 +367,16 @@ export default function BillingPage() {
       return billing.unknownTrial;
     }
 
-    if (data.tenant.trialDaysLeft <= 0) return billing.trialEndsToday;
+    if (data.tenant.trialDaysLeft <= 0) {
+      return isArabic ? "تنتهي اليوم" : "Ends today";
+    }
 
     return `${billing.daysLeftPrefix} ${data.tenant.trialDaysLeft} ${billing.day}`;
-  }, [data, billing]);
+  }, [data, billing, isArabic]);
 
-if (loading) {
-  return <AppLoader fullScreen={false} />
-}
+  if (loading) {
+    return <AppLoader fullScreen={false} />;
+  }
 
   if (!data) {
     return (
@@ -323,8 +391,15 @@ if (loading) {
 
   const currentPlan = data.currentPlan;
   const subscription = data.subscription;
-  const currentStatus = subscription?.status ?? data.tenant.subscriptionStatus;
-  const currentTone = subscription?.statusTone ?? data.tenant.statusTone;
+  const currentStatus = getEffectiveBillingStatus(
+    subscription?.status ?? data.tenant.subscriptionStatus,
+    subscription?.currentPeriodEnd ?? data.period?.currentPeriodEnd,
+    subscription?.trialEndsAt ??
+      data.period?.trialEndsAt ??
+      data.tenant.trialEndsAt,
+  );
+
+  const currentTone = getStatusToneFromStatus(currentStatus);
 
   return (
     <div className="space-y-6" dir={isArabic ? "rtl" : "ltr"}>

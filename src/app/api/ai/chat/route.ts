@@ -8,6 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { sanitizeAiInput, detectPromptInjection } from "@/lib/ai-security";
 import { logActivity } from "@/lib/log-activity";
 import { verifySameOrigin } from "@/lib/csrf";
+import { assertTenantCanWrite } from "@/lib/billing-limits";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -37,10 +38,17 @@ export async function POST(req: NextRequest) {
       return err("المكتب موقوف", 403);
     }
 
-    if (tenant.status === "EXPIRED") {
-      return err("لا يمكن استخدام المساعد الذكي لأن الاشتراك منتهي", 403);
-    }
+    const writeCheck = await assertTenantCanWrite(
+      auth.user.tenantId,
+      "استخدام المساعد الذكي",
+    );
 
+    if (!writeCheck.ok) {
+      return err(writeCheck.message, writeCheck.status, {
+        code: "SUBSCRIPTION_INACTIVE",
+        billing: writeCheck.billing ?? null,
+      });
+    }
     if (!tenant.aiEnabled) {
       return err("ميزة الذكاء الاصطناعي غير مفعلة لهذا المكتب", 403);
     }

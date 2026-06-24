@@ -35,7 +35,7 @@ const BLOCKED_STATUSES = new Set([
   "MISSING",
 ]);
 
-function getEffectiveSubscriptionStatus(
+export function getEffectiveSubscriptionStatus(
   status: string,
   currentPeriodEnd?: Date | null,
 ) {
