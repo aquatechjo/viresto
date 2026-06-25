@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import PageLoader from "@/components/ui/PageLoader";
 import StatCard from "@/components/ui/StatCard";
 import { formatCurrency, formatTime } from "@/lib/utils";
 import type { Locale } from "@/lib/i18n";
+import { useRouter } from "next/navigation";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
 const AIAssistant = dynamic(
@@ -649,6 +649,7 @@ function formatDate(date: string, locale: Locale) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { locale, isRtl } = useLocale();
   const t = TEXT[locale];
   const statusLabels = STATUS_LABELS[locale];
@@ -658,6 +659,51 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function verifySession() {
+      try {
+        const res = await fetch("/api/auth/me", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        });
+
+        if (!cancelled && !res.ok) {
+          router.replace("/login");
+          router.refresh();
+        }
+      } catch {
+        if (!cancelled) {
+          router.replace("/login");
+          router.refresh();
+        }
+      }
+    }
+
+    verifySession();
+
+    const handlePageShow = () => {
+      verifySession();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        verifySession();
+      }
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pageshow", handlePageShow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [router]);
 
   useEffect(() => {
     async function loadDashboard() {

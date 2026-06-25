@@ -24,6 +24,24 @@ function isPublicPath(pathname: string) {
   );
 }
 
+function shouldDisableCache(pathname: string) {
+  return (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api/")
+  );
+}
+
+function applyNoStoreHeaders(res: NextResponse) {
+  res.headers.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+  );
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
+}
+
 function applySecurityHeaders(res: NextResponse) {
   const isProd = process.env.NODE_ENV === "production";
 
@@ -76,6 +94,14 @@ function applySecurityHeaders(res: NextResponse) {
   return res;
 }
 
+function finalizeResponse(res: NextResponse, pathname: string) {
+  if (shouldDisableCache(pathname)) {
+    applyNoStoreHeaders(res);
+  }
+
+  return applySecurityHeaders(res);
+}
+
 function unauthenticatedResponse(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -108,19 +134,21 @@ export async function proxy(req: NextRequest) {
     pathname === "/register" &&
     process.env.PUBLIC_REGISTER_ENABLED !== "true"
   ) {
-    return applySecurityHeaders(
+    return finalizeResponse(
       NextResponse.redirect(new URL("/login", req.url)),
+      pathname,
     );
   }
 
   const token = req.cookies.get("ld_token")?.value;
 
   if (!token && !isPublicPath(pathname)) {
-    return applySecurityHeaders(unauthenticatedResponse(req));
+    const res = unauthenticatedResponse(req);
+    return finalizeResponse(res, pathname);
   }
 
   if (!token && isPublicPath(pathname)) {
-    return applySecurityHeaders(NextResponse.next());
+    return finalizeResponse(NextResponse.next(), pathname);
   }
 
   if (token) {
@@ -133,7 +161,7 @@ export async function proxy(req: NextRequest) {
           : unauthenticatedResponse(req);
 
         res.cookies.delete("ld_token");
-        return applySecurityHeaders(res);
+        return finalizeResponse(res, pathname);
       }
 
       const requestHeaders = new Headers(req.headers);
@@ -148,29 +176,30 @@ export async function proxy(req: NextRequest) {
         pathname === "/forgot-password" ||
         pathname === "/reset-password"
       ) {
-        return applySecurityHeaders(
+        return finalizeResponse(
           NextResponse.redirect(new URL("/dashboard", req.url)),
+          pathname,
         );
       }
 
-      return applySecurityHeaders(
-        NextResponse.next({
-          request: {
-            headers: requestHeaders,
-          },
-        }),
-      );
+      const res = NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
+
+      return finalizeResponse(res, pathname);
     } catch {
       const res = isPublicPath(pathname)
         ? NextResponse.next()
         : unauthenticatedResponse(req);
 
       res.cookies.delete("ld_token");
-      return applySecurityHeaders(res);
+      return finalizeResponse(res, pathname);
     }
   }
 
-  return applySecurityHeaders(NextResponse.next());
+  return finalizeResponse(NextResponse.next(), pathname);
 }
 
 export const config = {

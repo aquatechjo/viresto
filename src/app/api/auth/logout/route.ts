@@ -26,7 +26,15 @@ export async function POST(req: NextRequest) {
     }
 
     const res = NextResponse.json({ success: true });
+
     res.cookies.set(clearCookie());
+
+    res.headers.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate",
+    );
+    res.headers.set("Pragma", "no-cache");
+    res.headers.set("Expires", "0");
 
     return res;
   });
