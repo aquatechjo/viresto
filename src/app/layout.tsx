@@ -1,41 +1,135 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import { Toaster } from 'sonner'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
 
-export const metadata: Metadata = {
-  title: 'Viresto | Legal Platform',
+const siteUrl = 'https://www.virestojo.com'
 
-description: 'Modern legal practice management platform',
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+
+  title: {
+    default: 'Viresto | Legal Practice Management Platform',
+    template: '%s | Viresto',
+  },
+
+  description:
+    'Viresto is a legal practice management platform for law firms to manage cases, clients, appointments, documents, invoices, payments, reports, and team operations.',
+
+  applicationName: 'Viresto',
+
+  keywords: [
+    'Viresto',
+    'Viresto Legal',
+    'legal practice management',
+    'law firm management software',
+    'case management software',
+    'legal platform',
+    'law office software',
+  ],
+
+  alternates: {
+    canonical: siteUrl,
+  },
 
   icons: {
-    icon: '/logo.png',
+    icon: [
+      {
+        url: '/logo.png',
+        type: 'image/png',
+      },
+    ],
+    apple: [
+      {
+        url: '/logo.png',
+        type: 'image/png',
+      },
+    ],
+  },
+
+  openGraph: {
+    title: 'Viresto | Legal Practice Management Platform',
+    description:
+      'Manage your law firm with one platform for cases, clients, appointments, documents, invoices, payments, reports, and team operations.',
+    url: siteUrl,
+    siteName: 'Viresto',
+    type: 'website',
+    locale: 'en_US',
+    images: [
+      {
+        url: '/logo.png',
+        width: 512,
+        height: 512,
+        alt: 'Viresto Legal Practice Management Platform',
+      },
+    ],
+  },
+
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Viresto | Legal Practice Management Platform',
+    description:
+      'A legal practice management platform for law firms.',
+    images: ['/logo.png'],
+  },
+
+  robots: {
+    index: true,
+    follow: true,
   },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'Viresto',
+  alternateName: ['Viresto Legal', 'Viresto Legal Platform'],
+  url: siteUrl,
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  description:
+    'Viresto is a legal practice management platform for law firms to manage cases, clients, appointments, documents, invoices, payments, reports, and team operations.',
+  offers: {
+    '@type': 'Offer',
+    category: 'SaaS',
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Viresto',
+    url: siteUrl,
+    logo: `${siteUrl}/logo.png`,
+  },
+}
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body>
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(websiteJsonLd),
+          }}
+        />
 
-<Toaster
-  position="bottom-left"
-  richColors
-  toastOptions={{
-    style: {
-      fontFamily: 'Cairo, sans-serif',
-      direction: 'inherit',
-      textAlign: 'start',
-      maxWidth: '460px',
-      lineHeight: '1.8',
-      borderRadius: '16px',
-      fontWeight: 700,
-    },
-  }}
-/>
+        <ThemeProvider>{children}</ThemeProvider>
+
+        <Toaster
+          position="bottom-left"
+          richColors
+          toastOptions={{
+            style: {
+              fontFamily: 'Cairo, sans-serif',
+              direction: 'inherit',
+              textAlign: 'start',
+              maxWidth: '460px',
+              lineHeight: '1.8',
+              borderRadius: '16px',
+              fontWeight: 700,
+            },
+          }}
+        />
       </body>
     </html>
   )
