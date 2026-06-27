@@ -14,7 +14,7 @@ const AIAssistant = dynamic(
     ssr: false,
     loading: () => (
       <div
-        className="card flex h-full min-h-[300px] items-center justify-center p-6 text-sm"
+        className="card flex h-full min-h-[240px] items-center justify-center p-4 text-sm sm:min-h-[300px] sm:p-6"
         style={{ color: "var(--text-3)" }}
       >
         جاري تحميل المساعد...
@@ -773,10 +773,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 text-start stagger">
+    <div dir={isRtl ? "rtl" : "ltr"} className="w-full max-w-full min-w-0 overflow-x-hidden space-y-4 text-start stagger sm:space-y-5">
       {/* Hero */}
       <div
-        className="relative overflow-hidden rounded-[28px] border p-6 md:p-7"
+        className="relative max-w-full min-w-0 overflow-hidden rounded-[22px] border p-4 sm:rounded-[28px] sm:p-6 md:p-7"
         style={{
           background:
             "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 55%, var(--sidebar-dark) 100%)",
@@ -795,9 +795,9 @@ export default function DashboardPage() {
         />
 
         <div className="relative z-10">
-          <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <div
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black"
+              className="inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1 text-[11px] font-black sm:text-xs"
               style={{
                 background: "rgba(255,255,255,0.13)",
                 color: "#fff",
@@ -809,19 +809,19 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.45fr_.75fr] lg:items-center">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(260px,.75fr)] lg:items-center">
             <div>
-              <h1 className="text-2xl font-black leading-relaxed text-white md:text-3xl">
+              <h1 className="text-xl font-black leading-relaxed text-white sm:text-2xl md:text-3xl">
                 {t.heroTitle}
               </h1>
 
-              <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/75">
+              <p className="mt-3 max-w-2xl text-xs font-semibold leading-7 text-white/75 sm:text-sm">
                 {t.heroDescription}
               </p>
             </div>
 
             <div
-              className="rounded-3xl p-5"
+              className="rounded-3xl p-4 sm:p-5"
               style={{
                 background: "rgba(255,255,255,0.12)",
                 border: "1px solid rgba(255,255,255,0.18)",
@@ -830,27 +830,27 @@ export default function DashboardPage() {
             >
               <p className="text-sm font-black text-white">{t.todaySummary}</p>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
                 <div
-                  className="rounded-2xl p-4"
+                  className="rounded-2xl p-3 sm:p-4"
                   style={{ background: "rgba(255,255,255,0.12)" }}
                 >
                   <p className="text-xs font-bold text-white/65">
                     {t.todayAppointments}
                   </p>
-                  <p className="mt-1 text-2xl font-black text-white">
+                  <p className="mt-1 text-xl font-black text-white sm:text-2xl">
                     {stats?.todayApptCount ?? 0}
                   </p>
                 </div>
 
                 <div
-                  className="rounded-2xl p-4"
+                  className="rounded-2xl p-3 sm:p-4"
                   style={{ background: "rgba(255,255,255,0.12)" }}
                 >
                   <p className="text-xs font-bold text-white/65">
                     {t.activeCases}
                   </p>
-                  <p className="mt-1 text-2xl font-black text-white">
+                  <p className="mt-1 text-xl font-black text-white sm:text-2xl">
                     {stats?.activeCaseCount ?? 0}
                   </p>
                 </div>
@@ -861,7 +861,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Stats */}
-      <div className="relative z-0 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="relative z-0 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
           label={t.clients}
           value={stats?.clientCount ?? 0}
@@ -888,13 +888,13 @@ export default function DashboardPage() {
       </div>
 
       {/* AI + Cases + Appointments */}
-      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
-        <div className="h-full min-h-[300px] [&>*]:h-full">
+      <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
+        <div className="h-full min-h-[260px] sm:min-h-[300px] [&>*]:h-full">
           <AIAssistant />
         </div>
 
         {/* Recent Cases */}
-        <div className="card h-full min-h-[300px] p-5">
+        <div className="card min-w-0 h-full min-h-[260px] p-4 sm:min-h-[300px] sm:p-5">
           <div className="mb-4">
             <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
               {t.recentCases}
@@ -923,7 +923,7 @@ export default function DashboardPage() {
                     background: "var(--card)",
                   }}
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
                     <p
                       className="truncate text-sm font-black"
                       style={{ color: "var(--text)" }}
@@ -938,16 +938,16 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between gap-3">
+                  <div className="mt-2 flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-center sm:gap-3">
                     <p
-                      className="truncate text-xs"
+                      className="line-clamp-2 text-xs break-words"
                       style={{ color: "var(--text-3)" }}
                     >
                       {c.client?.name ?? t.noClient}
                     </p>
 
                     <p
-                      className="font-mono text-xs"
+                      className="font-mono text-xs break-all"
                       style={{ color: "var(--text-3)" }}
                     >
                       #{c.caseNumber?.split("/").pop() ?? c.id.slice(-4)}
@@ -960,7 +960,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Today's Appointments */}
-        <div className="card h-full min-h-[300px] p-5">
+        <div className="card min-w-0 h-full min-h-[260px] p-4 sm:min-h-[300px] sm:p-5">
           <div className="mb-4">
             <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
               {t.todayAppointments}
@@ -992,14 +992,14 @@ export default function DashboardPage() {
 
                   <div className="min-w-0">
                     <p
-                      className="text-sm font-black"
+                      className="text-sm font-black break-words"
                       style={{ color: "var(--text)" }}
                     >
                       {formatTime(a.startTime)}
                     </p>
 
                     <p
-                      className="truncate text-sm font-medium"
+                      className="line-clamp-2 text-sm font-medium break-words"
                       style={{ color: "var(--text)" }}
                     >
                       {a.title}
@@ -1007,7 +1007,7 @@ export default function DashboardPage() {
 
                     {a.location && (
                       <p
-                        className="truncate text-xs"
+                        className="line-clamp-2 text-xs break-words"
                         style={{ color: "var(--text-3)" }}
                       >
                         {a.location}
@@ -1022,15 +1022,15 @@ export default function DashboardPage() {
       </div>
 
       {/* Documents + Office Summary */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Documents */}
-        <div className="card p-5 xl:col-span-2">
+        <div className="card min-w-0 p-4 sm:p-5 xl:col-span-2">
           <div className="mb-4">
-            <h3 className="text-lg font-bold" style={{ color: "var(--text)" }}>
+            <h3 className="text-base font-bold sm:text-lg" style={{ color: "var(--text)" }}>
               {t.recentDocuments}
             </h3>
 
-            <p className="mt-1 text-sm" style={{ color: "var(--text-2)" }}>
+            <p className="mt-1 text-xs sm:text-sm" style={{ color: "var(--text-2)" }}>
               {t.recentDocumentsSub}
             </p>
           </div>
@@ -1047,15 +1047,15 @@ export default function DashboardPage() {
               recentDocuments.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border p-3"
+                  className="flex flex-col items-start justify-between gap-3 rounded-2xl border p-3 sm:flex-row sm:items-center"
                   style={{
                     borderColor: "var(--border)",
                     background: "var(--card)",
                   }}
                 >
-                  <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex w-full min-w-0 items-center gap-3 sm:w-auto">
                     <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg sm:h-11 sm:w-11 sm:text-xl"
                       style={{ background: "var(--green-soft)" }}
                     >
                       {getDocumentIcon(doc.fileType)}
@@ -1063,7 +1063,7 @@ export default function DashboardPage() {
 
                     <div className="min-w-0">
                       <p
-                        className="truncate text-sm font-bold"
+                        className="line-clamp-2 text-sm font-bold break-words"
                         style={{ color: "var(--text)" }}
                       >
                         {doc.fileName}
@@ -1090,7 +1090,7 @@ export default function DashboardPage() {
                   </div>
 
                   <span
-                    className="shrink-0 text-xs"
+                    className="shrink-0 text-xs whitespace-nowrap"
                     style={{ color: "var(--text-3)" }}
                   >
                     {formatDate(doc.createdAt, locale)}
@@ -1102,13 +1102,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Office Summary */}
-        <div className="card p-5">
+        <div className="card min-w-0 p-4 sm:p-5">
           <div className="mb-5">
-            <h3 className="text-lg font-bold" style={{ color: "var(--text)" }}>
+            <h3 className="text-base font-bold sm:text-lg" style={{ color: "var(--text)" }}>
               {t.officeSummary}
             </h3>
 
-            <p className="mt-1 text-sm" style={{ color: "var(--text-2)" }}>
+            <p className="mt-1 text-xs sm:text-sm" style={{ color: "var(--text-2)" }}>
               {t.officeSummarySub}
             </p>
           </div>
@@ -1126,7 +1126,7 @@ export default function DashboardPage() {
               </p>
 
               <p
-                className="mt-1 text-2xl font-black"
+                className="mt-1 text-xl font-black sm:text-2xl"
                 style={{ color: "var(--text)" }}
               >
                 {stats?.totalCasesCount ?? 0}
@@ -1146,7 +1146,7 @@ export default function DashboardPage() {
 
               <div className="mt-1 flex items-end justify-between gap-3">
                 <p
-                  className="text-2xl font-black"
+                  className="text-xl font-black sm:text-2xl"
                   style={{ color: "var(--text)" }}
                 >
                   {stats?.closedCasesCount ?? 0}
@@ -1173,7 +1173,7 @@ export default function DashboardPage() {
               </p>
 
               <p
-                className="mt-1 text-2xl font-black"
+                className="mt-1 text-xl font-black sm:text-2xl"
                 style={{ color: "var(--sidebar)" }}
               >
                 {formatMoney(stats?.monthlyRevenue ?? 0, locale)}
@@ -1192,7 +1192,7 @@ export default function DashboardPage() {
               </p>
 
               <p
-                className="mt-1 text-2xl font-black"
+                className="mt-1 text-xl font-black sm:text-2xl"
                 style={{ color: "var(--sidebar)" }}
               >
                 {formatMoney(stats?.totalRevenue ?? 0, locale)}
@@ -1203,20 +1203,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Activity Timeline */}
-      <div className="card p-5">
+      <div className="card min-w-0 p-4 sm:p-5">
         <div className="mb-4">
           <h3 className="text-lg font-black" style={{ color: "var(--text)" }}>
             {t.recentActivities}
           </h3>
 
-          <p className="mt-1 text-sm" style={{ color: "var(--text-2)" }}>
+          <p className="mt-1 text-xs sm:text-sm" style={{ color: "var(--text-2)" }}>
             {t.recentActivitiesSub}
           </p>
         </div>
 
         {activities.length === 0 ? (
           <div
-            className="rounded-2xl border border-dashed p-6 text-center text-sm"
+            className="rounded-2xl border border-dashed p-4 text-center text-sm sm:p-6"
             style={{
               borderColor: "var(--border)",
               color: "var(--text-3)",
@@ -1237,7 +1237,7 @@ export default function DashboardPage() {
               return (
                 <div
                   key={activity.id}
-                  className="flex items-start gap-3 rounded-2xl border p-4"
+                  className="flex items-start gap-3 rounded-2xl border p-3 sm:p-4"
                   style={{
                     borderColor: "var(--border)",
                     background: "var(--green-soft)",
@@ -1246,9 +1246,9 @@ export default function DashboardPage() {
                 >
                   <div className="shrink-0 text-xl">{config.icon}</div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate font-bold">{activityText.title}</p>
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+                      <p className="line-clamp-2 font-bold break-words">{activityText.title}</p>
 
                       <span
                         className="whitespace-nowrap text-xs"
@@ -1260,7 +1260,7 @@ export default function DashboardPage() {
 
                     {activityText.message && (
                       <p
-                        className="mt-1 truncate text-sm"
+                        className="mt-1 line-clamp-2 text-sm break-words"
                         style={{ color: "var(--text-2)" }}
                       >
                         {activityText.message}

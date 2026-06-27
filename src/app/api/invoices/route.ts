@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
+import { NotificationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { ok, err } from "@/lib/api-response";
@@ -9,6 +9,7 @@ import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { invoiceCreateSchema } from "@/lib/validations";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
+import { createTenantNotification } from "@/lib/notifications";
 
 const allowedStatuses = [
   "DRAFT",
@@ -347,6 +348,16 @@ export async function POST(req: NextRequest) {
       entityType: caseId ? "CASE" : "INVOICE",
       entityId: caseId || invoice.id,
     });
+
+    await createTenantNotification({
+      tenantId: auth.user.tenantId,
+      type: NotificationType.INVOICE,
+      titleAr: "تم إنشاء فاتورة جديدة",
+      titleEn: "New invoice created",
+      messageAr: `تم إنشاء الفاتورة ${invoice.invoiceNumber} للموكل ${client.name} بقيمة ${invoice.total.toFixed(2)} JOD.`,
+      messageEn: `Invoice ${invoice.invoiceNumber} was created for ${client.name} with a total of ${invoice.total.toFixed(2)} JOD.`,
+      href: "/dashboard/invoices",
+    }).catch(() => null);
 
     return ok(invoice, 201);
   });

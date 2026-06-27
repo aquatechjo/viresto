@@ -13,6 +13,30 @@ export default function SubscriptionReadOnlyBanner({
 }: SubscriptionReadOnlyBannerProps) {
   if (!visible) return null;
 
+  const copy = isRtl
+    ? {
+        title: "وضع القراءة فقط",
+        message: "انتهى الاشتراك. يمكنك عرض البيانات فقط إلى حين تجديد الاشتراك.",
+        action: "التجديد مطلوب",
+      }
+    : {
+        title: "Read-only mode",
+        message:
+          "The subscription has ended. You can view data only until the subscription is renewed.",
+        action: "Renewal required",
+      };
+
+  const cleanMessage = message?.trim();
+
+  const hasArabic = (value?: string | null) =>
+    Boolean(value && /[\u0600-\u06FF]/.test(value));
+
+  const shouldUseIncomingMessage =
+    Boolean(cleanMessage) &&
+    (isRtl ? hasArabic(cleanMessage) : !hasArabic(cleanMessage));
+
+  const displayMessage = shouldUseIncomingMessage ? cleanMessage : copy.message;
+
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
@@ -24,27 +48,26 @@ export default function SubscriptionReadOnlyBanner({
       }}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-black">
-            {isRtl ? "وضع القراءة فقط" : "Read-only mode"}
-          </p>
-          <p className="mt-1 text-sm font-bold" style={{ color: "var(--text-2)" }}>
-            {message ||
-              (isRtl
-                ? "انتهى الاشتراك. يمكنك عرض البيانات فقط إلى حين تجديد الاشتراك."
-                : "The subscription has ended. You can view data only until the subscription is renewed.")}
+        <div className="min-w-0">
+          <p className="text-sm font-black">{copy.title}</p>
+
+          <p
+            className="mt-1 text-sm font-bold"
+            style={{ color: "var(--text-2)" }}
+          >
+            {displayMessage}
           </p>
         </div>
 
         <span
-          className="w-fit rounded-full px-3 py-1 text-xs font-black"
+          className="w-fit shrink-0 rounded-full px-3 py-1 text-xs font-black"
           style={{
             background: "rgba(245, 158, 11, 0.16)",
             color: "#d97706",
             border: "1px solid rgba(245, 158, 11, 0.28)",
           }}
         >
-          {isRtl ? "التجديد مطلوب" : "Renewal required"}
+          {copy.action}
         </span>
       </div>
     </div>

@@ -1,80 +1,44 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { ok } from '@/lib/api-response'
-import { apiHandler } from '@/lib/api-handler'
-import { requireRole } from '@/lib/api-auth'
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { ok } from "@/lib/api-response";
+import { requireRole } from "@/lib/api-auth";
+import { apiHandler } from "@/lib/api-handler";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const now = new Date()
-    const tomorrow = new Date(now)
-    tomorrow.setDate(now.getDate() + 1)
+    const sp = new URL(req.url).searchParams;
+    const takeParam = Number(sp.get("take") ?? 20);
+    const take = Number.isFinite(takeParam)
+      ? Math.min(Math.max(takeParam, 1), 50)
+      : 20;
 
-    const [upcomingAppointments, pendingPayments, overdueTasks] =
-      await Promise.all([
-        prisma.appointment.findMany({
-          where: {
-            tenantId: auth.user.tenantId,
-            startTime: {
-              gte: now,
-              lte: tomorrow,
-            },
-          },
-          take: 5,
-          orderBy: { startTime: 'asc' },
-          include: {
-            client: { select: { name: true } },
-            case: { select: { title: true } },
-          },
-        }),
+    const where = {
+      tenantId: auth.user.tenantId,
+      OR: [{ userId: null }, { userId: auth.user.userId }],
+    };
 
-        prisma.payment.findMany({
-          where: {
-            tenantId: auth.user.tenantId,
-            status: 'PENDING',
-          },
-          take: 5,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            case: {
-              select: {
-                title: true,
-                client: {
-                  select: { name: true },
-                },
-              },
-            },
-          },
-        }),
-
-        prisma.task.findMany({
-          where: {
-            tenantId: auth.user.tenantId,
-            completed: false,
-            dueDate: {
-              lt: now,
-            },
-          },
-          take: 5,
-          orderBy: { dueDate: 'asc' },
-          include: {
-            client: { select: { name: true } },
-            case: { select: { title: true } },
-          },
-        }),
-      ])
+    const [notifications, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        orderBy: {
+          createdAt: "desc",
+        },
+        take,
+      }),
+      prisma.notification.count({
+        where: {
+          ...where,
+          readAt: null,
+        },
+      }),
+    ]);
 
     return ok({
-      upcomingAppointments,
-      pendingPayments,
-      overdueTasks,
-      count:
-        upcomingAppointments.length +
-        pendingPayments.length +
-        overdueTasks.length,
-    })
-  })
+      notifications,
+      unreadCount,
+    });
+  });
 }
