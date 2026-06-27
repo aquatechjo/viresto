@@ -130,7 +130,7 @@ export default function TopBar() {
 
   return (
     <header
-      dir="ltr"
+      dir="rtl"
       className={`
         sticky top-0 z-20 flex min-h-[72px] min-w-0 flex-wrap items-center gap-3
         border-b border-slate-200 bg-white/85 py-3 shadow-sm backdrop-blur-[18px]

@@ -98,7 +98,7 @@ const COPY: Record<
     hero: {
       badge: "Everything your legal office needs in one place",
       titleTop: "Run your legal office",
-      titleAccent: "with confidence and clarity.",
+      titleAccent: "with confidence and clarity",
       titleBottom: "",
       description:
         "One platform to organize cases, clients, appointments, documents, invoices, and financial reports professionally and quickly.",
@@ -262,7 +262,7 @@ const COPY: Record<
     hero: {
       badge: "كل أدوات مكتبك القانوني في مكان واحد",
       titleTop: "أدر مكتبك القانوني",
-      titleAccent: "بثقة ووضوح.",
+      titleAccent: "بثقة ووضوح",
       titleBottom: "",
       description:
         "منصة واحدة لتنظيم القضايا، الموكلين، المواعيد، المستندات، الفواتير والتقارير المالية بطريقة احترافية وسريعة.",

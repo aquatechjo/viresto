@@ -271,7 +271,7 @@ export default function LoginPage() {
               <h1 className="text-5xl font-black leading-[1.25] text-white">
                 أدر مكتبك القانوني
                 <br />
-                بثقة ووضوح.
+                بثقة ووضوح
               </h1>
 
               <p className="mt-5 max-w-lg text-base font-semibold leading-8 text-white/65">
