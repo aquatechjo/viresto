@@ -25,6 +25,8 @@ interface Case {
   caseNumber?: string;
   status: string;
   feeAgreed: number;
+  court?: string | null;
+  description?: string | null;
 
   client?: {
     id?: string;
@@ -59,6 +61,8 @@ const STATUS_KEYS = [
 
 type StatusFilter = (typeof STATUS_KEYS)[number];
 
+const CASE_STATUS_KEYS = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
+
 const STATUS_BADGE: Record<string, string> = {
   OPEN: "badge badge-green",
   IN_PROGRESS: "badge badge-blue",
@@ -72,14 +76,18 @@ const COPY = {
     requiredError: "الموكل وعنوان القضية مطلوبان",
     archivedClientCreateError: "لا يمكن إنشاء قضية جديدة لموكل مؤرشف",
     created: "تمت إضافة القضية",
+    updated: "تم تعديل القضية",
     addError: "تعذر إضافة القضية",
+    updateError: "تعذر تعديل القضية",
     addUnexpected: "حدث خطأ أثناء إضافة القضية",
+    updateUnexpected: "حدث خطأ أثناء تعديل القضية",
     planLimitTitle: "وصلت إلى حد الخطة الحالية",
     planLimitFallback: "وصلت إلى حد القضايا المسموح في خطتك الحالية.",
     viewBilling: "عرض الاشتراك",
     close: "إغلاق",
     archivedClientBadge: "موكل مؤرشف",
     openClientFile: "ملف الموكل ←",
+    editCase: "تعديل القضية",
     hero: {
       badge: "إدارة القضايا",
       title: "القضايا",
@@ -128,6 +136,7 @@ const COPY = {
     },
     modal: {
       title: "إضافة قضية جديدة",
+      editTitle: "تعديل القضية",
       client: "الموكل",
       chooseClient: "اختر موكلاً...",
       clientSearchPlaceholder: "ابحث باسم الموكل...",
@@ -137,8 +146,10 @@ const COPY = {
       fees: "الأتعاب",
       court: "المحكمة",
       description: "الوصف",
+      status: "حالة القضية",
       cancel: "إلغاء",
       save: "حفظ",
+      update: "حفظ التعديل",
     },
   },
   en: {
@@ -147,8 +158,11 @@ const COPY = {
     archivedClientCreateError:
       "You cannot create a new case for an archived client",
     created: "Case added successfully",
+    updated: "Case updated successfully",
     addError: "Could not add case",
+    updateError: "Could not update case",
     addUnexpected: "Something went wrong while adding the case",
+    updateUnexpected: "Something went wrong while updating the case",
     planLimitTitle: "Current plan limit reached",
     planLimitFallback:
       "You have reached the case limit allowed by your current plan.",
@@ -156,6 +170,7 @@ const COPY = {
     close: "Close",
     archivedClientBadge: "Archived client",
     openClientFile: "Client file →",
+    editCase: "Edit case",
     hero: {
       badge: "Case management",
       title: "Cases",
@@ -204,6 +219,7 @@ const COPY = {
     },
     modal: {
       title: "Add new case",
+      editTitle: "Edit case",
       client: "Client",
       chooseClient: "Choose a client...",
       clientSearchPlaceholder: "Search by client name...",
@@ -213,8 +229,10 @@ const COPY = {
       fees: "Fees",
       court: "Court",
       description: "Description",
+      status: "Case status",
       cancel: "Cancel",
       save: "Save",
+      update: "Save changes",
     },
   },
 } as const;
@@ -226,6 +244,15 @@ const INIT = {
   court: "",
   feeAgreed: "",
   description: "",
+};
+
+const EDIT_INIT = {
+  title: "",
+  caseNumber: "",
+  court: "",
+  feeAgreed: "",
+  description: "",
+  status: "OPEN",
 };
 
 function formatMoney(value: number) {
@@ -284,12 +311,16 @@ export default function CasesPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingCase, setEditingCase] = useState<Case | null>(null);
   const [form, setForm] = useState(INIT);
+  const [editForm, setEditForm] = useState(EDIT_INIT);
   const [clientSearch, setClientSearch] = useState("");
   const [clientListOpen, setClientListOpen] = useState(false);
   const [clientSearchLoading, setClientSearchLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<ClientOpt | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const [planLimit, setPlanLimit] = useState("");
   const writeAccess = useTenantWriteAccess(localeKey);
 
@@ -474,6 +505,54 @@ export default function CasesPage() {
     }
   }
 
+  async function handleUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || text.planLimitFallback);
+      return;
+    }
+
+    if (!editingCase || !editForm.title.trim()) {
+      toast.error(text.requiredError);
+      return;
+    }
+
+    try {
+      setEditSaving(true);
+
+      const response = await fetch(`/api/cases/${editingCase.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editForm.title,
+          caseNumber: editForm.caseNumber,
+          court: editForm.court,
+          description: editForm.description,
+          status: editForm.status,
+          feeAgreed: parseFloat(editForm.feeAgreed) || 0,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (data.success) {
+        toast.success(text.updated);
+        closeEditCaseModal();
+        load();
+      } else if (isPlanLimitResponse(data)) {
+        setEditOpen(false);
+        setPlanLimit(planLimitMessage(data, text.planLimitFallback));
+      } else {
+        toast.error(getApiMessage(data, text.updateError));
+      }
+    } catch {
+      toast.error(text.updateUnexpected);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   function f(key: keyof typeof INIT) {
     return (
       event: ChangeEvent<
@@ -481,6 +560,19 @@ export default function CasesPage() {
       >,
     ) => {
       setForm((previous) => ({
+        ...previous,
+        [key]: event.target.value,
+      }));
+    };
+  }
+
+  function ef(key: keyof typeof EDIT_INIT) {
+    return (
+      event: ChangeEvent<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >,
+    ) => {
+      setEditForm((previous) => ({
         ...previous,
         [key]: event.target.value,
       }));
@@ -524,6 +616,34 @@ export default function CasesPage() {
 
     resetCreateCaseForm();
     setOpen(true);
+  }
+
+  function closeEditCaseModal() {
+    setEditOpen(false);
+    setEditingCase(null);
+    setEditForm(EDIT_INIT);
+  }
+
+  function openEditCaseModal(item: Case) {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || text.planLimitFallback);
+      return;
+    }
+
+    setEditingCase(item);
+    setEditForm({
+      title: item.title || "",
+      caseNumber: item.caseNumber || "",
+      court: item.court || "",
+      feeAgreed: String(Number(item.feeAgreed || 0)),
+      description: item.description || "",
+      status: CASE_STATUS_KEYS.includes(
+        item.status as (typeof CASE_STATUS_KEYS)[number],
+      )
+        ? item.status
+        : "OPEN",
+    });
+    setEditOpen(true);
   }
 
   return (
@@ -886,13 +1006,31 @@ export default function CasesPage() {
                     </div>
 
                     <div
-                      className="flex justify-center"
+                      className="flex flex-wrap justify-center gap-2"
                       onClick={(event) => event.stopPropagation()}
                     >
+                      <button
+                        type="button"
+                        onClick={() => openEditCaseModal(item)}
+                        disabled={!writeAccess.canWrite}
+                        title={
+                          !writeAccess.canWrite
+                            ? writeAccess.message || text.planLimitFallback
+                            : text.editCase
+                        }
+                        className="inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-black transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{
+                          borderColor: "rgba(16,185,129,0.28)",
+                          color: "var(--sidebar)",
+                        }}
+                      >
+                        {text.editCase}
+                      </button>
+
                       {item.client?.id && (
                         <Link
                           href={`/dashboard/clients/${item.client.id}`}
-                          className="inline-flex min-w-[130px] items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
+                          className="inline-flex min-w-[120px] items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
                           style={{
                             borderColor: "var(--border)",
                             color: "var(--text-2)",
@@ -1129,6 +1267,133 @@ export default function CasesPage() {
                 <span className="spinner spinner-sm" />
               ) : (
                 text.modal.save
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        open={editOpen}
+        onClose={closeEditCaseModal}
+        title={text.modal.editTitle}
+      >
+        <form
+          onSubmit={handleUpdate}
+          className="space-y-3"
+          dir={isRtl ? "rtl" : "ltr"}
+        >
+          <FormField label={text.modal.caseTitle} required>
+            <input
+              dir={isRtl ? "rtl" : "ltr"}
+              value={editForm.title}
+              onChange={ef("title")}
+              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+            />
+          </FormField>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FormField label={text.modal.caseNumber}>
+              <input
+                dir={isRtl ? "rtl" : "ltr"}
+                value={editForm.caseNumber}
+                onChange={ef("caseNumber")}
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
+                }}
+              />
+            </FormField>
+
+            <FormField label={text.modal.fees}>
+              <input
+                dir="ltr"
+                type="number"
+                value={editForm.feeAgreed}
+                onChange={ef("feeAgreed")}
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: "ltr",
+                }}
+                min="0"
+              />
+            </FormField>
+          </div>
+
+          <FormField label={text.modal.status}>
+            <select
+              dir={isRtl ? "rtl" : "ltr"}
+              value={editForm.status}
+              onChange={ef("status")}
+              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+            >
+              {CASE_STATUS_KEYS.map((status) => (
+                <option key={status} value={status}>
+                  {text.filters.statuses[status]}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label={text.modal.court}>
+            <input
+              dir={isRtl ? "rtl" : "ltr"}
+              value={editForm.court}
+              onChange={ef("court")}
+              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+            />
+          </FormField>
+
+          <FormField label={text.modal.description}>
+            <textarea
+              dir={isRtl ? "rtl" : "ltr"}
+              value={editForm.description}
+              onChange={ef("description")}
+              className={`input min-h-[105px] resize-none ${
+                isRtl ? "!text-right" : "!text-left"
+              }`}
+              style={{
+                textAlign: isRtl ? "right" : "left",
+                direction: isRtl ? "rtl" : "ltr",
+              }}
+            />
+          </FormField>
+
+          <div
+            className={`flex gap-2 pt-1 ${isRtl ? "flex-row" : "flex-row-reverse"}`}
+          >
+            <button
+              type="button"
+              onClick={closeEditCaseModal}
+              className="btn btn-ghost flex-1"
+            >
+              {text.modal.cancel}
+            </button>
+
+            <button
+              type="submit"
+              disabled={editSaving}
+              className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {editSaving ? (
+                <span className="spinner spinner-sm" />
+              ) : (
+                text.modal.update
               )}
             </button>
           </div>

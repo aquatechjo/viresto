@@ -305,6 +305,15 @@ const DOCUMENT_INIT = {
   notes: "",
 };
 
+const CASE_EDIT_INIT = {
+  title: "",
+  caseNumber: "",
+  court: "",
+  status: "OPEN",
+  feeAgreed: "",
+  description: "",
+};
+
 function getApiMessage(data: any, fallback: string) {
   return data?.message || data?.error || data?.data?.message || fallback;
 }
@@ -351,6 +360,11 @@ export default function CaseDetailPage() {
   const pageText = {
     back: isArabic ? "رجوع" : "Back",
     caseFile: isArabic ? "ملف القضية" : "Case file",
+    editCase: isArabic ? "تعديل القضية" : "Edit case",
+    editCaseTitle: isArabic ? "تعديل بيانات القضية" : "Edit case details",
+    saveChanges: isArabic ? "حفظ التعديلات" : "Save changes",
+    court: isArabic ? "المحكمة" : "Court",
+    feeAgreed: isArabic ? "الأتعاب المتفق عليها" : "Agreed fees",
     caseNumber: isArabic ? "رقم القضية" : "Case number",
     noCourt: isArabic ? "بدون محكمة محددة" : "No court selected",
     added: isArabic ? "أُضيفت" : "Added",
@@ -476,6 +490,9 @@ export default function CaseDetailPage() {
     archivedPaymentDeleteBlocked: isArabic
       ? "لا يمكن حذف دفعة مرتبطة بموكل مؤرشف"
       : "You cannot delete a payment linked to an archived client",
+    archivedCaseEditBlocked: isArabic
+      ? "لا يمكن تعديل قضية مرتبطة بموكل مؤرشف"
+      : "You cannot edit a case linked to an archived client",
     archivedPaymentHint: isArabic
       ? "مسموح تسجيل دفعة تحصيل قديم لهذا الموكل المؤرشف، لكن لا يمكن حذف الدفعة بعد تسجيلها."
       : "You may record an old collection for this archived client, but the payment cannot be deleted afterward.",
@@ -547,12 +564,14 @@ export default function CaseDetailPage() {
   const [taskOpen, setTaskOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [documentOpen, setDocumentOpen] = useState(false);
+  const [caseEditOpen, setCaseEditOpen] = useState(false);
 
   const [paymentForm, setPaymentForm] = useState(PMT_INIT);
   const [appointmentForm, setAppointmentForm] = useState(APPOINTMENT_INIT);
   const [taskForm, setTaskForm] = useState(TASK_INIT);
   const [invoiceForm, setInvoiceForm] = useState(INVOICE_INIT);
   const [documentForm, setDocumentForm] = useState(DOCUMENT_INIT);
+  const [caseEditForm, setCaseEditForm] = useState(CASE_EDIT_INIT);
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -658,6 +677,68 @@ export default function CaseDetailPage() {
 
     toast.error(message);
     return true;
+  }
+
+  function openCaseEdit() {
+    if (!c) return;
+
+    setCaseEditForm({
+      title: c.title || "",
+      caseNumber: c.caseNumber || "",
+      court: c.court || "",
+      status: c.status || "OPEN",
+      feeAgreed: String(c.feeAgreed ?? ""),
+      description: c.description || "",
+    });
+    setCaseEditOpen(true);
+  }
+
+  async function updateCase(event: FormEvent) {
+    event.preventDefault();
+
+    if (!id || id === "undefined") {
+      toast.error(isArabic ? "رقم القضية غير موجود" : "Case ID is missing");
+      return;
+    }
+
+    if (blockArchivedAction(pageText.archivedCaseEditBlocked)) {
+      return;
+    }
+
+    if (!caseEditForm.title.trim()) {
+      toast.error(isArabic ? "عنوان القضية مطلوب" : "Case title is required");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const response = await fetch(`/api/cases/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: caseEditForm.title.trim(),
+          caseNumber: caseEditForm.caseNumber.trim() || null,
+          court: caseEditForm.court.trim() || null,
+          status: caseEditForm.status,
+          feeAgreed: safeNumber(caseEditForm.feeAgreed),
+          description: caseEditForm.description.trim() || null,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.success) {
+        toast.success(isArabic ? "تم تعديل القضية" : "Case updated successfully");
+        setCaseEditOpen(false);
+        setCaseEditForm(CASE_EDIT_INIT);
+        load();
+      } else {
+        toast.error(getApiMessage(data, isArabic ? "تعذر تعديل القضية" : "Could not update case"));
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   function confirmToast(message: string) {
@@ -1233,6 +1314,21 @@ export default function CaseDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={openCaseEdit}
+              disabled={caseArchived}
+              title={caseArchived ? pageText.archivedCaseEditBlocked : undefined}
+              className="btn disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+                borderColor: "rgba(255,255,255,0.22)",
+              }}
+            >
+              {pageText.editCase}
+            </button>
+
             <button
               type="button"
               onClick={() => router.back()}
@@ -2105,6 +2201,150 @@ export default function CaseDetailPage() {
           </SectionCard>
         </div>
       </div>
+
+      {/* Edit Case Modal */}
+      <Modal
+        open={caseEditOpen}
+        onClose={() => {
+          setCaseEditOpen(false);
+          setCaseEditForm(CASE_EDIT_INIT);
+        }}
+        title={pageText.editCaseTitle}
+      >
+        <form
+          onSubmit={updateCase}
+          className="space-y-3"
+          dir={isRtl ? "rtl" : "ltr"}
+        >
+          {caseArchived && (
+            <div
+              className="rounded-2xl border p-3 text-xs font-bold leading-6"
+              style={{
+                background: "#fff7ed",
+                color: "#b45309",
+                borderColor: "rgba(180, 83, 9, 0.22)",
+              }}
+            >
+              {pageText.archivedCaseEditBlocked}
+            </div>
+          )}
+
+          <FormField label={pageText.title} required>
+            <input
+              className="input text-start"
+              value={caseEditForm.title}
+              onChange={(event) =>
+                setCaseEditForm((previous) => ({
+                  ...previous,
+                  title: event.target.value,
+                }))
+              }
+            />
+          </FormField>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FormField label={pageText.caseNumber}>
+              <input
+                dir="ltr"
+                className={`input ${isRtl ? "text-right" : "text-left"}`}
+                value={caseEditForm.caseNumber}
+                onChange={(event) =>
+                  setCaseEditForm((previous) => ({
+                    ...previous,
+                    caseNumber: event.target.value,
+                  }))
+                }
+              />
+            </FormField>
+
+            <FormField label={pageText.status}>
+              <select
+                className="input"
+                value={caseEditForm.status}
+                onChange={(event) =>
+                  setCaseEditForm((previous) => ({
+                    ...previous,
+                    status: event.target.value,
+                  }))
+                }
+              >
+                {statuses.map(([status, label]) => (
+                  <option key={status} value={status}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FormField label={pageText.court}>
+              <input
+                className="input text-start"
+                value={caseEditForm.court}
+                onChange={(event) =>
+                  setCaseEditForm((previous) => ({
+                    ...previous,
+                    court: event.target.value,
+                  }))
+                }
+              />
+            </FormField>
+
+            <FormField label={pageText.feeAgreed}>
+              <input
+                dir="ltr"
+                type="number"
+                min="0"
+                step="0.01"
+                className={`input ${isRtl ? "text-right" : "text-left"}`}
+                value={caseEditForm.feeAgreed}
+                onChange={(event) =>
+                  setCaseEditForm((previous) => ({
+                    ...previous,
+                    feeAgreed: event.target.value,
+                  }))
+                }
+              />
+            </FormField>
+          </div>
+
+          <FormField label={pageText.description}>
+            <textarea
+              className="input resize-none text-start"
+              rows={4}
+              value={caseEditForm.description}
+              onChange={(event) =>
+                setCaseEditForm((previous) => ({
+                  ...previous,
+                  description: event.target.value,
+                }))
+              }
+            />
+          </FormField>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCaseEditOpen(false);
+                setCaseEditForm(CASE_EDIT_INIT);
+              }}
+              className="btn btn-ghost flex-1"
+            >
+              {pageText.cancel}
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving || caseArchived}
+              className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? pageText.saving : pageText.saveChanges}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Payment Modal */}
       <Modal
