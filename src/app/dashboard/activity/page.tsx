@@ -79,6 +79,13 @@ const COPY = {
       view: "عرض",
       loadMore: "عرض المزيد",
       loadingMore: "جاري تحميل المزيد...",
+      previous: "السابق",
+      next: "التالي",
+      showing: "إظهار",
+      to: "إلى",
+      of: "من أصل",
+      activityRecord: "نشاط",
+      noRecords: "لا توجد نشاطات",
     },
     empty: {
       title: "لا توجد أنشطة",
@@ -198,6 +205,13 @@ const COPY = {
       view: "View",
       loadMore: "Load more",
       loadingMore: "Loading more...",
+      previous: "Previous",
+      next: "Next",
+      showing: "Showing",
+      to: "to",
+      of: "of",
+      activityRecord: "activities",
+      noRecords: "No activities",
     },
     empty: {
       title: "No activities",
@@ -517,10 +531,31 @@ function categoryOf(type: string, title?: string | null) {
   return "other";
 }
 
+interface ActivityPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  from: number;
+  to: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+const EMPTY_PAGINATION: ActivityPagination = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 0,
+  from: 0,
+  to: 0,
+  hasPreviousPage: false,
+  hasNextPage: false,
+};
+
 function safeActivityPayload(data: any): {
   items: ActivityItem[];
-  nextCursor: string | null;
-  hasMore: boolean;
+  pagination: ActivityPagination;
 } {
   const payload = data?.data ?? data;
 
@@ -532,21 +567,28 @@ function safeActivityPayload(data: any): {
     data,
   ];
 
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
-      return {
-        items: candidate,
-        nextCursor:
-          typeof payload?.nextCursor === "string" ? payload.nextCursor : null,
-        hasMore: Boolean(payload?.hasMore),
-      };
-    }
-  }
+  const items = candidates.find(Array.isArray) ?? [];
+  const rawPagination = payload?.pagination ?? data?.pagination ?? {};
+
+  const page = Number(rawPagination.page ?? 1);
+  const limit = Number(rawPagination.limit ?? 10);
+  const total = Number(rawPagination.total ?? items.length);
+  const totalPages = Number(rawPagination.totalPages ?? Math.ceil(total / limit));
+  const from = Number(rawPagination.from ?? (total === 0 ? 0 : (page - 1) * limit + 1));
+  const to = Number(rawPagination.to ?? Math.min(page * limit, total));
 
   return {
-    items: [],
-    nextCursor: null,
-    hasMore: false,
+    items,
+    pagination: {
+      page: Number.isFinite(page) && page > 0 ? page : 1,
+      limit: Number.isFinite(limit) && limit > 0 ? limit : 10,
+      total: Number.isFinite(total) && total > 0 ? total : 0,
+      totalPages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 0,
+      from: Number.isFinite(from) && from > 0 ? from : 0,
+      to: Number.isFinite(to) && to > 0 ? to : 0,
+      hasPreviousPage: Boolean(rawPagination.hasPreviousPage ?? page > 1),
+      hasNextPage: Boolean(rawPagination.hasNextPage ?? page < totalPages),
+    },
   };
 }
 
@@ -585,35 +627,31 @@ export default function ActivityPage() {
   const copy = COPY[locale];
 
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [pagination, setPagination] = useState<ActivityPagination>(EMPTY_PAGINATION);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [type, setType] = useState("all");
   const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
 
-  async function load({
-    showToast = false,
-    reset = true,
-  }: {
-    showToast?: boolean;
-    reset?: boolean;
-  } = {}) {
+  async function load({ showToast = false }: { showToast?: boolean } = {}) {
     try {
-      if (reset) {
-        if (activities.length) setRefreshing(true);
-        else setLoading(true);
-      } else {
-        if (!nextCursor || loadingMore) return;
-        setLoadingMore(true);
-      }
+      if (activities.length) setRefreshing(true);
+      else setLoading(true);
 
-      const params = new URLSearchParams({ limit: "50" });
-      if (search.trim()) params.set("q", search.trim());
-      if (!reset && nextCursor) params.set("cursor", nextCursor);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+      });
 
-      const res = await fetch(`/api/activity?${params.toString()}`);
+      if (query.trim()) params.set("q", query.trim());
+      if (type !== "all") params.set("category", type);
+
+      const res = await fetch(`/api/activity?${params.toString()}`, {
+        cache: "no-store",
+      });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || data?.success === false) {
@@ -623,18 +661,8 @@ export default function ActivityPage() {
 
       const payload = safeActivityPayload(data);
 
-      setActivities((current) => {
-        if (reset) return payload.items;
-
-        const existingIds = new Set(current.map((activity) => activity.id));
-        const uniqueNewItems = payload.items.filter(
-          (activity) => !existingIds.has(activity.id),
-        );
-
-        return [...current, ...uniqueNewItems];
-      });
-      setNextCursor(payload.nextCursor);
-      setHasMore(payload.hasMore);
+      setActivities(payload.items);
+      setPagination(payload.pagination);
 
       if (showToast) toast.success(copy.messages.refreshed);
     } catch {
@@ -642,48 +670,58 @@ export default function ActivityPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
-      setLoadingMore(false);
     }
   }
 
   useEffect(() => {
-    load();
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locale]);
+  }, [locale, page, type, query]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  function applySearch() {
+    const nextQuery = search.trim();
 
-    return activities.filter((activity) => {
-      const category = categoryOf(activity.type, activity.title);
+    if (page !== 1) {
+      setPage(1);
+    }
 
-      if (type !== "all" && category !== type) {
-        return false;
+    if (query !== nextQuery) {
+      setQuery(nextQuery);
+      return;
+    }
+
+    if (page === 1) {
+      void load();
+    }
+  }
+
+  function changeType(nextType: string) {
+    setType(nextType);
+    setPage(1);
+  }
+
+  const pageNumbers = useMemo(() => {
+    const totalPages = pagination.totalPages;
+    const currentPage = pagination.page || page;
+
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    const pages = new Set<number>([1, totalPages]);
+
+    for (let value = currentPage - 1; value <= currentPage + 1; value += 1) {
+      if (value > 1 && value < totalPages) {
+        pages.add(value);
       }
+    }
 
-      if (!q) return true;
-
-      const title = displayActivityTitle(activity, locale);
-      const message = displayActivityMessage(activity, locale);
-      const entity = entityLabel(activity.entityType, locale);
-
-      return (
-        title.toLowerCase().includes(q) ||
-        message.toLowerCase().includes(q) ||
-        activity.title?.toLowerCase().includes(q) ||
-        activity.message?.toLowerCase().includes(q) ||
-        activity.type?.toLowerCase().includes(q) ||
-        entity.toLowerCase().includes(q) ||
-        activity.entityType?.toLowerCase().includes(q) ||
-        activity.actor?.name?.toLowerCase().includes(q) ||
-        activity.actor?.email?.toLowerCase().includes(q)
-      );
-    });
-  }, [activities, search, locale, type]);
+    return Array.from(pages).sort((a, b) => a - b);
+  }, [page, pagination.page, pagination.totalPages]);
 
   const today = new Date().toDateString();
   const stats = {
-    total: activities.length,
+    total: pagination.total,
     today: activities.filter(
       (activity) => new Date(activity.createdAt).toDateString() === today,
     ).length,
@@ -822,7 +860,14 @@ export default function ActivityPage() {
         ))}
       </div>
 
-      <div className="card p-4" dir={fieldDir}>
+      <form
+        className="card p-4"
+        dir={fieldDir}
+        onSubmit={(event) => {
+          event.preventDefault();
+          applySearch();
+        }}
+      >
         <div className="grid gap-3 xl:grid-cols-[1fr_auto_260px] xl:items-center">
           <input
             dir={fieldDir}
@@ -834,9 +879,9 @@ export default function ActivityPage() {
           />
 
           <button
-            type="button"
-            onClick={() => void load()}
-            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 dark:border-emerald-400/30 dark:bg-[#1f4d35] dark:text-emerald-50 dark:hover:bg-[#276342]"
+            type="submit"
+            disabled={refreshing}
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:bg-[#1f4d35] dark:text-emerald-50 dark:hover:bg-[#276342]"
             title={copy.filters.search}
           >
             <Search className="h-4 w-4" />
@@ -846,7 +891,7 @@ export default function ActivityPage() {
           <select
             dir={fieldDir}
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(e) => changeType(e.target.value)}
             className="input h-12 w-full text-start"
             style={{ textAlign: fieldTextAlign }}
             aria-label={copy.filters.typeAria}
@@ -863,9 +908,9 @@ export default function ActivityPage() {
             ))}
           </select>
         </div>
-      </div>
+      </form>
 
-      {filtered.length === 0 ? (
+      {activities.length === 0 ? (
         <EmptyState icon="🧾" title={copy.empty.title} sub={copy.empty.sub} />
       ) : (
         <div className="card overflow-hidden p-0">
@@ -916,7 +961,7 @@ export default function ActivityPage() {
               </thead>
 
               <tbody>
-                {filtered.map((activity) => {
+                {activities.map((activity) => {
                   const href = entityHref(activity);
                   const dateTime = formatDateTime(activity.createdAt, locale);
 
@@ -1039,21 +1084,68 @@ export default function ActivityPage() {
             </table>
           </div>
 
-          {hasMore ? (
-            <div className="flex justify-center border-t border-black/5 p-4 dark:border-white/10">
+          <div className="flex flex-col gap-4 border-t border-black/5 p-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+            <p
+              className="text-sm font-bold"
+              style={{ color: "var(--text-3)" }}
+            >
+              {pagination.total > 0
+                ? `${copy.table.showing} ${pagination.from} ${copy.table.to} ${pagination.to} ${copy.table.of} ${pagination.total} ${copy.table.activityRecord}`
+                : copy.table.noRecords}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => void load({ reset: false })}
-                disabled={loadingMore || refreshing}
-                className="inline-flex min-w-40 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 px-5 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+                disabled={!pagination.hasPreviousPage || refreshing}
+                onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
               >
-                <RefreshCw
-                  className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`}
-                />
-                {loadingMore ? copy.table.loadingMore : copy.table.loadMore}
+                {copy.table.previous}
+              </button>
+
+              {pageNumbers.map((pageNumber, index) => {
+                const previousPage = pageNumbers[index - 1];
+                const showDots = previousPage && pageNumber - previousPage > 1;
+
+                return (
+                  <div key={pageNumber} className="flex items-center gap-2">
+                    {showDots ? (
+                      <span className="px-1 text-sm font-black text-slate-400 dark:text-emerald-100/45">
+                        ...
+                      </span>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      disabled={refreshing}
+                      onClick={() => setPage(pageNumber)}
+                      className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl border px-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        pagination.page === pageNumber
+                          ? "border-emerald-500 bg-emerald-600 text-white shadow-sm dark:border-emerald-300 dark:bg-emerald-300 dark:text-[#062013]"
+                          : "border-emerald-500/30 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                disabled={!pagination.hasNextPage || refreshing}
+                onClick={() =>
+                  setPage((current) =>
+                    Math.min(current + 1, Math.max(pagination.totalPages, 1)),
+                  )
+                }
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+              >
+                {copy.table.next}
               </button>
             </div>
-          ) : null}
+          </div>
         </div>
       )}
     </div>

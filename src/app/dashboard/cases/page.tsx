@@ -43,6 +43,8 @@ interface Case {
 interface ClientOpt {
   id: string;
   name: string;
+  phone?: string | null;
+  nationalId?: string | null;
   archivedAt?: string | null;
 }
 
@@ -128,6 +130,8 @@ const COPY = {
       title: "إضافة قضية جديدة",
       client: "الموكل",
       chooseClient: "اختر موكلاً...",
+      clientSearchPlaceholder: "ابحث باسم الموكل...",
+      noClientResults: "لا يوجد موكل بهذا الاسم",
       caseTitle: "عنوان القضية",
       caseNumber: "رقم القضية",
       fees: "الأتعاب",
@@ -202,6 +206,8 @@ const COPY = {
       title: "Add new case",
       client: "Client",
       chooseClient: "Choose a client...",
+      clientSearchPlaceholder: "Search by client name...",
+      noClientResults: "No client found with this name",
       caseTitle: "Case title",
       caseNumber: "Case number",
       fees: "Fees",
@@ -279,13 +285,13 @@ export default function CasesPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(INIT);
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientListOpen, setClientListOpen] = useState(false);
+  const [clientSearchLoading, setClientSearchLoading] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<ClientOpt | null>(null);
   const [saving, setSaving] = useState(false);
   const [planLimit, setPlanLimit] = useState("");
   const writeAccess = useTenantWriteAccess(localeKey);
-
-  const selectedClient = useMemo(() => {
-    return clients.find((client) => client.id === form.clientId);
-  }, [clients, form.clientId]);
 
   const selectedClientArchived = Boolean(selectedClient?.archivedAt);
 
@@ -293,34 +299,21 @@ export default function CasesPage() {
     try {
       setLoading(true);
 
-      const [casesRes, clientsRes] = await Promise.all([
-        fetch("/api/cases?page=1&limit=100&includeArchivedClients=true"),
-        fetch("/api/clients?page=1&limit=100&archive=active"),
-      ]);
+      const casesRes = await fetch(
+        "/api/cases?page=1&limit=100&includeArchivedClients=true",
+      );
 
-      if (!casesRes.ok || !clientsRes.ok) {
+      if (!casesRes.ok) {
         setCases([]);
-        setClients([]);
         return;
       }
 
-      const [casesData, clientsData] = await Promise.all([
-        casesRes.json().catch(() => ({ data: [] })),
-        clientsRes.json().catch(() => ({ data: [] })),
-      ]);
+      const casesData = await casesRes.json().catch(() => ({ data: [] }));
 
       setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : []);
-      setClients(
-        Array.isArray(clientsData.data?.data)
-          ? clientsData.data.data.filter(
-              (client: ClientOpt) => !client.archivedAt,
-            )
-          : [],
-      );
     } catch {
       toast.error(text.loadError);
       setCases([]);
-      setClients([]);
     } finally {
       setLoading(false);
     }
@@ -329,6 +322,60 @@ export default function CasesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        setClientSearchLoading(true);
+
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "10",
+          archive: "active",
+        });
+
+        const query = clientSearch.trim();
+
+        if (query) {
+          params.set("q", query);
+        }
+
+        const response = await fetch(`/api/clients?${params.toString()}`, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          setClients([]);
+          return;
+        }
+
+        const data = await response.json().catch(() => ({ data: [] }));
+        const rows = Array.isArray(data.data?.data) ? data.data.data : [];
+
+        setClients(
+          rows.filter((client: ClientOpt) => !client.archivedAt),
+        );
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          setClients([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setClientSearchLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [clientSearch, open]);
 
   const activeCount = cases.filter((item) => item.status === "OPEN").length;
   const progressCount = cases.filter(
@@ -412,8 +459,7 @@ export default function CasesPage() {
 
       if (data.success) {
         toast.success(text.created);
-        setOpen(false);
-        setForm(INIT);
+        closeCreateCaseModal();
         load();
       } else if (isPlanLimitResponse(data)) {
         setOpen(false);
@@ -446,12 +492,37 @@ export default function CasesPage() {
     setFilter("all");
   }
 
+  function resetCreateCaseForm() {
+    setForm(INIT);
+    setClients([]);
+    setClientSearch("");
+    setClientListOpen(false);
+    setClientSearchLoading(false);
+    setSelectedClient(null);
+  }
+
+  function closeCreateCaseModal() {
+    setOpen(false);
+    resetCreateCaseForm();
+  }
+
+  function chooseClient(client: ClientOpt) {
+    setSelectedClient(client);
+    setForm((previous) => ({
+      ...previous,
+      clientId: client.id,
+    }));
+    setClientSearch(client.name);
+    setClientListOpen(false);
+  }
+
   function openCreateCaseModal() {
     if (!writeAccess.canWrite) {
       toast.warning(writeAccess.message || text.planLimitFallback);
       return;
     }
 
+    resetCreateCaseForm();
     setOpen(true);
   }
 
@@ -843,10 +914,7 @@ export default function CasesPage() {
       {/* Add Modal */}
       <Modal
         open={open}
-        onClose={() => {
-          setOpen(false);
-          setForm(INIT);
-        }}
+        onClose={closeCreateCaseModal}
         title={text.modal.title}
       >
         <form
@@ -855,24 +923,106 @@ export default function CasesPage() {
           dir={isRtl ? "rtl" : "ltr"}
         >
           <FormField label={text.modal.client} required>
-            <select
-              dir={isRtl ? "rtl" : "ltr"}
-              value={form.clientId}
-              onChange={f("clientId")}
-              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: isRtl ? "rtl" : "ltr",
-              }}
-            >
-              <option value="">{text.modal.chooseClient}</option>
+            <div className="relative">
+              <input
+                dir={isRtl ? "rtl" : "ltr"}
+                value={
+                  clientListOpen
+                    ? clientSearch
+                    : selectedClient?.name || clientSearch
+                }
+                onChange={(event) => {
+                  const value = event.target.value;
 
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
+                  setClientSearch(value);
+                  setClientListOpen(true);
+                  setSelectedClient(null);
+
+                  if (form.clientId) {
+                    setForm((previous) => ({
+                      ...previous,
+                      clientId: "",
+                    }));
+                  }
+                }}
+                onFocus={() => {
+                  setClientSearch(selectedClient?.name || "");
+                  setClientListOpen(true);
+                }}
+                onBlur={() => {
+                  window.setTimeout(() => setClientListOpen(false), 120);
+                }}
+                placeholder={text.modal.clientSearchPlaceholder}
+                autoComplete="off"
+                autoFocus
+                className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
+                }}
+              />
+
+              {clientListOpen && (
+                <div
+                  className={`absolute z-50 mt-2 max-h-56 w-full overflow-y-auto rounded-2xl border shadow-2xl ${
+                    isRtl ? "right-0" : "left-0"
+                  }`}
+                  style={{
+                    background: "var(--card)",
+                    borderColor: "var(--border)",
+                  }}
+                >
+                  {clientSearchLoading ? (
+                    <div
+                      className={`px-4 py-3 text-sm font-bold ${
+                        isRtl ? "text-right" : "text-left"
+                      }`}
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {localeKey === "ar" ? "جاري البحث..." : "Searching..."}
+                    </div>
+                  ) : clients.length > 0 ? (
+                    clients.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          chooseClient(client);
+                        }}
+                        className={`block w-full px-4 py-3 text-sm font-black transition hover:bg-emerald-300/10 ${
+                          isRtl ? "text-right" : "text-left"
+                        }`}
+                        style={{ color: "var(--text)" }}
+                      >
+                        <span className="block">{client.name}</span>
+                        {(client.phone || client.nationalId) && (
+                          <span
+                            dir="ltr"
+                            className={`mt-1 block text-xs font-bold ${
+                              isRtl ? "text-right" : "text-left"
+                            }`}
+                            style={{ color: "var(--text-3)" }}
+                          >
+                            {client.phone || ""}
+                            {client.nationalId ? ` - ${client.nationalId}` : ""}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  ) : (
+                    <div
+                      className={`px-4 py-3 text-sm font-bold ${
+                        isRtl ? "text-right" : "text-left"
+                      }`}
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {text.modal.noClientResults}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </FormField>
 
           {selectedClientArchived && (
@@ -898,7 +1048,6 @@ export default function CasesPage() {
                 textAlign: isRtl ? "right" : "left",
                 direction: isRtl ? "rtl" : "ltr",
               }}
-              autoFocus
             />
           </FormField>
 
@@ -965,10 +1114,7 @@ export default function CasesPage() {
           >
             <button
               type="button"
-              onClick={() => {
-                setOpen(false);
-                setForm(INIT);
-              }}
+              onClick={closeCreateCaseModal}
               className="btn btn-ghost flex-1"
             >
               {text.modal.cancel}

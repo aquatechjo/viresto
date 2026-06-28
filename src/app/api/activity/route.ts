@@ -5,6 +5,71 @@ import { ok } from '@/lib/api-response'
 import { requireRole } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-handler'
 
+function addAndCondition(
+  where: Prisma.ActivityWhereInput,
+  condition: Prisma.ActivityWhereInput
+) {
+  const currentAnd = where.AND
+
+  if (!currentAnd) {
+    where.AND = [condition]
+    return
+  }
+
+  where.AND = Array.isArray(currentAnd)
+    ? [...currentAnd, condition]
+    : [currentAnd, condition]
+}
+
+function categoryCondition(category: string): Prisma.ActivityWhereInput | null {
+  const contains = (value: string): Prisma.StringFilter<'Activity'> => ({
+    contains: value,
+    mode: 'insensitive',
+  })
+
+  const fields = (values: string[]): Prisma.ActivityWhereInput => ({
+    OR: values.flatMap((value) => [
+      { type: contains(value) },
+      { title: contains(value) },
+      { message: contains(value) },
+      { entityType: contains(value) },
+    ]),
+  })
+
+  switch (category) {
+    case 'clients':
+      return fields(['CLIENT', 'موكل'])
+    case 'cases':
+      return fields(['CASE', 'قضية'])
+    case 'appointments':
+      return fields(['APPOINTMENT', 'موعد'])
+    case 'tasks':
+      return fields(['TASK', 'مهمة'])
+    case 'documents':
+      return fields(['DOCUMENT', 'مستند'])
+    case 'payments':
+      return fields(['PAYMENT', 'دفعة'])
+    case 'invoices':
+      return fields(['INVOICE', 'فاتورة'])
+    case 'security':
+      return fields([
+        'LOGIN',
+        'LOGOUT',
+        'SESSION',
+        'PASSWORD',
+        '2FA',
+        'TWO_FACTOR',
+        'AUTH',
+        'تسجيل دخول',
+        'تسجيل خروج',
+        'كلمة المرور',
+        'التحقق الثنائي',
+      ])
+    default:
+      return null
+  }
+}
+
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
@@ -14,14 +79,20 @@ export async function GET(req: NextRequest) {
     }
 
     const sp = new URL(req.url).searchParams
-    const limitRaw = Number(sp.get('limit') || 50)
-    const type = sp.get('type')?.trim() || undefined
-    const q = sp.get('q')?.trim() || undefined
-    const cursor = sp.get('cursor')?.trim() || undefined
 
+    const pageRaw = Number(sp.get('page') || 1)
+    const limitRaw = Number(sp.get('limit') || 10)
+
+    const type = sp.get('type')?.trim() || undefined
+    const category = sp.get('category')?.trim() || undefined
+    const q = sp.get('q')?.trim() || undefined
+
+    const page = Number.isNaN(pageRaw) ? 1 : Math.max(pageRaw, 1)
     const limit = Number.isNaN(limitRaw)
-      ? 50
+      ? 10
       : Math.min(Math.max(limitRaw, 1), 100)
+
+    const skip = (page - 1) * limit
 
     const where: Prisma.ActivityWhereInput = {
       tenantId: auth.user.tenantId,
@@ -31,55 +102,34 @@ export async function GET(req: NextRequest) {
       where.type = type
     }
 
-    if (q) {
-      where.OR = [
-        { title: { contains: q, mode: 'insensitive' } },
-        { message: { contains: q, mode: 'insensitive' } },
-        { type: { contains: q, mode: 'insensitive' } },
-        { entityType: { contains: q, mode: 'insensitive' } },
-      ]
-    }
+    if (category && category !== 'all') {
+      const condition = categoryCondition(category)
 
-    if (cursor) {
-      const cursorExists = await prisma.activity.findFirst({
-        where: {
-          id: cursor,
-          tenantId: auth.user.tenantId,
-        },
-        select: {
-          id: true,
-        },
-      })
-
-      if (!cursorExists) {
-        return ok({
-          items: [],
-          nextCursor: null,
-          hasMore: false,
-        })
+      if (condition) {
+        addAndCondition(where, condition)
       }
     }
 
-    const activities = await prisma.activity.findMany({
-      where,
-      orderBy: [
-        { createdAt: 'desc' },
-        { id: 'desc' },
-      ],
-      take: limit + 1,
-      ...(cursor
-        ? {
-            cursor: { id: cursor },
-            skip: 1,
-          }
-        : {}),
-    })
+    if (q) {
+      addAndCondition(where, {
+        OR: [
+          { title: { contains: q, mode: 'insensitive' } },
+          { message: { contains: q, mode: 'insensitive' } },
+          { type: { contains: q, mode: 'insensitive' } },
+          { entityType: { contains: q, mode: 'insensitive' } },
+        ],
+      })
+    }
 
-    const pageActivities = activities.slice(0, limit)
-    const hasMore = activities.length > limit
-    const nextCursor = hasMore
-      ? pageActivities[pageActivities.length - 1]?.id ?? null
-      : null
+    const [pageActivities, total] = await prisma.$transaction([
+      prisma.activity.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      prisma.activity.count({ where }),
+    ])
 
     const actorIds = Array.from(
       new Set(pageActivities.map((a) => a.actorId).filter(Boolean) as string[])
@@ -101,14 +151,23 @@ export async function GET(req: NextRequest) {
       : []
 
     const actorMap = new Map(actors.map((u) => [u.id, u]))
+    const totalPages = Math.ceil(total / limit)
 
     return ok({
       items: pageActivities.map((activity) => ({
         ...activity,
         actor: activity.actorId ? actorMap.get(activity.actorId) ?? null : null,
       })),
-      nextCursor,
-      hasMore,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        from: total === 0 ? 0 : skip + 1,
+        to: Math.min(skip + limit, total),
+        hasPreviousPage: page > 1,
+        hasNextPage: page < totalPages,
+      },
     })
   })
 }

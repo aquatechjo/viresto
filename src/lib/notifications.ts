@@ -15,12 +15,18 @@ type NotificationBaseInput = {
 type NotificationOptions = {
   /**
    * Prevents duplicate notifications with the same content inside this time window.
-   * Useful for due-soon / overdue / billing notifications.
+   * Useful for temporary dedupe.
    */
   dedupeMinutes?: number;
 
   /**
-   * Allows routes to skip notification creation without wrapping conditions outside.
+   * Prevents creating the same notification again at any time.
+   * Useful for rule-based notifications generated from /api/notifications.
+   */
+  dedupeForever?: boolean;
+
+  /**
+   * Allows callers to skip notification creation without wrapping conditions outside.
    */
   skip?: boolean;
 };
@@ -49,27 +55,40 @@ export async function createNotification({
   messageEn,
   href = null,
   dedupeMinutes = 0,
+  dedupeForever = false,
   skip = false,
 }: CreateNotificationInput) {
   if (skip) return null;
 
   const normalizedUserId = normalizeNullable(userId);
   const normalizedHref = normalizeNullable(href);
-
+  const baseDedupeWhere = {
+    tenantId,
+    userId: normalizedUserId,
+    type,
+    titleAr,
+    titleEn,
+    messageAr,
+    messageEn,
+    href: normalizedHref,
+  };
   try {
+    if (dedupeForever) {
+      const existing = await prisma.notification.findFirst({
+        where: baseDedupeWhere,
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (existing) return existing;
+    }
     if (dedupeMinutes > 0) {
       const since = new Date(Date.now() - dedupeMinutes * 60 * 1000);
 
       const existing = await prisma.notification.findFirst({
         where: {
-          tenantId,
-          userId: normalizedUserId,
-          type,
-          titleAr,
-          titleEn,
-          messageAr,
-          messageEn,
-          href: normalizedHref,
+          ...baseDedupeWhere,
           createdAt: {
             gte: since,
           },
@@ -104,7 +123,9 @@ export async function createNotification({
  * Tenant-wide notification: visible to all users in the same office/tenant.
  * Use this for billing, system, office-level reminders, and shared alerts.
  */
-export async function createTenantNotification(input: CreateTenantNotificationInput) {
+export async function createTenantNotification(
+  input: CreateTenantNotificationInput,
+) {
   return createNotification({
     ...input,
     userId: null,
@@ -115,7 +136,9 @@ export async function createTenantNotification(input: CreateTenantNotificationIn
  * User-specific notification: visible to one user plus tenant admins only if your API permits it.
  * Use this later for assigned tasks, personal reminders, or security alerts.
  */
-export async function createUserNotification(input: CreateUserNotificationInput) {
+export async function createUserNotification(
+  input: CreateUserNotificationInput,
+) {
   return createNotification(input);
 }
 
@@ -128,7 +151,10 @@ export function isPastDate(value?: Date | string | null) {
   return date.getTime() < Date.now();
 }
 
-export function isWithinNextHours(value: Date | string | null | undefined, hours: number) {
+export function isWithinNextHours(
+  value: Date | string | null | undefined,
+  hours: number,
+) {
   if (!value || hours <= 0) return false;
 
   const date = value instanceof Date ? value : new Date(value);

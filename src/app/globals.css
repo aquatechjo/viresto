@@ -3088,3 +3088,11 @@ textarea::-moz-selection {
   background: rgba(199, 169, 92, 0.35);
   color: #06170f;
 }
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

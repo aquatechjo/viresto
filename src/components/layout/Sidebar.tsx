@@ -242,7 +242,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4">
+      <nav className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4">
         {NAV.map((group) => (
           <div key={group.sectionKey} className="mb-4 last:mb-0 sm:mb-5">
             <p className="mb-2 px-3 text-start text-[11px] font-black uppercase tracking-wide text-emerald-100/55">

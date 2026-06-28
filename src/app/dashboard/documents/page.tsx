@@ -147,6 +147,28 @@ function PlanLimitBanner({
   );
 }
 
+
+function UploadProgressIcon() {
+  return (
+    <div className="relative h-16 w-16" aria-hidden="true">
+      <div className="absolute inset-0 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 shadow-[0_0_28px_rgba(16,185,129,0.18)]" />
+      <div className="absolute inset-2 rounded-xl border border-emerald-300/20 bg-[#06170f]" />
+
+      <div className="absolute left-1/2 top-1/2 h-8 w-7 -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-emerald-200/80 bg-emerald-300/10">
+        <div className="mx-auto mt-1 h-1 w-3 rounded-full bg-emerald-200/70" />
+        <div className="mx-auto mt-1 h-1 w-4 rounded-full bg-emerald-200/40" />
+        <div className="mx-auto mt-1 h-1 w-3 rounded-full bg-emerald-200/30" />
+      </div>
+
+      <div className="absolute -right-1 -top-1 flex h-7 w-7 animate-bounce items-center justify-center rounded-full border border-emerald-200/40 bg-emerald-500 text-xs font-black text-white shadow-lg">
+        ↑
+      </div>
+
+      <div className="absolute inset-0 animate-spin rounded-2xl border-2 border-transparent border-l-emerald-300/40 border-t-emerald-300/80" />
+    </div>
+  );
+}
+
 export default function DocumentsPage() {
   const localeState = useLocale() as {
     locale?: Locale;
@@ -798,11 +820,27 @@ export default function DocumentsPage() {
           />
 
           {uploadStatus === "uploading" ? (
-            <div className="flex items-center gap-2">
-              <span className="spinner" />
-              <span style={{ color: "var(--text-2)" }}>
-                {d.upload.uploading}
-              </span>
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex flex-col items-center gap-4"
+            >
+              <UploadProgressIcon />
+
+              <div className="text-center">
+                <p
+                  className="text-sm font-black"
+                  style={{ color: "var(--text)" }}
+                >
+                  {d.upload.uploading}
+                </p>
+
+                <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
+                  {isRtl
+                    ? "لا تغلق الصفحة حتى يكتمل الرفع"
+                    : "Keep this page open until the upload finishes"}
+                </p>
+              </div>
             </div>
           ) : (
             <>
