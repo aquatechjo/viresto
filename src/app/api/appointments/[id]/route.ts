@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -43,6 +44,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         clientId: true,
         startTime: true,
         endTime: true,
+        type: true,
+        status: true,
         client: {
           select: {
             id: true,
@@ -234,6 +237,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       });
     }
 
+  
     return ok(updated);
   });
 }
@@ -269,6 +273,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         title: true,
         caseId: true,
         clientId: true,
+        startTime: true,
+        type: true,
+        status: true,
         client: {
           select: {
             id: true,

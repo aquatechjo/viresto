@@ -7,8 +7,7 @@ import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
-import { createTenantNotification } from "@/lib/notifications";
-import { NotificationType } from "@prisma/client";
+
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -237,16 +236,7 @@ export async function POST(req: NextRequest) {
       entityId: caseId || appt.id,
     });
 
-    await createTenantNotification({
-      tenantId: auth.user.tenantId,
-      type: NotificationType.APPOINTMENT,
-      titleAr: "تمت إضافة موعد جديد",
-      titleEn: "New appointment added",
-      messageAr: `تمت إضافة الموعد ${appt.title}.`,
-      messageEn: `The appointment ${appt.title} was added.`,
-      href: "/dashboard/appointments",
-    }).catch(() => null);
-
+    
     return ok(appt, 201);
   });
 }

@@ -7,8 +7,6 @@ import { apiHandler } from "@/lib/api-handler";
 import { logActivity } from "@/lib/log-activity";
 import { assertTenantCanCreate } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
-import { createTenantNotification } from "@/lib/notifications";
-import { NotificationType } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -200,16 +198,35 @@ export async function POST(req: NextRequest) {
       entityId: doc.id,
     });
 
-    await createTenantNotification({
-      tenantId: auth.user.tenantId,
-      type: NotificationType.DOCUMENT,
-      titleAr: "تم رفع مستند جديد",
-      titleEn: "New document uploaded",
-      messageAr: `تم رفع المستند ${doc.fileName}${doc.case?.title ? ` للقضية ${doc.case.title}` : ""}.`,
-      messageEn: `The document ${doc.fileName} was uploaded${doc.case?.title ? ` for case ${doc.case.title}` : ""}.`,
-      href: "/dashboard/documents",
-    }).catch(() => null);
+    const documentTags = Array.isArray(doc.tags) ? doc.tags : [];
 
+    const importantDocumentText = [
+      doc.fileName,
+      doc.notes ?? "",
+      ...documentTags,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    const importantDocumentKeywords = [
+      "important",
+      "urgent",
+      "court",
+      "deadline",
+      "hearing",
+      "مهم",
+      "عاجل",
+      "جلسة",
+      "محكمة",
+      "موعد",
+      "مهلة",
+      "تبليغ",
+      "إنذار",
+    ];
+
+    const isImportantDocument = importantDocumentKeywords.some((keyword) =>
+      importantDocumentText.includes(keyword.toLowerCase()),
+    );
     return ok(
       {
         id: doc.id,

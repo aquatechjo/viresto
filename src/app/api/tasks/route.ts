@@ -7,8 +7,7 @@ import { apiHandler } from "@/lib/api-handler";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
-import { createTenantNotification } from "@/lib/notifications";
-import { NotificationType } from "@prisma/client";
+
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -207,16 +206,6 @@ export async function POST(req: NextRequest) {
       entityType: caseId ? "CASE" : "TASK",
       entityId: caseId || task.id,
     });
-
-    await createTenantNotification({
-      tenantId: auth.user.tenantId,
-      type: NotificationType.TASK,
-      titleAr: "تمت إضافة مهمة جديدة",
-      titleEn: "New task added",
-      messageAr: `تمت إضافة المهمة ${task.title}${task.case?.title ? ` للقضية ${task.case.title}` : ""}.`,
-      messageEn: `The task ${task.title} was added${task.case?.title ? ` for case ${task.case.title}` : ""}.`,
-      href: "/dashboard/tasks",
-    }).catch(() => null);
 
     return ok(task, 201);
   });

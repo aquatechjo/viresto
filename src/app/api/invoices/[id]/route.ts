@@ -10,6 +10,7 @@ import { invoiceCreateSchema } from "@/lib/validations";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
 
+
 type Params = { params: Promise<{ id: string }> };
 
 const allowedStatuses = [
@@ -204,9 +205,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const body = await req.json().catch(() => ({}));
     const statusRaw =
-      typeof body.status === "string" ? body.status.trim().toUpperCase() : undefined;
+      typeof body.status === "string"
+        ? body.status.trim().toUpperCase()
+        : undefined;
 
-    if (statusRaw !== undefined && !allowedStatuses.includes(statusRaw as any)) {
+    if (
+      statusRaw !== undefined &&
+      !allowedStatuses.includes(statusRaw as any)
+    ) {
       return err("حالة الفاتورة غير صالحة", 400);
     }
 
@@ -337,7 +343,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ? calculateTotals(
           itemsForTotals,
           data.tax !== undefined ? data.tax : Number(invoice.tax),
-          data.discount !== undefined ? data.discount : Number(invoice.discount),
+          data.discount !== undefined
+            ? data.discount
+            : Number(invoice.discount),
         )
       : null;
 
