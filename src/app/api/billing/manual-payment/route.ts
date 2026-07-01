@@ -1,5 +1,9 @@
 import { NextRequest } from "next/server";
-import { BillingInterval, BillingProvider, SubscriptionStatus } from "@prisma/client";
+import {
+  BillingInterval,
+  BillingProvider,
+  SubscriptionStatus,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -61,10 +65,13 @@ async function uploadReceiptToCloudinary(file: File, tenantId: string) {
   fd.append("folder", folder);
   fd.append("type", uploadType);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`, {
-    method: "POST",
-    body: fd,
-  });
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`,
+    {
+      method: "POST",
+      body: fd,
+    },
+  );
 
   const data = await res.json();
 
@@ -75,6 +82,7 @@ async function uploadReceiptToCloudinary(file: File, tenantId: string) {
   return {
     secureUrl: String(data.secure_url),
     publicId: String(data.public_id),
+    resourceType: String(data.resource_type || "image"),
   };
 }
 
@@ -158,10 +166,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (pendingPayment) {
-      return err("لديك طلب دفع قيد المراجعة بالفعل. انتظر مراجعة الإدارة قبل إرسال إيصال جديد.", 409, {
-        paymentId: pendingPayment.id,
-        createdAt: pendingPayment.createdAt,
-      });
+      return err(
+        "لديك طلب دفع قيد المراجعة بالفعل. انتظر مراجعة الإدارة قبل إرسال إيصال جديد.",
+        409,
+        {
+          paymentId: pendingPayment.id,
+          createdAt: pendingPayment.createdAt,
+        },
+      );
     }
 
     const upload = await uploadReceiptToCloudinary(receipt, auth.user.tenantId);
@@ -194,6 +206,7 @@ export async function POST(req: NextRequest) {
             fileName: receipt.name,
             fileType: receipt.type,
             fileSize: receipt.size,
+            resourceType: upload.resourceType,
             planCode: plan.code,
             planName: plan.name,
             interval,
@@ -230,7 +243,8 @@ export async function POST(req: NextRequest) {
     return ok(
       {
         payment: result,
-        message: "تم إرسال إيصال الدفع بنجاح. طلبك الآن بانتظار مراجعة الإدارة.",
+        message:
+          "تم إرسال إيصال الدفع بنجاح. طلبك الآن بانتظار مراجعة الإدارة.",
       },
       201,
     );
