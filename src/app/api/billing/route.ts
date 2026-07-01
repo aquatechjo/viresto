@@ -64,7 +64,7 @@ function formatAmount(amount: number, currency: string) {
     raw: amount,
     value: amount / 1000,
     currency,
-    formatted: `${(amount / 1000).toFixed(2)} ${currency}`,
+    formatted: `${(amount / 1000).toFixed(3)} ${currency}`,
   };
 }
 
@@ -145,6 +145,13 @@ export async function GET(req: NextRequest) {
                 amount: true,
                 currency: true,
                 status: true,
+
+                method: true,
+                receiptUrl: true,
+                receiptPublicId: true,
+                adminNote: true,
+                reviewedAt: true,
+
                 paidAt: true,
                 createdAt: true,
               },
