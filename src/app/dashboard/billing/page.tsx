@@ -335,6 +335,43 @@ export default function BillingPage() {
     setReceiptFile(null);
   }
 
+  async function openReceipt(paymentId: string) {
+    const res = await fetch(
+      `/api/billing/manual-payment/${paymentId}/receipt`,
+      {
+        cache: "no-store",
+      },
+    );
+
+    const json = await res.json().catch(() => ({}));
+
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!res.ok || !json.success) {
+      toast.error(
+        json.message ||
+          (isArabic
+            ? "تعذر فتح إيصال الدفع"
+            : "Failed to open payment receipt"),
+      );
+      return;
+    }
+
+    const signedUrl = json.data?.signedUrl;
+
+    if (!signedUrl) {
+      toast.error(
+        isArabic ? "رابط الإيصال غير متاح" : "Receipt link is unavailable",
+      );
+      return;
+    }
+
+    window.open(signedUrl, "_blank", "noopener,noreferrer");
+  }
+
   async function submitManualPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -993,14 +1030,13 @@ export default function BillingPage() {
                     <td>{payment.provider}</td>
                     <td>
                       {payment.receiptUrl ? (
-                        <a
-                          href={payment.receiptUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openReceipt(payment.id)}
                           className="btn btn-ghost"
                         >
                           {isArabic ? "عرض" : "View"}
-                        </a>
+                        </button>
                       ) : (
                         "-"
                       )}

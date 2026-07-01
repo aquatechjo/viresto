@@ -95,6 +95,28 @@ export default function ManualPaymentsPanel() {
     load();
   }, [status]);
 
+  async function openReceipt(paymentId: string) {
+    const res = await fetch(`/api/admin/manual-payments/${paymentId}/receipt`, {
+      cache: "no-store",
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || !json.success) {
+      toast.error(json.message || "تعذر فتح إيصال الدفع");
+      return;
+    }
+
+    const signedUrl = json.data?.signedUrl;
+
+    if (!signedUrl) {
+      toast.error("رابط الإيصال غير متاح");
+      return;
+    }
+
+    window.open(signedUrl, "_blank", "noopener,noreferrer");
+  }
+
   async function reviewPayment(
     paymentId: string,
     action: "approve" | "reject",
@@ -147,7 +169,8 @@ export default function ManualPaymentsPanel() {
           </h2>
 
           <p className="mt-1 text-sm" style={{ color: "var(--text-3)" }}>
-            راجع إيصالات الدفع المرسلة من المكاتب وفعّل الاشتراك بعد التأكد من الدفع.
+            راجع إيصالات الدفع المرسلة من المكاتب وفعّل الاشتراك بعد التأكد من
+            الدفع.
           </p>
         </div>
 
@@ -155,7 +178,9 @@ export default function ManualPaymentsPanel() {
           <button
             type="button"
             onClick={() => setStatus("PENDING")}
-            className={status === "PENDING" ? "btn btn-primary" : "btn btn-ghost"}
+            className={
+              status === "PENDING" ? "btn btn-primary" : "btn btn-ghost"
+            }
           >
             بانتظار المراجعة
           </button>
@@ -163,7 +188,9 @@ export default function ManualPaymentsPanel() {
           <button
             type="button"
             onClick={() => setStatus("APPROVED")}
-            className={status === "APPROVED" ? "btn btn-primary" : "btn btn-ghost"}
+            className={
+              status === "APPROVED" ? "btn btn-primary" : "btn btn-ghost"
+            }
           >
             مفعّلة
           </button>
@@ -171,7 +198,9 @@ export default function ManualPaymentsPanel() {
           <button
             type="button"
             onClick={() => setStatus("REJECTED")}
-            className={status === "REJECTED" ? "btn btn-primary" : "btn btn-ghost"}
+            className={
+              status === "REJECTED" ? "btn btn-primary" : "btn btn-ghost"
+            }
           >
             مرفوضة
           </button>
@@ -187,39 +216,72 @@ export default function ManualPaymentsPanel() {
       </div>
 
       <div className="grid gap-3 p-5 sm:grid-cols-3">
-        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--input-bg)" }}>
+        <div
+          className="rounded-2xl border p-4"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--input-bg)",
+          }}
+        >
           <p className="text-xs font-black" style={{ color: "var(--text-3)" }}>
             بانتظار المراجعة
           </p>
-          <p className="mt-1 text-2xl font-black">{data?.summary.pending ?? 0}</p>
+          <p className="mt-1 text-2xl font-black">
+            {data?.summary.pending ?? 0}
+          </p>
         </div>
 
-        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--input-bg)" }}>
+        <div
+          className="rounded-2xl border p-4"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--input-bg)",
+          }}
+        >
           <p className="text-xs font-black" style={{ color: "var(--text-3)" }}>
             مفعّلة
           </p>
-          <p className="mt-1 text-2xl font-black">{data?.summary.approved ?? 0}</p>
+          <p className="mt-1 text-2xl font-black">
+            {data?.summary.approved ?? 0}
+          </p>
         </div>
 
-        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--input-bg)" }}>
+        <div
+          className="rounded-2xl border p-4"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--input-bg)",
+          }}
+        >
           <p className="text-xs font-black" style={{ color: "var(--text-3)" }}>
             مرفوضة
           </p>
-          <p className="mt-1 text-2xl font-black">{data?.summary.rejected ?? 0}</p>
+          <p className="mt-1 text-2xl font-black">
+            {data?.summary.rejected ?? 0}
+          </p>
         </div>
       </div>
 
       <div className="px-5 pb-5">
         {loading ? (
-          <div className="rounded-2xl border p-5 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-3)" }}>
+          <div
+            className="rounded-2xl border p-5 text-sm"
+            style={{ borderColor: "var(--border)", color: "var(--text-3)" }}
+          >
             جاري تحميل طلبات الدفع...
           </div>
         ) : !data?.payments.length ? (
-          <div className="rounded-2xl border p-5 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-3)" }}>
+          <div
+            className="rounded-2xl border p-5 text-sm"
+            style={{ borderColor: "var(--border)", color: "var(--text-3)" }}
+          >
             لا توجد طلبات دفع بهذه الحالة.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-[24px] border" style={{ borderColor: "var(--border)" }}>
+          <div
+            className="overflow-x-auto rounded-[24px] border"
+            style={{ borderColor: "var(--border)" }}
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -240,7 +302,10 @@ export default function ManualPaymentsPanel() {
                   <tr key={payment.id}>
                     <td>
                       <div className="font-black">{payment.tenant.name}</div>
-                      <div className="text-xs" style={{ color: "var(--text-3)" }}>
+                      <div
+                        className="text-xs"
+                        style={{ color: "var(--text-3)" }}
+                      >
                         {payment.tenant.email || payment.tenant.slug}
                       </div>
                     </td>
@@ -249,19 +314,30 @@ export default function ManualPaymentsPanel() {
                       <div className="font-black">
                         {payment.subscription.plan.name}
                       </div>
-                      <div className="text-xs" style={{ color: "var(--text-3)" }}>
+                      <div
+                        className="text-xs"
+                        style={{ color: "var(--text-3)" }}
+                      >
                         {payment.subscription.plan.code}
                       </div>
                     </td>
 
-                    <td>{payment.subscription.interval === "YEARLY" ? "سنوي" : "شهري"}</td>
+                    <td>
+                      {payment.subscription.interval === "YEARLY"
+                        ? "سنوي"
+                        : "شهري"}
+                    </td>
 
                     <td className="font-black">{payment.amount.formatted}</td>
 
                     <td>{payment.method || "-"}</td>
 
                     <td>
-                      <span className={statusClasses[payment.status] ?? "badge badge-gray"}>
+                      <span
+                        className={
+                          statusClasses[payment.status] ?? "badge badge-gray"
+                        }
+                      >
                         {payment.status}
                       </span>
                     </td>
@@ -270,14 +346,13 @@ export default function ManualPaymentsPanel() {
 
                     <td>
                       {payment.receiptUrl ? (
-                        <a
-                          href={payment.receiptUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openReceipt(payment.id)}
                           className="btn btn-ghost"
                         >
                           عرض
-                        </a>
+                        </button>
                       ) : (
                         "-"
                       )}
@@ -305,7 +380,10 @@ export default function ManualPaymentsPanel() {
                           </button>
                         </div>
                       ) : (
-                        <span className="text-xs" style={{ color: "var(--text-3)" }}>
+                        <span
+                          className="text-xs"
+                          style={{ color: "var(--text-3)" }}
+                        >
                           تمت المراجعة
                         </span>
                       )}
