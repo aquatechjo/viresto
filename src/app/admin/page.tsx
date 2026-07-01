@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import ManualPaymentsPanel from "./ManualPaymentsPanel";
 import { requireSystemAdmin } from "@/lib/system-admin";
 import {
   suspendTenant,
@@ -244,6 +245,8 @@ export default async function AdminPage() {
           </div>
         ))}
       </div>
+
+      <ManualPaymentsPanel />
 
       {/* Tenants */}
       <div className="grid gap-5">
