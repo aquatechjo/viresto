@@ -1,5 +1,6 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { formatLimit } from "@/lib/plans";
@@ -58,6 +59,10 @@ interface SubscriptionPayment {
   amount: Money;
   currency: string;
   status: string;
+  method?: string | null;
+  receiptUrl?: string | null;
+  adminNote?: string | null;
+  reviewedAt?: string | null;
   paidAt?: string | null;
   createdAt: string;
 }
@@ -296,10 +301,96 @@ export default function BillingPage() {
   const [data, setData] = useState<BillingData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function changePlan(planCode: string) {
-    if (!planCode) return;
+  const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
+  const [manualPaymentPlanId, setManualPaymentPlanId] = useState("");
+  const [manualPaymentInterval, setManualPaymentInterval] = useState<
+    "MONTHLY" | "YEARLY"
+  >("MONTHLY");
+  const [manualPaymentMethod, setManualPaymentMethod] = useState("CliQ");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [submittingManualPayment, setSubmittingManualPayment] = useState(false);
 
-    toast.info(labels.changeComingSoon);
+  const selectedManualPlan = useMemo(() => {
+    return (
+      data?.availablePlans.find((plan) => plan.id === manualPaymentPlanId) ??
+      null
+    );
+  }, [data, manualPaymentPlanId]);
+
+  function openManualPayment(planId: string) {
+    setManualPaymentPlanId(planId);
+    setManualPaymentInterval("MONTHLY");
+    setManualPaymentMethod("CliQ");
+    setReceiptFile(null);
+    setManualPaymentOpen(true);
+  }
+
+  function closeManualPayment() {
+    if (submittingManualPayment) return;
+
+    setManualPaymentOpen(false);
+    setManualPaymentPlanId("");
+    setManualPaymentInterval("MONTHLY");
+    setManualPaymentMethod("CliQ");
+    setReceiptFile(null);
+  }
+
+  async function submitManualPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedManualPlan) {
+      toast.error(isArabic ? "اختر الخطة أولًا" : "Select a plan first");
+      return;
+    }
+
+    if (!receiptFile) {
+      toast.error(
+        isArabic ? "إيصال الدفع مطلوب" : "Payment receipt is required",
+      );
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("planId", selectedManualPlan.id);
+    formData.append("interval", manualPaymentInterval);
+    formData.append("method", manualPaymentMethod);
+    formData.append("receipt", receiptFile);
+
+    setSubmittingManualPayment(true);
+
+    const res = await fetch("/api/billing/manual-payment", {
+      method: "POST",
+      body: formData,
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!res.ok || !json.success) {
+      toast.error(
+        json.message ||
+          (isArabic
+            ? "تعذر إرسال إيصال الدفع"
+            : "Failed to submit payment receipt"),
+      );
+      setSubmittingManualPayment(false);
+      return;
+    }
+
+    toast.success(
+      json.data?.message ||
+        (isArabic
+          ? "تم إرسال إيصال الدفع بنجاح"
+          : "Payment receipt submitted successfully"),
+    );
+
+    setSubmittingManualPayment(false);
+    closeManualPayment();
+    await load();
   }
 
   async function load() {
@@ -413,10 +504,10 @@ export default function BillingPage() {
 
         <button
           type="button"
-          onClick={() => toast.info(labels.changeComingSoon)}
+          onClick={() => openManualPayment(currentPlan.id)}
           className="btn btn-primary"
         >
-          {billing.upgradeRequest}
+          {isArabic ? "تجديد / ترقية الاشتراك" : "Renew / Upgrade subscription"}
         </button>
       </div>
 
@@ -577,6 +668,11 @@ export default function BillingPage() {
         <div className="grid gap-4 lg:grid-cols-3">
           {data.availablePlans.map((plan) => {
             const active = plan.isCurrent || plan.id === currentPlan.id;
+            const canRequest =
+              !active ||
+              ["EXPIRED", "UNPAID", "CANCELLED", "PAST_DUE"].includes(
+                currentStatus,
+              );
             const features = getPlanFeatures(plan, isArabic);
 
             return (
@@ -654,19 +750,215 @@ export default function BillingPage() {
 
                 <button
                   type="button"
-                  disabled={active}
+                  disabled={!canRequest}
                   className={`mt-5 w-full ${
-                    active ? "btn btn-ghost opacity-70" : "btn btn-primary"
+                    canRequest ? "btn btn-primary" : "btn btn-ghost opacity-70"
                   }`}
-                  onClick={() => changePlan(plan.code)}
+                  onClick={() => openManualPayment(plan.id)}
                 >
-                  {active ? billing.currentPlanButton : billing.requestUpgrade}
+                  {active && canRequest
+                    ? isArabic
+                      ? "تجديد الاشتراك"
+                      : "Renew subscription"
+                    : active
+                      ? billing.currentPlanButton
+                      : billing.requestUpgrade}
                 </button>
               </div>
             );
           })}
         </div>
       </div>
+
+      {manualPaymentOpen && selectedManualPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div
+            className="w-full max-w-2xl rounded-[28px] border p-5 shadow-2xl"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+            }}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-black">
+                  {isArabic ? "إرسال إيصال الدفع" : "Submit payment receipt"}
+                </h2>
+
+                <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+                  {isArabic
+                    ? "اختر مدة الاشتراك وطريقة الدفع، ثم ارفع صورة الإيصال ليتم مراجعته من الإدارة."
+                    : "Choose the billing period and payment method, then upload the receipt for admin review."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeManualPayment}
+                disabled={submittingManualPayment}
+                className="btn btn-ghost"
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              className="mb-5 rounded-2xl border p-4"
+              style={{
+                borderColor: "var(--border)",
+                background: "var(--input-bg)",
+              }}
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p
+                    className="text-xs font-bold"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    {isArabic ? "الخطة المختارة" : "Selected plan"}
+                  </p>
+
+                  <h3 className="text-xl font-black">
+                    {selectedManualPlan.name}
+                  </h3>
+                </div>
+
+                <div className="text-sm font-black">
+                  {manualPaymentInterval === "YEARLY"
+                    ? selectedManualPlan.priceYearly.formatted
+                    : selectedManualPlan.priceMonthly.formatted}
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={submitManualPayment} className="space-y-4">
+              <label className="block space-y-2 text-sm">
+                <span className="font-bold">
+                  {isArabic ? "مدة الاشتراك" : "Billing period"}
+                </span>
+
+                <select
+                  className="input"
+                  value={manualPaymentInterval}
+                  onChange={(event) =>
+                    setManualPaymentInterval(
+                      event.target.value === "YEARLY" ? "YEARLY" : "MONTHLY",
+                    )
+                  }
+                  disabled={submittingManualPayment}
+                >
+                  <option value="MONTHLY">
+                    {isArabic
+                      ? `شهري - ${selectedManualPlan.priceMonthly.formatted}`
+                      : `Monthly - ${selectedManualPlan.priceMonthly.formatted}`}
+                  </option>
+
+                  <option value="YEARLY">
+                    {isArabic
+                      ? `سنوي - ${selectedManualPlan.priceYearly.formatted}`
+                      : `Yearly - ${selectedManualPlan.priceYearly.formatted}`}
+                  </option>
+                </select>
+              </label>
+
+              <label className="block space-y-2 text-sm">
+                <span className="font-bold">
+                  {isArabic ? "طريقة الدفع" : "Payment method"}
+                </span>
+
+                <select
+                  className="input"
+                  value={manualPaymentMethod}
+                  onChange={(event) =>
+                    setManualPaymentMethod(event.target.value)
+                  }
+                  disabled={submittingManualPayment}
+                >
+                  <option value="CliQ">CliQ</option>
+                  <option value="Bank Transfer">
+                    {isArabic ? "تحويل بنكي" : "Bank Transfer"}
+                  </option>
+                  <option value="Wallet">
+                    {isArabic ? "محفظة إلكترونية" : "Wallet"}
+                  </option>
+                  <option value="Cash Deposit">
+                    {isArabic ? "إيداع نقدي" : "Cash Deposit"}
+                  </option>
+                </select>
+              </label>
+
+              <div
+                className="rounded-2xl border p-4 text-sm leading-7"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--input-bg)",
+                  color: "var(--muted)",
+                }}
+              >
+                <p className="font-black" style={{ color: "var(--text)" }}>
+                  {isArabic ? "تعليمات الدفع" : "Payment instructions"}
+                </p>
+
+                <p className="mt-1">
+                  {isArabic
+                    ? "بعد الدفع بالطريقة المتفق عليها، ارفع صورة واضحة للإيصال. لن يتم تفعيل الاشتراك إلا بعد مراجعة الإدارة."
+                    : "After paying using the agreed method, upload a clear receipt. The subscription will be activated after admin review."}
+                </p>
+              </div>
+
+              <label className="block space-y-2 text-sm">
+                <span className="font-bold">
+                  {isArabic ? "إيصال الدفع" : "Payment receipt"}
+                </span>
+
+                <input
+                  type="file"
+                  className="input"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  disabled={submittingManualPayment}
+                  onChange={(event) =>
+                    setReceiptFile(event.target.files?.[0] ?? null)
+                  }
+                />
+
+                <span
+                  className="block text-xs"
+                  style={{ color: "var(--muted)" }}
+                >
+                  {isArabic
+                    ? "الأنواع المدعومة: JPG, PNG, WebP, PDF — الحد الأقصى 5MB"
+                    : "Supported formats: JPG, PNG, WebP, PDF — max 5MB"}
+                </span>
+              </label>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeManualPayment}
+                  disabled={submittingManualPayment}
+                  className="btn btn-ghost"
+                >
+                  {isArabic ? "إلغاء" : "Cancel"}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={submittingManualPayment}
+                  className="btn btn-primary"
+                >
+                  {submittingManualPayment
+                    ? isArabic
+                      ? "جاري الإرسال..."
+                      : "Submitting..."
+                    : isArabic
+                      ? "إرسال للمراجعة"
+                      : "Submit for review"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="card p-5">
         <h2 className="mb-4 text-xl font-black">{labels.paymentHistory}</h2>
@@ -683,9 +975,12 @@ export default function BillingPage() {
                   <th>{isArabic ? "التاريخ" : "Date"}</th>
                   <th>{isArabic ? "المبلغ" : "Amount"}</th>
                   <th>{isArabic ? "الحالة" : "Status"}</th>
+                  <th>{isArabic ? "طريقة الدفع" : "Method"}</th>
                   <th>{isArabic ? "المزود" : "Provider"}</th>
+                  <th>{isArabic ? "الإيصال" : "Receipt"}</th>
                 </tr>
               </thead>
+
               <tbody>
                 {subscription.payments.map((payment) => (
                   <tr key={payment.id}>
@@ -694,7 +989,22 @@ export default function BillingPage() {
                     </td>
                     <td>{payment.amount.formatted}</td>
                     <td>{payment.status}</td>
+                    <td>{payment.method || "-"}</td>
                     <td>{payment.provider}</td>
+                    <td>
+                      {payment.receiptUrl ? (
+                        <a
+                          href={payment.receiptUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-ghost"
+                        >
+                          {isArabic ? "عرض" : "View"}
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
