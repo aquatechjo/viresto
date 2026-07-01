@@ -118,6 +118,14 @@ model SubscriptionPayment {
   currency String @default("JOD")
   status   String @default("PENDING")
 
+  method          String?
+  receiptUrl      String?
+  receiptPublicId String?
+
+  adminNote    String?
+  reviewedById String?
+  reviewedAt   DateTime?
+
   paidAt DateTime?
   raw    Json?
 
@@ -132,6 +140,7 @@ model SubscriptionPayment {
   @@index([provider])
   @@index([providerChargeId])
   @@index([status])
+  @@index([reviewedAt])
 }
 
 model PaymentWebhookEvent {
