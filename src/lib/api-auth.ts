@@ -4,18 +4,25 @@ import { COOKIE, verifyToken } from "@/lib/auth";
 import type { UserRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
 export function getRequestMeta(req: NextRequest) {
   const forwardedFor = req.headers.get("x-forwarded-for");
   const realIp = req.headers.get("x-real-ip");
 
   const ipAddress = forwardedFor?.split(",")[0]?.trim() || realIp || "unknown";
-
   const userAgent = req.headers.get("user-agent") || "unknown";
 
   return {
     ipAddress,
     userAgent,
   };
+}
+
+function sessionExpired(lastActivityAt?: Date | null) {
+  if (!lastActivityAt) return true;
+
+  return Date.now() - lastActivityAt.getTime() > IDLE_TIMEOUT_MS;
 }
 
 export async function requireAuth(req: NextRequest) {
@@ -36,9 +43,48 @@ export async function requireAuth(req: NextRequest) {
       user: null,
     };
   }
+
   if (!tokenUser.sessionId) {
     return {
       error: err("جلسة غير صالحة. يرجى تسجيل الدخول مجددًا.", 401),
+      user: null,
+    };
+  }
+
+  const session = await prisma.session.findFirst({
+    where: {
+      id: tokenUser.sessionId,
+      userId: tokenUser.userId,
+      tenantId: tokenUser.tenantId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      lastActivityAt: true,
+    },
+  });
+
+  if (!session) {
+    return {
+      error: err("انتهت الجلسة أو لم تعد صالحة. يرجى تسجيل الدخول مجددًا.", 401),
+      user: null,
+    };
+  }
+
+  if (sessionExpired(session.lastActivityAt)) {
+    await prisma.session.updateMany({
+      where: {
+        id: tokenUser.sessionId,
+        userId: tokenUser.userId,
+        tenantId: tokenUser.tenantId,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return {
+      error: err("انتهت الجلسة بسبب عدم النشاط. يرجى تسجيل الدخول مجددًا.", 401),
       user: null,
     };
   }
@@ -57,12 +103,6 @@ export async function requireAuth(req: NextRequest) {
           not: "SUSPENDED",
         },
       },
-      sessions: {
-        some: {
-          id: tokenUser.sessionId,
-          isActive: true,
-        },
-      },
     },
     select: {
       id: true,
@@ -75,14 +115,29 @@ export async function requireAuth(req: NextRequest) {
   });
 
   if (!dbUser) {
+    await prisma.session.updateMany({
+      where: {
+        id: tokenUser.sessionId,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
     return {
-      error: err(
-        "انتهت الجلسة أو لم تعد صالحة. يرجى تسجيل الدخول مجددًا.",
-        401,
-      ),
+      error: err("انتهت الجلسة أو لم تعد صالحة. يرجى تسجيل الدخول مجددًا.", 401),
       user: null,
     };
   }
+
+  await prisma.session.update({
+    where: {
+      id: tokenUser.sessionId,
+    },
+    data: {
+      lastActivityAt: new Date(),
+    },
+  });
 
   return {
     error: null,

@@ -59,12 +59,17 @@ function VerifyEmailContent() {
 
       setTimeout(() => {
         if (next === "DASHBOARD") {
-          router.replace("/dashboard");
-          router.refresh();
+          sessionStorage.setItem("viresto_tab_session", "active");
+          sessionStorage.setItem("viresto_last_activity", String(Date.now()));
+
+          window.location.href = "/dashboard";
           return;
         }
 
-        router.replace("/login");
+        sessionStorage.removeItem("viresto_tab_session");
+        sessionStorage.removeItem("viresto_last_activity");
+
+        window.location.href = "/login";
       }, 900);
     } catch {
       setError("حدث خطأ أثناء الاتصال بالخادم");

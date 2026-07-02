@@ -1,106 +1,111 @@
-'use client'
+"use client";
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
-const TIMEOUT_MS = 60 * 60 * 1000
-const WARNING_MS = 10 * 60 * 1000
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const CHECK_INTERVAL_MS = 10 * 1000;
+const ACTIVITY_PING_INTERVAL_MS = 60 * 1000;
+
+const TAB_SESSION_KEY = "viresto_tab_session";
+const LAST_ACTIVITY_KEY = "viresto_last_activity";
+
+const ACTIVITY_EVENTS = [
+  "click",
+  "keydown",
+  "mousemove",
+  "scroll",
+  "touchstart",
+] as const;
 
 export default function SessionGuard() {
-  const router = useRouter()
+  const router = useRouter();
+  const loggingOutRef = useRef(false);
+  const lastPingRef = useRef(0);
 
-  const logoutTimer = useRef<NodeJS.Timeout | null>(null)
-  const warningTimer = useRef<NodeJS.Timeout | null>(null)
-  const lastActivitySync = useRef(0)
-  const [showWarning, setShowWarning] = useState(false)
+  async function forceLogout(message?: string) {
+    if (loggingOutRef.current) return;
 
-  async function logout() {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-    })
+    loggingOutRef.current = true;
 
-    router.replace('/login')
+    sessionStorage.removeItem(TAB_SESSION_KEY);
+    sessionStorage.removeItem(LAST_ACTIVITY_KEY);
+
+    await fetch("/api/auth/logout", {
+      method: "POST",
+    }).catch(() => null);
+
+    if (message) {
+      toast.info(message);
+    }
+
+    window.location.replace("/login");
   }
 
-  function clearTimers() {
-    if (logoutTimer.current) clearTimeout(logoutTimer.current)
-    if (warningTimer.current) clearTimeout(warningTimer.current)
+  async function pingSessionActivity() {
+    const now = Date.now();
+
+    if (now - lastPingRef.current < ACTIVITY_PING_INTERVAL_MS) return;
+
+    lastPingRef.current = now;
+
+    const res = await fetch("/api/auth/session/activity", {
+      method: "POST",
+      cache: "no-store",
+    }).catch(() => null);
+
+    if (res && res.status === 401) {
+      await forceLogout("انتهت الجلسة. يرجى تسجيل الدخول مجددًا.");
+    }
   }
-
-function resetTimer() {
-  clearTimers()
-  setShowWarning(false)
-
-  const now = Date.now()
-
-  if (now - lastActivitySync.current > 60 * 1000) {
-    lastActivitySync.current = now
-
-    fetch('/api/auth/session/activity', {
-      method: 'POST',
-    }).catch(() => {})
-  }
-
-  warningTimer.current = setTimeout(() => {
-    setShowWarning(true)
-  }, TIMEOUT_MS - WARNING_MS)
-
-  logoutTimer.current = setTimeout(() => {
-    logout()
-  }, TIMEOUT_MS)
-}
 
   useEffect(() => {
-    resetTimer()
+    const hasTabSession = sessionStorage.getItem(TAB_SESSION_KEY) === "active";
 
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart']
+    if (!hasTabSession) {
+      forceLogout("انتهت الجلسة. يرجى تسجيل الدخول مجددًا.");
+      return;
+    }
 
-    events.forEach((event) => {
-      window.addEventListener(event, resetTimer)
-    })
+    function markActivity() {
+      sessionStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+      pingSessionActivity();
+    }
+
+    function checkIdleTimeout() {
+      const lastActivity = Number(
+        sessionStorage.getItem(LAST_ACTIVITY_KEY) || "0",
+      );
+
+      if (!lastActivity) {
+        markActivity();
+        return;
+      }
+
+      const inactiveFor = Date.now() - lastActivity;
+
+      if (inactiveFor >= IDLE_TIMEOUT_MS) {
+        forceLogout("تم تسجيل الخروج بسبب عدم النشاط لمدة 5 دقائق.");
+      }
+    }
+
+    markActivity();
+
+    for (const eventName of ACTIVITY_EVENTS) {
+      window.addEventListener(eventName, markActivity, { passive: true });
+    }
+
+    const interval = window.setInterval(checkIdleTimeout, CHECK_INTERVAL_MS);
 
     return () => {
-      clearTimers()
+      window.clearInterval(interval);
 
-      events.forEach((event) => {
-        window.removeEventListener(event, resetTimer)
-      })
-    }
-  }, [])
+      for (const eventName of ACTIVITY_EVENTS) {
+        window.removeEventListener(eventName, markActivity);
+      }
+    };
+  }, []);
 
-  return showWarning ? (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-      <div className="card w-full max-w-md p-6 text-center shadow-2xl">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-orange-100 text-2xl">
-          ⚠️
-        </div>
-
-        <h2 className="text-xl font-black">
-          الجلسة على وشك الانتهاء
-        </h2>
-
-        <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-          سيتم تسجيل خروجك تلقائيًا خلال دقيقة بسبب عدم النشاط.
-        </p>
-
-        <div className="mt-6 flex gap-3">
-          <button
-            type="button"
-            onClick={resetTimer}
-            className="btn btn-primary flex-1"
-          >
-            تمديد الجلسة
-          </button>
-
-          <button
-            type="button"
-            onClick={logout}
-            className="btn flex-1"
-          >
-            تسجيل الخروج الآن
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null
+  return null;
 }

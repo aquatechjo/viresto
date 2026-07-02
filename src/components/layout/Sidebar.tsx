@@ -199,13 +199,16 @@ export default function Sidebar() {
   }, [mobileOpen]);
 
   async function logout() {
+    sessionStorage.removeItem("viresto_tab_session");
+    sessionStorage.removeItem("viresto_last_activity");
+
     await fetch("/api/auth/logout", {
       method: "POST",
-    });
+    }).catch(() => null);
 
     toast.success(t.sidebar.logoutSuccess);
-    router.push("/login");
-    router.refresh();
+
+    window.location.href = "/login";
   }
 
   function isActive(href: string) {

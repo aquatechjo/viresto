@@ -160,6 +160,8 @@ export async function POST(req: NextRequest) {
 
     const location = await getLocationFromIp(ip);
 
+    const now = new Date();
+
     const session = await prisma.session.create({
       data: {
         userId: user.id,
@@ -169,6 +171,7 @@ export async function POST(req: NextRequest) {
         userAgent: req.headers.get("user-agent"),
         country: location.country,
         city: location.city,
+        lastActivityAt: now,
       },
     });
 

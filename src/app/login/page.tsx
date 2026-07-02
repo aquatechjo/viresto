@@ -85,11 +85,36 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const hasToken = document.cookie.includes("ld_token");
+    let cancelled = false;
 
-    if (hasToken) {
-      router.push("/dashboard");
+    async function checkExistingSession() {
+      const hasTabSession =
+        typeof window !== "undefined" &&
+        sessionStorage.getItem("viresto_tab_session") === "active";
+
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+      });
+
+      if (cancelled) return;
+
+      if (res.ok && hasTabSession) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      if (res.ok && !hasTabSession) {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+        }).catch(() => null);
+      }
     }
+
+    checkExistingSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   async function handleSubmit(event: FormEvent) {
@@ -117,8 +142,13 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
 
       if (data.success) {
-        toast.success("مرحباً بك في Viresto!");
-        router.push("/dashboard");
+        sessionStorage.setItem("viresto_tab_session", "active");
+        sessionStorage.setItem("viresto_last_activity", String(Date.now()));
+
+        toast.success("مرحبًا بك في Viresto!");
+
+        window.location.href = "/dashboard";
+
         return;
       }
       const code = data?.details?.code || data?.data?.code || data?.code;
