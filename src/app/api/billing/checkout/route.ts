@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { PLANS, getDisplayPrice, type PlanCode } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -7,8 +8,43 @@ import { getPaymentProvider } from "@/lib/billing/provider";
 import { BillingInterval } from "@/lib/billing/types";
 import { verifySameOrigin } from "@/lib/csrf";
 
+const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
+
 function isBillingInterval(value: unknown): value is BillingInterval {
   return value === "MONTHLY" || value === "YEARLY";
+}
+
+function normalizePlanCode(value: unknown): PlanCode | null {
+  const code = String(value || "")
+    .trim()
+    .toUpperCase() as PlanCode;
+
+  if (!VALID_PLAN_CODES.has(code)) {
+    return null;
+  }
+
+  return code;
+}
+
+function getConfiguredPlan(code: PlanCode) {
+  return PLANS.find((plan) => plan.code === code) ?? null;
+}
+
+function getPlanAmountFils(planCode: PlanCode, interval: BillingInterval) {
+  const configuredPlan = getConfiguredPlan(planCode);
+
+  if (!configuredPlan) {
+    return null;
+  }
+
+  const monthlyAmountJod = getDisplayPrice(configuredPlan);
+  const monthlyAmountFils = monthlyAmountJod * 1000;
+
+  if (interval === "YEARLY") {
+    return monthlyAmountFils * 12;
+  }
+
+  return monthlyAmountFils;
 }
 
 function getBaseUrl(req: NextRequest) {
@@ -46,20 +82,29 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => null);
 
-    const planCode = String(body?.planCode || "")
-      .trim()
-      .toUpperCase();
+    const planCode = normalizePlanCode(body?.planCode);
 
     const interval = String(body?.interval || "MONTHLY")
       .trim()
       .toUpperCase();
 
     if (!planCode) {
-      return err("يرجى اختيار الخطة", 400);
+      return err("يرجى اختيار خطة صحيحة", 400);
     }
 
     if (!isBillingInterval(interval)) {
       return err("دورة الاشتراك غير صحيحة", 400);
+    }
+
+    const configuredPlan = getConfiguredPlan(planCode);
+
+    if (!configuredPlan) {
+      return err("الخطة غير معرفة داخل إعدادات النظام", 400);
+    }
+
+    const amount = getPlanAmountFils(planCode, interval);
+    if (amount === null) {
+      return err("تعذر حساب سعر الخطة", 400);
     }
 
     const plan = await prisma.billingPlan.findFirst({
@@ -71,14 +116,12 @@ export async function POST(req: NextRequest) {
         id: true,
         code: true,
         name: true,
-        priceMonthly: true,
-        priceYearly: true,
         currency: true,
       },
     });
 
     if (!plan) {
-      return err("الخطة غير موجودة أو غير مفعلة", 404);
+      return err("الخطة غير موجودة أو غير مفعلة في قاعدة البيانات", 404);
     }
 
     const user = await prisma.user.findFirst({
@@ -101,7 +144,7 @@ export async function POST(req: NextRequest) {
 
     const baseUrl = getBaseUrl(req);
     const provider = getPaymentProvider();
-    const amount = interval === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
+    const currency = plan.currency || "JOD";
 
     let checkout: Awaited<ReturnType<typeof provider.createCheckout>>;
 
@@ -109,11 +152,11 @@ export async function POST(req: NextRequest) {
       checkout = await provider.createCheckout({
         tenantId: auth.user.tenantId,
         userId: auth.user.userId,
-        planCode: plan.code,
-        planName: plan.name,
+        planCode: configuredPlan.code,
+        planName: configuredPlan.name,
         interval,
         amount,
-        currency: plan.currency,
+        currency,
         customer: {
           name: user.name,
           email: user.email,
@@ -121,6 +164,11 @@ export async function POST(req: NextRequest) {
         },
         successUrl: `${baseUrl}/dashboard/billing?checkout=success`,
         cancelUrl: `${baseUrl}/dashboard/billing?checkout=cancelled`,
+
+        /**
+         * حالياً اسم الويبهوك عندك Tap.
+         * إذا انتقلنا لاحقاً إلى Paddle نغير provider والـ webhook معاً.
+         */
         webhookUrl: `${baseUrl}/api/webhooks/tap`,
       });
     } catch (error) {
@@ -154,7 +202,7 @@ export async function POST(req: NextRequest) {
           providerSubscriptionId: checkout.providerReferenceId ?? null,
           status: "PAST_DUE",
           interval,
-          currency: plan.currency,
+          currency,
           amount,
           cancelAtPeriodEnd: false,
           cancelledAt: null,
@@ -170,7 +218,7 @@ export async function POST(req: NextRequest) {
           providerSubscriptionId: checkout.providerReferenceId ?? null,
           status: "PAST_DUE",
           interval,
-          currency: plan.currency,
+          currency,
           amount,
         },
       });
@@ -182,11 +230,14 @@ export async function POST(req: NextRequest) {
       providerReferenceId: checkout.providerReferenceId ?? null,
       providerCustomerId: checkout.providerCustomerId ?? null,
       plan: {
-        code: plan.code,
-        name: plan.name,
-        currency: plan.currency,
-        amount,
+        code: configuredPlan.code,
+        name: configuredPlan.name,
+        currency,
+        amountFils: amount,
+        amountJod: amount / 1000,
         interval,
+        officialMonthlyPriceJod: configuredPlan.priceJod,
+        launchMonthlyPriceJod: configuredPlan.launchPriceJod ?? null,
       },
     });
   });

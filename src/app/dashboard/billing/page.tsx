@@ -233,33 +233,208 @@ function getStatusToneFromStatus(status: SubscriptionStatus): StatusTone {
   }
 }
 
-function getPlanFeatures(plan: BillingPlan, isArabic: boolean) {
-  const features = [
-    isArabic
-      ? `حتى ${formatLimit(plan.limits.users, "ar")} مستخدمين`
-      : `Up to ${formatLimit(plan.limits.users, "en")} users`,
-    isArabic
-      ? `حتى ${formatLimit(plan.limits.clients, "ar")} موكل`
-      : `Up to ${formatLimit(plan.limits.clients, "en")} clients`,
-    isArabic
-      ? `حتى ${formatLimit(plan.limits.cases, "ar")} قضية`
-      : `Up to ${formatLimit(plan.limits.cases, "en")} cases`,
-    isArabic
-      ? `حتى ${formatLimit(plan.limits.documents, "ar")} مستند`
-      : `Up to ${formatLimit(plan.limits.documents, "en")} documents`,
+function getPlanCode(plan: BillingPlan) {
+  return plan.code.toUpperCase();
+}
+
+function getOfficialMonthlyPriceJod(plan: BillingPlan) {
+  switch (getPlanCode(plan)) {
+    case "PRO":
+      return 40;
+    case "BUSINESS":
+      return 80;
+    default:
+      return null;
+  }
+}
+
+function moneyToJod(money: Money) {
+  if (Number.isFinite(money.raw) && money.raw >= 1000) {
+    return money.raw / 1000;
+  }
+
+  if (Number.isFinite(money.value) && money.value >= 1000) {
+    return money.value / 1000;
+  }
+
+  return Number.isFinite(money.value) ? money.value : 0;
+}
+
+function getAiTokenLabel(plan: BillingPlan, isArabic: boolean) {
+  switch (getPlanCode(plan)) {
+    case "PRO":
+      return isArabic ? "1M tokens / شهر" : "1M tokens / month";
+    case "BUSINESS":
+      return isArabic ? "4M tokens / شهر" : "4M tokens / month";
+    default:
+      return isArabic ? "غير متاح" : "Not available";
+  }
+}
+
+function formatStorageLimit(storageMb: number | null | undefined, locale: string) {
+  if (storageMb === null || storageMb === undefined) {
+    return locale === "ar" ? "حسب الخطة" : "Plan based";
+  }
+
+  if (storageMb >= 1024) {
+    const storageGb = storageMb / 1024;
+    const formattedGb = Number.isInteger(storageGb)
+      ? storageGb.toString()
+      : storageGb.toFixed(1);
+
+    return `${formattedGb}GB`;
+  }
+
+  return `${storageMb}MB`;
+}
+
+function getDocumentsLimitLabel(isArabic: boolean) {
+  return isArabic ? "حسب مساحة التخزين" : "Based on storage";
+}
+
+type PlanFeatureItem = {
+  label: string;
+  included: boolean;
+};
+
+function getPlanFeatures(plan: BillingPlan, isArabic: boolean): PlanFeatureItem[] {
+  const code = getPlanCode(plan);
+  const locale = isArabic ? "ar" : "en";
+
+  const baseFeatures: PlanFeatureItem[] = [
+    {
+      label: isArabic
+        ? `حتى ${formatLimit(plan.limits.users, locale)} مستخدم`
+        : `Up to ${formatLimit(plan.limits.users, locale)} users`,
+      included: true,
+    },
+    {
+      label: isArabic
+        ? `حتى ${formatLimit(plan.limits.clients, locale)} موكل`
+        : `Up to ${formatLimit(plan.limits.clients, locale)} clients`,
+      included: true,
+    },
+    {
+      label: isArabic
+        ? `حتى ${formatLimit(plan.limits.cases, locale)} قضية`
+        : `Up to ${formatLimit(plan.limits.cases, locale)} cases`,
+      included: true,
+    },
+    {
+      label: isArabic
+        ? `تخزين ${formatStorageLimit(plan.limits.storageMb ?? null, locale)}`
+        : `${formatStorageLimit(plan.limits.storageMb ?? null, locale)} storage`,
+      included: true,
+    },
+    {
+      label: isArabic
+        ? `المستندات: ${getDocumentsLimitLabel(isArabic)}`
+        : `Documents: ${getDocumentsLimitLabel(isArabic)}`,
+      included: true,
+    },
   ];
 
-  features.push(
-    plan.aiEnabled
-      ? isArabic
-        ? "تحليل مستندات بالذكاء الاصطناعي"
-        : "AI document analysis"
-      : isArabic
-        ? "بدون ميزات الذكاء الاصطناعي"
-        : "No AI features",
-  );
+  if (code === "BASIC") {
+    return [
+      ...baseFeatures,
+      {
+        label: isArabic ? "المساعد الذكي AI" : "AI assistant",
+        included: false,
+      },
+      {
+        label: isArabic
+          ? "تلخيص المستندات بالذكاء الاصطناعي"
+          : "AI document summarization",
+        included: false,
+      },
+      {
+        label: isArabic ? "إدارة الفريق وأدوار المستخدمين" : "Team and user roles",
+        included: false,
+      },
+      {
+        label: isArabic ? "تصدير PDF / Excel كامل" : "Full PDF / Excel export",
+        included: false,
+      },
+      {
+        label: isArabic ? "تخصيص شعار المكتب" : "Office logo customization",
+        included: false,
+      },
+      {
+        label: isArabic ? "تقارير أساسية" : "Basic reports",
+        included: true,
+      },
+      {
+        label: isArabic ? "دعم عادي" : "Standard support",
+        included: true,
+      },
+    ];
+  }
 
-  return features;
+  if (code === "PRO") {
+    return [
+      ...baseFeatures,
+      {
+        label: isArabic
+          ? `المساعد الذكي AI: ${getAiTokenLabel(plan, isArabic)}`
+          : `AI assistant: ${getAiTokenLabel(plan, isArabic)}`,
+        included: true,
+      },
+      {
+        label: isArabic
+          ? "تلخيص المستندات بالذكاء الاصطناعي"
+          : "AI document summarization",
+        included: true,
+      },
+      {
+        label: isArabic ? "إدارة الفريق وأدوار المستخدمين" : "Team and user roles",
+        included: true,
+      },
+      {
+        label: isArabic ? "تصدير PDF / Excel كامل" : "Full PDF / Excel export",
+        included: true,
+      },
+      {
+        label: isArabic ? "تخصيص شعار المكتب" : "Office logo customization",
+        included: true,
+      },
+      {
+        label: isArabic ? "دعم أسرع" : "Faster support",
+        included: true,
+      },
+    ];
+  }
+
+  return [
+    ...baseFeatures,
+    {
+      label: isArabic
+        ? `المساعد الذكي AI: ${getAiTokenLabel(plan, isArabic)}`
+        : `AI assistant: ${getAiTokenLabel(plan, isArabic)}`,
+      included: true,
+    },
+    {
+      label: isArabic
+        ? "تلخيص المستندات بالذكاء الاصطناعي"
+        : "AI document summarization",
+      included: true,
+    },
+    {
+      label: isArabic ? "إدارة الفريق وأدوار المستخدمين" : "Team and user roles",
+      included: true,
+    },
+    {
+      label: isArabic ? "تصدير PDF / Excel كامل" : "Full PDF / Excel export",
+      included: true,
+    },
+    {
+      label: isArabic ? "تخصيص شعار المكتب" : "Office logo customization",
+      included: true,
+    },
+    {
+      label: isArabic ? "دعم أولوية ومخصص" : "Priority dedicated support",
+      included: true,
+    },
+  ];
 }
 
 export default function BillingPage() {
@@ -702,7 +877,7 @@ export default function BillingPage() {
       <div>
         <h2 className="mb-4 text-xl font-black">{billing.availablePlans}</h2>
 
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid items-stretch gap-4 lg:grid-cols-3">
           {data.availablePlans.map((plan) => {
             const active = plan.isCurrent || plan.id === currentPlan.id;
             const canRequest =
@@ -711,11 +886,16 @@ export default function BillingPage() {
                 currentStatus,
               );
             const features = getPlanFeatures(plan, isArabic);
+            const officialMonthlyPrice = getOfficialMonthlyPriceJod(plan);
+            const currentMonthlyPriceJod = moneyToJod(plan.priceMonthly);
+            const showLaunchPrice =
+              officialMonthlyPrice !== null &&
+              currentMonthlyPriceJod < officialMonthlyPrice;
 
             return (
               <div
                 key={plan.id}
-                className={`card relative p-5 ${active ? "ring-2 ring-emerald-600" : ""}`}
+                className={`card relative flex h-full flex-col p-5 ${active ? "ring-2 ring-emerald-600" : ""}`}
               >
                 {plan.code === "PRO" && (
                   <span
@@ -729,15 +909,31 @@ export default function BillingPage() {
 
                 <h3 className="mt-1 text-2xl font-black">{plan.name}</h3>
 
-                <p className="mt-2 text-lg font-black">
-                  {plan.priceMonthly.formatted}
-                  <span
-                    className="ms-1 text-xs font-bold"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    / {labels.monthly}
-                  </span>
-                </p>
+                <div className="mt-2">
+                  <p className="text-lg font-black">
+                    {plan.priceMonthly.formatted}
+                    <span
+                      className="ms-1 text-xs font-bold"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      / {labels.monthly}
+                    </span>
+                  </p>
+
+                  {showLaunchPrice && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold">
+                      <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-200">
+                        {isArabic ? "سعر الإطلاق" : "Launch price"}
+                      </span>
+                      <span
+                        className="line-through"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {officialMonthlyPrice} JOD
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                 <p
                   className="mt-1 text-xs font-bold"
@@ -755,9 +951,23 @@ export default function BillingPage() {
 
                 <ul className="mt-4 space-y-2 text-sm">
                   {features.map((feature) => (
-                    <li key={feature} className="flex gap-2">
-                      <span className="text-emerald-600">✓</span>
-                      <span>{feature}</span>
+                    <li
+                      key={feature.label}
+                      className={[
+                        "flex gap-2",
+                        feature.included ? "" : "text-slate-400 dark:text-emerald-100/45",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={
+                          feature.included
+                            ? "text-emerald-600"
+                            : "text-slate-400 dark:text-emerald-100/45"
+                        }
+                      >
+                        {feature.included ? "✓" : "×"}
+                      </span>
+                      <span>{feature.label}</span>
                     </li>
                   ))}
                 </ul>
@@ -776,31 +986,31 @@ export default function BillingPage() {
                     {formatLimit(plan.limits.cases, locale)}
                   </p>
                   <p>
-                    {billing.limits.documents}:{" "}
-                    {formatLimit(plan.limits.documents, locale)}
+                    {billing.limits.documents}: {getDocumentsLimitLabel(isArabic)}
                   </p>
                   <p>
-                    {labels.storage}:{" "}
-                    {formatLimit(plan.limits.storageMb ?? null, locale)} MB
+                    {labels.storage}: {formatStorageLimit(plan.limits.storageMb ?? null, locale)}
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={!canRequest}
-                  className={`mt-5 w-full ${
-                    canRequest ? "btn btn-primary" : "btn btn-ghost opacity-70"
-                  }`}
-                  onClick={() => openManualPayment(plan.id)}
-                >
-                  {active && canRequest
-                    ? isArabic
-                      ? "تجديد الاشتراك"
-                      : "Renew subscription"
-                    : active
-                      ? billing.currentPlanButton
-                      : billing.requestUpgrade}
-                </button>
+                <div className="mt-auto pt-5">
+                  <button
+                    type="button"
+                    disabled={!canRequest}
+                    className={`w-full ${
+                      canRequest ? "btn btn-primary" : "btn btn-ghost opacity-70"
+                    }`}
+                    onClick={() => openManualPayment(plan.id)}
+                  >
+                    {active && canRequest
+                      ? isArabic
+                        ? "تجديد الاشتراك"
+                        : "Renew subscription"
+                      : active
+                        ? billing.currentPlanButton
+                        : billing.requestUpgrade}
+                  </button>
+                </div>
               </div>
             );
           })}

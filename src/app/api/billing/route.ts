@@ -1,9 +1,52 @@
 import { NextRequest } from "next/server";
+import { PLANS, getDisplayPrice, type PlanCode, type PlanConfig } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
+
+type DbPlanLike = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  currency: string;
+  priceMonthly: number;
+  priceYearly: number;
+  maxUsers: number | null;
+  maxClients: number | null;
+  maxCases: number | null;
+  maxDocuments: number | null;
+  maxStorageMb: number | null;
+  aiEnabled: boolean;
+  sortOrder?: number | null;
+  isActive?: boolean | null;
+};
+
+const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
+
+function normalizePlanCode(code?: string | null): PlanCode | null {
+  if (!code) return null;
+
+  const normalized = code.toUpperCase() as PlanCode;
+  return VALID_PLAN_CODES.has(normalized) ? normalized : null;
+}
+
+function getConfiguredPlan(code?: string | null) {
+  const normalizedCode = normalizePlanCode(code);
+  if (!normalizedCode) return null;
+
+  return PLANS.find((plan) => plan.code === normalizedCode) ?? null;
+}
+
+function jodToMinorUnits(amountJod: number) {
+  return Math.round(amountJod * 1000);
+}
+
+function gbToMb(gb: number) {
+  return gb * 1024;
+}
 
 function getUsagePercent(used: number, limit: number | null) {
   if (!limit || limit <= 0) return null;
@@ -27,6 +70,7 @@ function getSubscriptionTone(status?: string | null, isSuspended?: boolean) {
   switch (status) {
     case "ACTIVE":
       return "success";
+    case "TRIAL":
     case "TRIALING":
       return "warning";
     case "PAST_DUE":
@@ -44,6 +88,7 @@ function getSubscriptionLabel(status?: string | null) {
   switch (status) {
     case "ACTIVE":
       return "نشط";
+    case "TRIAL":
     case "TRIALING":
       return "تجربة";
     case "PAST_DUE":
@@ -54,17 +99,98 @@ function getSubscriptionLabel(status?: string | null) {
       return "منتهي";
     case "UNPAID":
       return "غير مدفوع";
+    case "MISSING":
+      return "لا يوجد اشتراك";
     default:
       return "غير محدد";
   }
 }
 
 function formatAmount(amount: number, currency: string) {
+  const value = amount / 1000;
+
+  const formattedValue = value.toLocaleString("en-US", {
+    maximumFractionDigits: 0,
+  });
+
   return {
     raw: amount,
-    value: amount / 1000,
+    value,
     currency,
-    formatted: `${(amount / 1000).toFixed(3)} ${currency}`,
+
+    // نستخدم LTR isolate حتى تظهر داخل الواجهة العربية بهذا الترتيب: 20 JOD
+    // وليس JOD 20 بسبب اتجاه النص RTL.
+    formatted: `\u2066${formattedValue} ${currency}\u2069`,
+  };
+}
+
+function getPlanLimits(dbPlan: DbPlanLike, configuredPlan: PlanConfig | null) {
+  const storageMb =
+    configuredPlan?.limits.storageGb !== undefined
+      ? gbToMb(configuredPlan.limits.storageGb)
+      : dbPlan.maxStorageMb;
+
+  return {
+    users: configuredPlan?.limits.users ?? dbPlan.maxUsers,
+    clients: configuredPlan?.limits.clients ?? dbPlan.maxClients,
+    cases: configuredPlan?.limits.cases ?? dbPlan.maxCases,
+
+    // في البلانز الجديدة لا نحدد عدد المستندات، الحد الحقيقي هو مساحة التخزين.
+    documents: null as number | null,
+
+    storageMb,
+    aiEnabled: configuredPlan?.limits.aiEnabled ?? dbPlan.aiEnabled,
+    aiMonthlyTokens: configuredPlan?.limits.aiMonthlyTokens ?? 0,
+    activityRetentionDays: configuredPlan?.limits.activityRetentionDays ?? 30,
+  };
+}
+
+function buildPlanPayload(dbPlan: DbPlanLike, isCurrent: boolean) {
+  const configuredPlan = getConfiguredPlan(dbPlan.code);
+  const currency = dbPlan.currency || "JOD";
+
+  const displayMonthlyJod = configuredPlan
+    ? getDisplayPrice(configuredPlan)
+    : dbPlan.priceMonthly / 1000;
+
+  const officialMonthlyJod = configuredPlan
+    ? configuredPlan.priceJod
+    : dbPlan.priceMonthly / 1000;
+
+  const launchMonthlyJod = configuredPlan?.launchPriceJod ?? null;
+  const yearlyJod = displayMonthlyJod * 12;
+  const officialYearlyJod = officialMonthlyJod * 12;
+  const launchYearlyJod = launchMonthlyJod ? launchMonthlyJod * 12 : null;
+  const limits = getPlanLimits(dbPlan, configuredPlan);
+
+  return {
+    id: dbPlan.id,
+    code: dbPlan.code,
+    name: configuredPlan?.name ?? dbPlan.name,
+    subtitle: configuredPlan?.subtitle ?? null,
+    description: configuredPlan?.description ?? dbPlan.description,
+    currency,
+
+    // السعر المعروض حالياً. في فترة الإطلاق نعرض launchPrice.
+    priceMonthly: formatAmount(jodToMinorUnits(displayMonthlyJod), currency),
+    priceYearly: formatAmount(jodToMinorUnits(yearlyJod), currency),
+
+    // السعر الرسمي وسعر الإطلاق حتى تقدر الواجهة تعرض: 30 بدل 40.
+    officialPriceMonthly: formatAmount(jodToMinorUnits(officialMonthlyJod), currency),
+    officialPriceYearly: formatAmount(jodToMinorUnits(officialYearlyJod), currency),
+    launchPriceMonthly: launchMonthlyJod
+      ? formatAmount(jodToMinorUnits(launchMonthlyJod), currency)
+      : null,
+    launchPriceYearly: launchYearlyJod
+      ? formatAmount(jodToMinorUnits(launchYearlyJod), currency)
+      : null,
+
+    limits,
+    aiEnabled: limits.aiEnabled,
+    sortOrder: configuredPlan
+      ? PLANS.findIndex((plan) => plan.code === configuredPlan.code) + 1
+      : dbPlan.sortOrder ?? 999,
+    isCurrent,
   };
 }
 
@@ -145,13 +271,11 @@ export async function GET(req: NextRequest) {
                 amount: true,
                 currency: true,
                 status: true,
-
                 method: true,
                 receiptUrl: true,
                 receiptPublicId: true,
                 adminNote: true,
                 reviewedAt: true,
-
                 paidAt: true,
                 createdAt: true,
               },
@@ -165,26 +289,61 @@ export async function GET(req: NextRequest) {
       return err("المكتب غير موجود", 404);
     }
 
-    const plans = await prisma.billingPlan.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        description: true,
-        currency: true,
-        priceMonthly: true,
-        priceYearly: true,
-        maxUsers: true,
-        maxClients: true,
-        maxCases: true,
-        maxDocuments: true,
-        maxStorageMb: true,
-        aiEnabled: true,
-        sortOrder: true,
-      },
-    });
+    const [plans, usageCounts, storageAggregate] = await Promise.all([
+      prisma.billingPlan.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          description: true,
+          currency: true,
+          priceMonthly: true,
+          priceYearly: true,
+          maxUsers: true,
+          maxClients: true,
+          maxCases: true,
+          maxDocuments: true,
+          maxStorageMb: true,
+          aiEnabled: true,
+          sortOrder: true,
+          isActive: true,
+        },
+      }),
+      Promise.all([
+        prisma.user.count({
+          where: {
+            tenantId: tenant.id,
+            isActive: true,
+          },
+        }),
+        prisma.client.count({
+          where: {
+            tenantId: tenant.id,
+            archivedAt: null,
+          },
+        }),
+        prisma.case.count({
+          where: {
+            tenantId: tenant.id,
+          },
+        }),
+        prisma.document.count({
+          where: {
+            tenantId: tenant.id,
+          },
+        }),
+      ]),
+      prisma.document.aggregate({
+        where: {
+          tenantId: tenant.id,
+        },
+        _sum: {
+          fileSize: true,
+        },
+      }),
+    ]);
 
     type TenantSubscription = NonNullable<
       typeof tenant
@@ -192,51 +351,49 @@ export async function GET(req: NextRequest) {
 
     const subscription: TenantSubscription | null =
       tenant.subscriptions.length > 0 ? tenant.subscriptions[0] : null;
-    const currentPlan =
-      subscription?.plan ??
-      plans.find((plan) => plan.code === "PRO") ??
-      plans[0] ??
-      null;
 
-    if (!currentPlan) {
+    const defaultPlan =
+      plans.find((plan) => plan.code === "PRO") ?? plans[0] ?? null;
+
+    const currentDbPlan = subscription?.plan ?? defaultPlan;
+
+    if (!currentDbPlan) {
       return err("لم يتم العثور على خطط الاشتراك", 500);
     }
 
-    const effectiveLimits = {
-      users: currentPlan.maxUsers,
-      clients: currentPlan.maxClients,
-      cases: currentPlan.maxCases,
-      documents: currentPlan.maxDocuments,
-      storageMb: currentPlan.maxStorageMb,
-      aiEnabled: currentPlan.aiEnabled,
-    };
+    const currentPlanPayload = buildPlanPayload(currentDbPlan, true);
+    const effectiveLimits = currentPlanPayload.limits;
+
+    const [usersUsed, clientsUsed, casesUsed, documentsUsed] = usageCounts;
+    const usedStorageBytes = storageAggregate._sum.fileSize || 0;
+    const usedStorageMb = Math.ceil(usedStorageBytes / (1024 * 1024));
 
     const usage = {
       users: {
-        used: tenant._count.users,
+        used: usersUsed,
         limit: effectiveLimits.users,
-        percent: getUsagePercent(tenant._count.users, effectiveLimits.users),
+        percent: getUsagePercent(usersUsed, effectiveLimits.users),
       },
       clients: {
-        used: tenant._count.clients,
+        used: clientsUsed,
         limit: effectiveLimits.clients,
-        percent: getUsagePercent(
-          tenant._count.clients,
-          effectiveLimits.clients,
-        ),
+        percent: getUsagePercent(clientsUsed, effectiveLimits.clients),
       },
       cases: {
-        used: tenant._count.cases,
+        used: casesUsed,
         limit: effectiveLimits.cases,
-        percent: getUsagePercent(tenant._count.cases, effectiveLimits.cases),
+        percent: getUsagePercent(casesUsed, effectiveLimits.cases),
       },
       documents: {
-        used: tenant._count.documents,
+        used: documentsUsed,
         limit: effectiveLimits.documents,
-        percent: getUsagePercent(
-          tenant._count.documents,
-          effectiveLimits.documents,
-        ),
+        percent: getUsagePercent(documentsUsed, effectiveLimits.documents),
+      },
+      storage: {
+        used: usedStorageMb,
+        usedBytes: usedStorageBytes,
+        limit: effectiveLimits.storageMb,
+        percent: getUsagePercent(usedStorageMb, effectiveLimits.storageMb),
       },
       payments: {
         used: tenant._count.payments,
@@ -262,10 +419,28 @@ export async function GET(req: NextRequest) {
           subscription.currentPeriodEnd,
         )
       : "MISSING";
+
     const subscriptionTrialEndsAt =
       subscription?.trialEndsAt ?? tenant.trialEndsAt;
+
     const subscriptionCurrentPeriodEnd =
       subscription?.currentPeriodEnd ?? subscriptionTrialEndsAt;
+
+    const plansByCode = new Map(
+      plans.map((plan) => [plan.code.toUpperCase(), plan]),
+    );
+
+    const configuredAvailablePlans = PLANS.map((configuredPlan) => {
+      const dbPlan = plansByCode.get(configuredPlan.code);
+      if (!dbPlan) return null;
+
+      return buildPlanPayload(dbPlan, dbPlan.id === currentDbPlan.id);
+    }).filter((plan): plan is NonNullable<typeof plan> => Boolean(plan));
+
+    const availablePlans =
+      configuredAvailablePlans.length > 0
+        ? configuredAvailablePlans
+        : plans.map((plan) => buildPlanPayload(plan, plan.id === currentDbPlan.id));
 
     return ok({
       tenant: {
@@ -292,9 +467,10 @@ export async function GET(req: NextRequest) {
         ? {
             id: subscription.id,
             status: subscription.status,
-            statusLabel: getSubscriptionLabel(subscription.status),
+            effectiveStatus: subscriptionStatus,
+            statusLabel: getSubscriptionLabel(subscriptionStatus),
             statusTone: getSubscriptionTone(
-              subscription.status,
+              subscriptionStatus,
               tenant.isSuspended,
             ),
             interval: subscription.interval,
@@ -316,67 +492,14 @@ export async function GET(req: NextRequest) {
               ...payment,
               amount: formatAmount(payment.amount, payment.currency),
             })),
-            plan: {
-              id: currentPlan.id,
-              code: currentPlan.code,
-              name: currentPlan.name,
-              description: currentPlan.description,
-              currency: currentPlan.currency,
-              priceMonthly: formatAmount(
-                currentPlan.priceMonthly,
-                currentPlan.currency,
-              ),
-              priceYearly: formatAmount(
-                currentPlan.priceYearly,
-                currentPlan.currency,
-              ),
-              limits: effectiveLimits,
-              aiEnabled: currentPlan.aiEnabled,
-            },
+            plan: currentPlanPayload,
           }
         : null,
 
-      currentPlan: {
-        id: currentPlan.id,
-        code: currentPlan.code,
-        name: currentPlan.name,
-        description: currentPlan.description,
-        currency: currentPlan.currency,
-        priceMonthly: formatAmount(
-          currentPlan.priceMonthly,
-          currentPlan.currency,
-        ),
-        priceYearly: formatAmount(
-          currentPlan.priceYearly,
-          currentPlan.currency,
-        ),
-        limits: effectiveLimits,
-        aiEnabled: currentPlan.aiEnabled,
-      },
-
+      currentPlan: currentPlanPayload,
       usage,
       warnings,
-
-      availablePlans: plans.map((plan) => ({
-        id: plan.id,
-        code: plan.code,
-        name: plan.name,
-        description: plan.description,
-        currency: plan.currency,
-        priceMonthly: formatAmount(plan.priceMonthly, plan.currency),
-        priceYearly: formatAmount(plan.priceYearly, plan.currency),
-        limits: {
-          users: plan.maxUsers,
-          clients: plan.maxClients,
-          cases: plan.maxCases,
-          documents: plan.maxDocuments,
-          storageMb: plan.maxStorageMb,
-          aiEnabled: plan.aiEnabled,
-        },
-        aiEnabled: plan.aiEnabled,
-        sortOrder: plan.sortOrder,
-        isCurrent: plan.id === currentPlan.id,
-      })),
+      availablePlans,
 
       period: {
         currentPeriodStart: subscription?.currentPeriodStart ?? null,

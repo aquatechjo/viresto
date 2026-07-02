@@ -14,6 +14,7 @@ import {
   FileText,
   Wallet,
   ReceiptText,
+  CreditCard,
   BarChart3,
   Settings,
   LogOut,
@@ -123,6 +124,12 @@ const NAV: NavGroup[] = [
         labelKey: "invoices",
         icon: ReceiptText,
         roles: ["ADMIN", "LAWYER"],
+      },
+      {
+        href: "/dashboard/billing",
+        labelKey: "billing",
+        icon: CreditCard,
+        roles: ["ADMIN"],
       },
       {
         href: "/dashboard/reports",

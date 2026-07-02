@@ -1,3 +1,4 @@
+import { PLANS, type PlanCode } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 
 export type LimitedBillingResource =
@@ -24,6 +25,8 @@ export interface TenantBillingLimits {
     documents: number | null;
     storageMb: number | null;
     aiEnabled: boolean;
+    aiMonthlyTokens: number;
+    activityRetentionDays: number;
   };
 }
 
@@ -34,6 +37,8 @@ const BLOCKED_STATUSES = new Set([
   "PAST_DUE",
   "MISSING",
 ]);
+
+const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
 
 export function getEffectiveSubscriptionStatus(
   status: string,
@@ -73,6 +78,39 @@ function getBlockReason(status: string) {
   }
 }
 
+function normalizePlanCode(code?: string | null): PlanCode | null {
+  if (!code) return null;
+
+  const normalized = code.toUpperCase() as PlanCode;
+
+  if (VALID_PLAN_CODES.has(normalized)) {
+    return normalized;
+  }
+
+  return null;
+}
+
+function getConfiguredPlan(code?: string | null) {
+  const normalizedCode = normalizePlanCode(code);
+
+  if (!normalizedCode) return null;
+
+  return PLANS.find((plan) => plan.code === normalizedCode) ?? null;
+}
+
+function gbToMb(gb: number) {
+  return gb * 1024;
+}
+
+function formatStorageMb(storageMb: number) {
+  if (storageMb >= 1024) {
+    const gb = storageMb / 1024;
+    return `${gb}GB`;
+  }
+
+  return `${storageMb}MB`;
+}
+
 export async function getTenantBillingLimits(
   tenantId: string,
 ): Promise<TenantBillingLimits> {
@@ -106,6 +144,37 @@ export async function getTenantBillingLimits(
     );
 
     const canCreate = statusCanCreate(status);
+    const configuredPlan = getConfiguredPlan(subscription.plan.code);
+
+    /**
+     * مبدأ مهم:
+     * الخطط الرسمية نقرأ حدودها من src/config/plans.ts
+     * حتى لا يصير عندك اختلاف بين صفحة الأسعار ونظام المنع داخل التطبيق.
+     *
+     * إذا الخطة غير معروفة، نرجع لقيم قاعدة البيانات كـ fallback.
+     */
+    const usersLimit =
+      configuredPlan?.limits.users ?? subscription.plan.maxUsers ?? null;
+
+    const clientsLimit =
+      configuredPlan?.limits.clients ?? subscription.plan.maxClients ?? null;
+
+    const casesLimit =
+      configuredPlan?.limits.cases ?? subscription.plan.maxCases ?? null;
+
+    const storageMbLimit =
+      configuredPlan?.limits.storageGb !== undefined
+        ? gbToMb(configuredPlan.limits.storageGb)
+        : subscription.plan.maxStorageMb ?? null;
+
+    const aiEnabled =
+      configuredPlan?.limits.aiEnabled ?? subscription.plan.aiEnabled;
+
+    const aiMonthlyTokens =
+      configuredPlan?.limits.aiMonthlyTokens ?? 0;
+
+    const activityRetentionDays =
+      configuredPlan?.limits.activityRetentionDays ?? 30;
 
     return {
       subscriptionId: subscription.id,
@@ -115,16 +184,24 @@ export async function getTenantBillingLimits(
       plan: {
         id: subscription.plan.id,
         code: subscription.plan.code,
-        name: subscription.plan.name,
-        aiEnabled: subscription.plan.aiEnabled,
+        name: configuredPlan?.name ?? subscription.plan.name,
+        aiEnabled,
       },
       limits: {
-        users: subscription.plan.maxUsers,
-        clients: subscription.plan.maxClients,
-        cases: subscription.plan.maxCases,
-        documents: subscription.plan.maxDocuments,
-        storageMb: subscription.plan.maxStorageMb,
-        aiEnabled: subscription.plan.aiEnabled,
+        users: usersLimit,
+        clients: clientsLimit,
+        cases: casesLimit,
+
+        /**
+         * لا نحدد عدد المستندات في الباقات الجديدة.
+         * الحد الحقيقي للمستندات هو التخزين.
+         */
+        documents: null,
+
+        storageMb: storageMbLimit,
+        aiEnabled,
+        aiMonthlyTokens,
+        activityRetentionDays,
       },
     };
   }
@@ -147,6 +224,8 @@ export async function getTenantBillingLimits(
       documents: 0,
       storageMb: 0,
       aiEnabled: false,
+      aiMonthlyTokens: 0,
+      activityRetentionDays: 0,
     },
   };
 }
@@ -207,6 +286,7 @@ export async function assertTenantCanCreate(
   if (!writeCheck.ok) {
     return {
       ok: false as const,
+      status: writeCheck.status,
       message: writeCheck.message,
       billing: writeCheck.billing ?? null,
     };
@@ -217,6 +297,7 @@ export async function assertTenantCanCreate(
   if (!billing.canCreate) {
     return {
       ok: false as const,
+      status: 402,
       message:
         billing.blockReason ||
         "لا يمكن إنشاء عناصر جديدة لأن الاشتراك غير نشط.",
@@ -229,6 +310,7 @@ export async function assertTenantCanCreate(
   if (limit === null) {
     return {
       ok: true as const,
+      status: 200,
       billing,
       limit,
       used: null,
@@ -240,6 +322,7 @@ export async function assertTenantCanCreate(
   if (used >= limit) {
     return {
       ok: false as const,
+      status: 402,
       message: getLimitMessage(resource, limit),
       billing,
       limit,
@@ -249,6 +332,7 @@ export async function assertTenantCanCreate(
 
   return {
     ok: true as const,
+    status: 200,
     billing,
     limit,
     used,
@@ -315,6 +399,7 @@ export async function assertTenantCanUseStorage(
   if (!writeCheck.ok) {
     return {
       ok: false as const,
+      status: writeCheck.status,
       message: writeCheck.message,
       billing: writeCheck.billing ?? null,
       usedBytes: null,
@@ -328,6 +413,7 @@ export async function assertTenantCanUseStorage(
   if (!billing.canCreate) {
     return {
       ok: false as const,
+      status: 402,
       message:
         billing.blockReason || "لا يمكن رفع ملفات جديدة لأن الاشتراك غير نشط.",
       billing,
@@ -342,6 +428,7 @@ export async function assertTenantCanUseStorage(
   if (storageMb === null) {
     return {
       ok: true as const,
+      status: 200,
       billing,
       usedBytes: null,
       incomingBytes,
@@ -364,7 +451,10 @@ export async function assertTenantCanUseStorage(
   if (usedBytes + incomingBytes > limitBytes) {
     return {
       ok: false as const,
-      message: `وصلت إلى حد التخزين في خطتك الحالية (${storageMb} MB). قم بترقية الاشتراك للمتابعة.`,
+      status: 402,
+      message: `وصلت إلى حد التخزين في خطتك الحالية (${formatStorageMb(
+        storageMb,
+      )}). قم بترقية الاشتراك للمتابعة.`,
       billing,
       usedBytes,
       incomingBytes,
@@ -374,9 +464,43 @@ export async function assertTenantCanUseStorage(
 
   return {
     ok: true as const,
+    status: 200,
     billing,
     usedBytes,
     incomingBytes,
     limitBytes,
+  };
+}
+
+export async function assertTenantCanUseAi(
+  tenantId: string,
+  action = "استخدام المساعد الذكي",
+) {
+  const writeCheck = await assertTenantCanWrite(tenantId, action);
+
+  if (!writeCheck.ok) {
+    return {
+      ok: false as const,
+      status: writeCheck.status,
+      message: writeCheck.message,
+      billing: writeCheck.billing ?? null,
+    };
+  }
+
+  const billing = writeCheck.billing;
+
+  if (!billing.limits.aiEnabled) {
+    return {
+      ok: false as const,
+      status: 402,
+      message: "المساعد الذكي غير متاح في خطتك الحالية. قم بترقية الاشتراك للمتابعة.",
+      billing,
+    };
+  }
+
+  return {
+    ok: true as const,
+    status: 200,
+    billing,
   };
 }
