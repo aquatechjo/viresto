@@ -26,6 +26,9 @@ interface Case {
   status: string;
   feeAgreed: number;
   court?: string | null;
+  judgeName?: string | null;
+  plaintiffName?: string | null;
+  defendantName?: string | null;
   description?: string | null;
 
   client?: {
@@ -107,7 +110,7 @@ const COPY = {
     },
     filters: {
       searchAria: "البحث في القضايا",
-      searchPlaceholder: "ابحث في رقم القضية، العنوان أو اسم الموكل...",
+      searchPlaceholder: "ابحث في رقم القضية، العنوان، الموكل، المحكمة، القاضي أو الأطراف...",
       clear: "مسح الفلاتر",
       statuses: {
         all: "الكل",
@@ -145,6 +148,10 @@ const COPY = {
       caseNumber: "رقم القضية",
       fees: "الأتعاب",
       court: "المحكمة",
+      judgeName: "اسم القاضي",
+      plaintiffName: "المدعي",
+      defendantName: "المدعى عليه",
+      officialData: "بيانات القضية الرسمية",
       description: "الوصف",
       status: "حالة القضية",
       cancel: "إلغاء",
@@ -190,7 +197,7 @@ const COPY = {
     },
     filters: {
       searchAria: "Search cases",
-      searchPlaceholder: "Search by case number, title, or client name...",
+      searchPlaceholder: "Search by case number, title, client, court, judge, or parties...",
       clear: "Clear filters",
       statuses: {
         all: "All",
@@ -228,6 +235,10 @@ const COPY = {
       caseNumber: "Case number",
       fees: "Fees",
       court: "Court",
+      judgeName: "Judge name",
+      plaintiffName: "Plaintiff",
+      defendantName: "Defendant",
+      officialData: "Official case details",
       description: "Description",
       status: "Case status",
       cancel: "Cancel",
@@ -242,6 +253,9 @@ const INIT = {
   title: "",
   caseNumber: "",
   court: "",
+  judgeName: "",
+  plaintiffName: "",
+  defendantName: "",
   feeAgreed: "",
   description: "",
 };
@@ -250,6 +264,9 @@ const EDIT_INIT = {
   title: "",
   caseNumber: "",
   court: "",
+  judgeName: "",
+  plaintiffName: "",
+  defendantName: "",
   feeAgreed: "",
   description: "",
   status: "OPEN",
@@ -449,6 +466,10 @@ export default function CasesPage() {
         !query ||
         item.title?.toLowerCase().includes(query) ||
         item.caseNumber?.toLowerCase().includes(query) ||
+        item.court?.toLowerCase().includes(query) ||
+        item.judgeName?.toLowerCase().includes(query) ||
+        item.plaintiffName?.toLowerCase().includes(query) ||
+        item.defendantName?.toLowerCase().includes(query) ||
         item.client?.name?.toLowerCase().includes(query);
 
       return matchesStatus && matchesSearch;
@@ -528,6 +549,9 @@ export default function CasesPage() {
           title: editForm.title,
           caseNumber: editForm.caseNumber,
           court: editForm.court,
+          judgeName: editForm.judgeName,
+          plaintiffName: editForm.plaintiffName,
+          defendantName: editForm.defendantName,
           description: editForm.description,
           status: editForm.status,
           feeAgreed: parseFloat(editForm.feeAgreed) || 0,
@@ -635,6 +659,9 @@ export default function CasesPage() {
       title: item.title || "",
       caseNumber: item.caseNumber || "",
       court: item.court || "",
+      judgeName: item.judgeName || "",
+      plaintiffName: item.plaintiffName || "",
+      defendantName: item.defendantName || "",
       feeAgreed: String(Number(item.feeAgreed || 0)),
       description: item.description || "",
       status: CASE_STATUS_KEYS.includes(
@@ -1219,18 +1246,65 @@ export default function CasesPage() {
             </FormField>
           </div>
 
-          <FormField label={text.modal.court}>
-            <input
-              dir={isRtl ? "rtl" : "ltr"}
-              value={form.court}
-              onChange={f("court")}
-              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: isRtl ? "rtl" : "ltr",
-              }}
-            />
-          </FormField>
+          <div className="rounded-3xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
+            <p className="mb-3 text-sm font-black" style={{ color: "var(--text)" }}>
+              {text.modal.officialData}
+            </p>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label={text.modal.court}>
+                <input
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={form.court}
+                  onChange={f("court")}
+                  className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                  style={{
+                    textAlign: isRtl ? "right" : "left",
+                    direction: isRtl ? "rtl" : "ltr",
+                  }}
+                />
+              </FormField>
+
+              <FormField label={text.modal.judgeName}>
+                <input
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={form.judgeName}
+                  onChange={f("judgeName")}
+                  className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                  style={{
+                    textAlign: isRtl ? "right" : "left",
+                    direction: isRtl ? "rtl" : "ltr",
+                  }}
+                />
+              </FormField>
+
+              <FormField label={text.modal.plaintiffName}>
+                <input
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={form.plaintiffName}
+                  onChange={f("plaintiffName")}
+                  className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                  style={{
+                    textAlign: isRtl ? "right" : "left",
+                    direction: isRtl ? "rtl" : "ltr",
+                  }}
+                />
+              </FormField>
+
+              <FormField label={text.modal.defendantName}>
+                <input
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={form.defendantName}
+                  onChange={f("defendantName")}
+                  className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                  style={{
+                    textAlign: isRtl ? "right" : "left",
+                    direction: isRtl ? "rtl" : "ltr",
+                  }}
+                />
+              </FormField>
+            </div>
+          </div>
 
           <FormField label={text.modal.description}>
             <textarea
@@ -1346,18 +1420,65 @@ export default function CasesPage() {
             </select>
           </FormField>
 
-          <FormField label={text.modal.court}>
-            <input
-              dir={isRtl ? "rtl" : "ltr"}
-              value={editForm.court}
-              onChange={ef("court")}
-              className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: isRtl ? "rtl" : "ltr",
-              }}
-            />
-          </FormField>
+          <div className="rounded-3xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
+            <p className="mb-3 text-sm font-black" style={{ color: "var(--text)" }}>
+              {text.modal.officialData}
+            </p>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label={text.modal.court}>
+                <input
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={editForm.court}
+                  onChange={ef("court")}
+                  className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                  style={{
+                    textAlign: isRtl ? "right" : "left",
+                    direction: isRtl ? "rtl" : "ltr",
+                  }}
+                />
+              </FormField>
+
+              <FormField label={text.modal.judgeName}>
+                <input
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={editForm.judgeName}
+                  onChange={ef("judgeName")}
+                  className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                  style={{
+                    textAlign: isRtl ? "right" : "left",
+                    direction: isRtl ? "rtl" : "ltr",
+                  }}
+                />
+              </FormField>
+
+              <FormField label={text.modal.plaintiffName}>
+                <input
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={editForm.plaintiffName}
+                  onChange={ef("plaintiffName")}
+                  className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                  style={{
+                    textAlign: isRtl ? "right" : "left",
+                    direction: isRtl ? "rtl" : "ltr",
+                  }}
+                />
+              </FormField>
+
+              <FormField label={text.modal.defendantName}>
+                <input
+                  dir={isRtl ? "rtl" : "ltr"}
+                  value={editForm.defendantName}
+                  onChange={ef("defendantName")}
+                  className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+                  style={{
+                    textAlign: isRtl ? "right" : "left",
+                    direction: isRtl ? "rtl" : "ltr",
+                  }}
+                />
+              </FormField>
+            </div>
+          </div>
 
           <FormField label={text.modal.description}>
             <textarea

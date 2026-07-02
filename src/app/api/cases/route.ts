@@ -83,6 +83,30 @@ export async function GET(req: NextRequest) {
                 },
               },
               {
+                court: {
+                  contains: q,
+                  mode: "insensitive",
+                },
+              },
+              {
+                judgeName: {
+                  contains: q,
+                  mode: "insensitive",
+                },
+              },
+              {
+                plaintiffName: {
+                  contains: q,
+                  mode: "insensitive",
+                },
+              },
+              {
+                defendantName: {
+                  contains: q,
+                  mode: "insensitive",
+                },
+              },
+              {
                 client: {
                   name: {
                     contains: q,

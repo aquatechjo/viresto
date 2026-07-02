@@ -171,7 +171,7 @@ export default function TopBar() {
     <header
       dir={isRtl ? "rtl" : "ltr"}
       className={`
-        fixed top-0 z-[60] min-w-0 overflow-visible border-b border-slate-200
+        fixed top-0 z-40 min-w-0 overflow-visible border-b border-slate-200
         bg-white/90 shadow-sm backdrop-blur-[18px] transition-colors
         dark:border-[#2d4a3e] dark:bg-[#0d241a]/95
         ${
@@ -239,7 +239,7 @@ export default function TopBar() {
           {open && query.length >= 2 && (
             <div
               className={`
-                absolute top-full z-50 mt-2 max-h-[62vh] w-full overflow-y-auto rounded-2xl
+                absolute top-full z-[55] mt-2 max-h-[62vh] w-full overflow-y-auto rounded-2xl
                 border border-slate-200 bg-white shadow-2xl dark:border-[#2d4a3e] dark:bg-[#10291d]
                 max-w-[calc(100vw-1.5rem)] xl:min-w-[440px]
                 ${isRtl ? "right-0" : "left-0"}

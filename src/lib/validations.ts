@@ -61,12 +61,28 @@ export const clientSchema = z.object({
   notes: z.string().trim().optional().or(z.literal("")),
 });
 
+const optionalText = z.preprocess((value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+
+  return value;
+}, z.string().nullable().optional());
 export const caseSchema = z.object({
   clientId: z.string().min(1, "الموكل مطلوب"),
   title: z.string().min(1, "العنوان مطلوب"),
-  caseNumber: z.string().optional(),
-  court: z.string().optional(),
-  description: z.string().optional(),
+
+  caseNumber: optionalText,
+  court: optionalText,
+  judgeName: optionalText,
+  plaintiffName: optionalText,
+  defendantName: optionalText,
+
+  description: optionalText,
   status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"]).optional(),
   feeAgreed: z.number().min(0).optional(),
 });

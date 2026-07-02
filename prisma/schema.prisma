@@ -214,17 +214,21 @@ model Client {
 }
 
 model Case {
-  id           String        @id @default(cuid())
-  tenantId     String
-  clientId     String
-  title        String
-  caseNumber   String?
-  court        String?
-  description  String?
-  status       CaseStatus    @default(OPEN)
-  feeAgreed    Float         @default(0)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  tenantId      String
+  clientId      String
+  title         String
+  caseNumber    String?
+  court         String?
+  judgeName     String?
+  plaintiffName String?
+  defendantName String?
+  description   String?
+  status        CaseStatus    @default(OPEN)
+  feeAgreed     Float         @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
   appointments Appointment[]
   client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -235,6 +239,7 @@ model Case {
 
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([tenantId, caseNumber])
 }
 
 model Payment {

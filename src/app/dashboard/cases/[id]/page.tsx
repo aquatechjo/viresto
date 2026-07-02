@@ -101,6 +101,9 @@ interface CaseDetail {
   title: string;
   caseNumber?: string | null;
   court?: string | null;
+  judgeName?: string | null;
+  plaintiffName?: string | null;
+  defendantName?: string | null;
   status: string;
   feeAgreed: number;
   description?: string | null;
@@ -309,6 +312,9 @@ const CASE_EDIT_INIT = {
   title: "",
   caseNumber: "",
   court: "",
+  judgeName: "",
+  plaintiffName: "",
+  defendantName: "",
   status: "OPEN",
   feeAgreed: "",
   description: "",
@@ -366,6 +372,11 @@ export default function CaseDetailPage() {
     court: isArabic ? "المحكمة" : "Court",
     feeAgreed: isArabic ? "الأتعاب المتفق عليها" : "Agreed fees",
     caseNumber: isArabic ? "رقم القضية" : "Case number",
+    judgeName: isArabic ? "اسم القاضي" : "Judge name",
+    plaintiffName: isArabic ? "المدعي" : "Plaintiff",
+    defendantName: isArabic ? "المدعى عليه" : "Defendant",
+    officialDetails: isArabic ? "البيانات الرسمية" : "Official details",
+    courtAndParties: isArabic ? "بيانات المحكمة والأطراف" : "Court and parties",
     noCourt: isArabic ? "بدون محكمة محددة" : "No court selected",
     added: isArabic ? "أُضيفت" : "Added",
     payment: isArabic ? "+ دفعة" : "+ Payment",
@@ -686,6 +697,9 @@ export default function CaseDetailPage() {
       title: c.title || "",
       caseNumber: c.caseNumber || "",
       court: c.court || "",
+      judgeName: c.judgeName || "",
+      plaintiffName: c.plaintiffName || "",
+      defendantName: c.defendantName || "",
       status: c.status || "OPEN",
       feeAgreed: String(c.feeAgreed ?? ""),
       description: c.description || "",
@@ -720,6 +734,9 @@ export default function CaseDetailPage() {
           title: caseEditForm.title.trim(),
           caseNumber: caseEditForm.caseNumber.trim() || null,
           court: caseEditForm.court.trim() || null,
+          judgeName: caseEditForm.judgeName.trim() || null,
+          plaintiffName: caseEditForm.plaintiffName.trim() || null,
+          defendantName: caseEditForm.defendantName.trim() || null,
           status: caseEditForm.status,
           feeAgreed: safeNumber(caseEditForm.feeAgreed),
           description: caseEditForm.description.trim() || null,
@@ -1432,6 +1449,55 @@ export default function CaseDetailPage() {
             </p>
           </div>
         ))}
+      </div>
+
+      {/* Official case details */}
+      <div className="card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p
+              className="text-xs font-black"
+              style={{ color: "var(--text-3)" }}
+            >
+              {pageText.officialDetails}
+            </p>
+
+            <h2
+              className="mt-1 text-lg font-black"
+              style={{ color: "var(--text)" }}
+            >
+              {pageText.courtAndParties}
+            </h2>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <DetailItem
+            label={pageText.caseNumber}
+            value={c.caseNumber || pageText.notAdded}
+            dir="ltr"
+          />
+
+          <DetailItem
+            label={pageText.court}
+            value={c.court || pageText.notAdded}
+          />
+
+          <DetailItem
+            label={pageText.judgeName}
+            value={c.judgeName || pageText.notAdded}
+          />
+
+          <DetailItem
+            label={pageText.plaintiffName}
+            value={c.plaintiffName || pageText.notAdded}
+          />
+
+          <DetailItem
+            label={pageText.defendantName}
+            value={c.defendantName || pageText.notAdded}
+          />
+        </div>
       </div>
 
       {/* Quick actions */}
@@ -2309,6 +2375,56 @@ export default function CaseDetailPage() {
             </FormField>
           </div>
 
+          <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)" }}>
+            <p
+              className="mb-3 text-xs font-black"
+              style={{ color: "var(--text-3)" }}
+            >
+              {pageText.courtAndParties}
+            </p>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label={pageText.judgeName}>
+                <input
+                  className="input text-start"
+                  value={caseEditForm.judgeName}
+                  onChange={(event) =>
+                    setCaseEditForm((previous) => ({
+                      ...previous,
+                      judgeName: event.target.value,
+                    }))
+                  }
+                />
+              </FormField>
+
+              <FormField label={pageText.plaintiffName}>
+                <input
+                  className="input text-start"
+                  value={caseEditForm.plaintiffName}
+                  onChange={(event) =>
+                    setCaseEditForm((previous) => ({
+                      ...previous,
+                      plaintiffName: event.target.value,
+                    }))
+                  }
+                />
+              </FormField>
+
+              <FormField label={pageText.defendantName}>
+                <input
+                  className="input text-start"
+                  value={caseEditForm.defendantName}
+                  onChange={(event) =>
+                    setCaseEditForm((previous) => ({
+                      ...previous,
+                      defendantName: event.target.value,
+                    }))
+                  }
+                />
+              </FormField>
+            </div>
+          </div>
+
           <FormField label={pageText.description}>
             <textarea
               className="input resize-none text-start"
@@ -3014,6 +3130,38 @@ function EmptyLine({ text }: { text: string }) {
       }}
     >
       {text}
+    </div>
+  );
+}
+
+function DetailItem({
+  label,
+  value,
+  dir,
+}: {
+  label: string;
+  value: string;
+  dir?: "ltr" | "rtl" | "auto";
+}) {
+  return (
+    <div
+      className="rounded-2xl border p-4"
+      style={{
+        borderColor: "var(--border)",
+        background: "var(--card)",
+      }}
+    >
+      <p className="text-xs font-black" style={{ color: "var(--text-3)" }}>
+        {label}
+      </p>
+
+      <p
+        dir={dir}
+        className="mt-1 break-words text-sm font-black"
+        style={{ color: "var(--text)" }}
+      >
+        {value}
+      </p>
     </div>
   );
 }
