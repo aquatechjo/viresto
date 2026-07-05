@@ -875,7 +875,16 @@ export default function BillingPage() {
       </div>
 
       <div>
-        <h2 className="mb-4 text-xl font-black">{billing.availablePlans}</h2>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-black text-emerald-600 dark:text-emerald-300">
+              {isArabic ? "خطط الاشتراك" : "Subscription plans"}
+            </p>
+            <h2 className="mt-1 text-2xl font-black">
+              {billing.availablePlans}
+            </h2>
+          </div>
+        </div>
 
         <div className="grid items-stretch gap-4 lg:grid-cols-3">
           {data.availablePlans.map((plan) => {
@@ -891,125 +900,148 @@ export default function BillingPage() {
             const showLaunchPrice =
               officialMonthlyPrice !== null &&
               currentMonthlyPriceJod < officialMonthlyPrice;
+            const code = getPlanCode(plan);
+            const highlighted = code === "PRO";
 
             return (
               <div
                 key={plan.id}
-                className={`card relative flex h-full flex-col p-5 ${active ? "ring-2 ring-emerald-600" : ""}`}
+                className={[
+                  "relative flex h-full min-h-[620px] flex-col overflow-hidden rounded-[28px] border p-5 text-white shadow-2xl shadow-emerald-950/10",
+                  "bg-[#07140f]",
+                  highlighted
+                    ? "border-emerald-500/55 bg-[#062619] ring-1 ring-emerald-400/30"
+                    : "border-white/10",
+                  active ? "ring-2 ring-emerald-300" : "",
+                ].join(" ")}
               >
-                {plan.code === "PRO" && (
-                  <span
-                    className={`absolute top-4 ${
-                      isArabic ? "left-4" : "right-4"
-                    } badge badge-success`}
-                  >
-                    {billing.bestSeller}
-                  </span>
-                )}
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-70"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.22), transparent 42%)",
+                  }}
+                />
 
-                <h3 className="mt-1 text-2xl font-black">{plan.name}</h3>
+                <div className="relative z-10 flex h-full flex-col">
+                  <div className="flex min-h-8 items-start justify-between gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      {highlighted && (
+                        <span className="rounded-full bg-emerald-400 px-3 py-1 text-xs font-black text-emerald-950">
+                          {billing.bestSeller}
+                        </span>
+                      )}
 
-                <div className="mt-2">
-                  <p className="text-lg font-black">
-                    {plan.priceMonthly.formatted}
-                    <span
-                      className="ms-1 text-xs font-bold"
-                      style={{ color: "var(--muted)" }}
+                      {active && (
+                        <span className="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-100">
+                          {labels.activePlan}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
+                    <h3 className="text-3xl font-black text-emerald-50">
+                      {plan.name}
+                    </h3>
+
+                    <p className="mt-4 min-h-14 text-sm font-bold leading-7 text-emerald-50/78">
+                      {plan.description || "—"}
+                    </p>
+                  </div>
+
+                  <div className="mt-6 rounded-[24px] border border-white/10 bg-black/20 p-5">
+                    {showLaunchPrice && (
+                      <div className="mb-1 flex items-center justify-end gap-2 text-sm font-black">
+                        <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-xs text-emerald-200">
+                          {isArabic ? "سعر الإطلاق" : "Launch price"}
+                        </span>
+
+                        <span
+                          dir="ltr"
+                          className="text-slate-400 line-through decoration-slate-400"
+                        >
+                          {officialMonthlyPrice} JOD
+                        </span>
+                      </div>
+                    )}
+
+                    <div
+                      dir="ltr"
+                      className="flex items-end justify-end gap-2 text-right"
                     >
-                      / {labels.monthly}
-                    </span>
-                  </p>
-
-                  {showLaunchPrice && (
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold">
-                      <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-200">
-                        {isArabic ? "سعر الإطلاق" : "Launch price"}
+                      <span className="text-5xl font-black tracking-tight text-white">
+                        {currentMonthlyPriceJod}
                       </span>
-                      <span
-                        className="line-through"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        {officialMonthlyPrice} JOD
+                      <span className="pb-2 text-3xl font-black text-white">
+                        JOD
+                      </span>
+                      <span className="pb-2 text-sm font-bold text-emerald-100/65">
+                        / {labels.monthly}
                       </span>
                     </div>
-                  )}
-                </div>
 
-                <p
-                  className="mt-1 text-xs font-bold"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {plan.priceYearly.formatted} / {labels.yearly}
-                </p>
-
-                <p
-                  className="mt-2 min-h-12 text-sm leading-7"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {plan.description || "—"}
-                </p>
-
-                <ul className="mt-4 space-y-2 text-sm">
-                  {features.map((feature) => (
-                    <li
-                      key={feature.label}
-                      className={[
-                        "flex gap-2",
-                        feature.included ? "" : "text-slate-400 dark:text-emerald-100/45",
-                      ].join(" ")}
+                    <p
+                      dir="ltr"
+                      className="mt-2 text-right text-xs font-bold text-emerald-100/55"
                     >
-                      <span
-                        className={
-                          feature.included
-                            ? "text-emerald-600"
-                            : "text-slate-400 dark:text-emerald-100/45"
-                        }
-                      >
-                        {feature.included ? "✓" : "×"}
-                      </span>
-                      <span>{feature.label}</span>
-                    </li>
-                  ))}
-                </ul>
+                      {plan.priceYearly.formatted} / {labels.yearly}
+                    </p>
+                  </div>
 
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-black/5 p-3 text-xs leading-6 dark:border-[#335f49] dark:bg-[#0b1f16] dark:text-emerald-100/85">
-                  <p>
-                    {billing.limits.users}:{" "}
-                    {formatLimit(plan.limits.users, locale)}
-                  </p>
-                  <p>
-                    {billing.limits.clients}:{" "}
-                    {formatLimit(plan.limits.clients, locale)}
-                  </p>
-                  <p>
-                    {billing.limits.cases}:{" "}
-                    {formatLimit(plan.limits.cases, locale)}
-                  </p>
-                  <p>
-                    {billing.limits.documents}: {getDocumentsLimitLabel(isArabic)}
-                  </p>
-                  <p>
-                    {labels.storage}: {formatStorageLimit(plan.limits.storageMb ?? null, locale)}
-                  </p>
-                </div>
+                  <div className="mt-6">
+                    <p className="mb-3 text-sm font-black text-emerald-300">
+                      {isArabic ? "معلومات الخطة" : "Plan details"}
+                    </p>
 
-                <div className="mt-auto pt-5">
-                  <button
-                    type="button"
-                    disabled={!canRequest}
-                    className={`w-full ${
-                      canRequest ? "btn btn-primary" : "btn btn-ghost opacity-70"
-                    }`}
-                    onClick={() => openManualPayment(plan.id)}
-                  >
-                    {active && canRequest
-                      ? isArabic
-                        ? "تجديد الاشتراك"
-                        : "Renew subscription"
-                      : active
-                        ? billing.currentPlanButton
-                        : billing.requestUpgrade}
-                  </button>
+                    <ul className="space-y-2.5 text-sm">
+                      {features.map((feature) => (
+                        <li
+                          key={feature.label}
+                          className={[
+                            "flex gap-2 leading-7",
+                            feature.included
+                              ? "text-emerald-50"
+                              : "text-emerald-100/38",
+                          ].join(" ")}
+                        >
+                          <span
+                            className={[
+                              "mt-0.5 shrink-0 font-black",
+                              feature.included
+                                ? "text-emerald-300"
+                                : "text-emerald-100/35",
+                            ].join(" ")}
+                          >
+                            {feature.included ? "✓" : "×"}
+                          </span>
+                          <span>{feature.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-auto pt-6">
+                    <button
+                      type="button"
+                      disabled={!canRequest}
+                      className={[
+                        "w-full rounded-2xl px-5 py-4 text-sm font-black transition",
+                        canRequest
+                          ? "bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-950/20 hover:bg-emerald-300"
+                          : "border border-white/10 bg-white/5 text-emerald-100/60",
+                      ].join(" ")}
+                      onClick={() => openManualPayment(plan.id)}
+                    >
+                      {active && canRequest
+                        ? isArabic
+                          ? "تجديد الاشتراك"
+                          : "Renew subscription"
+                        : active
+                          ? billing.currentPlanButton
+                          : billing.requestUpgrade}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
