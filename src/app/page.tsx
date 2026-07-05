@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { PLANS, getDisplayPrice, type PlanCode, type PlanConfig } from "@/config/plans";
+import {
+  PLANS,
+  getDisplayPrice,
+  type PlanCode,
+  type PlanConfig,
+} from "@/config/plans";
 import { useEffect, useMemo, useState } from "react";
 
 type Locale = "ar" | "en";
@@ -416,7 +421,6 @@ const COPY: Record<
   },
 };
 
-
 type PublicPlanFeature = {
   label: string;
   included: boolean;
@@ -501,7 +505,8 @@ const PLAN_PUBLIC_COPY: Record<
   en: {
     BASIC: {
       subtitle: "For solo lawyers",
-      description: "Core tools to start organizing your legal work professionally.",
+      description:
+        "Core tools to start organizing your legal work professionally.",
       features: [
         { label: "Clients and cases management", included: true },
         { label: "Appointments and tasks", included: true },
@@ -534,7 +539,8 @@ const PLAN_PUBLIC_COPY: Record<
     },
     BUSINESS: {
       subtitle: "For mid-sized and large firms",
-      description: "A complete plan for firms that need higher limits and stronger support.",
+      description:
+        "A complete plan for firms that need higher limits and stronger support.",
       features: [
         { label: "Clients and cases management", included: true },
         { label: "Appointments and tasks", included: true },
@@ -552,8 +558,12 @@ const PLAN_PUBLIC_COPY: Record<
 };
 
 function formatJodPrice(value: number, locale: Locale) {
-  const formatted = value.toLocaleString(locale === "ar" ? "ar-JO" : "en-US");
+  const formatted = value.toLocaleString("en-US");
   return locale === "ar" ? `${formatted} د.أ` : `${formatted} JOD`;
+}
+
+function getVisibleFeatures(plan: PublicPlanView) {
+  return plan.features.slice(0, 7);
 }
 
 function getPublicPlans(locale: Locale): PublicPlanView[] {
@@ -561,7 +571,8 @@ function getPublicPlans(locale: Locale): PublicPlanView[] {
     const content = PLAN_PUBLIC_COPY[locale][plan.code];
     const displayPrice = getDisplayPrice(plan);
     const hasLaunchPrice =
-      typeof plan.launchPriceJod === "number" && plan.launchPriceJod < plan.priceJod;
+      typeof plan.launchPriceJod === "number" &&
+      plan.launchPriceJod < plan.priceJod;
 
     return {
       code: plan.code,
@@ -871,89 +882,115 @@ export default function HomePage() {
             {copy.pricing.eyebrow}
           </p>
 
-          <h2 className="mt-4 text-4xl font-black text-white">{copy.pricing.title}</h2>
+          <h2 className="mt-4 text-4xl font-black text-white">
+            {copy.pricing.title}
+          </h2>
 
           <p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
             {copy.pricing.description}
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          {publicPlans.map((plan) => (
-            <div
-              key={plan.code}
-              className={[
-                "relative flex min-h-[500px] flex-col rounded-[2rem] border p-8 transition-all hover:bg-white/[0.07]",
-                plan.highlighted
-                  ? "border-emerald-400/40 bg-emerald-500/10 shadow-2xl shadow-emerald-950/30"
-                  : "border-white/10 bg-white/5",
-              ].join(" ")}
-            >
-              {plan.badge ? (
-                <span className="absolute top-5 inline-flex rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-black right-5">
-                  {plan.badge}
-                </span>
-              ) : null}
+        <div className="grid items-stretch gap-6 lg:grid-cols-3">
+          {publicPlans.map((plan) => {
+            const visibleFeatures = getVisibleFeatures(plan);
 
-              <h3 className="text-2xl font-black text-emerald-100">
-                {plan.name}
-              </h3>
-
-              <p className="mt-2 text-sm font-bold text-slate-200">
-                {plan.subtitle}
-              </p>
-
-              <p className="mt-3 min-h-[56px] text-sm leading-7 text-slate-300">
-                {plan.description}
-              </p>
-
-              <div className="mt-8">
-                {plan.originalPriceLabel ? (
-                  <p className="mb-1 text-sm font-semibold text-slate-500 line-through">
-                    {plan.originalPriceLabel}
-                  </p>
+            return (
+              <article
+                key={plan.code}
+                className={[
+                  "relative flex h-full min-h-[560px] flex-col overflow-hidden rounded-[2rem] border p-6 transition-all sm:p-7",
+                  plan.highlighted
+                    ? "border-emerald-400/45 bg-emerald-500/10 shadow-2xl shadow-emerald-950/35"
+                    : "border-white/10 bg-white/5 hover:bg-white/[0.07]",
+                ].join(" ")}
+              >
+                {plan.highlighted ? (
+                  <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/80 to-transparent" />
                 ) : null}
 
-                <p className="text-4xl font-black text-white">
-                  {plan.priceLabel}
-                  <span className="text-base font-medium text-slate-400">
-                    {" "}
-                    {copy.pricing.perMonth}
-                  </span>
-                </p>
-              </div>
+                <div className="mb-6 flex min-h-[116px] flex-col">
+                  <div className="mb-4 flex items-start justify-between gap-4">
+                    <h3 className="text-3xl font-black text-emerald-100">
+                      {plan.name}
+                    </h3>
 
-              <ul className="mt-8 space-y-3 text-sm">
-                {plan.features.map((feature) => (
-                  <li
-                    key={`${plan.code}-${feature.label}`}
-                    className={
-                      feature.included
-                        ? "flex items-start gap-2 text-slate-200"
-                        : "flex items-start gap-2 text-slate-500"
-                    }
-                  >
-                    <span className="mt-0.5 shrink-0 text-emerald-300">
-                      {feature.included ? "✓" : "—"}
-                    </span>
-                    <span>
-                      {feature.label}
-                      {feature.value ? (
-                        <span className="text-slate-400"> · {feature.value}</span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                    {plan.badge ? (
+                      <span className="shrink-0 rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-black shadow-lg shadow-emerald-950/30">
+                        {plan.badge}
+                      </span>
+                    ) : null}
+                  </div>
 
-              <Link
-                href="/register"
-                className="mt-auto flex h-12 items-center justify-center rounded-2xl bg-emerald-500 font-bold text-black transition hover:bg-emerald-400"
-              >
-                {copy.pricing.action}
-              </Link>
-            </div>
-          ))}
+                  <p className="text-sm font-bold text-slate-200">
+                    {plan.subtitle}
+                  </p>
+
+                  <p className="mt-3 text-sm leading-7 text-slate-300">
+                    {plan.description}
+                  </p>
+                </div>
+
+                <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                  {plan.originalPriceLabel ? (
+                    <p className="mb-1 text-sm font-semibold text-slate-500 line-through">
+                      <span dir="ltr">{plan.originalPriceLabel}</span>
+                    </p>
+                  ) : null}
+
+                  <div className="flex items-end gap-2">
+                    <p className="text-5xl font-black leading-none text-white">
+                      <span dir="ltr">{plan.priceLabel}</span>
+                    </p>
+
+                    <span className="pb-1 text-sm font-bold text-slate-400">
+                      {copy.pricing.perMonth}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex-1">
+                  <p className="mb-4 text-sm font-black text-emerald-300">
+                    {isArabic ? "أهم المزايا" : "Key features"}
+                  </p>
+
+                  <ul className="space-y-3 text-sm">
+                    {visibleFeatures.map((feature) => (
+                      <li
+                        key={`${plan.code}-${feature.label}`}
+                        className={
+                          feature.included
+                            ? "flex items-start gap-2 text-slate-200"
+                            : "flex items-start gap-2 text-slate-500"
+                        }
+                      >
+                        <span className="mt-0.5 shrink-0 text-emerald-300">
+                          {feature.included ? "✓" : "—"}
+                        </span>
+
+                        <span className="leading-6">
+                          {feature.label}
+                          {feature.value ? (
+                            <span className="text-slate-400">
+                              {" "}
+                              · {feature.value}
+                            </span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <Link
+                  href="/register"
+                  className="mt-8 flex h-12 items-center justify-center rounded-2xl bg-emerald-500 font-bold text-black transition hover:bg-emerald-400"
+                >
+                  {copy.pricing.action}
+                </Link>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -963,7 +1000,9 @@ export default function HomePage() {
             {copy.faq.eyebrow}
           </p>
 
-          <h2 className="mt-4 text-4xl font-black text-white">{copy.faq.title}</h2>
+          <h2 className="mt-4 text-4xl font-black text-white">
+            {copy.faq.title}
+          </h2>
         </div>
 
         <div className="space-y-4">
@@ -972,7 +1011,9 @@ export default function HomePage() {
               key={item.question}
               className="rounded-3xl border border-white/10 bg-white/5 p-6"
             >
-              <h3 className="text-lg font-black text-emerald-100">{item.question}</h3>
+              <h3 className="text-lg font-black text-emerald-100">
+                {item.question}
+              </h3>
               <p className="mt-3 leading-7 text-slate-300">{item.answer}</p>
             </div>
           ))}
