@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PLANS, getDisplayPrice, type PlanCode, type PlanConfig } from "@/config/plans";
 import { useEffect, useMemo, useState } from "react";
 
 type Locale = "ar" | "en";
@@ -415,6 +416,169 @@ const COPY: Record<
   },
 };
 
+
+type PublicPlanFeature = {
+  label: string;
+  included: boolean;
+  value?: string;
+};
+
+type PublicPlanView = {
+  code: PlanCode;
+  name: string;
+  subtitle: string;
+  description: string;
+  priceLabel: string;
+  originalPriceLabel?: string | null;
+  badge?: string;
+  highlighted?: boolean;
+  features: PublicPlanFeature[];
+};
+
+const PLAN_PUBLIC_COPY: Record<
+  Locale,
+  Record<
+    PlanCode,
+    {
+      subtitle: string;
+      description: string;
+      badge?: string;
+      features: PublicPlanFeature[];
+    }
+  >
+> = {
+  ar: {
+    BASIC: {
+      subtitle: "للمحامي الفردي",
+      description: "كل الأساسيات لتبدأ تنظيم عملك القانوني باحترافية.",
+      features: [
+        { label: "إدارة الموكلين والقضايا", included: true },
+        { label: "المواعيد والمهام", included: true },
+        { label: "الفواتير والمدفوعات", included: true },
+        { label: "التقارير الأساسية", included: true },
+        { label: "مستخدم واحد", included: true },
+        { label: "100 موكل", included: true },
+        { label: "150 قضية", included: true },
+        { label: "2GB تخزين", included: true },
+        { label: "إدارة الفريق", included: false },
+        { label: "المساعد الذكي AI", included: false },
+      ],
+    },
+    PRO: {
+      subtitle: "للمكاتب الصغيرة",
+      description: "الخطة الأنسب لإدارة مكتبك وفريقك بكفاءة.",
+      badge: "الأكثر طلبًا",
+      features: [
+        { label: "إدارة الموكلين والقضايا", included: true },
+        { label: "المواعيد والمهام", included: true },
+        { label: "الفواتير والمدفوعات", included: true },
+        { label: "تقارير متقدمة", included: true },
+        { label: "تصدير PDF / Excel كامل", included: true },
+        { label: "إدارة الفريق وأدوار المستخدمين", included: true },
+        { label: "المساعد الذكي AI", included: true, value: "1M tokens / شهر" },
+        { label: "تلخيص المستندات بالذكاء الاصطناعي", included: true },
+        { label: "تخصيص شعار المكتب", included: true },
+        { label: "دعم أسرع", included: true },
+      ],
+    },
+    BUSINESS: {
+      subtitle: "للمكاتب المتوسطة والكبيرة",
+      description: "حل متكامل للمكاتب التي تحتاج حدودًا أعلى ودعمًا أقوى.",
+      features: [
+        { label: "إدارة الموكلين والقضايا", included: true },
+        { label: "المواعيد والمهام", included: true },
+        { label: "الفواتير والمدفوعات", included: true },
+        { label: "تقارير متقدمة", included: true },
+        { label: "تصدير PDF / Excel كامل", included: true },
+        { label: "إدارة الفريق وأدوار المستخدمين", included: true },
+        { label: "المساعد الذكي AI", included: true, value: "4M tokens / شهر" },
+        { label: "تلخيص المستندات بالذكاء الاصطناعي", included: true },
+        { label: "تخصيص شعار المكتب", included: true },
+        { label: "دعم أولوية ومخصص", included: true },
+      ],
+    },
+  },
+  en: {
+    BASIC: {
+      subtitle: "For solo lawyers",
+      description: "Core tools to start organizing your legal work professionally.",
+      features: [
+        { label: "Clients and cases management", included: true },
+        { label: "Appointments and tasks", included: true },
+        { label: "Invoices and payments", included: true },
+        { label: "Basic reports", included: true },
+        { label: "1 user", included: true },
+        { label: "100 clients", included: true },
+        { label: "150 cases", included: true },
+        { label: "2GB storage", included: true },
+        { label: "Team management", included: false },
+        { label: "AI assistant", included: false },
+      ],
+    },
+    PRO: {
+      subtitle: "For small law firms",
+      description: "Best fit for managing your office and team efficiently.",
+      badge: "Most requested",
+      features: [
+        { label: "Clients and cases management", included: true },
+        { label: "Appointments and tasks", included: true },
+        { label: "Invoices and payments", included: true },
+        { label: "Advanced reports", included: true },
+        { label: "Full PDF / Excel export", included: true },
+        { label: "Team management and user roles", included: true },
+        { label: "AI assistant", included: true, value: "1M tokens / month" },
+        { label: "AI document summaries", included: true },
+        { label: "Custom office logo", included: true },
+        { label: "Faster support", included: true },
+      ],
+    },
+    BUSINESS: {
+      subtitle: "For mid-sized and large firms",
+      description: "A complete plan for firms that need higher limits and stronger support.",
+      features: [
+        { label: "Clients and cases management", included: true },
+        { label: "Appointments and tasks", included: true },
+        { label: "Invoices and payments", included: true },
+        { label: "Advanced reports", included: true },
+        { label: "Full PDF / Excel export", included: true },
+        { label: "Team management and user roles", included: true },
+        { label: "AI assistant", included: true, value: "4M tokens / month" },
+        { label: "AI document summaries", included: true },
+        { label: "Custom office logo", included: true },
+        { label: "Priority dedicated support", included: true },
+      ],
+    },
+  },
+};
+
+function formatJodPrice(value: number, locale: Locale) {
+  const formatted = value.toLocaleString(locale === "ar" ? "ar-JO" : "en-US");
+  return locale === "ar" ? `${formatted} د.أ` : `${formatted} JOD`;
+}
+
+function getPublicPlans(locale: Locale): PublicPlanView[] {
+  return PLANS.map((plan: PlanConfig) => {
+    const content = PLAN_PUBLIC_COPY[locale][plan.code];
+    const displayPrice = getDisplayPrice(plan);
+    const hasLaunchPrice =
+      typeof plan.launchPriceJod === "number" && plan.launchPriceJod < plan.priceJod;
+
+    return {
+      code: plan.code,
+      name: plan.name,
+      subtitle: content.subtitle,
+      description: content.description,
+      priceLabel: formatJodPrice(displayPrice, locale),
+      originalPriceLabel: hasLaunchPrice
+        ? formatJodPrice(plan.priceJod, locale)
+        : null,
+      badge: content.badge ?? plan.badge,
+      highlighted: plan.highlighted,
+      features: content.features,
+    };
+  });
+}
+
 const STORAGE_KEYS = ["locale", "viresto-locale", "preferred-locale"];
 
 function getStoredLocale(): Locale {
@@ -454,6 +618,7 @@ export default function HomePage() {
   const [locale, setLocale] = useState<Locale>("en");
   const copy = COPY[locale];
   const isArabic = locale === "ar";
+  const publicPlans = useMemo(() => getPublicPlans(locale), [locale]);
 
   useEffect(() => {
     setLocale(getStoredLocale());
@@ -714,37 +879,75 @@ export default function HomePage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
-          {copy.pricing.plans.map((plan) => (
+          {publicPlans.map((plan) => (
             <div
-              key={plan.name}
+              key={plan.code}
               className={[
-                "flex min-h-[430px] flex-col rounded-[2rem] border p-8 transition-all hover:bg-white/[0.07]",
+                "relative flex min-h-[500px] flex-col rounded-[2rem] border p-8 transition-all hover:bg-white/[0.07]",
                 plan.highlighted
-                  ? "border-emerald-400/30 bg-emerald-500/10 shadow-2xl shadow-emerald-950/30"
+                  ? "border-emerald-400/40 bg-emerald-500/10 shadow-2xl shadow-emerald-950/30"
                   : "border-white/10 bg-white/5",
               ].join(" ")}
             >
-              <h3 className="text-2xl font-black text-emerald-100">{plan.name}</h3>
-              <p className="mt-2 text-slate-300">{plan.description}</p>
+              {plan.badge ? (
+                <span className="absolute top-5 inline-flex rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-black right-5">
+                  {plan.badge}
+                </span>
+              ) : null}
 
-              <p className="mt-8 text-4xl font-black text-white">
-                {plan.price}
-                {plan.price !== "Custom" && plan.price !== "حسب الطلب" && (
+              <h3 className="text-2xl font-black text-emerald-100">
+                {plan.name}
+              </h3>
+
+              <p className="mt-2 text-sm font-bold text-slate-200">
+                {plan.subtitle}
+              </p>
+
+              <p className="mt-3 min-h-[56px] text-sm leading-7 text-slate-300">
+                {plan.description}
+              </p>
+
+              <div className="mt-8">
+                {plan.originalPriceLabel ? (
+                  <p className="mb-1 text-sm font-semibold text-slate-500 line-through">
+                    {plan.originalPriceLabel}
+                  </p>
+                ) : null}
+
+                <p className="text-4xl font-black text-white">
+                  {plan.priceLabel}
                   <span className="text-base font-medium text-slate-400">
                     {" "}
                     {copy.pricing.perMonth}
                   </span>
-                )}
-              </p>
+                </p>
+              </div>
 
-              <ul className="mt-8 space-y-3 text-sm text-slate-200">
+              <ul className="mt-8 space-y-3 text-sm">
                 {plan.features.map((feature) => (
-                  <li key={feature}>✓ {feature}</li>
+                  <li
+                    key={`${plan.code}-${feature.label}`}
+                    className={
+                      feature.included
+                        ? "flex items-start gap-2 text-slate-200"
+                        : "flex items-start gap-2 text-slate-500"
+                    }
+                  >
+                    <span className="mt-0.5 shrink-0 text-emerald-300">
+                      {feature.included ? "✓" : "—"}
+                    </span>
+                    <span>
+                      {feature.label}
+                      {feature.value ? (
+                        <span className="text-slate-400"> · {feature.value}</span>
+                      ) : null}
+                    </span>
+                  </li>
                 ))}
               </ul>
 
               <Link
-                href="/dashboard"
+                href="/register"
                 className="mt-auto flex h-12 items-center justify-center rounded-2xl bg-emerald-500 font-bold text-black transition hover:bg-emerald-400"
               >
                 {copy.pricing.action}

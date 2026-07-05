@@ -34,7 +34,7 @@ export const PLANS: PlanConfig[] = [
     code: "BASIC",
     name: "Basic",
     subtitle: "للمحامي الفردي",
-    description: "كل الأساسيات لتبدأ تنظيم عملك باحترافية.",
+    description: "كل الأساسيات لتبدأ تنظيم عملك القانوني باحترافية.",
     priceJod: 20,
     launchPriceJod: null,
     highlighted: false,
