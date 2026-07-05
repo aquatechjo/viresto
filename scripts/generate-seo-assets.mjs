@@ -138,7 +138,7 @@ async function makeManifest() {
     name: 'Viresto',
     short_name: 'Viresto',
     description:
-      'Legal practice management platform for law firms.',
+      'Legal practice management platform',
     start_url: '/',
     scope: '/',
     display: 'standalone',

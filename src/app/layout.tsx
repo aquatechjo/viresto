@@ -93,7 +93,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Viresto | Legal Practice Management Platform',
     description:
-      'A legal practice management platform for law firms.',
+      'A legal practice management platform',
     images: ['/og-image.png'],
   },
 

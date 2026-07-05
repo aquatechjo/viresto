@@ -9,44 +9,205 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import FormField from "@/components/ui/FormField";
 
-const floatingCards = [
-  {
-    icon: "⚖️",
-    title: "قضية جديدة",
-    desc: "تم تحديث حالة القضية",
-    delay: 0,
-  },
-  {
-    icon: "🧾",
-    title: "فاتورة مدفوعة",
-    desc: "تم تسجيل دفعة جديدة",
-    delay: 0.7,
-  },
-  {
-    icon: "📅",
-    title: "موعد قريب",
-    desc: "جلسة غدًا الساعة 10:00",
-    delay: 1.2,
-  },
-];
+type Locale = "ar" | "en";
 
-const features = [
+type SmallCard = {
+  icon: string;
+  title: string;
+  desc: string;
+  delay: number;
+};
+
+type Feature = {
+  icon: string;
+  title: string;
+  desc: string;
+};
+
+const STORAGE_KEYS = ["locale", "viresto-locale", "preferred-locale"];
+
+const COPY: Record<
+  Locale,
   {
-    icon: "⚖️",
-    title: "إدارة القضايا",
-    desc: "تابع القضايا، الحالات، والملاحظات من لوحة واحدة.",
+    languageButton: string;
+    logoAlt: string;
+    brandSubtitle: string;
+    heroTitleTop: string;
+    heroTitleBottom: string;
+    heroDescription: string;
+    welcomeBadge: string;
+    formTitle: string;
+    formDescription: string;
+    emailLabel: string;
+    emailPlaceholder: string;
+    passwordLabel: string;
+    passwordPlaceholder: string;
+    showPassword: string;
+    hidePassword: string;
+    forgotPassword: string;
+    submit: string;
+    loadingLabel: string;
+    noAccount: string;
+    register: string;
+    footer: string;
+    errors: {
+      emailRequired: string;
+      passwordRequired: string;
+    };
+    toast: {
+      loginSuccess: string;
+      verifyEmail: string;
+      genericError: string;
+      connectionError: string;
+    };
+    floatingCards: SmallCard[];
+    features: Feature[];
+  }
+> = {
+  ar: {
+    languageButton: "English",
+    logoAlt: "شعار Viresto",
+    brandSubtitle: "نظام إدارة مكاتب المحاماة",
+    heroTitleTop: "أدر مكتبك القانوني",
+    heroTitleBottom: "بثقة ووضوح",
+    heroDescription:
+      "منصة واحدة لتنظيم القضايا، الموكلين، المواعيد، المستندات، الفواتير، والتقارير المالية بطريقة احترافية وسريعة.",
+    welcomeBadge: "مرحبًا بعودتك",
+    formTitle: "تسجيل الدخول",
+    formDescription: "أدخل بياناتك للوصول إلى لوحة التحكم وإدارة مكتبك.",
+    emailLabel: "البريد الإلكتروني",
+    emailPlaceholder: "lawyer@example.com",
+    passwordLabel: "كلمة المرور",
+    passwordPlaceholder: "••••••••",
+    showPassword: "إظهار",
+    hidePassword: "إخفاء",
+    forgotPassword: "نسيت كلمة المرور؟",
+    submit: "دخول",
+    loadingLabel: "جارٍ الدخول",
+    noAccount: "ليس لديك حساب؟",
+    register: "سجّل مكتبك",
+    footer: "جميع الحقوق محفوظة.",
+    errors: {
+      emailRequired: "البريد الإلكتروني مطلوب",
+      passwordRequired: "كلمة المرور مطلوبة",
+    },
+    toast: {
+      loginSuccess: "مرحبًا بك في Viresto!",
+      verifyEmail: "يرجى تأكيد البريد الإلكتروني أولاً",
+      genericError: "حدث خطأ",
+      connectionError: "حدث خطأ في الاتصال",
+    },
+    floatingCards: [
+      {
+        icon: "⚖️",
+        title: "قضية جديدة",
+        desc: "تم تحديث حالة القضية",
+        delay: 0,
+      },
+      {
+        icon: "🧾",
+        title: "فاتورة مدفوعة",
+        desc: "تم تسجيل دفعة جديدة",
+        delay: 0.7,
+      },
+      {
+        icon: "📅",
+        title: "موعد قريب",
+        desc: "جلسة غدًا الساعة 10:00",
+        delay: 1.2,
+      },
+    ],
+    features: [
+      {
+        icon: "⚖️",
+        title: "إدارة القضايا",
+        desc: "تابع القضايا، الحالات، والملاحظات من لوحة واحدة.",
+      },
+      {
+        icon: "👥",
+        title: "ملفات الموكلين",
+        desc: "سجلات منظمة لكل موكل مع القضايا والمستندات.",
+      },
+      {
+        icon: "🧾",
+        title: "الفواتير والتقارير",
+        desc: "تحصيل، فواتير، تقارير مالية، ومؤشرات واضحة.",
+      },
+    ],
   },
-  {
-    icon: "👥",
-    title: "ملفات الموكلين",
-    desc: "سجلات منظمة لكل موكل مع القضايا والمستندات.",
+  en: {
+    languageButton: "العربية",
+    logoAlt: "Viresto Logo",
+    brandSubtitle: "Legal practice management system",
+    heroTitleTop: "Run your legal office",
+    heroTitleBottom: "with confidence and clarity",
+    heroDescription:
+      "One platform to organize cases, clients, appointments, documents, invoices, and financial reports professionally and quickly.",
+    welcomeBadge: "Welcome back",
+    formTitle: "Login",
+    formDescription:
+      "Enter your details to access your dashboard and manage your office.",
+    emailLabel: "Email address",
+    emailPlaceholder: "lawyer@example.com",
+    passwordLabel: "Password",
+    passwordPlaceholder: "••••••••",
+    showPassword: "Show",
+    hidePassword: "Hide",
+    forgotPassword: "Forgot password?",
+    submit: "Login",
+    loadingLabel: "Logging in",
+    noAccount: "Don’t have an account?",
+    register: "Register your office",
+    footer: "All rights reserved.",
+    errors: {
+      emailRequired: "Email address is required",
+      passwordRequired: "Password is required",
+    },
+    toast: {
+      loginSuccess: "Welcome to Viresto!",
+      verifyEmail: "Please verify your email first",
+      genericError: "Something went wrong",
+      connectionError: "Connection error",
+    },
+    floatingCards: [
+      {
+        icon: "⚖️",
+        title: "New case",
+        desc: "Case status updated",
+        delay: 0,
+      },
+      {
+        icon: "🧾",
+        title: "Paid invoice",
+        desc: "A new payment was recorded",
+        delay: 0.7,
+      },
+      {
+        icon: "📅",
+        title: "Upcoming appointment",
+        desc: "Tomorrow’s hearing at 10:00",
+        delay: 1.2,
+      },
+    ],
+    features: [
+      {
+        icon: "⚖️",
+        title: "Case management",
+        desc: "Track cases, statuses, and notes from one dashboard.",
+      },
+      {
+        icon: "👥",
+        title: "Client files",
+        desc: "Organized records for each client with cases and documents.",
+      },
+      {
+        icon: "🧾",
+        title: "Invoices and reports",
+        desc: "Payments, invoices, financial reports, and clear indicators.",
+      },
+    ],
   },
-  {
-    icon: "🧾",
-    title: "الفواتير والتقارير",
-    desc: "تحصيل، فواتير، تقارير مالية، ومؤشرات واضحة.",
-  },
-];
+};
 
 const ambientIcons = [
   { icon: "⚖️", left: "7%", top: "14%", delay: 0 },
@@ -70,11 +231,23 @@ const ambientIcons = [
   { icon: "📑", left: "44%", top: "42%", delay: 6.8 },
 ];
 
+function getStoredLocale(): Locale {
+  if (typeof window === "undefined") return "ar";
+
+  for (const key of STORAGE_KEYS) {
+    const value = window.localStorage.getItem(key);
+    if (value === "ar" || value === "en") return value;
+  }
+
+  return document.documentElement.lang === "en" ? "en" : "ar";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const publicRegisterEnabled =
     process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true";
 
+  const [locale, setLocale] = useState<Locale>("ar");
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -83,6 +256,23 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const copy = COPY[locale];
+  const isArabic = locale === "ar";
+  const textAlignClass = isArabic ? "text-right" : "text-left";
+
+  useEffect(() => {
+    setLocale(getStoredLocale());
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = isArabic ? "rtl" : "ltr";
+
+    for (const key of STORAGE_KEYS) {
+      window.localStorage.setItem(key, locale);
+    }
+  }, [isArabic, locale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,13 +307,18 @@ export default function LoginPage() {
     };
   }, [router]);
 
+  function toggleLocale() {
+    setLocale((previous) => (previous === "ar" ? "en" : "ar"));
+    setErrors({});
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
     const err: Record<string, string> = {};
 
-    if (!form.email) err.email = "البريد الإلكتروني مطلوب";
-    if (!form.password) err.password = "كلمة المرور مطلوبة";
+    if (!form.email) err.email = copy.errors.emailRequired;
+    if (!form.password) err.password = copy.errors.passwordRequired;
 
     if (Object.keys(err).length) {
       setErrors(err);
@@ -145,7 +340,7 @@ export default function LoginPage() {
         sessionStorage.setItem("viresto_tab_session", "active");
         sessionStorage.setItem("viresto_last_activity", String(Date.now()));
 
-        toast.success("مرحبًا بك في Viresto!");
+        toast.success(copy.toast.loginSuccess);
 
         window.location.href = "/dashboard";
 
@@ -159,14 +354,18 @@ export default function LoginPage() {
         data?.details?.email || data?.data?.email || data?.email || form.email;
 
       if (code === "EMAIL_NOT_VERIFIED" || next === "EMAIL_VERIFICATION") {
-        toast.error(data?.message || "يرجى تأكيد البريد الإلكتروني أولاً");
+        toast.error(copy.toast.verifyEmail);
         router.push(`/verify-email?email=${encodeURIComponent(verifyEmail)}`);
         return;
       }
 
-      toast.error(data?.message ?? "حدث خطأ");
+      toast.error(
+        locale === "ar" && typeof data?.message === "string"
+          ? data.message
+          : copy.toast.genericError,
+      );
     } catch {
-      toast.error("حدث خطأ في الاتصال");
+      toast.error(copy.toast.connectionError);
     } finally {
       setLoading(false);
     }
@@ -175,12 +374,23 @@ export default function LoginPage() {
   return (
     <main
       className="relative min-h-screen overflow-hidden"
-      dir="rtl"
+      dir={isArabic ? "rtl" : "ltr"}
       style={{
         background:
           "radial-gradient(circle at 15% 20%, rgba(245,200,66,.18), transparent 28%), radial-gradient(circle at 85% 15%, rgba(255,255,255,.12), transparent 26%), linear-gradient(135deg, #10261f 0%, #1f4639 48%, #071713 100%)",
       }}
     >
+      <button
+        type="button"
+        onClick={toggleLocale}
+        className={`absolute top-5 z-50 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-black text-white shadow-2xl backdrop-blur-xl transition hover:bg-white/15 ${
+          isArabic ? "left-5" : "right-5"
+        }`}
+        aria-label={copy.languageButton}
+      >
+        {copy.languageButton}
+      </button>
+
       {/* Animated background */}
       <div className="pointer-events-none absolute inset-0">
         <motion.div
@@ -260,7 +470,7 @@ export default function LoginPage() {
 
       <div className="relative z-20 grid min-h-screen grid-cols-1 lg:grid-cols-[1.05fr_.95fr]">
         {/* Brand / motion side */}
-        <section className="relative hidden overflow-hidden p-10 lg:flex lg:flex-col lg:justify-between">
+        <section className="relative isolate hidden overflow-hidden p-10 lg:flex lg:flex-col lg:justify-between">
           <motion.div
             initial={{ opacity: 0, y: -18 }}
             animate={{ opacity: 1, y: 0 }}
@@ -275,7 +485,7 @@ export default function LoginPage() {
               >
                 <Image
                   src="/logo.png"
-                  alt="Viresto Logo"
+                  alt={copy.logoAlt}
                   width={44}
                   height={44}
                   className="h-full w-full object-contain"
@@ -286,49 +496,54 @@ export default function LoginPage() {
               <div>
                 <p className="text-3xl font-black text-white">Viresto</p>
                 <p className="mt-1 text-sm font-semibold text-white/55">
-                  نظام إدارة مكاتب المحاماة
+                  {copy.brandSubtitle}
                 </p>
               </div>
             </div>
           </motion.div>
           <div className="relative flex flex-1 items-center">
             <motion.div
-              initial={{ opacity: 0, x: 30 }}
+              initial={{ opacity: 0, x: isArabic ? 30 : -30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.15 }}
-              className="relative z-20 max-w-xl"
+              className={`relative z-20 ${isArabic ? "max-w-xl" : "max-w-[680px]"}`}
             >
-              <h1 className="text-5xl font-black leading-[1.25] text-white">
-                أدر مكتبك القانوني
+              <h1
+                className={`font-black text-white ${isArabic ? "text-5xl leading-[1.18]" : "text-[42px] leading-[1.12] xl:text-5xl"}`}
+              >
+                {copy.heroTitleTop}
                 <br />
-                بثقة ووضوح
+                {copy.heroTitleBottom}
               </h1>
 
-              <p className="mt-5 max-w-lg text-base font-semibold leading-8 text-white/65">
-                منصة واحدة لتنظيم القضايا، الموكلين، المواعيد، المستندات،
-                الفواتير، والتقارير المالية بطريقة احترافية وسريعة.
+              <p
+                className={`mt-5 text-base font-semibold leading-8 text-white/70 ${isArabic ? "max-w-lg" : "max-w-[620px]"}`}
+              >
+                {copy.heroDescription}
               </p>
 
-              <div className="mt-8 grid max-w-lg gap-3">
-                {features.map((feature, index) => (
+              <div
+                className={`mt-8 grid gap-3 ${isArabic ? "max-w-[440px]" : "max-w-[460px]"}`}
+              >
+                {copy.features.map((feature, index) => (
                   <motion.div
                     key={feature.title}
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.35 + index * 0.12 }}
-                    className="flex items-start gap-3 rounded-3xl border p-4 backdrop-blur-xl"
+                    className={`flex max-w-full items-start gap-3 rounded-[24px] border px-4 py-3 backdrop-blur-xl ${textAlignClass}`}
                     style={{
                       background: "rgba(255,255,255,.10)",
                       borderColor: "rgba(255,255,255,.16)",
                     }}
                   >
-                    <span className="text-2xl">{feature.icon}</span>
+                    <span className="text-xl">{feature.icon}</span>
 
                     <div>
                       <p className="text-sm font-black text-white">
                         {feature.title}
                       </p>
-                      <p className="mt-1 text-xs font-semibold leading-6 text-white/55">
+                      <p className="mt-1 text-xs font-semibold leading-5 text-white/55">
                         {feature.desc}
                       </p>
                     </div>
@@ -337,15 +552,21 @@ export default function LoginPage() {
               </div>
             </motion.div>
 
-            {floatingCards.map((card, index) => (
+            {copy.floatingCards.map((card, index) => (
               <motion.div
                 key={card.title}
-                className="absolute hidden w-48 rounded-3xl border p-4 shadow-2xl backdrop-blur-xl 2xl:block"
+                className={`absolute hidden w-44 rounded-[24px] border px-3 py-3 shadow-2xl backdrop-blur-xl 2xl:block ${textAlignClass}`}
                 style={{
                   background: "rgba(255,255,255,.12)",
                   borderColor: "rgba(255,255,255,.16)",
-                  left: index === 0 ? "-2%" : index === 1 ? "2%" : "-4%",
-                  top: index === 0 ? "24%" : index === 1 ? "52%" : "78%",
+                  ...(isArabic
+                    ? {
+                        left: index === 0 ? "-2%" : index === 1 ? "2%" : "-4%",
+                      }
+                    : {
+                        right: index === 0 ? "-2%" : index === 1 ? "2%" : "-4%",
+                      }),
+                  top: index === 0 ? "34%" : index === 1 ? "58%" : "80%",
                   zIndex: 8,
                 }}
                 initial={{ opacity: 0, y: 25, scale: 0.96 }}
@@ -371,13 +592,13 @@ export default function LoginPage() {
                 }}
               >
                 <div className="flex items-start gap-3">
-                  <span className="text-2xl">{card.icon}</span>
+                  <span className="text-xl">{card.icon}</span>
 
                   <div>
-                    <p className="text-sm font-black text-white">
+                    <p className="text-xs font-black leading-5 text-white">
                       {card.title}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-white/55">
+                    <p className="mt-1 text-[11px] font-semibold leading-5 text-white/55">
                       {card.desc}
                     </p>
                   </div>
@@ -392,17 +613,17 @@ export default function LoginPage() {
             transition={{ delay: 1 }}
             className="text-xs font-semibold text-white/35"
           >
-            © {new Date().getFullYear()} Viresto. جميع الحقوق محفوظة.
+            © {new Date().getFullYear()} Viresto. {copy.footer}
           </motion.p>
         </section>
 
         {/* Login side */}
-        <section className="flex items-center justify-center p-5 sm:p-8">
+        <section className="flex items-center justify-center p-5 pt-20 sm:p-8 sm:pt-20 lg:pt-8">
           <motion.div
             initial={{ opacity: 0, y: 28, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.65, ease: "easeOut" }}
-            className="w-full max-w-md"
+            className="w-full max-w-[460px]"
           >
             {/* Mobile logo */}
             <div className="mb-8 text-center lg:hidden">
@@ -414,7 +635,7 @@ export default function LoginPage() {
               >
                 <Image
                   src="/logo.png"
-                  alt="Viresto Logo"
+                  alt={copy.logoAlt}
                   width={52}
                   height={52}
                   className="h-full w-full object-contain"
@@ -424,7 +645,7 @@ export default function LoginPage() {
 
               <p className="text-3xl font-black text-white">Viresto</p>
               <p className="mt-1 text-sm font-semibold text-white/55">
-                نظام إدارة مكاتب المحاماة
+                {copy.brandSubtitle}
               </p>
             </div>
 
@@ -440,22 +661,25 @@ export default function LoginPage() {
                 style={{ background: "rgba(245,200,66,.24)" }}
               />
 
-              <div className="relative rounded-[28px] bg-white/90 p-6 text-slate-900 shadow-inner sm:p-7 dark:bg-[#10291d]/95 dark:text-emerald-50">
+              <div
+                dir={isArabic ? "rtl" : "ltr"}
+                className={`relative rounded-[28px] bg-white/90 p-6 text-slate-900 shadow-inner sm:p-7 dark:bg-[#10291d]/95 dark:text-emerald-50 ${textAlignClass}`}
+              >
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
                 >
                   <div className="mb-4 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800 dark:bg-[#1f4d35] dark:text-emerald-50">
-                    مرحبًا بعودتك
+                    {copy.welcomeBadge}
                   </div>
 
                   <h2 className="text-2xl font-black text-slate-900 dark:text-emerald-50">
-                    تسجيل الدخول
+                    {copy.formTitle}
                   </h2>
 
                   <p className="mt-2 text-sm font-medium text-slate-600 dark:text-emerald-100/75">
-                    أدخل بياناتك للوصول إلى لوحة التحكم وإدارة مكتبك.
+                    {copy.formDescription}
                   </p>
                 </motion.div>
 
@@ -466,13 +690,14 @@ export default function LoginPage() {
                     transition={{ delay: 0.25 }}
                   >
                     <FormField
-                      label="البريد الإلكتروني"
+                      label={copy.emailLabel}
                       required
                       error={errors.email}
                     >
                       <input
                         type="email"
                         value={form.email}
+                        dir="ltr"
                         autoComplete="email"
                         onChange={(event) => {
                           setForm((previous) => ({
@@ -484,8 +709,9 @@ export default function LoginPage() {
                             email: "",
                           }));
                         }}
-                        className="input"
-                        placeholder="lawyer@example.com"
+                        className="input !text-left"
+                        style={{ direction: "ltr", textAlign: "left" }}
+                        placeholder={copy.emailPlaceholder}
                       />
                     </FormField>
                   </motion.div>
@@ -496,7 +722,7 @@ export default function LoginPage() {
                     transition={{ delay: 0.35 }}
                   >
                     <FormField
-                      label="كلمة المرور"
+                      label={copy.passwordLabel}
                       required
                       error={errors.password}
                     >
@@ -504,6 +730,7 @@ export default function LoginPage() {
                         <input
                           type={showPassword ? "text" : "password"}
                           value={form.password}
+                          dir="ltr"
                           autoComplete="current-password"
                           onChange={(event) => {
                             setForm((previous) => ({
@@ -515,8 +742,11 @@ export default function LoginPage() {
                               password: "",
                             }));
                           }}
-                          className="input pl-16"
-                          placeholder="••••••••"
+                          className={`input !text-left ${
+                            isArabic ? "!pl-24" : "!pr-24"
+                          }`}
+                          style={{ direction: "ltr", textAlign: "left" }}
+                          placeholder={copy.passwordPlaceholder}
                         />
 
                         <button
@@ -524,9 +754,11 @@ export default function LoginPage() {
                           onClick={() =>
                             setShowPassword((previous) => !previous)
                           }
-                          className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-xl bg-white/80 px-2 py-1 text-xs font-black !text-[#17352b] transition hover:bg-white dark:bg-white/80 dark:!text-[#17352b]"
+                          className={`absolute top-1/2 z-10 min-w-[64px] -translate-y-1/2 rounded-xl bg-white/90 px-3 py-1 text-center text-xs font-black !text-[#17352b] transition hover:bg-white dark:bg-white/90 dark:!text-[#17352b] ${
+                            isArabic ? "left-3" : "right-3"
+                          }`}
                         >
-                          {showPassword ? "إخفاء" : "إظهار"}
+                          {showPassword ? copy.hidePassword : copy.showPassword}
                         </button>
                       </div>
                     </FormField>
@@ -536,13 +768,13 @@ export default function LoginPage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="flex justify-end"
+                    className={`flex ${isArabic ? "justify-end" : "justify-start"}`}
                   >
                     <Link
                       href="/forgot-password"
                       className="text-sm font-black text-[#1f4639] transition hover:underline dark:text-emerald-300"
                     >
-                      نسيت كلمة المرور؟
+                      {copy.forgotPassword}
                     </Link>
                   </motion.div>
 
@@ -558,8 +790,13 @@ export default function LoginPage() {
                     style={{
                       boxShadow: "0 18px 35px rgba(31,70,57,.28)",
                     }}
+                    aria-label={loading ? copy.loadingLabel : copy.submit}
                   >
-                    {loading ? <span className="spinner spinner-sm" /> : "دخول"}
+                    {loading ? (
+                      <span className="spinner spinner-sm" />
+                    ) : (
+                      copy.submit
+                    )}
                   </motion.button>
                 </form>
 
@@ -570,12 +807,12 @@ export default function LoginPage() {
                     transition={{ delay: 0.55 }}
                     className="mt-5 text-center text-sm font-semibold text-slate-600 dark:text-emerald-100/75"
                   >
-                    ليس لديك حساب؟{" "}
+                    {copy.noAccount}{" "}
                     <Link
                       href="/register"
                       className="font-black text-[#1f4639] hover:underline dark:text-emerald-300"
                     >
-                      سجّل مكتبك
+                      {copy.register}
                     </Link>
                   </motion.p>
                 )}

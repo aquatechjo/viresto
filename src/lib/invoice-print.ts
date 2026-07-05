@@ -144,7 +144,7 @@ ${tenantName}`.trim();
 export function buildInvoicePrintHtml(invoice: PrintableInvoice) {
   const tenant = invoice.tenant;
   const tenantName = tenant?.name || "Viresto";
-  const tenantEmail = tenant?.email || "Legal SaaS Platform";
+  const tenantEmail = tenant?.email || "Legal Platform";
   const tenantPhone = tenant?.phone || "";
   const tenantAddress = tenant?.address || "";
   const invoiceNo = formatInvoiceNumber(invoice.invoiceNumber);

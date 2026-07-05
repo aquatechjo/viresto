@@ -437,6 +437,7 @@ type PublicPlanView = {
   badge?: string;
   highlighted?: boolean;
   features: PublicPlanFeature[];
+  details: PublicPlanFeature[];
 };
 
 const PLAN_PUBLIC_COPY: Record<
@@ -448,6 +449,7 @@ const PLAN_PUBLIC_COPY: Record<
       description: string;
       badge?: string;
       features: PublicPlanFeature[];
+      details: PublicPlanFeature[];
     }
   >
 > = {
@@ -463,9 +465,20 @@ const PLAN_PUBLIC_COPY: Record<
         { label: "مستخدم واحد", included: true },
         { label: "100 موكل", included: true },
         { label: "150 قضية", included: true },
-        { label: "2GB تخزين", included: true },
-        { label: "إدارة الفريق", included: false },
+      ],
+      details: [
+        { label: "حتى 1 مستخدم", included: true },
+        { label: "حتى 100 موكل", included: true },
+        { label: "حتى 150 قضية", included: true },
+        { label: "تخزين", included: true, value: "2GB" },
+        { label: "المستندات", included: true, value: "حسب مساحة التخزين" },
         { label: "المساعد الذكي AI", included: false },
+        { label: "تلخيص المستندات بالذكاء الاصطناعي", included: false },
+        { label: "إدارة الفريق وأدوار المستخدمين", included: false },
+        { label: "تصدير PDF / Excel كامل", included: false },
+        { label: "تخصيص شعار المكتب", included: false },
+        { label: "تقارير أساسية", included: true },
+        { label: "دعم عادي", included: true },
       ],
     },
     PRO: {
@@ -480,7 +493,17 @@ const PLAN_PUBLIC_COPY: Record<
         { label: "تصدير PDF / Excel كامل", included: true },
         { label: "إدارة الفريق وأدوار المستخدمين", included: true },
         { label: "المساعد الذكي AI", included: true, value: "1M tokens / شهر" },
+      ],
+      details: [
+        { label: "حتى 5 مستخدم", included: true },
+        { label: "حتى 500 موكل", included: true },
+        { label: "حتى 1,000 قضية", included: true },
+        { label: "تخزين", included: true, value: "20GB" },
+        { label: "المستندات", included: true, value: "حسب مساحة التخزين" },
+        { label: "المساعد الذكي AI", included: true, value: "1M tokens / شهر" },
         { label: "تلخيص المستندات بالذكاء الاصطناعي", included: true },
+        { label: "إدارة الفريق وأدوار المستخدمين", included: true },
+        { label: "تصدير PDF / Excel كامل", included: true },
         { label: "تخصيص شعار المكتب", included: true },
         { label: "دعم أسرع", included: true },
       ],
@@ -496,7 +519,17 @@ const PLAN_PUBLIC_COPY: Record<
         { label: "تصدير PDF / Excel كامل", included: true },
         { label: "إدارة الفريق وأدوار المستخدمين", included: true },
         { label: "المساعد الذكي AI", included: true, value: "4M tokens / شهر" },
+      ],
+      details: [
+        { label: "حتى 10 مستخدم", included: true },
+        { label: "حتى 2,000 موكل", included: true },
+        { label: "حتى 5,000 قضية", included: true },
+        { label: "تخزين", included: true, value: "75GB" },
+        { label: "المستندات", included: true, value: "حسب مساحة التخزين" },
+        { label: "المساعد الذكي AI", included: true, value: "4M tokens / شهر" },
         { label: "تلخيص المستندات بالذكاء الاصطناعي", included: true },
+        { label: "إدارة الفريق وأدوار المستخدمين", included: true },
+        { label: "تصدير PDF / Excel كامل", included: true },
         { label: "تخصيص شعار المكتب", included: true },
         { label: "دعم أولوية ومخصص", included: true },
       ],
@@ -515,9 +548,20 @@ const PLAN_PUBLIC_COPY: Record<
         { label: "1 user", included: true },
         { label: "100 clients", included: true },
         { label: "150 cases", included: true },
-        { label: "2GB storage", included: true },
-        { label: "Team management", included: false },
+      ],
+      details: [
+        { label: "Up to 1 user", included: true },
+        { label: "Up to 100 clients", included: true },
+        { label: "Up to 150 cases", included: true },
+        { label: "Storage", included: true, value: "2GB" },
+        { label: "Documents", included: true, value: "Based on storage space" },
         { label: "AI assistant", included: false },
+        { label: "AI document summaries", included: false },
+        { label: "Team management and user roles", included: false },
+        { label: "Full PDF / Excel export", included: false },
+        { label: "Custom office logo", included: false },
+        { label: "Basic reports", included: true },
+        { label: "Standard support", included: true },
       ],
     },
     PRO: {
@@ -532,7 +576,17 @@ const PLAN_PUBLIC_COPY: Record<
         { label: "Full PDF / Excel export", included: true },
         { label: "Team management and user roles", included: true },
         { label: "AI assistant", included: true, value: "1M tokens / month" },
+      ],
+      details: [
+        { label: "Up to 5 users", included: true },
+        { label: "Up to 500 clients", included: true },
+        { label: "Up to 1,000 cases", included: true },
+        { label: "Storage", included: true, value: "20GB" },
+        { label: "Documents", included: true, value: "Based on storage space" },
+        { label: "AI assistant", included: true, value: "1M tokens / month" },
         { label: "AI document summaries", included: true },
+        { label: "Team management and user roles", included: true },
+        { label: "Full PDF / Excel export", included: true },
         { label: "Custom office logo", included: true },
         { label: "Faster support", included: true },
       ],
@@ -549,7 +603,17 @@ const PLAN_PUBLIC_COPY: Record<
         { label: "Full PDF / Excel export", included: true },
         { label: "Team management and user roles", included: true },
         { label: "AI assistant", included: true, value: "4M tokens / month" },
+      ],
+      details: [
+        { label: "Up to 10 users", included: true },
+        { label: "Up to 2,000 clients", included: true },
+        { label: "Up to 5,000 cases", included: true },
+        { label: "Storage", included: true, value: "75GB" },
+        { label: "Documents", included: true, value: "Based on storage space" },
+        { label: "AI assistant", included: true, value: "4M tokens / month" },
         { label: "AI document summaries", included: true },
+        { label: "Team management and user roles", included: true },
+        { label: "Full PDF / Excel export", included: true },
         { label: "Custom office logo", included: true },
         { label: "Priority dedicated support", included: true },
       ],
@@ -562,9 +626,6 @@ function formatJodPrice(value: number, locale: Locale) {
   return locale === "ar" ? `${formatted} د.أ` : `${formatted} JOD`;
 }
 
-function getVisibleFeatures(plan: PublicPlanView) {
-  return plan.features.slice(0, 7);
-}
 
 function getPublicPlans(locale: Locale): PublicPlanView[] {
   return PLANS.map((plan: PlanConfig) => {
@@ -586,6 +647,7 @@ function getPublicPlans(locale: Locale): PublicPlanView[] {
       badge: content.badge ?? plan.badge,
       highlighted: plan.highlighted,
       features: content.features,
+      details: content.details,
     };
   });
 }
@@ -893,13 +955,11 @@ export default function HomePage() {
 
         <div className="grid items-stretch gap-6 lg:grid-cols-3">
           {publicPlans.map((plan) => {
-            const visibleFeatures = getVisibleFeatures(plan);
-
             return (
               <article
                 key={plan.code}
                 className={[
-                  "relative flex h-full min-h-[560px] flex-col overflow-hidden rounded-[2rem] border p-6 transition-all sm:p-7",
+                  "relative flex h-full min-h-[690px] flex-col overflow-hidden rounded-[2rem] border p-6 transition-all sm:p-7",
                   plan.highlighted
                     ? "border-emerald-400/45 bg-emerald-500/10 shadow-2xl shadow-emerald-950/35"
                     : "border-white/10 bg-white/5 hover:bg-white/[0.07]",
@@ -949,23 +1009,30 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex-1">
+                <div className="mt-7 flex-1">
                   <p className="mb-4 text-sm font-black text-emerald-300">
-                    {isArabic ? "أهم المزايا" : "Key features"}
+                    {isArabic ? "معلومات الخطة" : "Plan details"}
                   </p>
 
                   <ul className="space-y-3 text-sm">
-                    {visibleFeatures.map((feature) => (
+                    {plan.details.map((feature) => (
                       <li
-                        key={`${plan.code}-${feature.label}`}
+                        key={`${plan.code}-detail-${feature.label}`}
                         className={
                           feature.included
                             ? "flex items-start gap-2 text-slate-200"
                             : "flex items-start gap-2 text-slate-500"
                         }
                       >
-                        <span className="mt-0.5 shrink-0 text-emerald-300">
-                          {feature.included ? "✓" : "—"}
+                        <span
+                          className={[
+                            "mt-0.5 shrink-0 font-black",
+                            feature.included
+                              ? "text-emerald-300"
+                              : "text-slate-600",
+                          ].join(" ")}
+                        >
+                          {feature.included ? "✓" : "×"}
                         </span>
 
                         <span className="leading-6">
@@ -973,7 +1040,7 @@ export default function HomePage() {
                           {feature.value ? (
                             <span className="text-slate-400">
                               {" "}
-                              · {feature.value}
+                              · <span dir="ltr">{feature.value}</span>
                             </span>
                           ) : null}
                         </span>
