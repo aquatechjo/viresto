@@ -541,8 +541,8 @@ export default function HomePage() {
               {copy.hero.badge}
             </div>
 
-            <h1 className="max-w-2xl text-3xl font-black leading-[1.1] tracking-tight text-balance sm:text-4xl sm:leading-[1.08] lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
-              <span className="block">{copy.hero.titleTop}</span>
+<h1 className="max-w-2xl text-3xl font-black leading-[1.1] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
+                <span className="block">{copy.hero.titleTop}</span>
               <span className="block text-emerald-400">
                 {copy.hero.titleAccent}
               </span>
@@ -673,10 +673,10 @@ export default function HomePage() {
             {copy.features.eyebrow}
           </p>
 
-          <h2 className="mt-4 text-4xl font-black">{copy.features.title}</h2>
+<h2 className="mt-4 text-4xl font-black text-white">{copy.features.title}</h2>
 
-          <p className="mx-auto mt-5 max-w-2xl leading-8 text-white/60">
-            {copy.features.description}
+<p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
+              {copy.features.description}
           </p>
         </div>
 
@@ -687,9 +687,9 @@ export default function HomePage() {
               className="rounded-[2rem] border border-white/10 bg-white/5 p-7 transition-all hover:bg-white/[0.07]"
             >
               <div className="mb-5 text-4xl">{feature.icon}</div>
-              <h3 className="text-xl font-bold">{feature.title}</h3>
-              <p className="mt-3 text-sm leading-7 text-white/60">
-                {feature.description}
+<h3 className="text-xl font-bold text-emerald-50">{feature.title}</h3>
+<p className="mt-3 text-sm leading-7 text-slate-300">
+                  {feature.description}
               </p>
             </div>
           ))}
@@ -704,8 +704,8 @@ export default function HomePage() {
 
           <h2 className="mt-4 text-4xl font-black">{copy.pricing.title}</h2>
 
-          <p className="mx-auto mt-5 max-w-2xl leading-8 text-white/60">
-            {copy.pricing.description}
+<p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
+              {copy.pricing.description}
           </p>
         </div>
 
