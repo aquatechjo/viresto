@@ -488,7 +488,7 @@ export default function HomePage() {
             <VirestoLogo />
           </Link>
 
-          <div className="hidden items-center gap-8 text-sm font-semibold text-white/60 md:flex">
+          <div className="hidden items-center gap-8 text-sm font-semibold text-slate-300 md:flex">
             <a href="#features" className="transition hover:text-white">
               {copy.nav.features}
             </a>
@@ -541,8 +541,8 @@ export default function HomePage() {
               {copy.hero.badge}
             </div>
 
-<h1 className="max-w-2xl text-3xl font-black leading-[1.1] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
-                <span className="block">{copy.hero.titleTop}</span>
+            <h1 className="max-w-2xl text-3xl font-black leading-[1.1] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
+              <span className="block">{copy.hero.titleTop}</span>
               <span className="block text-emerald-400">
                 {copy.hero.titleAccent}
               </span>
@@ -571,7 +571,7 @@ export default function HomePage() {
               </a>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-3 text-sm font-semibold text-white/55 sm:gap-4">
+            <div className="mt-8 flex flex-wrap gap-3 text-sm font-semibold text-slate-300 sm:gap-4">
               {copy.hero.tags.map((tag) => (
                 <span
                   key={tag}
@@ -594,7 +594,7 @@ export default function HomePage() {
                   <div className="h-3 w-3 rounded-full bg-emerald-400" />
                 </div>
 
-                <span className="text-xs font-semibold text-white/40">
+                <span className="text-xs font-semibold text-slate-400">
                   {copy.preview.dashboard}
                 </span>
               </div>
@@ -602,21 +602,21 @@ export default function HomePage() {
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                    <p className="text-xs text-white/60">
+                    <p className="text-xs text-slate-300">
                       {copy.preview.revenue}
                     </p>
                     <p className="mt-2 text-2xl font-black">$24.5K</p>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-white/60">
+                    <p className="text-xs text-slate-300">
                       {copy.preview.cases}
                     </p>
                     <p className="mt-2 text-2xl font-black">128</p>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-white/60">
+                    <p className="text-xs text-slate-300">
                       {copy.preview.clients}
                     </p>
                     <p className="mt-2 text-2xl font-black">54</p>
@@ -625,7 +625,7 @@ export default function HomePage() {
 
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
                   <div className="mb-3 flex items-center justify-between gap-4">
-                    <p className="text-sm font-semibold text-white/55">
+                    <p className="text-sm font-semibold text-slate-300">
                       {copy.preview.assistant}
                     </p>
 
@@ -641,7 +641,7 @@ export default function HomePage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-white/50">
+                    <p className="text-xs text-slate-400">
                       {copy.preview.today}
                     </p>
                     <p className="mt-2 font-bold">
@@ -650,7 +650,7 @@ export default function HomePage() {
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-white/50">
+                    <p className="text-xs text-slate-400">
                       {copy.preview.documents}
                     </p>
                     <p className="mt-2 font-bold">
@@ -673,10 +673,12 @@ export default function HomePage() {
             {copy.features.eyebrow}
           </p>
 
-<h2 className="mt-4 text-4xl font-black text-white">{copy.features.title}</h2>
+          <h2 className="mt-4 text-4xl font-black text-white">
+            {copy.features.title}
+          </h2>
 
-<p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
-              {copy.features.description}
+          <p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
+            {copy.features.description}
           </p>
         </div>
 
@@ -687,9 +689,11 @@ export default function HomePage() {
               className="rounded-[2rem] border border-white/10 bg-white/5 p-7 transition-all hover:bg-white/[0.07]"
             >
               <div className="mb-5 text-4xl">{feature.icon}</div>
-<h3 className="text-xl font-bold text-emerald-50">{feature.title}</h3>
-<p className="mt-3 text-sm leading-7 text-slate-300">
-                  {feature.description}
+              <h3 className="text-xl font-bold text-emerald-50">
+                {feature.title}
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-slate-300">
+                {feature.description}
               </p>
             </div>
           ))}
@@ -702,10 +706,10 @@ export default function HomePage() {
             {copy.pricing.eyebrow}
           </p>
 
-          <h2 className="mt-4 text-4xl font-black">{copy.pricing.title}</h2>
+          <h2 className="mt-4 text-4xl font-black text-white">{copy.pricing.title}</h2>
 
-<p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
-              {copy.pricing.description}
+          <p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
+            {copy.pricing.description}
           </p>
         </div>
 
@@ -720,20 +724,20 @@ export default function HomePage() {
                   : "border-white/10 bg-white/5",
               ].join(" ")}
             >
-              <h3 className="text-2xl font-black">{plan.name}</h3>
-              <p className="mt-2 text-white/60">{plan.description}</p>
+              <h3 className="text-2xl font-black text-emerald-100">{plan.name}</h3>
+              <p className="mt-2 text-slate-300">{plan.description}</p>
 
-              <p className="mt-8 text-4xl font-black">
+              <p className="mt-8 text-4xl font-black text-white">
                 {plan.price}
                 {plan.price !== "Custom" && plan.price !== "حسب الطلب" && (
-                  <span className="text-base font-medium text-white/40">
+                  <span className="text-base font-medium text-slate-400">
                     {" "}
                     {copy.pricing.perMonth}
                   </span>
                 )}
               </p>
 
-              <ul className="mt-8 space-y-3 text-sm text-white/70">
+              <ul className="mt-8 space-y-3 text-sm text-slate-200">
                 {plan.features.map((feature) => (
                   <li key={feature}>✓ {feature}</li>
                 ))}
@@ -756,7 +760,7 @@ export default function HomePage() {
             {copy.faq.eyebrow}
           </p>
 
-          <h2 className="mt-4 text-4xl font-black">{copy.faq.title}</h2>
+          <h2 className="mt-4 text-4xl font-black text-white">{copy.faq.title}</h2>
         </div>
 
         <div className="space-y-4">
@@ -765,8 +769,8 @@ export default function HomePage() {
               key={item.question}
               className="rounded-3xl border border-white/10 bg-white/5 p-6"
             >
-              <h3 className="text-lg font-black">{item.question}</h3>
-              <p className="mt-3 leading-7 text-white/60">{item.answer}</p>
+              <h3 className="text-lg font-black text-emerald-100">{item.question}</h3>
+              <p className="mt-3 leading-7 text-slate-300">{item.answer}</p>
             </div>
           ))}
         </div>
@@ -776,11 +780,11 @@ export default function HomePage() {
         <div className="rounded-[2.5rem] border border-emerald-400/20 bg-emerald-500/10 p-10 text-center md:p-16">
           <p className="font-bold text-emerald-400">{copy.cta.eyebrow}</p>
 
-          <h2 className="mt-5 text-4xl font-black md:text-5xl">
+          <h2 className="mt-5 text-4xl font-black text-white md:text-5xl">
             {copy.cta.title}
           </h2>
 
-          <p className="mx-auto mt-6 max-w-2xl leading-8 text-white/60">
+          <p className="mx-auto mt-6 max-w-2xl leading-8 text-slate-300">
             {copy.cta.description}
           </p>
 
@@ -797,7 +801,7 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 py-8 sm:px-6 md:flex-row">
           <p className="text-xl font-black">Viresto</p>
 
-          <p className="text-sm text-white/50">{copy.footer}</p>
+          <p className="text-sm text-slate-400">{copy.footer}</p>
         </div>
       </footer>
     </main>
