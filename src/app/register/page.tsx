@@ -1,11 +1,132 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Turnstile } from "@marsidev/react-turnstile";
 import FormField from "@/components/ui/FormField";
+
+type Locale = "ar" | "en";
+
+const LOCALE_KEYS = ["locale", "viresto-locale", "preferred-locale"];
+
+const COPY = {
+  ar: {
+    toggle: "English",
+    brand: "Viresto",
+    subtitle: "أنشئ مكتبك القانوني الآن",
+    title: "تسجيل مكتب جديد",
+
+    officeName: "اسم المكتب القانوني",
+    officeNamePlaceholder: "مكتب المنصوري للمحاماة",
+    fullName: "اسمك الكامل",
+    fullNamePlaceholder: "أحمد المنصوري",
+    email: "البريد الإلكتروني",
+    emailPlaceholder: "ahmed@law.jo",
+    phone: "رقم الهاتف",
+    phonePlaceholder: "07XXXXXXXX",
+    password: "كلمة المرور",
+    passwordPlaceholder: "مثال: Viresto@123",
+    passwordHelp:
+      "يجب أن تحتوي كلمة المرور على حرف كبير، حرف صغير، رقم، ورمز خاص.",
+
+    show: "إظهار",
+    hide: "إخفاء",
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
+
+    securityNotReady: "إعدادات التحقق الأمني غير مكتملة",
+    securityRequired: "يرجى إكمال التحقق الأمني أولًا",
+    securityDisabled: "التحقق الأمني غير مفعّل",
+
+    createOffice: "إنشاء المكتب",
+    creating: "جاري الإنشاء...",
+    success: "تم إنشاء المكتب. يرجى تأكيد البريد الإلكتروني.",
+    createError: "تعذر إنشاء الحساب",
+    connectionError: "حدث خطأ في الاتصال",
+
+    alreadyHaveAccount: "لديك حساب؟",
+    login: "سجّل دخولك",
+
+    disabledTitle: "التسجيل غير متاح حاليًا",
+    disabledDescription:
+      "إنشاء الحسابات الجديدة يتم حاليًا من خلال إدارة Viresto فقط.",
+    backToLogin: "العودة إلى تسجيل الدخول",
+  },
+
+  en: {
+    toggle: "العربية",
+    brand: "Viresto",
+    subtitle: "Create your legal office now",
+    title: "Register a new office",
+
+    officeName: "Legal office name",
+    officeNamePlaceholder: "Al Mansouri Law Office",
+    fullName: "Full name",
+    fullNamePlaceholder: "Ahmad Al Mansouri",
+    email: "Email address",
+    emailPlaceholder: "ahmed@law.jo",
+    phone: "Phone number",
+    phonePlaceholder: "07XXXXXXXX",
+    password: "Password",
+    passwordPlaceholder: "Example: Viresto@123",
+    passwordHelp:
+      "Your password must include an uppercase letter, a lowercase letter, a number, and a special character.",
+
+    show: "Show",
+    hide: "Hide",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+
+    securityNotReady: "Security verification settings are incomplete",
+    securityRequired: "Please complete the security verification first",
+    securityDisabled: "Security verification is not enabled",
+
+    createOffice: "Create office",
+    creating: "Creating...",
+    success: "Your office has been created. Please verify your email address.",
+    createError: "Unable to create the account",
+    connectionError: "A connection error occurred",
+
+    alreadyHaveAccount: "Already have an account?",
+    login: "Login",
+
+    disabledTitle: "Registration is currently unavailable",
+    disabledDescription:
+      "New account creation is currently available through Viresto administration only.",
+    backToLogin: "Back to login",
+  },
+} as const;
+
+function getInitialLocale(): Locale {
+  if (typeof window === "undefined") return "ar";
+
+  const params = new URLSearchParams(window.location.search);
+  const langParam = params.get("lang");
+
+  if (langParam === "ar" || langParam === "en") {
+    return langParam;
+  }
+
+  for (const key of LOCALE_KEYS) {
+    const value = window.localStorage.getItem(key);
+    if (value === "ar" || value === "en") return value;
+  }
+
+  return "ar";
+}
+
+function saveLocale(locale: Locale) {
+  if (typeof window === "undefined") return;
+
+  for (const key of LOCALE_KEYS) {
+    window.localStorage.setItem(key, locale);
+  }
+
+  document.documentElement.lang = locale;
+  document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -14,6 +135,8 @@ export default function RegisterPage() {
     process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true";
 
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
+
+  const [locale, setLocale] = useState<Locale>("ar");
 
   const [form, setForm] = useState({
     tenantName: "",
@@ -28,26 +151,47 @@ export default function RegisterPage() {
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileKey, setTurnstileKey] = useState(0);
 
+  const isRtl = locale === "ar";
+  const copy = useMemo(() => COPY[locale], [locale]);
+  const loginHref = `/login?lang=${locale}`;
+  const verifyLangQuery = `lang=${locale}`;
+
+  useEffect(() => {
+    const initialLocale = getInitialLocale();
+    setLocale(initialLocale);
+    saveLocale(initialLocale);
+  }, []);
+
+  function toggleLocale() {
+    const nextLocale: Locale = locale === "ar" ? "en" : "ar";
+    setLocale(nextLocale);
+    saveLocale(nextLocale);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", nextLocale);
+    window.history.replaceState(null, "", url.toString());
+  }
+
   function resetTurnstile() {
     setTurnstileToken("");
     setTurnstileKey((current) => current + 1);
   }
 
-  function update(k: keyof typeof form) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((p) => ({ ...p, [k]: e.target.value }));
+  function update(key: keyof typeof form) {
+    return (event: ChangeEvent<HTMLInputElement>) =>
+      setForm((previous) => ({ ...previous, [key]: event.target.value }));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
     if (!turnstileSiteKey) {
-      toast.error("إعدادات التحقق الأمني غير مكتملة");
+      toast.error(copy.securityNotReady);
       return;
     }
 
     if (!turnstileToken) {
-      toast.error("يرجى إكمال التحقق الأمني أولاً");
+      toast.error(copy.securityRequired);
       return;
     }
 
@@ -63,24 +207,27 @@ export default function RegisterPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
-      if (data.success) {
-        toast.success(
-          data?.data?.message ??
-            "تم إنشاء المكتب. يرجى تأكيد البريد الإلكتروني.",
-        );
+      if (data?.success) {
+        toast.success(copy.success);
 
         const verifyEmail = data?.data?.email || form.email;
 
-        router.push(`/verify-email?email=${encodeURIComponent(verifyEmail)}`);
-      } else {
-        resetTurnstile();
-        toast.error(data.message ?? "تعذر إنشاء الحساب");
+        router.push(
+          `/verify-email?email=${encodeURIComponent(
+            verifyEmail,
+          )}&${verifyLangQuery}`,
+        );
+
+        return;
       }
+
+      resetTurnstile();
+      toast.error(copy.createError);
     } catch {
       resetTurnstile();
-      toast.error("حدث خطأ في الاتصال");
+      toast.error(copy.connectionError);
     } finally {
       setLoading(false);
     }
@@ -88,81 +235,115 @@ export default function RegisterPage() {
 
   if (!publicRegisterEnabled) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center p-6"
+      <main
+        dir={isRtl ? "rtl" : "ltr"}
+        className="relative flex min-h-screen items-center justify-center p-6"
         style={{ background: "var(--bg)" }}
       >
+        <button
+          type="button"
+          onClick={toggleLocale}
+          className={[
+            "absolute top-5 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black transition hover:bg-white/15",
+            isRtl ? "left-5" : "right-5",
+          ].join(" ")}
+          style={{ color: "var(--text)" }}
+        >
+          {copy.toggle}
+        </button>
+
         <div className="card w-full max-w-sm p-7 text-center">
           <h1
-            className="text-xl font-black mb-3"
+            className="mb-3 text-xl font-black"
             style={{ color: "var(--text)" }}
           >
-            التسجيل غير متاح حالياً
+            {copy.disabledTitle}
           </h1>
 
           <p className="text-sm leading-7" style={{ color: "var(--text-3)" }}>
-            إنشاء الحسابات الجديدة يتم حالياً من خلال إدارة Viresto فقط.
+            {copy.disabledDescription}
           </p>
 
-          <Link href="/login" className="btn btn-primary mt-6 w-full">
-            العودة إلى تسجيل الدخول
+          <Link href={loginHref} className="btn btn-primary mt-6 w-full">
+            {copy.backToLogin}
           </Link>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-6"
+    <main
+      dir={isRtl ? "rtl" : "ltr"}
+      className="relative flex min-h-screen items-center justify-center p-6"
       style={{ background: "var(--bg)" }}
     >
+      <button
+        type="button"
+        onClick={toggleLocale}
+        className={[
+          "absolute top-5 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black transition hover:bg-white/15",
+          isRtl ? "left-5" : "right-5",
+        ].join(" ")}
+        style={{ color: "var(--text)" }}
+      >
+        {copy.toggle}
+      </button>
+
       <div className="w-full max-w-sm">
-        <div className="text-center mb-6">
-          <p
-            className="font-black text-2xl"
-            style={{ color: "var(--sidebar)" }}
-          >
-            نظام المحامي
+        <div className="mb-6 text-center">
+          <p className="text-3xl font-black tracking-tight text-emerald-300 drop-shadow-[0_0_22px_rgba(52,211,153,0.25)]">
+            {copy.brand}
           </p>
 
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
-            أنشئ مكتبك القانوني الآن
+          <p className="mt-1 text-sm font-semibold text-emerald-50/75">
+            {copy.subtitle}
           </p>
         </div>
 
         <div className="card p-7">
           <h1
-            className="text-xl font-black mb-5"
+            className={[
+              "mb-5 text-xl font-black",
+              isRtl ? "text-right" : "text-left",
+            ].join(" ")}
             style={{ color: "var(--text)" }}
           >
-            تسجيل مكتب جديد
+            {copy.title}
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <FormField label="اسم المكتب القانوني" required>
+            <FormField label={copy.officeName} required>
               <input
                 name="organization"
                 autoComplete="organization"
                 value={form.tenantName}
                 onChange={update("tenantName")}
                 className="input"
-                placeholder="مكتب المنصوري للمحاماة"
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
+                }}
+                placeholder={copy.officeNamePlaceholder}
               />
             </FormField>
 
-            <FormField label="اسمك الكامل" required>
+            <FormField label={copy.fullName} required>
               <input
                 name="name"
                 autoComplete="name"
                 value={form.name}
                 onChange={update("name")}
                 className="input"
-                placeholder="أحمد المنصوري"
+                style={{
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
+                }}
+                placeholder={copy.fullNamePlaceholder}
               />
             </FormField>
 
-            <FormField label="البريد الإلكتروني" required>
+            <FormField label={copy.email} required>
               <input
                 dir="ltr"
                 type="email"
@@ -170,12 +351,16 @@ export default function RegisterPage() {
                 autoComplete="email"
                 value={form.email}
                 onChange={update("email")}
-                className="input text-left"
-                placeholder="ahmed@law.jo"
+                className="input"
+                style={{
+                  textAlign: "left",
+                  direction: "ltr",
+                }}
+                placeholder={copy.emailPlaceholder}
               />
             </FormField>
 
-            <FormField label="رقم الهاتف" required>
+            <FormField label={copy.phone} required>
               <input
                 dir="ltr"
                 type="tel"
@@ -184,45 +369,62 @@ export default function RegisterPage() {
                 inputMode="tel"
                 value={form.phone}
                 onChange={update("phone")}
-                className="input text-left"
-                placeholder="07XXXXXXXX"
+                className="input"
+                style={{
+                  textAlign: "left",
+                  direction: "ltr",
+                }}
+                placeholder={copy.phonePlaceholder}
               />
             </FormField>
 
-            <FormField label="كلمة المرور" required>
+            <FormField label={copy.password} required>
               <div className="relative">
                 <input
+                  dir="ltr"
                   type={showPassword ? "text" : "password"}
                   name="new-password"
                   autoComplete="new-password"
                   value={form.password}
                   onChange={update("password")}
-                  className="input pl-14"
-                  placeholder="مثال: Viresto@123"
+                  className="input"
+                  style={{
+                    textAlign: "left",
+                    direction: "ltr",
+                    paddingRight: isRtl ? undefined : "5.5rem",
+                    paddingLeft: isRtl ? "5.5rem" : undefined,
+                  }}
+                  placeholder={copy.passwordPlaceholder}
                 />
 
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 rounded-xl px-2 py-1 text-xs font-bold transition hover:bg-white/10"
-                  style={{ color: "var(--text-3)" }}
+                  className={[
+                    "absolute top-1/2 z-10 -translate-y-1/2 rounded-xl bg-white/10 px-2.5 py-1 text-xs font-bold transition hover:bg-white/15",
+                    isRtl ? "left-3" : "right-3",
+                  ].join(" ")}
+                  style={{ color: "var(--text)" }}
                   aria-label={
-                    showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
+                    showPassword ? copy.hidePassword : copy.showPassword
                   }
                 >
-                  {showPassword ? "إخفاء" : "إظهار"}
+                  {showPassword ? copy.hide : copy.show}
                 </button>
               </div>
 
               <p
-                className="mt-2 text-xs leading-6"
+                className={[
+                  "mt-2 text-xs leading-6",
+                  isRtl ? "text-right" : "text-left",
+                ].join(" ")}
                 style={{ color: "var(--text-3)" }}
               >
-                يجب أن تحتوي كلمة المرور على حرف كبير، حرف صغير، رقم، ورمز خاص.
+                {copy.passwordHelp}
               </p>
             </FormField>
 
-            <div className="flex justify-center rounded-2xl border border-emerald-400/15 bg-white/[0.03] p-3">
+            <div className="mx-auto flex w-fit justify-center rounded-2xl p-2">
               {turnstileSiteKey ? (
                 <Turnstile
                   key={turnstileKey}
@@ -231,8 +433,8 @@ export default function RegisterPage() {
                   onExpire={resetTurnstile}
                   onError={resetTurnstile}
                   options={{
-                    theme: "auto",
-                    language: "ar",
+                    theme: "dark",
+                    language: locale,
                   }}
                 />
               ) : (
@@ -240,7 +442,7 @@ export default function RegisterPage() {
                   className="text-center text-xs font-bold"
                   style={{ color: "var(--text-3)" }}
                 >
-                  التحقق الأمني غير مفعّل
+                  {copy.securityDisabled}
                 </p>
               )}
             </div>
@@ -248,31 +450,30 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading || !turnstileToken}
-              className="btn btn-primary w-full py-2.5 mt-1 disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn btn-primary mt-1 w-full py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
                 <span className="spinner spinner-sm" />
               ) : (
-                "إنشاء المكتب"
+                copy.createOffice
               )}
             </button>
           </form>
 
           <p
-            className="text-center text-sm mt-4"
+            className="mt-4 text-center text-sm"
             style={{ color: "var(--text-3)" }}
           >
-            لديك حساب؟{" "}
+            {copy.alreadyHaveAccount}{" "}
             <Link
-              href="/login"
-              className="font-bold"
-              style={{ color: "var(--sidebar)" }}
+              href={loginHref}
+              className="font-black text-emerald-300 transition hover:text-emerald-200 hover:underline"
             >
-              سجّل دخولك
+              {copy.login}
             </Link>
           </p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

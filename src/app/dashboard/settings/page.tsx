@@ -1,7 +1,7 @@
 "use client";
 import AppLoader from "@/components/ui/AppLoader";
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { toast } from "sonner";
 
 import PageLoader from "@/components/ui/PageLoader";
@@ -346,31 +346,34 @@ function InfoLine({
   fallback: string;
   isArabic: boolean;
 }) {
-  const valueElement = (
-    <span
-      className="min-w-0 truncate text-sm font-bold"
-      style={{ color: value ? "var(--text)" : "var(--text-3)" }}
-    >
-      {value || fallback}
-    </span>
-  );
-
-  const labelElement = (
-    <span
-      className="shrink-0 text-xs font-black"
-      style={{ color: "var(--text-3)" }}
-    >
-      {label}
-    </span>
-  );
+  const displayValue = value || fallback;
 
   return (
     <div
+      dir={isArabic ? "rtl" : "ltr"}
       className="flex items-center justify-between gap-4 rounded-2xl px-4 py-3"
-      style={{ background: "var(--input-bg)" }}
+      style={{
+        background: "var(--input-bg)",
+        textAlign: isArabic ? "right" : "left",
+      }}
     >
-      {isArabic ? valueElement : labelElement}
-      {isArabic ? labelElement : valueElement}
+      <span
+        className="shrink-0 text-xs font-black"
+        style={{ color: "var(--text-3)" }}
+      >
+        {label}
+      </span>
+
+      <span
+        dir="auto"
+        className="min-w-0 truncate text-sm font-bold"
+        style={{
+          color: value ? "var(--text)" : "var(--text-3)",
+          textAlign: isArabic ? "left" : "right",
+        }}
+      >
+        {displayValue}
+      </span>
     </div>
   );
 }
@@ -387,6 +390,34 @@ export default function SettingsPage() {
   const copy = COPY[locale];
   const direction = isArabic ? "rtl" : "ltr";
   const textAlign = isArabic ? "right" : "left";
+
+  const directionalInputStyle: CSSProperties = {
+    textAlign,
+    direction,
+  };
+
+  const ltrInputStyle: CSSProperties = {
+    textAlign: "left",
+    direction: "ltr",
+  };
+  const passwordInputStyle: CSSProperties = {
+    textAlign: isArabic ? "right" : "left",
+    direction: isArabic ? "rtl" : "ltr",
+  };
+
+  function isProbablyLtr(value?: string | null) {
+    return /^[\s\d+@._:/\\-]*[A-Za-z]/.test(value || "");
+  }
+
+  function smartTextInputStyle(value?: string | null): CSSProperties {
+    const ltr = isProbablyLtr(value);
+
+    return {
+      textAlign: ltr ? "left" : isArabic ? "right" : "left",
+      direction: ltr ? "ltr" : isArabic ? "rtl" : "ltr",
+    };
+  }
+
   const [pendingAiValue, setPendingAiValue] = useState<boolean | null>(null);
   const [showAiConfirm, setShowAiConfirm] = useState(false);
   const writeAccess = useTenantWriteAccess(locale);
@@ -975,6 +1006,7 @@ export default function SettingsPage() {
                         }))
                       }
                       className="input"
+                      style={smartTextInputStyle(profileForm.name)}
                       autoFocus
                     />
                   </FormField>
@@ -985,7 +1017,9 @@ export default function SettingsPage() {
                       value={profileForm.email}
                       readOnly
                       disabled
+                      dir="ltr"
                       className="input cursor-not-allowed opacity-70"
+                      style={ltrInputStyle}
                     />
                     <p
                       className="mt-1 text-xs font-semibold"
@@ -1072,11 +1106,13 @@ export default function SettingsPage() {
                       }))
                     }
                     className="input"
+                    style={smartTextInputStyle(company.name)}
                   />
                 </FormField>
 
                 <FormField label={copy.email}>
                   <input
+                    dir="ltr"
                     type="email"
                     value={company.email}
                     onChange={(event) =>
@@ -1086,6 +1122,7 @@ export default function SettingsPage() {
                       }))
                     }
                     className="input"
+                    style={ltrInputStyle}
                     placeholder="company@example.com"
                   />
                 </FormField>
@@ -1099,7 +1136,9 @@ export default function SettingsPage() {
                         phone: event.target.value,
                       }))
                     }
+                    dir="ltr"
                     className="input"
+                    style={ltrInputStyle}
                     placeholder="+962..."
                   />
                 </FormField>
@@ -1114,6 +1153,7 @@ export default function SettingsPage() {
                       }))
                     }
                     className="input"
+                    style={smartTextInputStyle(company.address)}
                     placeholder={isArabic ? "الأردن - عمّان" : "Amman - Jordan"}
                   />
                 </FormField>
@@ -1207,6 +1247,7 @@ export default function SettingsPage() {
               >
                 <FormField label={copy.currentPassword}>
                   <input
+                    dir="ltr"
                     type="password"
                     value={passwordForm.current}
                     onChange={(event) =>
@@ -1216,12 +1257,14 @@ export default function SettingsPage() {
                       }))
                     }
                     className="input"
+                    style={passwordInputStyle}
                     placeholder="••••••••"
                   />
                 </FormField>
 
                 <FormField label={copy.newPassword}>
                   <input
+                    dir="ltr"
                     type="password"
                     value={passwordForm.next}
                     onChange={(event) =>
@@ -1231,12 +1274,14 @@ export default function SettingsPage() {
                       }))
                     }
                     className="input"
+                    style={passwordInputStyle}
                     placeholder="••••••••"
                   />
                 </FormField>
 
                 <FormField label={copy.confirmPassword}>
                   <input
+                    dir="ltr"
                     type="password"
                     value={passwordForm.confirm}
                     onChange={(event) =>
@@ -1246,6 +1291,7 @@ export default function SettingsPage() {
                       }))
                     }
                     className="input"
+                    style={passwordInputStyle}
                     placeholder="••••••••"
                   />
                 </FormField>

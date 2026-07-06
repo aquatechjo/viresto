@@ -56,6 +56,8 @@ interface ClientItem {
 interface CaseItem {
   id: string;
   title: string;
+  caseNumber?: string | null;
+  clientId?: string | null;
   client?: {
     id?: string;
     name?: string;
@@ -63,18 +65,165 @@ interface CaseItem {
   } | null;
 }
 
-interface ClientItem {
-  id: string;
-  name: string;
-}
-
-interface CaseItem {
-  id: string;
-  title: string;
-}
-
 type Filter = "all" | "pdf" | "image" | "doc";
-type UploadStatus = "idle" | "uploading";
+type UploadStatus = "idle" | "compressing" | "uploading";
+
+type UploadContext = {
+  caseId?: string;
+  clientId?: string;
+  tag?: string;
+};
+
+type CompressionResult = {
+  file: File;
+  originalSize: number;
+  compressedSize: number;
+  compressed: boolean;
+};
+
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_INPUT_SIZE_BYTES = 25 * 1024 * 1024;
+const IMAGE_COMPRESSION_MIN_SIZE_BYTES = 450 * 1024;
+const IMAGE_COMPRESSION_MAX_SIDE = 2200;
+const IMAGE_COMPRESSION_QUALITY = 0.86;
+
+function isCompressibleImageFile(file: File) {
+  return ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+}
+
+function replaceFileExtension(fileName: string, extension: string) {
+  const cleanExtension = extension.startsWith(".")
+    ? extension
+    : `.${extension}`;
+  const baseName = fileName.replace(/\.[^/.]+$/, "");
+  return `${baseName || "document"}${cleanExtension}`;
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number,
+) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+
+        reject(new Error("Image compression failed"));
+      },
+      type,
+      quality,
+    );
+  });
+}
+
+function loadImage(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Image load failed"));
+    };
+
+    image.src = url;
+  });
+}
+
+async function compressImageForUpload(file: File): Promise<CompressionResult> {
+  if (
+    !isCompressibleImageFile(file) ||
+    file.size < IMAGE_COMPRESSION_MIN_SIZE_BYTES
+  ) {
+    return {
+      file,
+      originalSize: file.size,
+      compressedSize: file.size,
+      compressed: false,
+    };
+  }
+
+  const image = await loadImage(file);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+
+  if (!sourceWidth || !sourceHeight) {
+    return {
+      file,
+      originalSize: file.size,
+      compressedSize: file.size,
+      compressed: false,
+    };
+  }
+
+  const scale = Math.min(
+    1,
+    IMAGE_COMPRESSION_MAX_SIDE / Math.max(sourceWidth, sourceHeight),
+  );
+  const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+  const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const context = canvas.getContext("2d", {
+    alpha: file.type !== "image/jpeg",
+  });
+
+  if (!context) {
+    throw new Error("Canvas is not supported");
+  }
+
+  if (file.type === "image/jpeg") {
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, targetWidth, targetHeight);
+  }
+
+  context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+  const outputType = file.type === "image/png" ? "image/webp" : file.type;
+  const outputExtension =
+    outputType === "image/webp" ? "webp" : file.name.split(".").pop() || "jpg";
+  const blob = await canvasToBlob(
+    canvas,
+    outputType,
+    IMAGE_COMPRESSION_QUALITY,
+  );
+
+  if (blob.size >= file.size) {
+    return {
+      file,
+      originalSize: file.size,
+      compressedSize: file.size,
+      compressed: false,
+    };
+  }
+
+  const compressedFile = new File(
+    [blob],
+    outputType === file.type
+      ? file.name
+      : replaceFileExtension(file.name, outputExtension),
+    { type: outputType, lastModified: Date.now() },
+  );
+
+  return {
+    file: compressedFile,
+    originalSize: file.size,
+    compressedSize: compressedFile.size,
+    compressed: true,
+  };
+}
 
 const FILE_ICON: Record<string, { label: string; color: string }> = {
   "application/pdf": { label: "PDF", color: "#ef4444" },
@@ -147,7 +296,6 @@ function PlanLimitBanner({
   );
 }
 
-
 function UploadProgressIcon() {
   return (
     <div className="relative h-16 w-16" aria-hidden="true">
@@ -209,8 +357,12 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
+  const uploadBusy =
+    uploadStatus === "uploading" || uploadStatus === "compressing";
   const [planLimit, setPlanLimit] = useState("");
   const [preview, setPreview] = useState<Doc | null>(null);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [modalFile, setModalFile] = useState<File | null>(null);
   const writeAccess = useTenantWriteAccess(locale);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -229,7 +381,58 @@ export default function DocumentsPage() {
     [cases, caseId],
   );
 
-  const selectedArchivedContext = Boolean(selectedCase?.client?.archivedAt);
+  const selectedCaseClient = selectedCase?.client ?? selectedClient ?? null;
+  const selectedArchivedContext = Boolean(selectedCaseClient?.archivedAt);
+
+  const modalCopy = {
+    title: isRtl ? "رفع مستند جديد" : "Upload a new document",
+    caseLabel: isRtl ? "القضية" : "Case",
+    clientLabel: isRtl ? "الموكل المرتبط" : "Linked client",
+    categoryLabel: isRtl ? "تصنيف المستند" : "Document category",
+    fileLabel: isRtl ? "الملف" : "File",
+    filePlaceholder: isRtl
+      ? "اختر ملفاً من جهازك"
+      : "Choose a file from your device",
+    fileSelected: isRtl ? "الملف المحدد" : "Selected file",
+    submit: isRtl ? "رفع المستند" : "Upload document",
+    uploading: isRtl ? "جاري الرفع..." : "Uploading...",
+    fileRequired: isRtl
+      ? "اختر ملفاً قبل الرفع"
+      : "Choose a file before uploading",
+    clientMissing: isRtl
+      ? "لم يتم العثور على الموكل المرتبط بالقضية"
+      : "Could not find the client linked to this case",
+    openHint: isRtl
+      ? "اختر القضية أولاً، وسيظهر الموكل المرتبط تلقائياً قبل رفع الملف."
+      : "Select the case first; the linked client will appear automatically before uploading.",
+    noCases: isRtl
+      ? "لا توجد قضايا متاحة للربط"
+      : "No cases are available for linking",
+    compressing: isRtl ? "جاري ضغط الملف..." : "Compressing file...",
+    compressionHint: isRtl
+      ? "سيتم ضغط الصور تلقائياً قبل الرفع لتقليل مساحة التخزين."
+      : "Images are compressed automatically before upload to reduce storage usage.",
+    compressionSuccess: isRtl ? "تم ضغط الصورة من" : "Image compressed from",
+    compressionTo: isRtl ? "إلى" : "to",
+  };
+
+  function handleCaseChange(nextCaseId: string) {
+    setCaseId(nextCaseId);
+
+    const nextCase = cases.find((caseItem) => caseItem.id === nextCaseId);
+    const nextClientId = nextCase?.client?.id ?? nextCase?.clientId ?? "";
+
+    setClientId(nextClientId);
+  }
+
+  function openUploadModal() {
+    if (!writeAccess.canWrite) {
+      toast.warning(writeAccess.message || d.messages.planLimitFallback);
+      return;
+    }
+
+    setUploadModalOpen(true);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -286,6 +489,21 @@ export default function DocumentsPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!caseId) {
+      if (clientId) setClientId("");
+      return;
+    }
+
+    const currentCase = cases.find((caseItem) => caseItem.id === caseId);
+    const currentClientId =
+      currentCase?.client?.id ?? currentCase?.clientId ?? "";
+
+    if (currentClientId && currentClientId !== clientId) {
+      setClientId(currentClientId);
+    }
+  }, [caseId, cases, clientId]);
+
   const totalDocs = docs.length;
   const pdfCount = docs.filter(
     (doc) => doc.fileType === "application/pdf",
@@ -326,36 +544,81 @@ export default function DocumentsPage() {
     setSelectedTag("");
   }
 
-  async function upload(file: File) {
+  async function upload(file: File, context: UploadContext = {}) {
     if (!writeAccess.canWrite) {
       toast.warning(writeAccess.message || d.messages.planLimitFallback);
-      return;
+      return false;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error(d.messages.fileTooLarge);
-      return;
-    }
+    const effectiveCaseId = context.caseId ?? caseId;
+    const effectiveCase = cases.find(
+      (caseItem) => caseItem.id === effectiveCaseId,
+    );
+    const effectiveClientId =
+      context.clientId ??
+      effectiveCase?.client?.id ??
+      effectiveCase?.clientId ??
+      clientId;
+    const effectiveTag = context.tag ?? uploadTag;
 
-    if (!caseId) {
+    if (!effectiveCaseId) {
       toast.error(linkCopy.caseRequired);
-      return;
+      return false;
     }
 
-    if (selectedArchivedContext) {
-      toast.warning(d.messages.archivedUploadBlocked);
-      return;
+    if (!effectiveClientId) {
+      toast.error(modalCopy.clientMissing);
+      return false;
     }
+
+    if (effectiveCase?.client?.archivedAt) {
+      toast.warning(d.messages.archivedUploadBlocked);
+      return false;
+    }
+
+    if (
+      isCompressibleImageFile(file) &&
+      file.size > MAX_IMAGE_INPUT_SIZE_BYTES
+    ) {
+      toast.error(d.messages.fileTooLarge);
+      return false;
+    }
+
+    if (!isCompressibleImageFile(file) && file.size > MAX_UPLOAD_SIZE_BYTES) {
+      toast.error(d.messages.fileTooLarge);
+      return false;
+    }
+
+    let fileToUpload = file;
+    let compression: CompressionResult | null = null;
 
     try {
-      setUploadStatus("uploading");
       setPlanLimit("");
 
-      const formData = new FormData();
-      formData.append("file", file);
+      if (isCompressibleImageFile(file)) {
+        setUploadStatus("compressing");
+        compression = await compressImageForUpload(file);
+        fileToUpload = compression.file;
+      }
 
-      formData.append("caseId", caseId);
-      formData.append("tags", JSON.stringify(uploadTag ? [uploadTag] : []));
+      if (fileToUpload.size > MAX_UPLOAD_SIZE_BYTES) {
+        toast.error(d.messages.fileTooLarge);
+        return false;
+      }
+
+      setUploadStatus("uploading");
+
+      const formData = new FormData();
+      formData.append("file", fileToUpload);
+      formData.append("caseId", effectiveCaseId);
+      formData.append("clientId", effectiveClientId);
+      formData.append(
+        "tags",
+        JSON.stringify(effectiveTag ? [effectiveTag] : []),
+      );
+      formData.append("originalSizeBytes", String(file.size));
+      formData.append("storedSizeBytes", String(fileToUpload.size));
+      formData.append("compressed", compression?.compressed ? "true" : "false");
 
       const response = await fetch("/api/upload", {
         method: "POST",
@@ -367,22 +630,43 @@ export default function DocumentsPage() {
       if (!response.ok || !data.success) {
         if (isPlanLimitResponse(data)) {
           setPlanLimit(planLimitMessage(data, d.messages.planLimitFallback));
-          return;
+          return false;
         }
 
         toast.error(getApiMessage(data, d.messages.uploadError));
-        return;
+        return false;
+      }
+
+      if (compression?.compressed) {
+        toast.success(
+          `${modalCopy.compressionSuccess} ${fileSizeLabel(compression.originalSize)} ${modalCopy.compressionTo} ${fileSizeLabel(compression.compressedSize)}`,
+        );
       }
 
       toast.success(d.messages.uploadSuccess);
-      load();
+      await load();
+      return true;
     } catch {
       toast.error(d.messages.uploadUnexpectedError);
+      return false;
     } finally {
       setUploadStatus("idle");
     }
   }
 
+  async function handleModalUpload() {
+    if (!modalFile) {
+      toast.error(modalCopy.fileRequired);
+      return;
+    }
+
+    const uploaded = await upload(modalFile);
+
+    if (uploaded) {
+      setUploadModalOpen(false);
+      setModalFile(null);
+    }
+  }
   async function openPreview(doc: Doc) {
     try {
       const response = await fetch(`/api/documents/${doc.id}`);
@@ -582,27 +866,13 @@ export default function DocumentsPage() {
 
           <button
             type="button"
-            disabled={!writeAccess.canWrite || selectedArchivedContext}
+            disabled={!writeAccess.canWrite}
             title={
               !writeAccess.canWrite
                 ? writeAccess.message || d.messages.planLimitFallback
-                : selectedArchivedContext
-                  ? d.messages.archivedUploadBlocked
-                  : d.actions.upload
+                : d.actions.upload
             }
-            onClick={() => {
-              if (!writeAccess.canWrite) {
-                toast.warning(writeAccess.message || d.messages.planLimitFallback);
-                return;
-              }
-
-              if (selectedArchivedContext) {
-                toast.warning(d.messages.archivedUploadBlocked);
-                return;
-              }
-
-              fileInputRef.current?.click();
-            }}
+            onClick={openUploadModal}
             className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               background: "#fff",
@@ -761,7 +1031,9 @@ export default function DocumentsPage() {
             setDragging(false);
 
             if (!writeAccess.canWrite) {
-              toast.warning(writeAccess.message || d.messages.planLimitFallback);
+              toast.warning(
+                writeAccess.message || d.messages.planLimitFallback,
+              );
               return;
             }
 
@@ -780,7 +1052,9 @@ export default function DocumentsPage() {
           }}
           onClick={() => {
             if (!writeAccess.canWrite) {
-              toast.warning(writeAccess.message || d.messages.planLimitFallback);
+              toast.warning(
+                writeAccess.message || d.messages.planLimitFallback,
+              );
               return;
             }
 
@@ -819,7 +1093,7 @@ export default function DocumentsPage() {
             }}
           />
 
-          {uploadStatus === "uploading" ? (
+          {uploadBusy ? (
             <div
               role="status"
               aria-live="polite"
@@ -832,7 +1106,9 @@ export default function DocumentsPage() {
                   className="text-sm font-black"
                   style={{ color: "var(--text)" }}
                 >
-                  {d.upload.uploading}
+                  {uploadStatus === "compressing"
+                    ? modalCopy.compressing
+                    : d.upload.uploading}
                 </p>
 
                 <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
@@ -875,7 +1151,7 @@ export default function DocumentsPage() {
             <select
               aria-label={d.linkPanel.caseAria}
               value={caseId}
-              onChange={(event) => setCaseId(event.target.value)}
+              onChange={(event) => handleCaseChange(event.target.value)}
               dir={isRtl ? "rtl" : "ltr"}
               style={{ textAlign: isRtl ? "right" : "left" }}
               className="input"
@@ -902,7 +1178,7 @@ export default function DocumentsPage() {
               style={{
                 borderColor: "var(--border)",
                 background: "var(--card)",
-                color: selectedCase?.client?.name
+                color: selectedCaseClient?.name
                   ? "var(--text)"
                   : "var(--text-3)",
                 textAlign: isRtl ? "right" : "left",
@@ -915,7 +1191,7 @@ export default function DocumentsPage() {
                 {d.card.client}
               </p>
 
-              <p>{selectedCase?.client?.name || linkCopy.selectCaseFirst}</p>
+              <p>{selectedCaseClient?.name || linkCopy.selectCaseFirst}</p>
 
               <p
                 className="mt-1 text-xs font-bold"
@@ -998,16 +1274,13 @@ export default function DocumentsPage() {
               docs.length === 0 ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!writeAccess.canWrite) {
-                      toast.warning(writeAccess.message || d.messages.planLimitFallback);
-                      return;
-                    }
-
-                    fileInputRef.current?.click();
-                  }}
+                  onClick={openUploadModal}
                   disabled={!writeAccess.canWrite}
-                  title={!writeAccess.canWrite ? writeAccess.message || d.messages.planLimitFallback : d.actions.upload}
+                  title={
+                    !writeAccess.canWrite
+                      ? writeAccess.message || d.messages.planLimitFallback
+                      : d.actions.upload
+                  }
                   className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   + {d.actions.upload}
@@ -1140,7 +1413,11 @@ export default function DocumentsPage() {
                     type="button"
                     onClick={() => handleSummarize(doc.id)}
                     disabled={!writeAccess.canWrite}
-                    title={!writeAccess.canWrite ? writeAccess.message || d.messages.aiPlanLimitFallback : d.actions.summarizeAi}
+                    title={
+                      !writeAccess.canWrite
+                        ? writeAccess.message || d.messages.aiPlanLimitFallback
+                        : d.actions.summarizeAi
+                    }
                     className="btn flex-1 disabled:cursor-not-allowed disabled:opacity-60"
                     style={{
                       minWidth: 90,
@@ -1163,7 +1440,9 @@ export default function DocumentsPage() {
                     }
                     onClick={() => {
                       if (!writeAccess.canWrite) {
-                        toast.warning(writeAccess.message || d.messages.planLimitFallback);
+                        toast.warning(
+                          writeAccess.message || d.messages.planLimitFallback,
+                        );
                         return;
                       }
 
@@ -1187,6 +1466,263 @@ export default function DocumentsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {uploadModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
+          dir={isRtl ? "rtl" : "ltr"}
+          onClick={() => {
+            if (!uploadBusy) {
+              setUploadModalOpen(false);
+              setModalFile(null);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-xl rounded-[28px] border p-5 shadow-2xl md:p-6"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border-dark)",
+              color: "var(--text)",
+            }}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div className="text-start">
+                <h2 className="text-xl font-black">{modalCopy.title}</h2>
+                <p
+                  className="mt-2 text-sm font-semibold leading-6"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {modalCopy.openHint}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                aria-label={isRtl ? "إغلاق النافذة" : "Close modal"}
+                title={isRtl ? "إغلاق" : "Close"}
+                disabled={uploadBusy}
+                onClick={() => {
+                  setUploadModalOpen(false);
+                  setModalFile(null);
+                }}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-black transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  background: "var(--green-soft)",
+                  color: "var(--accent)",
+                }}
+              >
+                <span aria-hidden="true" className="leading-none">
+                  ×
+                </span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="document-upload-case"
+                  className="mb-2 block text-sm font-black"
+                  style={{ color: "var(--text)" }}
+                >
+                  {modalCopy.caseLabel}
+                </label>
+
+                <select
+                  id="document-upload-case"
+                  aria-label={d.linkPanel.caseAria}
+                  value={caseId}
+                  onChange={(event) => handleCaseChange(event.target.value)}
+                  disabled={uploadBusy || cases.length === 0}
+                  dir={isRtl ? "rtl" : "ltr"}
+                  style={{ textAlign: isRtl ? "right" : "left" }}
+                  className="input disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option dir={isRtl ? "rtl" : "ltr"} value="">
+                    {cases.length === 0
+                      ? modalCopy.noCases
+                      : linkCopy.selectCase}
+                  </option>
+
+                  {cases.map((caseItem) => (
+                    <option
+                      key={caseItem.id}
+                      dir={isRtl ? "rtl" : "ltr"}
+                      value={caseItem.id}
+                    >
+                      {caseItem.title ||
+                        caseItem.caseNumber ||
+                        linkCopy.selectCase}
+                      {caseItem.client?.name
+                        ? ` — ${caseItem.client.name}`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div
+                className="rounded-2xl border px-4 py-3 text-start"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--green-soft)",
+                }}
+              >
+                <p
+                  className="text-xs font-black"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {modalCopy.clientLabel}
+                </p>
+
+                <p
+                  className="mt-1 text-sm font-black"
+                  style={{
+                    color: selectedCaseClient?.name
+                      ? "var(--text)"
+                      : "var(--text-3)",
+                  }}
+                >
+                  {selectedCaseClient?.name || linkCopy.selectCaseFirst}
+                </p>
+
+                <p
+                  className="mt-1 text-xs font-bold"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {linkCopy.clientAuto}
+                </p>
+              </div>
+
+              {selectedArchivedContext && (
+                <div
+                  className="rounded-2xl border p-3 text-xs font-bold"
+                  style={{
+                    background: "#fff7ed",
+                    color: "#b45309",
+                    borderColor: "rgba(180, 83, 9, 0.22)",
+                  }}
+                >
+                  {d.linkPanel.archivedWarning}
+                </div>
+              )}
+
+              <div>
+                <p
+                  className="mb-2 text-sm font-black"
+                  style={{ color: "var(--text)" }}
+                >
+                  {modalCopy.categoryLabel}
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {AVAILABLE_TAGS.map((tag) => {
+                    const active = uploadTag === tag.value;
+
+                    return (
+                      <button
+                        key={tag.value}
+                        type="button"
+                        disabled={uploadBusy}
+                        onClick={() => setUploadTag(active ? "" : tag.value)}
+                        className="rounded-full px-3 py-1.5 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                        style={
+                          active
+                            ? { background: "var(--sidebar)", color: "#fff" }
+                            : {
+                                background: "var(--green-soft)",
+                                color: "var(--text-2)",
+                              }
+                        }
+                      >
+                        {d.tags[tag.key]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p
+                  className="mb-2 text-sm font-black"
+                  style={{ color: "var(--text)" }}
+                >
+                  {modalCopy.fileLabel}
+                </p>
+
+                <label
+                  htmlFor="document-upload-file"
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-5 text-center transition hover:opacity-90"
+                  style={{
+                    borderColor: "var(--border-dark)",
+                    background: "var(--green-soft)",
+                  }}
+                >
+                  <span className="text-3xl">📄</span>
+
+                  <span
+                    className="mt-2 text-sm font-black"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {modalFile
+                      ? modalCopy.fileSelected
+                      : modalCopy.filePlaceholder}
+                  </span>
+
+                  {modalFile && (
+                    <span
+                      className="mt-1 max-w-full truncate text-xs font-bold"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {modalFile.name} · {fileSizeLabel(modalFile.size)}
+                    </span>
+                  )}
+                </label>
+
+                <p
+                  className="mt-2 text-xs font-bold"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {modalCopy.compressionHint}
+                </p>
+
+                <input
+                  id="document-upload-file"
+                  type="file"
+                  disabled={uploadBusy}
+                  className="hidden"
+                  onChange={(event) => {
+                    const nextFile = event.target.files?.[0] ?? null;
+                    setModalFile(nextFile);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={
+                  uploadBusy ||
+                  !writeAccess.canWrite ||
+                  !caseId ||
+                  !clientId ||
+                  !modalFile ||
+                  selectedArchivedContext
+                }
+                onClick={handleModalUpload}
+                className="btn btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {uploadStatus === "compressing"
+                  ? modalCopy.compressing
+                  : uploadStatus === "uploading"
+                    ? modalCopy.uploading
+                    : modalCopy.submit}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

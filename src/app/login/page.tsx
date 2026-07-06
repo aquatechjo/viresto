@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import FormField from "@/components/ui/FormField";
+import { useRouter } from "next/navigation";
 
 type Locale = "ar" | "en";
 
@@ -231,8 +231,18 @@ const ambientIcons = [
   { icon: "📑", left: "44%", top: "42%", delay: 6.8 },
 ];
 
+function getUrlLocale(): Locale | null {
+  if (typeof window === "undefined") return null;
+
+  const lang = new URLSearchParams(window.location.search).get("lang");
+  return lang === "ar" || lang === "en" ? lang : null;
+}
+
 function getStoredLocale(): Locale {
   if (typeof window === "undefined") return "ar";
+
+  const urlLocale = getUrlLocale();
+  if (urlLocale) return urlLocale;
 
   for (const key of STORAGE_KEYS) {
     const value = window.localStorage.getItem(key);
@@ -245,7 +255,7 @@ function getStoredLocale(): Locale {
 export default function LoginPage() {
   const router = useRouter();
   const publicRegisterEnabled =
-    process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true";
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED !== "false";
 
   const [locale, setLocale] = useState<Locale>("ar");
   const [form, setForm] = useState({
@@ -260,6 +270,10 @@ export default function LoginPage() {
   const copy = COPY[locale];
   const isArabic = locale === "ar";
   const textAlignClass = isArabic ? "text-right" : "text-left";
+  const inputTextAlign = isArabic ? "right" : "left";
+  const inputTextClass = isArabic ? "!text-right" : "!text-left";
+  const forgotPasswordHref = `/forgot-password?lang=${locale}`;
+  const registerHref = `/register?lang=${locale}`;
 
   useEffect(() => {
     setLocale(getStoredLocale());
@@ -709,8 +723,8 @@ export default function LoginPage() {
                             email: "",
                           }));
                         }}
-                        className="input !text-left"
-                        style={{ direction: "ltr", textAlign: "left" }}
+                        className={`input ${inputTextClass}`}
+                        style={{ direction: "ltr", textAlign: inputTextAlign }}
                         placeholder={copy.emailPlaceholder}
                       />
                     </FormField>
@@ -742,10 +756,13 @@ export default function LoginPage() {
                               password: "",
                             }));
                           }}
-                          className={`input !text-left ${
+                          className={`input ${inputTextClass} ${
                             isArabic ? "!pl-24" : "!pr-24"
                           }`}
-                          style={{ direction: "ltr", textAlign: "left" }}
+                          style={{
+                            direction: "ltr",
+                            textAlign: inputTextAlign,
+                          }}
                           placeholder={copy.passwordPlaceholder}
                         />
 
@@ -771,7 +788,7 @@ export default function LoginPage() {
                     className={`flex ${isArabic ? "justify-end" : "justify-start"}`}
                   >
                     <Link
-                      href="/forgot-password"
+                      href={forgotPasswordHref}
                       className="text-sm font-black text-[#1f4639] transition hover:underline dark:text-emerald-300"
                     >
                       {copy.forgotPassword}
@@ -801,20 +818,23 @@ export default function LoginPage() {
                 </form>
 
                 {publicRegisterEnabled && (
-                  <motion.p
+                  <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.55 }}
-                    className="mt-5 text-center text-sm font-semibold text-slate-600 dark:text-emerald-100/75"
+                    className="mt-5"
                   >
-                    {copy.noAccount}{" "}
                     <Link
-                      href="/register"
-                      className="font-black text-[#1f4639] hover:underline dark:text-emerald-300"
+                      href={registerHref}
+                      prefetch={false}
+                      className="block w-full rounded-2xl px-3 py-2 text-center text-sm font-semibold text-slate-600 transition hover:bg-emerald-500/10 dark:text-emerald-100/75"
                     >
-                      {copy.register}
+                      {copy.noAccount}{" "}
+                      <span className="font-black text-[#1f4639] underline-offset-4 hover:underline dark:text-emerald-300">
+                        {copy.register}
+                      </span>
                     </Link>
-                  </motion.p>
+                  </motion.div>
                 )}
               </div>
             </div>

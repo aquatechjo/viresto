@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextRequest } from "next/server";
 import { ok, err } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +12,14 @@ import {
   assertTenantCanUseStorage,
 } from "@/lib/billing-limits";
 
+import {
+  prepareUploadFile,
+  validatePreparedUploadSize,
+} from "@/lib/server/compress-upload-image";
+
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_INPUT_SIZE_BYTES = 25 * 1024 * 1024;
+
 const allowedTypes = [
   "application/pdf",
   "image/png",
@@ -18,6 +28,12 @@ const allowedTypes = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
+
+const compressibleImageTypes = ["image/png", "image/jpeg", "image/webp"];
+
+function isCompressibleImageType(type: string) {
+  return compressibleImageTypes.includes(type);
+}
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -39,7 +55,9 @@ export async function POST(req: NextRequest) {
 
     const form = await req.formData();
 
-    const file = form.get("file") as File | null;
+    const fileValue = form.get("file");
+    const file = fileValue instanceof File ? fileValue : null;
+
     const caseIdRaw = form.get("caseId");
     const notesRaw = form.get("notes");
     const tagsRaw = form.get("tags");
@@ -65,8 +83,26 @@ export async function POST(req: NextRequest) {
       return err("اسم الملف طويل جدًا", 400);
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    const isImage = isCompressibleImageType(file.type);
+
+    if (!isImage && file.size > MAX_UPLOAD_SIZE_BYTES) {
       return err("حجم الملف يتجاوز 10 ميجابايت", 400);
+    }
+
+    if (isImage && file.size > MAX_IMAGE_INPUT_SIZE_BYTES) {
+      return err("حجم الصورة كبير جدًا. الحد الأقصى للصور قبل الضغط هو 25 ميجابايت", 400);
+    }
+
+    let preparedFile;
+
+    try {
+      preparedFile = await prepareUploadFile(file);
+    } catch {
+      return err("فشل تجهيز الملف قبل الرفع", 400);
+    }
+
+    if (!validatePreparedUploadSize(preparedFile)) {
+      return err("حجم الملف بعد المعالجة يتجاوز الحد المسموح 10 ميجابايت", 400);
     }
 
     let tags: string[] = [];
@@ -131,7 +167,7 @@ export async function POST(req: NextRequest) {
 
     const storageLimitCheck = await assertTenantCanUseStorage(
       auth.user.tenantId,
-      file.size,
+      preparedFile.size,
     );
 
     if (!storageLimitCheck.ok) {
@@ -164,8 +200,12 @@ export async function POST(req: NextRequest) {
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
+    const uploadBlob = new Blob([new Uint8Array(preparedFile.buffer)], {
+      type: preparedFile.mimeType,
+    });
+
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", uploadBlob, preparedFile.fileName);
     fd.append("api_key", KEY);
     fd.append("timestamp", String(ts));
     fd.append("signature", sig);
@@ -191,10 +231,10 @@ export async function POST(req: NextRequest) {
         tenantId: auth.user.tenantId,
         clientId: caseRecord.clientId,
         caseId: caseRecord.id,
-        fileName: file.name,
-        fileType: file.type,
+        fileName: preparedFile.fileName,
+        fileType: preparedFile.mimeType,
         fileUrl: d.secure_url,
-        fileSize: file.size,
+        fileSize: preparedFile.size,
         publicId: d.public_id,
         notes: notes?.trim().slice(0, 1000) || null,
         tags,
@@ -230,10 +270,11 @@ export async function POST(req: NextRequest) {
       tenantId: auth.user.tenantId,
       type: "DOCUMENT_UPLOADED",
       title: "تم رفع مستند",
-      message: `${file.name} — ${caseRecord.title}`,
+      message: `${preparedFile.fileName} — ${caseRecord.title}`,
       entityType: "CASE",
       entityId: caseRecord.id,
     });
+
     return ok(
       {
         document: {
@@ -248,6 +289,11 @@ export async function POST(req: NextRequest) {
           caseId: doc.caseId,
           client: doc.client,
           case: doc.case,
+        },
+        compression: {
+          wasCompressed: preparedFile.wasCompressed,
+          originalSize: preparedFile.originalSize,
+          finalSize: preparedFile.size,
         },
       },
       201,

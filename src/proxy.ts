@@ -130,10 +130,11 @@ export async function proxy(req: NextRequest) {
     return applySecurityHeaders(NextResponse.next());
   }
 
-  if (
-    pathname === "/register" &&
-    process.env.PUBLIC_REGISTER_ENABLED !== "true"
-  ) {
+  const publicRegisterEnabled =
+    process.env.PUBLIC_REGISTER_ENABLED === "true" ||
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true";
+
+  if (pathname === "/register" && !publicRegisterEnabled) {
     return finalizeResponse(
       NextResponse.redirect(new URL("/login", req.url)),
       pathname,
