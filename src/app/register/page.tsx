@@ -243,13 +243,32 @@ export default function RegisterPage() {
         <button
           type="button"
           onClick={toggleLocale}
+          aria-label={isRtl ? "Switch to English" : "التبديل إلى العربية"}
+          title={isRtl ? "Switch to English" : "التبديل إلى العربية"}
           className={[
-            "absolute top-5 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black transition hover:bg-white/15",
+            "absolute top-5 z-50 inline-flex items-center rounded-full border border-white/15 bg-white/10 p-1 shadow-2xl backdrop-blur-xl transition hover:bg-white/15",
             isRtl ? "left-5" : "right-5",
           ].join(" ")}
-          style={{ color: "var(--text)" }}
         >
-          {copy.toggle}
+          <span dir="ltr" className="flex items-center gap-1">
+            <span
+              className={[
+                "rounded-full px-3 py-1 text-xs font-black transition",
+                isRtl ? "bg-white text-[#17352b] shadow-sm" : "text-white/70",
+              ].join(" ")}
+            >
+              AR
+            </span>
+
+            <span
+              className={[
+                "rounded-full px-3 py-1 text-xs font-black transition",
+                !isRtl ? "bg-white text-[#17352b] shadow-sm" : "text-white/70",
+              ].join(" ")}
+            >
+              EN
+            </span>
+          </span>
         </button>
 
         <div className="card w-full max-w-sm p-7 text-center">
@@ -281,13 +300,32 @@ export default function RegisterPage() {
       <button
         type="button"
         onClick={toggleLocale}
+        aria-label={isRtl ? "Switch to English" : "التبديل إلى العربية"}
+        title={isRtl ? "Switch to English" : "التبديل إلى العربية"}
         className={[
-          "absolute top-5 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black transition hover:bg-white/15",
+          "absolute top-5 z-50 inline-flex items-center rounded-full border border-white/15 bg-white/10 p-1 shadow-2xl backdrop-blur-xl transition hover:bg-white/15",
           isRtl ? "left-5" : "right-5",
         ].join(" ")}
-        style={{ color: "var(--text)" }}
       >
-        {copy.toggle}
+        <span dir="ltr" className="flex items-center gap-1">
+          <span
+            className={[
+              "rounded-full px-3 py-1 text-xs font-black transition",
+              isRtl ? "bg-white text-[#17352b] shadow-sm" : "text-white/70",
+            ].join(" ")}
+          >
+            AR
+          </span>
+
+          <span
+            className={[
+              "rounded-full px-3 py-1 text-xs font-black transition",
+              !isRtl ? "bg-white text-[#17352b] shadow-sm" : "text-white/70",
+            ].join(" ")}
+          >
+            EN
+          </span>
+        </span>
       </button>
 
       <div className="w-full max-w-sm">

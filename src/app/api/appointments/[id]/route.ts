@@ -8,8 +8,32 @@ import { logActivity } from "@/lib/activity";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 
-
 type Params = { params: Promise<{ id: string }> };
+
+function hasExplicitTimeZone(value: unknown) {
+  if (typeof value !== "string") return true;
+
+  const normalized = value.trim();
+
+  if (!normalized) return true;
+
+  return /([zZ]|[+-]\d{2}:\d{2})$/.test(normalized);
+}
+
+function getValidTimeZone(value: unknown) {
+  if (typeof value !== "string") return null;
+
+  const timeZone = value.trim();
+
+  if (!timeZone) return null;
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    return timeZone;
+  } catch {
+    return null;
+  }
+}
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
@@ -79,7 +103,47 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const parsed = appointmentSchema.partial().safeParse(body);
+
+    const {
+      timeZone: timeZoneRaw,
+      startAt,
+      endAt,
+      ...bodyForValidation
+    } = body;
+
+    const clientTimeZone = getValidTimeZone(timeZoneRaw);
+
+    if (timeZoneRaw && !clientTimeZone) {
+      return err("المنطقة الزمنية غير صالحة", 400);
+    }
+
+    const validationBody = {
+      ...bodyForValidation,
+      startTime: bodyForValidation.startTime ?? startAt,
+      endTime: bodyForValidation.endTime ?? endAt,
+    };
+
+    if (
+      validationBody.startTime !== undefined &&
+      !hasExplicitTimeZone(validationBody.startTime)
+    ) {
+      return err(
+        "وقت بداية الموعد يجب أن يُرسل بصيغة ISO تحتوي على timezone",
+        400,
+      );
+    }
+
+    if (
+      validationBody.endTime &&
+      !hasExplicitTimeZone(validationBody.endTime)
+    ) {
+      return err(
+        "وقت نهاية الموعد يجب أن يُرسل بصيغة ISO تحتوي على timezone",
+        400,
+      );
+    }
+
+    const parsed = appointmentSchema.partial().safeParse(validationBody);
 
     if (!parsed.success) {
       return err("بيانات غير صالحة", 400, parsed.error.flatten());
@@ -237,7 +301,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       });
     }
 
-  
     return ok(updated);
   });
 }

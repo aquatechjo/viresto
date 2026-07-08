@@ -136,12 +136,32 @@ export default function ForgotPasswordPage() {
       <button
         type="button"
         onClick={toggleLocale}
+        aria-label={isRtl ? "Switch to English" : "التبديل إلى العربية"}
+        title={isRtl ? "Switch to English" : "التبديل إلى العربية"}
         className={[
-          "absolute top-5 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black text-emerald-50 shadow-lg shadow-black/10 backdrop-blur-md transition hover:bg-white/15",
+          "absolute top-5 z-50 inline-flex items-center rounded-full border border-white/15 bg-white/10 p-1 shadow-2xl backdrop-blur-xl transition hover:bg-white/15",
           isRtl ? "left-5" : "right-5",
         ].join(" ")}
       >
-        {copy.toggle}
+        <span dir="ltr" className="flex items-center gap-1">
+          <span
+            className={[
+              "rounded-full px-3 py-1 text-xs font-black transition",
+              isRtl ? "bg-white text-[#17352b] shadow-sm" : "text-white/70",
+            ].join(" ")}
+          >
+            AR
+          </span>
+
+          <span
+            className={[
+              "rounded-full px-3 py-1 text-xs font-black transition",
+              !isRtl ? "bg-white text-[#17352b] shadow-sm" : "text-white/70",
+            ].join(" ")}
+          >
+            EN
+          </span>
+        </span>
       </button>
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(52,211,153,0.14),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_30%)]" />

@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import FormField from "@/components/ui/FormField";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 
 type Locale = "ar" | "en";
 
@@ -397,12 +398,29 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={toggleLocale}
-        className={`absolute top-5 z-50 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-black text-white shadow-2xl backdrop-blur-xl transition hover:bg-white/15 ${
+        aria-label={isArabic ? "Switch to English" : "التبديل إلى العربية"}
+        title={isArabic ? "Switch to English" : "التبديل إلى العربية"}
+        className={`absolute top-5 z-50 inline-flex items-center rounded-full border border-white/15 bg-white/10 p-1 shadow-2xl backdrop-blur-xl transition hover:bg-white/15 ${
           isArabic ? "left-5" : "right-5"
         }`}
-        aria-label={copy.languageButton}
       >
-        {copy.languageButton}
+        <span dir="ltr" className="flex items-center gap-1">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-black transition ${
+              isArabic ? "bg-white text-[#17352b] shadow-sm" : "text-white/70"
+            }`}
+          >
+            AR
+          </span>
+
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-black transition ${
+              !isArabic ? "bg-white text-[#17352b] shadow-sm" : "text-white/70"
+            }`}
+          >
+            EN
+          </span>
+        </span>
       </button>
 
       {/* Animated background */}
@@ -757,7 +775,7 @@ export default function LoginPage() {
                             }));
                           }}
                           className={`input ${inputTextClass} ${
-                            isArabic ? "!pl-24" : "!pr-24"
+                            isArabic ? "!pl-14" : "!pr-14"
                           }`}
                           style={{
                             direction: "ltr",
@@ -771,11 +789,21 @@ export default function LoginPage() {
                           onClick={() =>
                             setShowPassword((previous) => !previous)
                           }
-                          className={`absolute top-1/2 z-10 min-w-[64px] -translate-y-1/2 rounded-xl bg-white/90 px-3 py-1 text-center text-xs font-black !text-[#17352b] transition hover:bg-white dark:bg-white/90 dark:!text-[#17352b] ${
+                          aria-label={
+                            showPassword ? copy.hidePassword : copy.showPassword
+                          }
+                          title={
+                            showPassword ? copy.hidePassword : copy.showPassword
+                          }
+                          className={`absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-[#17352b] transition hover:bg-white hover:scale-105 dark:bg-white/90 dark:text-[#17352b] ${
                             isArabic ? "left-3" : "right-3"
                           }`}
                         >
-                          {showPassword ? copy.hidePassword : copy.showPassword}
+                          {showPassword ? (
+                            <EyeOff className="h-5 w-5" aria-hidden="true" />
+                          ) : (
+                            <Eye className="h-5 w-5" aria-hidden="true" />
+                          )}
                         </button>
                       </div>
                     </FormField>

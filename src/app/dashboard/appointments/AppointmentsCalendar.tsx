@@ -31,6 +31,7 @@ export default function AppointmentsCalendar({
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
+        timeZone="local"
         locale={isRtl ? arLocale : 'en'}
         direction={isRtl ? 'rtl' : 'ltr'}
         height="auto"

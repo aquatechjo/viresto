@@ -102,6 +102,21 @@ function toDateTimeLocal(value?: string) {
   return local.toISOString().slice(0, 16)
 }
 
+function getBrowserTimeZone() {
+  if (typeof window === 'undefined') return 'Asia/Amman'
+
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Amman'
+}
+
+function dateTimeLocalToIso(value?: string) {
+  if (!value) return undefined
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+
+  return date.toISOString()
+}
+
 export default function AppointmentsPage() {
   const localeState = useLocale() as { locale?: Locale; t?: typeof translations.ar }
   const locale = localeState?.locale === 'en' ? 'en' : 'ar'
@@ -109,6 +124,7 @@ export default function AppointmentsPage() {
   const a = t.appointments ?? translations.ar.appointments
   const common = t.common ?? translations.ar.common
   const isRtl = locale === 'ar'
+  const userTimeZone = getBrowserTimeZone()
   const typeLabels = TYPE_LABELS[locale] ?? TYPE_LABELS.ar
   const appointmentLogCopy =
     locale === 'ar'
@@ -365,6 +381,23 @@ export default function AppointmentsPage() {
       return
     }
 
+    const startTimeIso = dateTimeLocalToIso(form.startTime)
+    const endTimeIso = dateTimeLocalToIso(form.endTime)
+
+    if (!startTimeIso) {
+      toast.error(a.messages.requiredTitleTime)
+      return
+    }
+
+    if (endTimeIso && new Date(endTimeIso) <= new Date(startTimeIso)) {
+      toast.error(
+        locale === 'ar'
+          ? 'وقت نهاية الموعد يجب أن يكون بعد وقت البداية'
+          : 'The appointment end time must be after the start time'
+      )
+      return
+    }
+
     try {
       setSaving(true)
 
@@ -380,9 +413,11 @@ export default function AppointmentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          startTime: startTimeIso,
+          endTime: endTimeIso,
+          timeZone: userTimeZone,
           clientId: form.clientId || undefined,
           caseId: form.caseId || undefined,
-          endTime: form.endTime || undefined,
         }),
       })
 
@@ -470,6 +505,7 @@ export default function AppointmentsPage() {
         body: JSON.stringify({
           startTime: start.toISOString(),
           ...(end ? { endTime: end.toISOString() } : {}),
+          timeZone: userTimeZone,
         }),
       })
 

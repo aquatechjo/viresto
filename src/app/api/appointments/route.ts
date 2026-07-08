@@ -8,6 +8,28 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 
+function hasExplicitTimeZone(value: unknown) {
+  if (typeof value !== "string") return true;
+
+  const normalized = value.trim();
+
+  return /([zZ]|[+-]\d{2}:\d{2})$/.test(normalized);
+}
+
+function getValidTimeZone(value: unknown) {
+  if (typeof value !== "string") return null;
+
+  const timeZone = value.trim();
+
+  if (!timeZone) return null;
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    return timeZone;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -129,7 +151,44 @@ export async function POST(req: NextRequest) {
     const meta = getRequestMeta(req);
 
     const body = await req.json().catch(() => ({}));
-    const parsed = appointmentSchema.safeParse(body);
+
+    const {
+      timeZone: timeZoneRaw,
+      startAt,
+      endAt,
+      ...bodyForValidation
+    } = body;
+
+    const clientTimeZone = getValidTimeZone(timeZoneRaw);
+
+    if (timeZoneRaw && !clientTimeZone) {
+      return err("المنطقة الزمنية غير صالحة", 400);
+    }
+
+    const validationBody = {
+      ...bodyForValidation,
+      startTime: bodyForValidation.startTime ?? startAt,
+      endTime: bodyForValidation.endTime ?? endAt,
+    };
+
+    if (!hasExplicitTimeZone(validationBody.startTime)) {
+      return err(
+        "وقت بداية الموعد يجب أن يُرسل بصيغة ISO تحتوي على timezone",
+        400,
+      );
+    }
+
+    if (
+      validationBody.endTime &&
+      !hasExplicitTimeZone(validationBody.endTime)
+    ) {
+      return err(
+        "وقت نهاية الموعد يجب أن يُرسل بصيغة ISO تحتوي على timezone",
+        400,
+      );
+    }
+
+    const parsed = appointmentSchema.safeParse(validationBody);
 
     if (!parsed.success) {
       return err("بيانات غير صالحة", 400, parsed.error.flatten());
@@ -154,6 +213,7 @@ export async function POST(req: NextRequest) {
 
     const { clientId, caseId } = parsed.data;
     let linkedClientId = clientId || null;
+
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
         where: {
@@ -236,7 +296,6 @@ export async function POST(req: NextRequest) {
       entityId: caseId || appt.id,
     });
 
-    
     return ok(appt, 201);
   });
 }
