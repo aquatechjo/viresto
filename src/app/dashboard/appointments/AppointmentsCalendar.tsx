@@ -9,6 +9,7 @@ import type { Locale } from '@/lib/i18n'
 
 interface AppointmentsCalendarProps {
   locale: Locale
+  timeZone?: string
   events: any[]
   onEventDrop: (info: any) => void | Promise<void>
   onEventResize: (info: any) => void | Promise<void>
@@ -18,6 +19,7 @@ interface AppointmentsCalendarProps {
 
 export default function AppointmentsCalendar({
   locale,
+  timeZone = 'Asia/Amman',
   events,
   onEventDrop,
   onEventResize,
@@ -31,7 +33,7 @@ export default function AppointmentsCalendar({
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
-        timeZone="local"
+        timeZone={timeZone}
         locale={isRtl ? arLocale : 'en'}
         direction={isRtl ? 'rtl' : 'ltr'}
         height="auto"

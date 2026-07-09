@@ -6,6 +6,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Turnstile } from "@marsidev/react-turnstile";
 import FormField from "@/components/ui/FormField";
+import { Eye, EyeOff } from "lucide-react";
 
 type Locale = "ar" | "en";
 
@@ -425,12 +426,10 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={form.password}
                   onChange={update("password")}
-                  className="input"
+                  className={`input ${isRtl ? "!pl-11 !text-right" : "!pr-11 !text-left"}`}
                   style={{
-                    textAlign: "left",
                     direction: "ltr",
-                    paddingRight: isRtl ? undefined : "5.5rem",
-                    paddingLeft: isRtl ? "5.5rem" : undefined,
+                    textAlign: isRtl ? "right" : "left",
                   }}
                   placeholder={copy.passwordPlaceholder}
                 />
@@ -438,16 +437,19 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  className={[
-                    "absolute top-1/2 z-10 -translate-y-1/2 rounded-xl bg-white/10 px-2.5 py-1 text-xs font-bold transition hover:bg-white/15",
-                    isRtl ? "left-3" : "right-3",
-                  ].join(" ")}
-                  style={{ color: "var(--text)" }}
                   aria-label={
                     showPassword ? copy.hidePassword : copy.showPassword
                   }
+                  title={showPassword ? copy.hidePassword : copy.showPassword}
+                  className={`absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] ${
+                    isRtl ? "left-3" : "right-3"
+                  }`}
                 >
-                  {showPassword ? copy.hide : copy.show}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="h-4 w-4" aria-hidden="true" />
+                  )}
                 </button>
               </div>
 

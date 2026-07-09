@@ -346,8 +346,10 @@ model Activity {
   country    String?
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId])
-  @@index([createdAt])
+  @@index([tenantId, createdAt, id])
+  @@index([tenantId, type, createdAt])
+  @@index([tenantId, entityType, createdAt])
+  @@index([tenantId, actorId, createdAt])
 }
 
 enum NotificationType {

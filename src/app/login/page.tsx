@@ -775,7 +775,7 @@ export default function LoginPage() {
                             }));
                           }}
                           className={`input ${inputTextClass} ${
-                            isArabic ? "!pl-14" : "!pr-14"
+                            isArabic ? "!pl-11" : "!pr-11"
                           }`}
                           style={{
                             direction: "ltr",
@@ -795,14 +795,14 @@ export default function LoginPage() {
                           title={
                             showPassword ? copy.hidePassword : copy.showPassword
                           }
-                          className={`absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-[#17352b] transition hover:bg-white hover:scale-105 dark:bg-white/90 dark:text-[#17352b] ${
+                          className={`absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] ${
                             isArabic ? "left-3" : "right-3"
                           }`}
                         >
                           {showPassword ? (
-                            <EyeOff className="h-5 w-5" aria-hidden="true" />
+                            <EyeOff className="h-4 w-4" aria-hidden="true" />
                           ) : (
-                            <Eye className="h-5 w-5" aria-hidden="true" />
+                            <Eye className="h-4 w-4" aria-hidden="true" />
                           )}
                         </button>
                       </div>
