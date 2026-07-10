@@ -207,6 +207,7 @@ model Client {
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   documents      Document[]
   invoices       Invoice[]
+  payments       Payment[]
   tasks          Task[]
   archivedAt     DateTime?
 
@@ -214,7 +215,7 @@ model Client {
 }
 
 model Case {
-  id            String        @id @default(cuid())
+  id            String     @id @default(cuid())
   tenantId      String
   clientId      String
   title         String
@@ -224,10 +225,10 @@ model Case {
   plaintiffName String?
   defendantName String?
   description   String?
-  status        CaseStatus    @default(OPEN)
-  feeAgreed     Float         @default(0)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  status        CaseStatus @default(OPEN)
+  feeAgreed     Float      @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   appointments Appointment[]
   client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -243,22 +244,44 @@ model Case {
 }
 
 model Payment {
-  id        String        @id @default(cuid())
-  tenantId  String
-  caseId    String
-  amount    Float
-  method    PaymentMethod @default(CASH)
-  status    PaymentStatus @default(PAID)
-  paidAt    DateTime      @default(now())
-  notes     String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  invoiceId String?       @unique
-  case      Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  invoice   Invoice?      @relation(fields: [invoiceId], references: [id])
-  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  tenantId String
+
+  // الدفعة تتبع الموكل ماليًا، حتى لو لم تكن مرتبطة بقضية.
+  clientId String
+
+  // القضية اختيارية لدعم فواتير الاستشارات والخدمات غير المرتبطة بقضية.
+  caseId String?
+
+  // الفاتورة اختيارية، ويمكن للفاتورة أن تستقبل عدة دفعات.
+  invoiceId String?
+
+  amount Float
+
+  method PaymentMethod @default(CASH)
+  status PaymentStatus @default(PAID)
+
+  // يبقى فارغًا للدفعات المعلقة، ويُحدد فقط عند التحصيل الفعلي.
+  paidAt DateTime?
+
+  // رقم الحوالة أو الشيك أو مرجع بوابة الدفع.
+  reference String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client  Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  case    Case?    @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([clientId])
+  @@index([caseId])
+  @@index([invoiceId])
 }
 
 model Appointment {
@@ -429,7 +452,7 @@ model Invoice {
   client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items         InvoiceItem[]
-  payment       Payment?
+  payments      Payment[]
 
   @@unique([tenantId, invoiceNumber])
   @@index([tenantId])
@@ -535,6 +558,7 @@ enum TaskPriority {
 enum InvoiceStatus {
   DRAFT
   UNPAID
+  PARTIALLY_PAID
   PAID
   OVERDUE
   CANCELLED

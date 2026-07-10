@@ -10,10 +10,10 @@ import { invoiceCreateSchema } from "@/lib/validations";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
 
-
 const allowedStatuses = [
   "DRAFT",
   "UNPAID",
+  "PARTIALLY_PAID",
   "PAID",
   "OVERDUE",
   "CANCELLED",
@@ -163,7 +163,9 @@ export async function GET(req: NextRequest) {
           },
         },
         items: true,
-        payment: true,
+        payments: {
+          orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -321,7 +323,7 @@ export async function POST(req: NextRequest) {
                 },
               },
               items: true,
-              payment: true,
+              payments: true,
             },
           });
         });

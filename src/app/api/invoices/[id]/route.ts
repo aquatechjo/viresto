@@ -10,12 +10,12 @@ import { invoiceCreateSchema } from "@/lib/validations";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
 
-
 type Params = { params: Promise<{ id: string }> };
 
 const allowedStatuses = [
   "DRAFT",
   "UNPAID",
+  "PARTIALLY_PAID",
   "PAID",
   "OVERDUE",
   "CANCELLED",
@@ -140,7 +140,9 @@ export async function GET(req: NextRequest, { params }: Params) {
           },
         },
         items: true,
-        payment: true,
+        payments: {
+          orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+        },
       },
     });
 
@@ -195,7 +197,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           },
         },
         items: true,
-        payment: true,
+        payments: {
+          orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+        },
       },
     });
 
@@ -229,9 +233,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const data = parsed.data;
+    if (statusRaw === "PAID" || statusRaw === "PARTIALLY_PAID") {
+      return err(
+        "لا يمكن تعيين الفاتورة كمدفوعة يدويًا. سجّل دفعة على الفاتورة وسيحسب النظام حالتها تلقائيًا.",
+        400,
+      );
+    }
 
-    const paidLocked =
-      invoice.status === "PAID" || invoice.payment?.status === "PAID";
+    const paidTotal = roundMoney(
+      invoice.payments
+        .filter((payment) => payment.status === "PAID")
+        .reduce((sum, payment) => sum + Number(payment.amount), 0),
+    );
+
+    const hasPaidPayments = paidTotal > 0;
+
+    const paidLocked = invoice.status === "PAID" || hasPaidPayments;
 
     const hasFinancialChanges =
       data.items !== undefined ||
@@ -248,11 +265,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (
-      invoice.payment?.status === "PAID" &&
+      hasPaidPayments &&
       statusRaw !== undefined &&
-      statusRaw !== "PAID"
+      statusRaw !== invoice.status
     ) {
-      return err("لا يمكن تغيير حالة فاتورة مرتبطة بدفعة مدفوعة", 409);
+      return err(
+        "لا يمكن تغيير حالة فاتورة لديها دفعات محصلة. يجب معالجة الدفعات المرتبطة أولًا.",
+        409,
+      );
     }
 
     let dueDateUpdate: Date | null | undefined;
@@ -355,10 +375,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const nextStatus = (statusRaw || invoice.status) as InvoiceStatusValue;
 
-    if (nextStatus === "PAID" && !nextCaseId) {
-      return err("لا يمكن تحويل الفاتورة إلى مدفوعة بدون ربطها بقضية", 400);
-    }
-
     const shouldUpdateClientRelation =
       data.clientId !== undefined || data.caseId !== undefined;
 
@@ -431,44 +447,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             },
           },
           items: true,
-          payment: true,
+          payments: {
+            orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+          },
         },
       });
-
-      const shouldSyncPaidPayment =
-        nextStatus === "PAID" &&
-        nextCaseId &&
-        (statusRaw === "PAID" || !updatedInvoice.payment);
-
-      if (shouldSyncPaidPayment) {
-        if (updatedInvoice.payment) {
-          await tx.payment.update({
-            where: {
-              invoiceId: updatedInvoice.id,
-            },
-            data: {
-              caseId: nextCaseId,
-              amount: updatedInvoice.total,
-              status: "PAID",
-              paidAt: new Date(),
-              notes: `دفعة من الفاتورة ${updatedInvoice.invoiceNumber}`,
-            },
-          });
-        } else {
-          await tx.payment.create({
-            data: {
-              tenantId: auth.user!.tenantId,
-              caseId: nextCaseId,
-              invoiceId: updatedInvoice.id,
-              amount: updatedInvoice.total,
-              status: "PAID",
-              method: "CASH",
-              paidAt: new Date(),
-              notes: `دفعة تلقائية من الفاتورة ${updatedInvoice.invoiceNumber}`,
-            },
-          });
-        }
-      }
 
       return updatedInvoice;
     });
@@ -515,7 +498,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         tenantId: auth.user.tenantId,
       },
       include: {
-        payment: true,
+        payments: {
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+          },
+        },
         client: {
           select: {
             id: true,
@@ -548,10 +537,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return err("لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف", 400);
     }
 
-    if (invoice.payment) {
+    if (invoice.payments.length > 0) {
       return err(
-        "لا يمكن حذف فاتورة مرتبطة بدفعة. احذف الدفعة أو غيّر حالة الفاتورة أولًا.",
+        "لا يمكن حذف فاتورة مرتبطة بدفعات. يجب معالجة الدفعات المرتبطة أولًا حتى لا يحدث خلل مالي.",
         409,
+        {
+          paymentsCount: invoice.payments.length,
+        },
       );
     }
 

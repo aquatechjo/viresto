@@ -88,11 +88,17 @@ export async function GET(req: NextRequest, { params }: Params) {
         invoices: {
           where: { tenantId },
           include: {
-            payment: {
+            payments: {
               select: {
                 id: true,
                 status: true,
                 amount: true,
+                method: true,
+                paidAt: true,
+                reference: true,
+              },
+              orderBy: {
+                createdAt: "desc",
               },
             },
             items: {

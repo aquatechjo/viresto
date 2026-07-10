@@ -72,6 +72,27 @@ const optionalText = z.preprocess((value) => {
 
   return value;
 }, z.string().nullable().optional());
+const optionalId = z.preprocess((value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+
+  return value;
+}, z.string().min(1).nullable().optional());
+
+const optionalDateString = z
+  .string()
+  .optional()
+  .nullable()
+  .refine((value) => {
+    if (!value) return true;
+    return !Number.isNaN(new Date(value).getTime());
+  }, "التاريخ غير صالح");
+
 export const caseSchema = z.object({
   clientId: z.string().min(1, "الموكل مطلوب"),
   title: z.string().min(1, "العنوان مطلوب"),
@@ -88,12 +109,33 @@ export const caseSchema = z.object({
 });
 
 export const paymentSchema = z.object({
-  caseId: z.string().min(1),
-  amount: z.number().positive("المبلغ يجب أن يكون موجباً"),
+  caseId: optionalId,
+  invoiceId: optionalId,
+
+  amount: z.coerce
+    .number({ invalid_type_error: "المبلغ يجب أن يكون رقمًا" })
+    .finite("المبلغ يجب أن يكون رقمًا صالحًا")
+    .positive("المبلغ يجب أن يكون موجبًا"),
+
   method: z.enum(["CASH", "BANK_TRANSFER", "CHECK", "ONLINE"]).optional(),
+
   status: z.enum(["PAID", "PENDING", "OVERDUE", "CANCELLED"]).optional(),
-  paidAt: z.string().optional(),
-  notes: z.string().optional(),
+
+  paidAt: optionalDateString,
+
+  reference: z
+    .string()
+    .trim()
+    .max(120, "رقم المرجع طويل جدًا")
+    .optional()
+    .nullable(),
+
+  notes: z
+    .string()
+    .trim()
+    .max(2000, "الملاحظات طويلة جدًا")
+    .optional()
+    .nullable(),
 });
 
 export const appointmentSchema = z.object({
@@ -154,15 +196,6 @@ const money = z.coerce
   .finite("القيمة يجب أن تكون رقمًا صالحًا")
   .min(0, "القيمة لا يمكن أن تكون سالبة");
 
-const optionalDateString = z
-  .string()
-  .optional()
-  .nullable()
-  .refine((value) => {
-    if (!value) return true;
-    return !Number.isNaN(new Date(value).getTime());
-  }, "التاريخ غير صالح");
-
 export const invoiceItemSchema = z.object({
   description: z.string().trim().min(1, "وصف البند مطلوب"),
   quantity: money.gt(0, "الكمية يجب أن تكون أكبر من صفر"),
@@ -191,7 +224,7 @@ export const invoiceUpdateSchema = z.object({
   caseId: z.string().optional().nullable(),
   dueDate: optionalDateString,
   status: z
-    .enum(["DRAFT", "UNPAID", "PAID", "OVERDUE", "CANCELLED"])
+    .enum(["DRAFT", "UNPAID", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])
     .optional(),
   tax: money.optional(),
   discount: money.optional(),

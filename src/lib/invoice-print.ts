@@ -5,6 +5,7 @@ export type InvoiceLocale = "ar" | "en";
 export type PrintableInvoiceStatus =
   | "DRAFT"
   | "UNPAID"
+  | "PARTIALLY_PAID"
   | "PAID"
   | "OVERDUE"
   | "CANCELLED";
@@ -41,12 +42,14 @@ export type PrintableInvoice = {
     unitPrice: number;
     total?: number;
   }>;
-  payment?: {
+  payments?: Array<{
     id?: string;
     amount?: number;
     status?: string;
+    method?: string;
     paidAt?: string | null;
-  } | null;
+    reference?: string | null;
+  }>;
   tenant?: {
     id?: string;
     name?: string | null;
@@ -59,6 +62,7 @@ export type PrintableInvoice = {
 
 const COPY = {
   ar: {
+    PARTIALLY_PAID: "مدفوعة جزئيًا",
     invoice: "فاتورة",
     invoiceNumber: "رقم الفاتورة",
     status: "الحالة",
@@ -107,6 +111,7 @@ const COPY = {
     } as Record<string, string>,
   },
   en: {
+    PARTIALLY_PAID: "Partially paid",
     invoice: "Invoice",
     invoiceNumber: "Invoice number",
     status: "Status",
@@ -366,6 +371,17 @@ export function buildInvoicePrintHtml(
   invoice: PrintableInvoice,
   requestedLocale?: InvoiceLocale,
 ) {
+  const payments = invoice.payments ?? [];
+
+  const paidPayments = payments.filter((payment) => payment.status === "PAID");
+
+  const paidTotal = paidPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
+  );
+
+  const remainingTotal = Math.max(0, Number(invoice.total || 0) - paidTotal);
+
   const locale = detectLocale(requestedLocale);
   const copy = COPY[locale];
   const isRtl = locale === "ar";
@@ -949,8 +965,8 @@ export function buildInvoicePrintHtml(
           </div>
           <div class="muted">
             ${
-              invoice.payment
-                ? escapeHtml(copy.linkedPayment)
+              payments.length > 0
+                ? escapeHtml(`${copy.linkedPayment} (${payments.length})`)
                 : escapeHtml(copy.noLinkedPayment)
             }
           </div>
@@ -1000,18 +1016,38 @@ export function buildInvoicePrintHtml(
         </div>
       </div>
 
-      ${
-        invoice.payment
-          ? `
-            <div class="payment-strip">
-              <span>${escapeHtml(copy.paymentStatus)}</span>
-              <span>${escapeHtml(
-                paymentStatusLabel(invoice.payment.status, locale),
-              )}</span>
-            </div>
-          `
-          : ""
-      }
+${
+  payments.length > 0
+    ? `
+      <div class="payment-strip">
+        <span>
+          ${escapeHtml(
+            locale === "ar"
+              ? `عدد الدفعات: ${payments.length}`
+              : `Payments: ${payments.length}`,
+          )}
+        </span>
+
+        <span>
+          ${escapeHtml(
+            locale === "ar"
+              ? `المحصل: ${money(paidTotal, locale)}`
+              : `Paid: ${money(paidTotal, locale)}`,
+          )}
+        </span>
+
+        <span>
+          ${escapeHtml(
+            locale === "ar"
+              ? `المتبقي: ${money(remainingTotal, locale)}`
+              : `Remaining: ${money(remainingTotal, locale)}`,
+          )}
+        </span>
+      </div>
+    `
+    : ""
+}
+
 
       <div class="signatures">
         <div class="signature">${escapeHtml(copy.officeSignature)}</div>

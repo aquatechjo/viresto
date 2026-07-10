@@ -16,13 +16,30 @@ import {
   safeInvoiceFilename,
 } from "@/lib/invoice-print";
 
-type InvoiceStatus = "DRAFT" | "UNPAID" | "PAID" | "OVERDUE" | "CANCELLED";
+type InvoiceStatus =
+  | "DRAFT"
+  | "UNPAID"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "OVERDUE"
+  | "CANCELLED";
 
 type EditItem = {
   description: string;
   quantity: number;
   unitPrice: number;
 };
+
+interface InvoicePayment {
+  id: string;
+  amount: number;
+  status: string;
+  method: string;
+  paidAt?: string | null;
+  reference?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+}
 
 interface Invoice {
   id: string;
@@ -62,12 +79,8 @@ interface Invoice {
     unitPrice: number;
     total: number;
   }>;
-  payment?: {
-    id: string;
-    amount: number;
-    status: string;
-    paidAt?: string | null;
-  } | null;
+  payments: InvoicePayment[];
+
   tenant?: {
     id: string;
     name: string;
@@ -84,6 +97,7 @@ const statusLabels: Record<InvoiceStatus, string> = {
   PAID: "مدفوعة",
   OVERDUE: "متأخرة",
   CANCELLED: "ملغاة",
+  PARTIALLY_PAID: "مدفوعة جزئيًا",
 };
 
 const statusClasses: Record<InvoiceStatus, string> = {
@@ -92,6 +106,7 @@ const statusClasses: Record<InvoiceStatus, string> = {
   PAID: "badge badge-green",
   OVERDUE: "badge badge-red",
   CANCELLED: "badge badge-gray",
+  PARTIALLY_PAID: "badge badge-blue",
 };
 
 const INVOICE_DOCUMENT_COPY = {
@@ -116,7 +131,13 @@ const INVOICE_DOCUMENT_COPY = {
     tax: "الضريبة",
     discount: "الخصم",
     payment: "الدفعة المرتبطة",
+    payments: "الدفعات المرتبطة",
     amount: "المبلغ",
+    paidTotal: "إجمالي المحصل",
+    remaining: "المبلغ المتبقي",
+    paymentCount: "عدد الدفعات",
+    paymentMethod: "طريقة الدفع",
+    paymentReference: "رقم المرجع",
     paymentDate: "تاريخ الدفع",
     notes: "ملاحظات",
     noNotes: "لا توجد ملاحظات إضافية.",
@@ -127,6 +148,7 @@ const INVOICE_DOCUMENT_COPY = {
     statuses: {
       DRAFT: "مسودة",
       UNPAID: "غير مدفوعة",
+      PARTIALLY_PAID: "مدفوعة جزئيًا",
       PAID: "مدفوعة",
       OVERDUE: "متأخرة",
       CANCELLED: "ملغاة",
@@ -159,7 +181,13 @@ const INVOICE_DOCUMENT_COPY = {
     tax: "Tax",
     discount: "Discount",
     payment: "Linked payment",
+    payments: "Linked payments",
     amount: "Amount",
+    paidTotal: "Paid total",
+    remaining: "Remaining amount",
+    paymentCount: "Payment count",
+    paymentMethod: "Payment method",
+    paymentReference: "Reference",
     paymentDate: "Payment date",
     notes: "Notes",
     noNotes: "No additional notes.",
@@ -170,6 +198,7 @@ const INVOICE_DOCUMENT_COPY = {
     statuses: {
       DRAFT: "Draft",
       UNPAID: "Unpaid",
+      PARTIALLY_PAID: "Partially paid",
       PAID: "Paid",
       OVERDUE: "Overdue",
       CANCELLED: "Cancelled",
@@ -393,9 +422,17 @@ export default function InvoiceDetailsPage() {
   function openEditModal() {
     if (!invoice) return;
 
-    if (invoice.status === "PAID") {
+    const hasCollectedPayments = invoice.payments.some(
+      (payment) => payment.status === "PAID",
+    );
+
+    if (
+      invoice.status === "PAID" ||
+      invoice.status === "PARTIALLY_PAID" ||
+      hasCollectedPayments
+    ) {
       toast.error(
-        "لا يمكن تعديل البيانات المالية لفاتورة مدفوعة. غيّر الحالة أولًا إذا احتجت تعديلها.",
+        "لا يمكن تعديل البيانات المالية لفاتورة لديها دفعات محصلة. عالج الدفعات أولًا.",
       );
       return;
     }
@@ -519,25 +556,28 @@ export default function InvoiceDetailsPage() {
   async function updateStatus(nextStatus: InvoiceStatus) {
     if (!invoice || invoice.status === nextStatus) return;
 
-    if (nextStatus === "PAID" && !invoice.case) {
+    if (nextStatus === "PAID" || nextStatus === "PARTIALLY_PAID") {
       toast.error(
-        "لا يمكن تعليم الفاتورة كمدفوعة لأنها غير مرتبطة بقضية. اربطها بقضية أولًا حتى يتم إنشاء دفعة صحيحة.",
+        "حالة التحصيل تُحسب تلقائيًا من الدفعات. سجّل دفعة على الفاتورة بدل تغيير الحالة يدويًا.",
       );
       return;
     }
 
-    if (invoice.payment && invoice.status === "PAID" && nextStatus !== "PAID") {
-      const confirmed = await confirmToast(
-        "هذه الفاتورة مدفوعة ومرتبطة بدفعة. تغيير الحالة سيحدّث حالة الدفعة المرتبطة حسب الحالة الجديدة. هل تريد المتابعة؟",
+    if (invoice.payments.some((payment) => payment.status === "PAID")) {
+      toast.error(
+        "لا يمكن تغيير حالة فاتورة لديها دفعات محصلة. عالج الدفعات المرتبطة أولًا.",
       );
-
-      if (!confirmed) return;
+      return;
     }
 
     const res = await fetch(`/api/invoices/${invoice.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: nextStatus }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        status: nextStatus,
+      }),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -559,9 +599,9 @@ export default function InvoiceDetailsPage() {
       return;
     }
 
-    if (invoice.payment) {
+    if (invoice.payments.length > 0) {
       toast.error(
-        "لا يمكن حذف هذه الفاتورة لأنها مرتبطة بدفعة. عالج الدفعة المرتبطة أولًا ثم حاول مرة أخرى.",
+        "لا يمكن حذف هذه الفاتورة لأنها مرتبطة بدفعات. عالج الدفعات المرتبطة أولًا.",
       );
       return;
     }
@@ -722,11 +762,30 @@ export default function InvoiceDetailsPage() {
     );
   }
 
+  const payments = invoice.payments ?? [];
+  const paidPayments = payments.filter(
+    (payment) => payment.status === "PAID",
+  );
+  const paidTotal = roundMoney(
+    paidPayments.reduce(
+      (sum, payment) => sum + Number(payment.amount || 0),
+      0,
+    ),
+  );
+  const remainingTotal = roundMoney(
+    Math.max(0, Number(invoice.total || 0) - paidTotal),
+  );
+  const hasPayments = payments.length > 0;
+  const hasPaidPayments = paidPayments.length > 0;
+
   const tenantName = invoice.tenant?.name || "Viresto";
   const useVirestoLockup =
     !invoice.tenant?.logoUrl && tenantName.trim().toLowerCase() === "viresto";
   const archivedInvoice = isArchivedInvoice(invoice);
-  const canEditFinancials = invoice.status !== "PAID";
+  const canEditFinancials =
+    !hasPaidPayments &&
+    invoice.status !== "PAID" &&
+    invoice.status !== "PARTIALLY_PAID";
   const invoiceCopy = INVOICE_DOCUMENT_COPY[invoiceLocale];
   const invoiceIsRtl = invoiceLocale === "ar";
 
@@ -777,7 +836,7 @@ export default function InvoiceDetailsPage() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              عرض بيانات الفاتورة، البنود، الموكل، القضية، الدفعة المرتبطة،
+              عرض بيانات الفاتورة، البنود، الموكل، القضية، الدفعات المرتبطة،
               وإجراءات الطباعة والإرسال.
             </p>
 
@@ -859,11 +918,11 @@ export default function InvoiceDetailsPage() {
 
             <button
               onClick={openEditModal}
-              disabled={invoice.status === "PAID"}
+              disabled={!canEditFinancials}
               title={
-                invoice.status === "PAID"
-                  ? "لا يمكن تعديل البيانات المالية لفاتورة مدفوعة"
-                  : "تعديل الفاتورة"
+                canEditFinancials
+                  ? "تعديل الفاتورة"
+                  : "لا يمكن تعديل البيانات المالية لفاتورة لديها دفعات محصلة"
               }
               className="btn disabled:cursor-not-allowed disabled:opacity-60"
               style={{
@@ -914,12 +973,12 @@ export default function InvoiceDetailsPage() {
 
             <button
               onClick={deleteInvoice}
-              disabled={archivedInvoice || !!invoice.payment}
+              disabled={archivedInvoice || hasPayments}
               title={
                 archivedInvoice
                   ? "لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف"
-                  : invoice.payment
-                    ? "لا يمكن حذف فاتورة مرتبطة بدفعة"
+                  : hasPayments
+                    ? "لا يمكن حذف فاتورة مرتبطة بدفعات"
                     : "حذف الفاتورة"
               }
               className="btn disabled:cursor-not-allowed disabled:opacity-60"
@@ -945,23 +1004,23 @@ export default function InvoiceDetailsPage() {
         />
 
         <InfoCard
-          label="المجموع الفرعي"
-          value={money(invoice.subtotal)}
-          hint="قبل الضريبة والخصم"
+          label="المبلغ المحصل"
+          value={money(paidTotal)}
+          hint={`${paidPayments.length} دفعة محصلة`}
+          tone="green"
         />
 
         <InfoCard
-          label="الضريبة"
-          value={money(invoice.tax)}
-          hint="قيمة الضريبة"
-          tone="amber"
+          label="المبلغ المتبقي"
+          value={money(remainingTotal)}
+          hint={remainingTotal > 0 ? "متبقي للتحصيل" : "تم التحصيل بالكامل"}
+          tone={remainingTotal > 0 ? "amber" : "green"}
         />
 
         <InfoCard
-          label="الخصم"
-          value={money(invoice.discount)}
-          hint="إجمالي الخصم"
-          tone="red"
+          label="عدد الدفعات"
+          value={payments.length}
+          hint="كل الدفعات المرتبطة"
         />
       </div>
 
@@ -976,7 +1035,7 @@ export default function InvoiceDetailsPage() {
                 </h2>
 
                 <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
-                  غيّر حالة الفاتورة حسب التحصيل
+                  الحالة المالية تُحسب تلقائيًا من الدفعات
                 </p>
               </div>
 
@@ -993,12 +1052,20 @@ export default function InvoiceDetailsPage() {
             >
               <option value="DRAFT">مسودة</option>
               <option value="UNPAID">غير مدفوعة</option>
-              <option value="PAID">مدفوعة</option>
+
+              <option value="PARTIALLY_PAID" disabled>
+                مدفوعة جزئيًا — تلقائي
+              </option>
+
+              <option value="PAID" disabled>
+                مدفوعة — تلقائي
+              </option>
+
               <option value="OVERDUE">متأخرة</option>
               <option value="CANCELLED">ملغاة</option>
             </select>
 
-            {invoice.payment && (
+            {hasPayments && (
               <div
                 className="mt-4 rounded-2xl border p-4 text-sm font-bold"
                 style={{
@@ -1007,7 +1074,8 @@ export default function InvoiceDetailsPage() {
                   color: "var(--sidebar)",
                 }}
               >
-                هذه الفاتورة مرتبطة بدفعة.
+                هذه الفاتورة مرتبطة بـ {payments.length} دفعة. حالة التحصيل
+                تُحسب تلقائيًا.
               </div>
             )}
 
@@ -1294,8 +1362,8 @@ export default function InvoiceDetailsPage() {
                     {invoice.case?.caseNumber || "-"}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-[#40584f]">
-                    {invoice.payment
-                      ? invoiceCopy.linkedPayment
+                    {hasPayments
+                      ? `${invoiceCopy.linkedPayment} (${payments.length})`
                       : invoiceCopy.noPayment}
                   </p>
                 </div>
@@ -1428,7 +1496,7 @@ export default function InvoiceDetailsPage() {
                 </div>
               </div>
 
-              {invoice.payment && (
+              {hasPayments && (
                 <div
                   className="mt-5 rounded-2xl border px-5 py-4"
                   style={{
@@ -1436,37 +1504,89 @@ export default function InvoiceDetailsPage() {
                     background: "#eaf4ef",
                   }}
                 >
-                  <div className="grid gap-3 text-sm md:grid-cols-3">
-                    <div>
-                      <p className="text-xs font-bold text-[#40584f]">
-                        {invoiceCopy.amount}
-                      </p>
-                      <p dir="ltr" className="mt-1 font-black">
-                        {formatInvoiceMoney(
-                          invoice.payment.amount,
-                          invoiceLocale,
-                        )}
-                      </p>
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="font-black text-[#12382d]">
+                      {invoiceCopy.payments}
+                    </h3>
+
+                    <span className="text-xs font-bold text-[#40584f]">
+                      {payments.length} {invoiceCopy.paymentCount}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {payments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="grid gap-3 rounded-xl border bg-white p-4 text-sm md:grid-cols-2 xl:grid-cols-5"
+                        style={{ borderColor: "#dbe7e1" }}
+                      >
+                        <div>
+                          <p className="text-xs font-bold text-[#40584f]">
+                            {invoiceCopy.amount}
+                          </p>
+                          <p dir="ltr" className="mt-1 font-black">
+                            {formatInvoiceMoney(payment.amount, invoiceLocale)}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-bold text-[#40584f]">
+                            {invoiceCopy.status}
+                          </p>
+                          <p className="mt-1 font-black">
+                            {invoiceCopy.paymentStatuses[payment.status] ||
+                              paymentStatusLabel(payment.status)}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-bold text-[#40584f]">
+                            {invoiceCopy.paymentMethod}
+                          </p>
+                          <p className="mt-1 font-black">
+                            {payment.method || "-"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-bold text-[#40584f]">
+                            {invoiceCopy.paymentDate}
+                          </p>
+                          <p className="mt-1 font-black">
+                            {formatInvoiceDate(payment.paidAt, invoiceLocale)}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-bold text-[#40584f]">
+                            {invoiceCopy.paymentReference}
+                          </p>
+                          <p dir="ltr" className="mt-1 break-all font-black">
+                            {payment.reference || "-"}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-bold text-[#40584f]">
+                        {invoiceCopy.paidTotal}
+                      </span>
+                      <strong dir="ltr">
+                        {formatInvoiceMoney(paidTotal, invoiceLocale)}
+                      </strong>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-[#40584f]">
-                        {invoiceCopy.status}
-                      </p>
-                      <p className="mt-1 font-black">
-                        {invoiceCopy.paymentStatuses[invoice.payment.status] ||
-                          invoice.payment.status}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-[#40584f]">
-                        {invoiceCopy.paymentDate}
-                      </p>
-                      <p className="mt-1 font-black">
-                        {formatInvoiceDate(
-                          invoice.payment.paidAt,
-                          invoiceLocale,
-                        )}
-                      </p>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-bold text-[#40584f]">
+                        {invoiceCopy.remaining}
+                      </span>
+                      <strong dir="ltr">
+                        {formatInvoiceMoney(remainingTotal, invoiceLocale)}
+                      </strong>
                     </div>
                   </div>
                 </div>
@@ -1517,7 +1637,7 @@ export default function InvoiceDetailsPage() {
 
                 <p className="mt-1 text-sm" style={{ color: "var(--text-3)" }}>
                   تعديل التواريخ والبنود والضريبة والخصم. لا يمكن تعديل فاتورة
-                  مدفوعة.
+                  لديها دفعات محصلة.
                 </p>
               </div>
 
@@ -1539,8 +1659,8 @@ export default function InvoiceDetailsPage() {
                   color: "#92400e",
                 }}
               >
-                هذه الفاتورة مدفوعة، لذلك تم منع تعديل البيانات المالية لحماية
-                السجلات.
+                هذه الفاتورة لديها دفعات محصلة، لذلك تم منع تعديل البيانات المالية
+                لحماية السجلات.
               </div>
             )}
 

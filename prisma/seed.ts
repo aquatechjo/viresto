@@ -187,6 +187,7 @@ async function main() {
         data: [
           {
             tenantId: tenant.id,
+            clientId: c1.id,
             caseId: case1.id,
             amount: 5000,
             method: PaymentMethod.BANK_TRANSFER,
@@ -196,6 +197,7 @@ async function main() {
           },
           {
             tenantId: tenant.id,
+            clientId: c1.id,
             caseId: case1.id,
             amount: 3000,
             method: PaymentMethod.CASH,
@@ -204,6 +206,7 @@ async function main() {
           },
           {
             tenantId: tenant.id,
+            clientId: c2.id,
             caseId: case2.id,
             amount: 6000,
             method: PaymentMethod.BANK_TRANSFER,
@@ -211,6 +214,7 @@ async function main() {
           },
           {
             tenantId: tenant.id,
+            clientId: c2.id,
             caseId: case2.id,
             amount: 6000,
             method: PaymentMethod.BANK_TRANSFER,
@@ -218,6 +222,7 @@ async function main() {
           },
           {
             tenantId: tenant.id,
+            clientId: c3.id,
             caseId: case3.id,
             amount: 15000,
             method: PaymentMethod.CHECK,
@@ -226,6 +231,7 @@ async function main() {
           },
           {
             tenantId: tenant.id,
+            clientId: c4.id,
             caseId: case4.id,
             amount: 2500,
             method: PaymentMethod.CASH,
@@ -233,6 +239,7 @@ async function main() {
           },
           {
             tenantId: tenant.id,
+            clientId: c4.id,
             caseId: case4.id,
             amount: 2500,
             method: PaymentMethod.CASH,

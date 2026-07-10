@@ -17,7 +17,8 @@ interface Payment {
   amount: number;
   status: string;
   method: string;
-  paidAt: string;
+  paidAt?: string | null;
+  reference?: string | null;
   notes?: string | null;
   invoice?: {
     id: string;
@@ -79,11 +80,14 @@ interface Invoice {
   total: number;
   notes?: string | null;
   items: InvoiceItem[];
-  payment?: {
+  payments: Array<{
     id: string;
     status: string;
     amount: number;
-  } | null;
+    method: string;
+    paidAt?: string | null;
+    reference?: string | null;
+  }>;
 }
 
 interface Activity {
@@ -174,6 +178,7 @@ const INVOICE_STATUS_AR: Record<string, string> = {
   PAID: "مدفوعة",
   OVERDUE: "متأخرة",
   CANCELLED: "ملغاة",
+  PARTIALLY_PAID: "مدفوعة جزئيًا",
 };
 
 const INVOICE_STATUS_BADGE: Record<string, string> = {
@@ -182,6 +187,7 @@ const INVOICE_STATUS_BADGE: Record<string, string> = {
   PAID: "badge badge-green",
   OVERDUE: "badge badge-red",
   CANCELLED: "badge badge-gray",
+  PARTIALLY_PAID: "badge badge-blue",
 };
 
 const TASK_PRIORITY_AR: Record<string, string> = {
@@ -746,12 +752,19 @@ export default function CaseDetailPage() {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.success) {
-        toast.success(isArabic ? "تم تعديل القضية" : "Case updated successfully");
+        toast.success(
+          isArabic ? "تم تعديل القضية" : "Case updated successfully",
+        );
         setCaseEditOpen(false);
         setCaseEditForm(CASE_EDIT_INIT);
         load();
       } else {
-        toast.error(getApiMessage(data, isArabic ? "تعذر تعديل القضية" : "Could not update case"));
+        toast.error(
+          getApiMessage(
+            data,
+            isArabic ? "تعذر تعديل القضية" : "Could not update case",
+          ),
+        );
       }
     } finally {
       setSaving(false);
@@ -1070,9 +1083,9 @@ export default function CaseDetailPage() {
       return;
     }
 
-    if (invoice.payment) {
+    if (invoice.payments.length > 0) {
       toast.error(
-        "لا يمكن حذف فاتورة مرتبطة بدفعة. افتح الفاتورة وغيّر حالتها أولًا.",
+        "لا يمكن حذف فاتورة مرتبطة بدفعات. عالج الدفعات المرتبطة أولًا.",
       );
       return;
     }
@@ -1341,9 +1354,7 @@ export default function CaseDetailPage() {
                   onClick={openCaseEdit}
                   disabled={caseArchived}
                   title={
-                    caseArchived
-                      ? pageText.archivedCaseEditBlocked
-                      : undefined
+                    caseArchived ? pageText.archivedCaseEditBlocked : undefined
                   }
                   className="btn disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
@@ -1414,9 +1425,7 @@ export default function CaseDetailPage() {
                   onClick={openCaseEdit}
                   disabled={caseArchived}
                   title={
-                    caseArchived
-                      ? pageText.archivedCaseEditBlocked
-                      : undefined
+                    caseArchived ? pageText.archivedCaseEditBlocked : undefined
                   }
                   className="btn disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
@@ -2097,11 +2106,13 @@ export default function CaseDetailPage() {
                             <button
                               type="button"
                               onClick={() => deleteInvoice(invoice)}
-                              disabled={!!invoice.payment || caseArchived}
+                              disabled={
+                                invoice.payments.length > 0 || caseArchived
+                              }
                               title={
                                 caseArchived
                                   ? pageText.archivedInvoiceBlocked
-                                  : invoice.payment
+                                  : invoice.payments.length > 0
                                     ? isArabic
                                       ? "لا يمكن حذف فاتورة مرتبطة بدفعة"
                                       : "Cannot delete an invoice linked to a payment"
@@ -2157,7 +2168,7 @@ export default function CaseDetailPage() {
                     {c.payments.map((payment) => (
                       <tr key={payment.id}>
                         <td className="text-sm">
-                          {formatDate(payment.paidAt)}
+                          {payment.paidAt ? formatDate(payment.paidAt) : "-"}
                         </td>
 
                         <td
@@ -2457,7 +2468,10 @@ export default function CaseDetailPage() {
             </FormField>
           </div>
 
-          <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)" }}>
+          <div
+            className="rounded-2xl border p-4"
+            style={{ borderColor: "var(--border)" }}
+          >
             <p
               className="mb-3 text-xs font-black"
               style={{ color: "var(--text-3)" }}
@@ -3181,10 +3195,7 @@ function SectionCard({
   isRtl: boolean;
 }) {
   return (
-    <div
-      className="card overflow-hidden p-0"
-      dir={isRtl ? "rtl" : "ltr"}
-    >
+    <div className="card overflow-hidden p-0" dir={isRtl ? "rtl" : "ltr"}>
       <div
         className="flex flex-wrap items-center justify-between gap-4 border-b px-5 py-4"
         style={{ borderColor: "var(--border)" }}
@@ -3235,18 +3246,14 @@ function DetailItem({
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
-      className={`rounded-2xl border p-4 ${
-        isRtl ? "text-right" : "text-left"
-      }`}
+      className={`rounded-2xl border p-4 ${isRtl ? "text-right" : "text-left"}`}
       style={{
         borderColor: "var(--border)",
         background: "var(--card)",
       }}
     >
       <p
-        className={`text-xs font-black ${
-          isRtl ? "text-right" : "text-left"
-        }`}
+        className={`text-xs font-black ${isRtl ? "text-right" : "text-left"}`}
         style={{ color: "var(--text-3)" }}
       >
         {label}
