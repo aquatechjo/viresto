@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import AppLoader from "@/components/ui/AppLoader";
@@ -48,6 +49,14 @@ interface ClientItem {
   id: string;
   name: string;
   archivedAt?: string | null;
+}
+
+interface CaseItem {
+  id: string;
+  title: string;
+  caseNumber?: string | null;
+  clientId?: string | null;
+  status?: string | null;
 }
 
 const TYPE_COLOR: Record<string, string> = {
@@ -175,6 +184,441 @@ function getCreateStartValue(startTime?: string, timeZone = TENANT_TIME_ZONE) {
   return date.toFormat("yyyy-MM-dd'T'HH:mm");
 }
 
+
+interface DateTimePickerProps {
+  value: string;
+  onChange: (value: string) => void;
+  locale: Locale;
+  timeZone?: string;
+  ariaLabel: string;
+  required?: boolean;
+  disabled?: boolean;
+}
+
+function DateTimePicker({
+  value,
+  onChange,
+  locale,
+  timeZone = TENANT_TIME_ZONE,
+  ariaLabel,
+  required = false,
+  disabled = false,
+}: DateTimePickerProps) {
+  const isRtl = locale === "ar";
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
+  const selectedDate = useMemo(() => {
+    if (!value) return null;
+
+    const parsed = DateTime.fromFormat(value, "yyyy-MM-dd'T'HH:mm", {
+      zone: timeZone,
+    });
+
+    return parsed.isValid ? parsed : null;
+  }, [timeZone, value]);
+
+  const [viewMonth, setViewMonth] = useState(() =>
+    (selectedDate ?? DateTime.now().setZone(timeZone)).startOf("month"),
+  );
+
+  const copy =
+    locale === "ar"
+      ? {
+          placeholder: "اختر التاريخ والوقت",
+          previousMonth: "الشهر السابق",
+          nextMonth: "الشهر التالي",
+          today: "اليوم",
+          clear: "مسح",
+          done: "تم",
+          hour: "الساعة",
+          minute: "الدقيقة",
+          weekdays: ["أح", "إث", "ث", "أر", "خ", "ج", "س"],
+        }
+      : {
+          placeholder: "Select date and time",
+          previousMonth: "Previous month",
+          nextMonth: "Next month",
+          today: "Today",
+          clear: "Clear",
+          done: "Done",
+          hour: "Hour",
+          minute: "Minute",
+          weekdays: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
+        };
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (selectedDate) {
+      setViewMonth(selectedDate.startOf("month"));
+    }
+  }, [selectedDate]);
+
+  const updatePopoverPosition = useCallback(() => {
+    const button = buttonRef.current;
+
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const viewportPadding = 12;
+    const gap = 8;
+    const width = Math.min(360, window.innerWidth - viewportPadding * 2);
+    const estimatedHeight = Math.min(430, window.innerHeight - viewportPadding * 2);
+    const availableAbove = rect.top - viewportPadding;
+    const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const shouldOpenAbove =
+      availableAbove > availableBelow && availableAbove >= 300;
+
+    const top = shouldOpenAbove
+      ? Math.max(viewportPadding, rect.top - estimatedHeight - gap)
+      : Math.min(
+          window.innerHeight - estimatedHeight - viewportPadding,
+          rect.bottom + gap,
+        );
+
+    const preferredLeft = isRtl ? rect.right - width : rect.left;
+    const left = Math.max(
+      viewportPadding,
+      Math.min(preferredLeft, window.innerWidth - width - viewportPadding),
+    );
+
+    setPopoverStyle({
+      position: "fixed",
+      top,
+      left,
+      width,
+      maxHeight: estimatedHeight,
+      zIndex: 10000,
+    });
+  }, [isRtl]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    updatePopoverPosition();
+
+    const handleOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+
+      if (
+        buttonRef.current?.contains(target) ||
+        popoverRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setOpen(false);
+    };
+
+    const handleViewportChange = () => updatePopoverPosition();
+
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [open, updatePopoverPosition]);
+
+  const calendarDays = useMemo(() => {
+    const monthStart = viewMonth.startOf("month");
+    const sundayBasedOffset = monthStart.weekday % 7;
+    const gridStart = monthStart.minus({ days: sundayBasedOffset });
+
+    return Array.from({ length: 42 }, (_, index) =>
+      gridStart.plus({ days: index }),
+    );
+  }, [viewMonth]);
+
+  const displayValue = selectedDate
+    ? selectedDate
+        .setLocale(locale === "ar" ? "ar-JO" : "en-US")
+        .toLocaleString({
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        })
+    : copy.placeholder;
+
+  const setSelectedDate = (date: DateTime) => {
+    const base = selectedDate ?? DateTime.now().setZone(timeZone);
+    const next = date.set({
+      hour: selectedDate?.hour ?? base.hour ?? 9,
+      minute: selectedDate?.minute ?? 0,
+      second: 0,
+      millisecond: 0,
+    });
+
+    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+  };
+
+  const updateTime = (part: "hour" | "minute", rawValue: string) => {
+    const base =
+      selectedDate ??
+      DateTime.now().setZone(timeZone).set({
+        second: 0,
+        millisecond: 0,
+      });
+
+    const next =
+      part === "hour"
+        ? base.set({ hour: Number(rawValue) })
+        : base.set({ minute: Number(rawValue) });
+
+    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+    setViewMonth(next.startOf("month"));
+  };
+
+  const selectToday = () => {
+    const now = DateTime.now().setZone(timeZone);
+    const next = now.set({
+      hour: selectedDate?.hour ?? 9,
+      minute: selectedDate?.minute ?? 0,
+      second: 0,
+      millisecond: 0,
+    });
+
+    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+    setViewMonth(next.startOf("month"));
+  };
+
+  const popover =
+    open && mounted
+      ? createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label={ariaLabel}
+            dir={isRtl ? "rtl" : "ltr"}
+            className="overflow-auto rounded-3xl border p-4 shadow-2xl"
+            style={{
+              ...popoverStyle,
+              background: "var(--card)",
+              borderColor: "var(--border)",
+              color: "var(--text)",
+              boxShadow: "0 24px 70px rgba(0, 0, 0, 0.32)",
+            }}
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth((current) => current.minus({ months: 1 }))
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-2xl border text-lg font-black"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--card)",
+                }}
+                aria-label={copy.previousMonth}
+              >
+                {isRtl ? "›" : "‹"}
+              </button>
+
+              <p className="text-sm font-black">
+                {viewMonth
+                  .setLocale(locale === "ar" ? "ar-JO" : "en-US")
+                  .toFormat("LLLL yyyy")}
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth((current) => current.plus({ months: 1 }))
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-2xl border text-lg font-black"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--card)",
+                }}
+                aria-label={copy.nextMonth}
+              >
+                {isRtl ? "‹" : "›"}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {copy.weekdays.map((weekday) => (
+                <span
+                  key={weekday}
+                  className="py-1 text-[11px] font-black"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {weekday}
+                </span>
+              ))}
+
+              {calendarDays.map((day) => {
+                const isCurrentMonth = day.month === viewMonth.month;
+                const isSelected =
+                  selectedDate?.toISODate() === day.toISODate();
+                const isToday =
+                  day.toISODate() ===
+                  DateTime.now().setZone(timeZone).toISODate();
+
+                return (
+                  <button
+                    key={day.toISODate()}
+                    type="button"
+                    onClick={() => setSelectedDate(day)}
+                    className="relative flex h-10 items-center justify-center rounded-xl text-sm font-black transition"
+                    style={{
+                      background: isSelected
+                        ? "var(--sidebar)"
+                        : isToday
+                          ? "var(--green-soft)"
+                          : "transparent",
+                      color: isSelected
+                        ? "#fff"
+                        : isCurrentMonth
+                          ? "var(--text)"
+                          : "var(--text-3)",
+                      opacity: isCurrentMonth ? 1 : 0.55,
+                      border: isToday
+                        ? "1px solid var(--border)"
+                        : "1px solid transparent",
+                    }}
+                  >
+                    {day.day}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              className="mt-4 grid grid-cols-2 gap-3 rounded-2xl border p-3"
+              style={{
+                borderColor: "var(--border)",
+                background: "var(--card)",
+              }}
+            >
+              <label className="space-y-1 text-xs font-black">
+                <span style={{ color: "var(--text-3)" }}>{copy.hour}</span>
+                <select
+                  value={String(selectedDate?.hour ?? 9).padStart(2, "0")}
+                  onChange={(event) => updateTime("hour", event.target.value)}
+                  className="input h-11"
+                  dir="ltr"
+                  aria-label={copy.hour}
+                >
+                  {Array.from({ length: 24 }, (_, hour) => {
+                    const value = String(hour).padStart(2, "0");
+
+                    return (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+
+              <label className="space-y-1 text-xs font-black">
+                <span style={{ color: "var(--text-3)" }}>{copy.minute}</span>
+                <select
+                  value={String(
+                    Math.floor((selectedDate?.minute ?? 0) / 5) * 5,
+                  ).padStart(2, "0")}
+                  onChange={(event) => updateTime("minute", event.target.value)}
+                  className="input h-11"
+                  dir="ltr"
+                  aria-label={copy.minute}
+                >
+                  {Array.from({ length: 12 }, (_, index) => {
+                    const value = String(index * 5).padStart(2, "0");
+
+                    return (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                className="btn btn-ghost flex-1"
+              >
+                {copy.clear}
+              </button>
+
+              <button
+                type="button"
+                onClick={selectToday}
+                className="btn btn-ghost flex-1"
+              >
+                {copy.today}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="btn btn-primary flex-1"
+              >
+                {copy.done}
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => {
+          if (disabled) return;
+
+          setOpen((current) => !current);
+        }}
+        disabled={disabled}
+        className="input flex w-full items-center justify-between gap-3 text-start disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-required={required}
+      >
+        <span
+          className="truncate"
+          style={{
+            color: selectedDate ? "var(--text)" : "var(--text-3)",
+          }}
+        >
+          {displayValue}
+        </span>
+
+        <span aria-hidden="true" className="shrink-0 text-base">
+          📅
+        </span>
+      </button>
+
+      {popover}
+    </>
+  );
+}
+
 export default function AppointmentsPage() {
   const localeState = useLocale() as {
     locale?: Locale;
@@ -218,6 +662,24 @@ export default function AppointmentsPage() {
           noDescription: "No notes",
           endTime: "Ends",
         };
+  const appointmentFormCopy =
+    locale === "ar"
+      ? {
+          caseLabel: "القضية",
+          noCase: "بدون قضية",
+          selectClientFirst: "اختر الموكل أولاً",
+          loadingCases: "جارٍ تحميل القضايا...",
+          caseLoadError: "تعذر تحميل قضايا الموكل",
+          invalidCase: "القضية المحددة لا تتبع الموكل المختار",
+        }
+      : {
+          caseLabel: "Case",
+          noCase: "No case",
+          selectClientFirst: "Select a client first",
+          loadingCases: "Loading cases...",
+          caseLoadError: "Could not load the client's cases",
+          invalidCase: "The selected case does not belong to the chosen client",
+        };
   const fieldDir = {
     dir: (isRtl ? "rtl" : "ltr") as "rtl" | "ltr",
     style: {
@@ -226,14 +688,10 @@ export default function AppointmentsPage() {
     } as React.CSSProperties,
   };
 
-  const dateTimeFieldStyle = {
-    textAlign: "left",
-    direction: "ltr",
-    colorScheme: "dark",
-  } as React.CSSProperties;
-
   const [appts, setAppts] = useState<Appt[]>([]);
   const [clients, setClients] = useState<ClientItem[]>([]);
+  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [loadingCases, setLoadingCases] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [open, setOpen] = useState(false);
@@ -297,6 +755,66 @@ export default function AppointmentsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const clientId = form.clientId;
+
+    if (!clientId) {
+      setCases([]);
+      setLoadingCases(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadClientCases() {
+      try {
+        setLoadingCases(true);
+
+        const response = await fetch(
+          `/api/cases?clientId=${encodeURIComponent(clientId)}&limit=100&includeArchivedClients=false`,
+        );
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload?.message || appointmentFormCopy.caseLoadError);
+        }
+
+        const caseItems = Array.isArray(payload?.data?.data)
+          ? payload.data.data
+          : Array.isArray(payload?.data?.cases)
+            ? payload.data.cases
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : Array.isArray(payload?.cases)
+                ? payload.cases
+                : [];
+
+        if (!cancelled) {
+          setCases(
+            caseItems.filter(
+              (item: CaseItem) =>
+                !item.clientId || item.clientId === clientId,
+            ),
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setCases([]);
+          toast.error(appointmentFormCopy.caseLoadError);
+        }
+      } finally {
+        if (!cancelled) setLoadingCases(false);
+      }
+    }
+
+    loadClientCases();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.clientId, appointmentFormCopy.caseLoadError]);
 
   const isArchivedAppt = useCallback((appt: Appt) => {
     return Boolean(appt.client?.archivedAt || appt.case?.client?.archivedAt);
@@ -408,6 +926,16 @@ export default function AppointmentsPage() {
     };
   }
 
+  function handleClientChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    const clientId = event.target.value;
+
+    setForm((previous) => ({
+      ...previous,
+      clientId,
+      caseId: "",
+    }));
+  }
+
   function resetForm() {
     setForm(INIT);
     setEditMode(false);
@@ -429,6 +957,15 @@ export default function AppointmentsPage() {
 
     if (!form.title.trim() || !form.startTime) {
       toast.error(a.messages.requiredTitleTime);
+      return;
+    }
+
+    if (
+      form.caseId &&
+      !loadingCases &&
+      !cases.some((caseItem) => caseItem.id === form.caseId)
+    ) {
+      toast.error(appointmentFormCopy.invalidCase);
       return;
     }
 
@@ -629,7 +1166,7 @@ export default function AppointmentsPage() {
     setSelectedAppt(appt);
     setForm({
       title: appt.title,
-      clientId: appt.client?.id || "",
+      clientId: appt.client?.id || appt.case?.client?.id || "",
       caseId: appt.case?.id || "",
       startTime: toDateTimeLocal(appt.startTime, tenantTimeZone),
       endTime: toDateTimeLocal(appt.endTime, tenantTimeZone),
@@ -1136,7 +1673,7 @@ export default function AppointmentsPage() {
               <select
                 aria-label={a.form.client}
                 value={form.clientId}
-                onChange={f("clientId")}
+                onChange={handleClientChange}
                 className="input"
                 {...fieldDir}
               >
@@ -1157,6 +1694,37 @@ export default function AppointmentsPage() {
             </FormField>
           </div>
 
+          <FormField label={appointmentFormCopy.caseLabel}>
+            <select
+              aria-label={appointmentFormCopy.caseLabel}
+              value={form.caseId}
+              onChange={f("caseId")}
+              disabled={!form.clientId || loadingCases}
+              className="input disabled:cursor-not-allowed disabled:opacity-50"
+              {...fieldDir}
+            >
+              <option value="" dir={isRtl ? "rtl" : "ltr"}>
+                {!form.clientId
+                  ? appointmentFormCopy.selectClientFirst
+                  : loadingCases
+                    ? appointmentFormCopy.loadingCases
+                    : appointmentFormCopy.noCase}
+              </option>
+
+              {cases.map((caseItem) => (
+                <option
+                  key={caseItem.id}
+                  value={caseItem.id}
+                  dir={isRtl ? "rtl" : "ltr"}
+                >
+                  {caseItem.caseNumber
+                    ? `${caseItem.caseNumber} — ${caseItem.title}`
+                    : caseItem.title}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
           {selectedClientArchived && (
             <div
               className="rounded-2xl border p-3 text-xs font-bold"
@@ -1172,26 +1740,33 @@ export default function AppointmentsPage() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={a.form.startTime} required>
-              <input
-                aria-label={a.form.startTime}
-                type="datetime-local"
+              <DateTimePicker
+                ariaLabel={a.form.startTime}
                 value={form.startTime}
-                onChange={f("startTime")}
-                className="input"
-                dir="ltr"
-                style={dateTimeFieldStyle}
+                onChange={(value) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    startTime: value,
+                  }))
+                }
+                locale={locale}
+                timeZone={tenantTimeZone}
+                required
               />
             </FormField>
 
             <FormField label={a.form.endTime}>
-              <input
-                aria-label={a.form.endTime}
-                type="datetime-local"
+              <DateTimePicker
+                ariaLabel={a.form.endTime}
                 value={form.endTime}
-                onChange={f("endTime")}
-                className="input"
-                dir="ltr"
-                style={dateTimeFieldStyle}
+                onChange={(value) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    endTime: value,
+                  }))
+                }
+                locale={locale}
+                timeZone={tenantTimeZone}
               />
             </FormField>
           </div>
@@ -1233,7 +1808,7 @@ export default function AppointmentsPage() {
 
             <button
               type="submit"
-              disabled={saving || selectedClientArchived}
+              disabled={saving || loadingCases || selectedClientArchived}
               className="btn btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? (

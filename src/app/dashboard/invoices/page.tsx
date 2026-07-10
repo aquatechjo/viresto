@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
 import AppLoader from '@/components/ui/AppLoader'
@@ -12,12 +13,7 @@ import { useLocale } from '@/lib/useLocale'
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
-import {
-  buildInvoiceWhatsAppMessage,
-  formatInvoiceNumber,
-  normalizeWhatsAppPhone,
-  printInvoiceDocument,
-} from '@/lib/invoice-print'
+import { formatInvoiceNumber } from '@/lib/invoice-print'
 
 type InvoiceStatus = 'DRAFT' | 'UNPAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 
@@ -40,9 +36,10 @@ interface CaseOption {
 }
 
 interface InvoiceItem {
+  preset: string
   description: string
-  quantity: number
-  unitPrice: number
+  quantity: string
+  unitPrice: string
 }
 
 interface Invoice {
@@ -60,6 +57,9 @@ interface Invoice {
     id: string
     name: string
     phone?: string | null
+    whatsapp?: string | null
+    whatsappNumber?: string | null
+    mobile?: string | null
     email?: string | null
     archivedAt?: string | null
   }
@@ -177,11 +177,20 @@ const COPY = {
       notes: 'ملاحظات',
       notesPlaceholder: 'مثال: الدفعة الأولى من الأتعاب',
       items: 'بنود الفاتورة',
+      itemType: 'نوع البند',
+      chooseItem: 'اختر بندًا من القائمة',
+      customItem: 'بند مخصص',
+      customDescription: 'وصف البند المخصص',
       itemDescription: 'وصف البند',
       quantity: 'الكمية',
-      unitPrice: 'سعر الوحدة',
+      quantityPlaceholder: 'مثال: 1',
+      unitPrice: 'سعر الوحدة (د.أ)',
+      unitPricePlaceholder: 'مثال: 250',
+      lineTotal: 'إجمالي البند',
       tax: 'الضريبة',
+      taxPlaceholder: 'مثال: 0',
       discount: 'الخصم',
+      discountPlaceholder: 'مثال: 0',
       finalTotal: 'الإجمالي النهائي',
     },
     messages: {
@@ -291,11 +300,20 @@ const COPY = {
       notes: 'Notes',
       notesPlaceholder: 'Example: first legal-fee installment',
       items: 'Invoice items',
+      itemType: 'Item type',
+      chooseItem: 'Choose an item',
+      customItem: 'Custom item',
+      customDescription: 'Custom item description',
       itemDescription: 'Item description',
       quantity: 'Quantity',
-      unitPrice: 'Unit price',
+      quantityPlaceholder: 'Example: 1',
+      unitPrice: 'Unit price (JOD)',
+      unitPricePlaceholder: 'Example: 250',
+      lineTotal: 'Line total',
       tax: 'Tax',
+      taxPlaceholder: 'Example: 0',
       discount: 'Discount',
+      discountPlaceholder: 'Example: 0',
       finalTotal: 'Final total',
     },
     messages: {
@@ -320,6 +338,40 @@ const COPY = {
   },
 }
 
+const INVOICE_ITEM_PRESETS: Record<
+  Locale,
+  Array<{ value: string; label: string }>
+> = {
+  ar: [
+    { value: 'LEGAL_CONSULTATION', label: 'أتعاب استشارة قانونية' },
+    { value: 'CASE_OPENING', label: 'أتعاب فتح ومتابعة قضية' },
+    { value: 'COURT_SESSION', label: 'أتعاب حضور جلسة محكمة' },
+    { value: 'PLEADING_MEMO', label: 'إعداد لائحة دعوى أو مذكرة قانونية' },
+    { value: 'CONTRACT_DRAFTING', label: 'صياغة عقد أو اتفاقية' },
+    { value: 'DOCUMENT_REVIEW', label: 'مراجعة عقد أو مستندات' },
+    { value: 'LEGAL_NOTICE', label: 'إعداد إنذار عدلي أو إخطار قانوني' },
+    { value: 'LEGAL_REPRESENTATION', label: 'تمثيل قانوني ومتابعة إجراءات' },
+    { value: 'COMPANY_REGISTRATION', label: 'تسجيل شركة أو معاملة رسمية' },
+    { value: 'LEGAL_FEES_INSTALLMENT', label: 'دفعة من الأتعاب القانونية' },
+    { value: 'COURT_FEES', label: 'رسوم ومصاريف قضائية' },
+    { value: 'OTHER_EXPENSES', label: 'مصاريف إدارية أو خدمات أخرى' },
+  ],
+  en: [
+    { value: 'LEGAL_CONSULTATION', label: 'Legal consultation fee' },
+    { value: 'CASE_OPENING', label: 'Case opening and follow-up fee' },
+    { value: 'COURT_SESSION', label: 'Court session attendance fee' },
+    { value: 'PLEADING_MEMO', label: 'Pleading or legal memorandum preparation' },
+    { value: 'CONTRACT_DRAFTING', label: 'Contract or agreement drafting' },
+    { value: 'DOCUMENT_REVIEW', label: 'Contract or document review' },
+    { value: 'LEGAL_NOTICE', label: 'Legal notice preparation' },
+    { value: 'LEGAL_REPRESENTATION', label: 'Legal representation and follow-up' },
+    { value: 'COMPANY_REGISTRATION', label: 'Company registration or official transaction' },
+    { value: 'LEGAL_FEES_INSTALLMENT', label: 'Legal-fee installment' },
+    { value: 'COURT_FEES', label: 'Court fees and expenses' },
+    { value: 'OTHER_EXPENSES', label: 'Administrative or other service expenses' },
+  ],
+}
+
 const statusLabels: Record<InvoiceStatus, string> = {
   DRAFT: 'مسودة',
   UNPAID: 'غير مدفوعة',
@@ -328,13 +380,6 @@ const statusLabels: Record<InvoiceStatus, string> = {
   CANCELLED: 'ملغاة',
 }
 
-const statusClasses: Record<InvoiceStatus, string> = {
-  DRAFT: 'badge badge-gray',
-  UNPAID: 'badge badge-amber',
-  PAID: 'badge badge-green',
-  OVERDUE: 'badge badge-red',
-  CANCELLED: 'badge badge-gray',
-}
 
 const STATUS_OPTIONS: Array<{ value: '' | InvoiceStatus; label: string }> = [
   { value: '', label: 'كل الحالات' },
@@ -346,16 +391,23 @@ const STATUS_OPTIONS: Array<{ value: '' | InvoiceStatus; label: string }> = [
 ]
 
 function safeList(data: any) {
-  if (Array.isArray(data)) return data
-  if (Array.isArray(data?.data)) return data.data
-  if (Array.isArray(data?.items)) return data.items
-  if (Array.isArray(data?.clients)) return data.clients
-  if (Array.isArray(data?.cases)) return data.cases
-  if (Array.isArray(data?.invoices)) return data.invoices
-  if (Array.isArray(data?.data?.items)) return data.data.items
-  if (Array.isArray(data?.data?.clients)) return data.data.clients
-  if (Array.isArray(data?.data?.cases)) return data.data.cases
-  if (Array.isArray(data?.data?.invoices)) return data.data.invoices
+  const candidates = [
+    data,
+    data?.data?.data,
+    data?.data,
+    data?.items,
+    data?.clients,
+    data?.cases,
+    data?.invoices,
+    data?.data?.items,
+    data?.data?.clients,
+    data?.data?.cases,
+    data?.data?.invoices,
+  ]
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate
+  }
 
   return []
 }
@@ -388,6 +440,415 @@ function getBlockFallback(locale: Locale) {
     : 'انتهى الاشتراك. هذه الصفحة متاحة للقراءة فقط إلى حين التجديد.'
 }
 
+interface DatePickerProps {
+  value: string
+  onChange: (value: string) => void
+  locale: Locale
+  ariaLabel: string
+  disabled?: boolean
+}
+
+function parseDateValue(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0)
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null
+  }
+
+  return date
+}
+
+function toDateValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function isSameCalendarDay(first: Date | null, second: Date) {
+  return Boolean(
+    first &&
+      first.getFullYear() === second.getFullYear() &&
+      first.getMonth() === second.getMonth() &&
+      first.getDate() === second.getDate()
+  )
+}
+
+function DatePicker({
+  value,
+  onChange,
+  locale,
+  ariaLabel,
+  disabled = false,
+}: DatePickerProps) {
+  const isRtl = locale === 'ar'
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const popoverRef = useRef<HTMLDivElement | null>(null)
+  const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({})
+
+  const selectedDate = useMemo(() => parseDateValue(value), [value])
+
+  const [viewMonth, setViewMonth] = useState(() => {
+    const base = selectedDate ?? new Date()
+    return new Date(base.getFullYear(), base.getMonth(), 1, 12)
+  })
+
+  const pickerCopy =
+    locale === 'ar'
+      ? {
+          placeholder: 'اختر تاريخ الاستحقاق',
+          previousMonth: 'الشهر السابق',
+          nextMonth: 'الشهر التالي',
+          clear: 'مسح',
+          today: 'اليوم',
+          done: 'تم',
+          weekdays: ['أح', 'إث', 'ث', 'أر', 'خ', 'ج', 'س'],
+        }
+      : {
+          placeholder: 'Select due date',
+          previousMonth: 'Previous month',
+          nextMonth: 'Next month',
+          clear: 'Clear',
+          today: 'Today',
+          done: 'Done',
+          weekdays: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+        }
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!selectedDate) return
+
+    setViewMonth(
+      new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        1,
+        12
+      )
+    )
+  }, [selectedDate])
+
+  const updatePopoverPosition = useCallback(() => {
+    const button = buttonRef.current
+
+    if (!button) return
+
+    const rect = button.getBoundingClientRect()
+    const viewportPadding = 12
+    const gap = 8
+    const width = Math.min(360, window.innerWidth - viewportPadding * 2)
+    const estimatedHeight = Math.min(
+      390,
+      window.innerHeight - viewportPadding * 2
+    )
+    const availableAbove = rect.top - viewportPadding
+    const availableBelow =
+      window.innerHeight - rect.bottom - viewportPadding
+    const shouldOpenAbove =
+      availableAbove > availableBelow && availableAbove >= 280
+
+    const top = shouldOpenAbove
+      ? Math.max(viewportPadding, rect.top - estimatedHeight - gap)
+      : Math.min(
+          window.innerHeight - estimatedHeight - viewportPadding,
+          rect.bottom + gap
+        )
+
+    const preferredLeft = isRtl ? rect.right - width : rect.left
+    const left = Math.max(
+      viewportPadding,
+      Math.min(
+        preferredLeft,
+        window.innerWidth - width - viewportPadding
+      )
+    )
+
+    setPopoverStyle({
+      position: 'fixed',
+      top,
+      left,
+      width,
+      maxHeight: estimatedHeight,
+      zIndex: 10000,
+    })
+  }, [isRtl])
+
+  useEffect(() => {
+    if (!open) return
+
+    updatePopoverPosition()
+
+    const handleOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+
+      if (
+        buttonRef.current?.contains(target) ||
+        popoverRef.current?.contains(target)
+      ) {
+        return
+      }
+
+      setOpen(false)
+    }
+
+    const handleViewportChange = () => updatePopoverPosition()
+
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+      window.removeEventListener('resize', handleViewportChange)
+      window.removeEventListener('scroll', handleViewportChange, true)
+    }
+  }, [open, updatePopoverPosition])
+
+  const calendarDays = useMemo(() => {
+    const monthStart = new Date(
+      viewMonth.getFullYear(),
+      viewMonth.getMonth(),
+      1,
+      12
+    )
+    const gridStart = new Date(monthStart)
+    gridStart.setDate(monthStart.getDate() - monthStart.getDay())
+
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(gridStart)
+      date.setDate(gridStart.getDate() + index)
+      return date
+    })
+  }, [viewMonth])
+
+  const monthLabel = new Intl.DateTimeFormat(
+    locale === 'ar' ? 'ar-JO' : 'en-US',
+    {
+      month: 'long',
+      year: 'numeric',
+    }
+  ).format(viewMonth)
+
+  const displayValue = selectedDate
+    ? new Intl.DateTimeFormat(locale === 'ar' ? 'ar-JO' : 'en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }).format(selectedDate)
+    : pickerCopy.placeholder
+
+  const selectDate = (date: Date) => {
+    onChange(toDateValue(date))
+  }
+
+  const selectToday = () => {
+    const today = new Date()
+    onChange(toDateValue(today))
+    setViewMonth(
+      new Date(today.getFullYear(), today.getMonth(), 1, 12)
+    )
+  }
+
+  const popover =
+    open && mounted
+      ? createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label={ariaLabel}
+            dir={isRtl ? 'rtl' : 'ltr'}
+            className="overflow-auto rounded-3xl border p-4 shadow-2xl"
+            style={{
+              ...popoverStyle,
+              background: 'var(--card)',
+              borderColor: 'var(--border)',
+              color: 'var(--text)',
+              boxShadow: '0 24px 70px rgba(0, 0, 0, 0.32)',
+            }}
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    (current) =>
+                      new Date(
+                        current.getFullYear(),
+                        current.getMonth() - 1,
+                        1,
+                        12
+                      )
+                  )
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-2xl border text-lg font-black"
+                style={{
+                  borderColor: 'var(--border)',
+                  background: 'var(--card)',
+                }}
+                aria-label={pickerCopy.previousMonth}
+              >
+                {isRtl ? '›' : '‹'}
+              </button>
+
+              <p className="text-sm font-black">{monthLabel}</p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    (current) =>
+                      new Date(
+                        current.getFullYear(),
+                        current.getMonth() + 1,
+                        1,
+                        12
+                      )
+                  )
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-2xl border text-lg font-black"
+                style={{
+                  borderColor: 'var(--border)',
+                  background: 'var(--card)',
+                }}
+                aria-label={pickerCopy.nextMonth}
+              >
+                {isRtl ? '‹' : '›'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {pickerCopy.weekdays.map((weekday) => (
+                <span
+                  key={weekday}
+                  className="py-1 text-[11px] font-black"
+                  style={{ color: 'var(--text-3)' }}
+                >
+                  {weekday}
+                </span>
+              ))}
+
+              {calendarDays.map((day) => {
+                const isCurrentMonth =
+                  day.getMonth() === viewMonth.getMonth() &&
+                  day.getFullYear() === viewMonth.getFullYear()
+                const isSelected = isSameCalendarDay(selectedDate, day)
+                const isToday = isSameCalendarDay(new Date(), day)
+
+                return (
+                  <button
+                    key={toDateValue(day)}
+                    type="button"
+                    onClick={() => selectDate(day)}
+                    className="relative flex h-10 items-center justify-center rounded-xl text-sm font-black transition"
+                    style={{
+                      background: isSelected
+                        ? 'var(--sidebar)'
+                        : isToday
+                          ? 'var(--green-soft)'
+                          : 'transparent',
+                      color: isSelected
+                        ? '#fff'
+                        : isCurrentMonth
+                          ? 'var(--text)'
+                          : 'var(--text-3)',
+                      opacity: isCurrentMonth ? 1 : 0.55,
+                      border: isToday
+                        ? '1px solid var(--border)'
+                        : '1px solid transparent',
+                    }}
+                  >
+                    {day.getDate()}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onChange('')
+                  setOpen(false)
+                }}
+                className="btn btn-ghost flex-1"
+              >
+                {pickerCopy.clear}
+              </button>
+
+              <button
+                type="button"
+                onClick={selectToday}
+                className="btn btn-ghost flex-1"
+              >
+                {pickerCopy.today}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="btn btn-primary flex-1"
+              >
+                {pickerCopy.done}
+              </button>
+            </div>
+          </div>,
+          document.body
+        )
+      : null
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => {
+          if (disabled) return
+          setOpen((current) => !current)
+        }}
+        disabled={disabled}
+        className="input flex w-full items-center justify-between gap-3 text-start disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <span
+          className="truncate"
+          style={{
+            color: selectedDate ? 'var(--text)' : 'var(--text-3)',
+          }}
+        >
+          {displayValue}
+        </span>
+
+        <span aria-hidden="true" className="shrink-0 text-base">
+          📅
+        </span>
+      </button>
+
+      {popover}
+    </>
+  )
+}
+
 export default function InvoicesPage() {
   const router = useRouter()
   const localeState = useLocale() as { locale?: Locale }
@@ -395,6 +856,7 @@ export default function InvoicesPage() {
   const isRtl = locale === 'ar'
   const writeAccess = useTenantWriteAccess(locale)
   const copy = COPY[locale]
+  const invoiceItemPresets = INVOICE_ITEM_PRESETS[locale]
 
   const fieldStyle = {
     textAlign: isRtl ? 'right' : 'left',
@@ -402,8 +864,14 @@ export default function InvoicesPage() {
   } as CSSProperties
 
   const numberFieldStyle = {
-    textAlign: 'left',
+    // Keep numeric characters LTR, but align the content with the UI language.
+    textAlign: isRtl ? 'right' : 'left',
     direction: 'ltr',
+  } as CSSProperties
+
+  const moneyDisplayStyle = {
+    textAlign: isRtl ? 'right' : 'left',
+    direction: isRtl ? 'rtl' : 'ltr',
   } as CSSProperties
 
   const statusOptions: Array<{ value: '' | InvoiceStatus; label: string }> = [
@@ -416,35 +884,6 @@ export default function InvoicesPage() {
   ]
 
   const formatMoney = (value: number) => money(value, locale)
-
-  function confirmToast(message: string) {
-    return new Promise<boolean>((resolve) => {
-      let settled = false
-
-      const toastId = toast(message, {
-        duration: 10000,
-        action: {
-          label: locale === 'ar' ? 'تأكيد' : 'Confirm',
-          onClick: () => {
-            if (settled) return
-            settled = true
-            toast.dismiss(toastId)
-            resolve(true)
-          },
-        },
-        onDismiss: () => {
-          if (settled) return
-          settled = true
-          resolve(false)
-        },
-        onAutoClose: () => {
-          if (settled) return
-          settled = true
-          resolve(false)
-        },
-      })
-    })
-  }
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientOption[]>([])
@@ -462,11 +901,11 @@ export default function InvoicesPage() {
   const [clientId, setClientId] = useState('')
   const [caseId, setCaseId] = useState('')
   const [dueDate, setDueDate] = useState('')
-  const [tax, setTax] = useState(0)
-  const [discount, setDiscount] = useState(0)
+  const [tax, setTax] = useState('')
+  const [discount, setDiscount] = useState('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<InvoiceItem[]>([
-    { description: '', quantity: 1, unitPrice: 0 },
+    { preset: '', description: '', quantity: '', unitPrice: '' },
   ])
 
   const filteredCases = useMemo(() => {
@@ -587,10 +1026,12 @@ export default function InvoicesPage() {
     setClientId('')
     setCaseId('')
     setDueDate('')
-    setTax(0)
-    setDiscount(0)
+    setTax('')
+    setDiscount('')
     setNotes('')
-    setItems([{ description: '', quantity: 1, unitPrice: 0 }])
+    setItems([
+      { preset: '', description: '', quantity: '', unitPrice: '' },
+    ])
   }
 
   function closeModal() {
@@ -605,7 +1046,28 @@ export default function InvoicesPage() {
         itemIndex === index
           ? {
               ...item,
-              [key]: key === 'description' ? value : Number(value || 0),
+              [key]: value,
+            }
+          : item
+      )
+    )
+  }
+
+  function updateItemPreset(index: number, preset: string) {
+    const selectedPreset = invoiceItemPresets.find(
+      (item) => item.value === preset
+    )
+
+    setItems((previous) =>
+      previous.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              preset,
+              description:
+                preset === 'CUSTOM'
+                  ? ''
+                  : selectedPreset?.label || '',
             }
           : item
       )
@@ -615,7 +1077,7 @@ export default function InvoicesPage() {
   function addItem() {
     setItems((previous) => [
       ...previous,
-      { description: '', quantity: 1, unitPrice: 0 },
+      { preset: '', description: '', quantity: '', unitPrice: '' },
     ])
   }
 
@@ -636,7 +1098,13 @@ export default function InvoicesPage() {
       return
     }
 
-    const cleanItems = items.filter((item) => item.description.trim())
+    const cleanItems = items
+      .filter((item) => item.description.trim())
+      .map((item) => ({
+        description: item.description.trim(),
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unitPrice || 0),
+      }))
 
     if (cleanItems.length === 0) {
       toast.error(copy.messages.addOneItem)
@@ -653,8 +1121,8 @@ export default function InvoicesPage() {
           clientId,
           caseId: caseId || null,
           dueDate: dueDate || null,
-          tax,
-          discount,
+          tax: Number(tax || 0),
+          discount: Number(discount || 0),
           notes,
           items: cleanItems,
         }),
@@ -676,97 +1144,6 @@ export default function InvoicesPage() {
     } finally {
       setSaving(false)
     }
-  }
-
-  async function updateStatus(invoice: Invoice, nextStatus: InvoiceStatus) {
-    if (invoice.status === nextStatus) return
-
-    if (!writeAccess.canWrite) {
-      toast.error(writeAccess.message || getBlockFallback(locale))
-      return
-    }
-
-    if (nextStatus === 'PAID' && !invoice.case) {
-      toast.error(copy.messages.paidNeedsCase)
-      return
-    }
-
-    if (invoice.payment && invoice.status === 'PAID' && nextStatus !== 'PAID') {
-      const confirmed = await confirmToast(copy.messages.paidLinkedPaymentConfirm)
-
-      if (!confirmed) return
-    }
-
-    const response = await fetch(`/api/invoices/${invoice.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: nextStatus }),
-    })
-
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-      toast.error(getMessage(data, copy.messages.statusUpdateError))
-      return
-    }
-
-    toast.success(locale === 'ar' ? 'تم تحديث حالة الفاتورة' : 'Invoice status updated')
-    await load()
-  }
-
-  async function deleteInvoice(invoice: Invoice) {
-    if (!writeAccess.canWrite) {
-      toast.error(writeAccess.message || getBlockFallback(locale))
-      return
-    }
-
-    const archivedInvoice = isArchivedInvoice(invoice)
-
-    if (archivedInvoice) {
-      toast.error(copy.messages.archivedDeleteBlocked)
-      return
-    }
-
-    if (invoice.payment) {
-      toast.error(copy.messages.linkedPaymentDeleteBlocked)
-      return
-    }
-
-    const confirmed = await confirmToast(copy.messages.confirmDelete)
-    if (!confirmed) return
-
-    const response = await fetch(`/api/invoices/${invoice.id}`, {
-      method: 'DELETE',
-    })
-
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-      toast.error(getMessage(data, copy.messages.deleteError))
-      return
-    }
-
-    toast.success(locale === 'ar' ? 'تم حذف الفاتورة' : 'Invoice deleted')
-    await load()
-  }
-
-  function printInvoice(invoice: Invoice) {
-    printInvoiceDocument(invoice)
-  }
-
-  function sendInvoiceWhatsApp(invoice: Invoice) {
-    const phone = normalizeWhatsAppPhone(invoice.client?.phone)
-
-    if (!phone) {
-      toast.error(copy.messages.noPhone)
-      return
-    }
-
-    window.open(
-      `https://wa.me/${phone}?text=${encodeURIComponent(buildInvoiceWhatsAppMessage(invoice))}`,
-      '_blank',
-      'noopener,noreferrer'
-    )
   }
 
   function openInvoice(invoice: Invoice) {
@@ -1068,7 +1445,6 @@ export default function InvoicesPage() {
                   <th>{copy.table.client}</th>
                   <th>{copy.table.case}</th>
                   <th>{copy.table.total}</th>
-                  <th>{copy.table.status}</th>
                   <th>{copy.table.issueDate}</th>
                   <th>{copy.table.dueDate}</th>
                   <th>{copy.table.actions}</th>
@@ -1174,82 +1550,23 @@ export default function InvoicesPage() {
                         {formatMoney(invoice.total)}
                       </td>
 
-                      <td>
-                        <span className={statusClasses[invoice.status]}>
-                          {copy.statuses[invoice.status]}
-                        </span>
-                      </td>
+
 
                       <td>{formatDate(invoice.issueDate)}</td>
 
                       <td>{invoice.dueDate ? formatDate(invoice.dueDate) : '-'}</td>
 
-                      <td>
-                        <div
-                          className="flex flex-wrap gap-2"
-                          onClick={(event) => event.stopPropagation()}
+                      <td
+                        onClick={(event) => event.stopPropagation()}
+                        className="w-[110px] min-w-[110px]"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => openInvoice(invoice)}
+                          className="btn btn-ghost h-10 w-full whitespace-nowrap px-4 text-xs"
                         >
-                          <button
-                            type="button"
-                            onClick={() => openInvoice(invoice)}
-                            className="rounded-xl px-3 py-2 text-xs font-bold transition hover:bg-black/5"
-                          >
-                            {copy.actions.view}
-                          </button>
-
-                          <select
-                            aria-label={copy.messages.changeStatusAria(invoice.invoiceNumber)}
-                            dir={isRtl ? 'rtl' : 'ltr'}
-                            style={fieldStyle}
-                            value={invoice.status}
-                            disabled={!writeAccess.canWrite}
-                            title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : copy.messages.changeStatusAria(invoice.invoiceNumber)}
-                            onChange={(event) =>
-                              updateStatus(invoice, event.target.value as InvoiceStatus)
-                            }
-                            className="input h-9 min-w-[130px] text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <option value="DRAFT">{copy.statuses.DRAFT}</option>
-                            <option value="UNPAID">{copy.statuses.UNPAID}</option>
-                            <option value="PAID">{copy.statuses.PAID}</option>
-                            <option value="OVERDUE">{copy.statuses.OVERDUE}</option>
-                            <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
-                          </select>
-
-                          <button
-                            type="button"
-                            onClick={() => printInvoice(invoice)}
-                            className="rounded-xl border border-black/10 px-3 py-2 text-xs font-bold transition hover:bg-black/5"
-                          >
-                            {copy.actions.print}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => sendInvoiceWhatsApp(invoice)}
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50"
-                          >
-                            {copy.actions.whatsapp}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => deleteInvoice(invoice)}
-                            disabled={!writeAccess.canWrite || !!invoice.payment || archivedInvoice}
-                            title={
-                              !writeAccess.canWrite
-                                ? writeAccess.message || getBlockFallback(locale)
-                                : archivedInvoice
-                                ? copy.messages.deleteTitleArchived
-                                : invoice.payment
-                                  ? copy.messages.deleteTitlePayment
-                                  : copy.messages.deleteTitle
-                            }
-                            className="rounded-xl px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {copy.actions.delete}
-                          </button>
-                        </div>
+                          {copy.actions.view}
+                        </button>
                       </td>
                     </tr>
                   )
@@ -1352,18 +1669,19 @@ export default function InvoicesPage() {
                 </div>
               )}
 
-              <label className="space-y-2">
-                <span className="text-sm font-bold">{copy.modal.dueDate}</span>
+              <div className="space-y-2">
+                <span className="block text-sm font-bold">
+                  {copy.modal.dueDate}
+                </span>
 
-                <input
-                  type="date"
+                <DatePicker
                   value={dueDate}
-                  dir="ltr"
-                  style={numberFieldStyle}
-                  onChange={(event) => setDueDate(event.target.value)}
-                  className="input"
+                  onChange={setDueDate}
+                  locale={locale}
+                  ariaLabel={copy.modal.dueDate}
+                  disabled={saving}
                 />
-              </label>
+              </div>
 
               <label className="space-y-2">
                 <span className="text-sm font-bold">{copy.modal.notes}</span>
@@ -1391,104 +1709,234 @@ export default function InvoicesPage() {
               </div>
 
               <div className="space-y-3">
-                {items.map((item, index) => (
-                  <div
-                    key={index}
-                    className="grid gap-3 rounded-2xl border p-3 md:grid-cols-[1fr_120px_150px_80px]"
-                    style={{ borderColor: 'var(--border)' }}
-                  >
-                    <input
-                      value={item.description}
-                      onChange={(event) =>
-                        updateItem(index, 'description', event.target.value)
-                      }
-                      placeholder={copy.modal.itemDescription}
-                      dir={isRtl ? 'rtl' : 'ltr'}
-                      style={fieldStyle}
-                      className="input"
-                    />
+                {items.map((item, index) => {
+                  const lineTotal =
+                    Number(item.quantity || 0) *
+                    Number(item.unitPrice || 0)
 
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.quantity}
-                      onChange={(event) =>
-                        updateItem(index, 'quantity', event.target.value)
-                      }
-                      placeholder={copy.modal.quantity}
-                      dir="ltr"
-                      style={numberFieldStyle}
-                      className="input"
-                    />
-
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.unitPrice}
-                      onChange={(event) =>
-                        updateItem(index, 'unitPrice', event.target.value)
-                      }
-                      placeholder={copy.modal.unitPrice}
-                      dir="ltr"
-                      style={numberFieldStyle}
-                      className="input"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => removeItem(index)}
-                      disabled={!writeAccess.canWrite || items.length === 1}
-                      className="rounded-xl px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  return (
+                    <div
+                      key={index}
+                      className="rounded-2xl border p-4"
+                      style={{ borderColor: 'var(--border)' }}
                     >
-                      {copy.actions.delete}
-                    </button>
-                  </div>
-                ))}
+                      <div
+                        className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_120px_165px_150px_auto] md:items-end"
+                        dir={isRtl ? 'rtl' : 'ltr'}
+                      >
+                        <label className="space-y-2 text-start">
+                          <span
+                            className="block w-full text-start text-xs font-black"
+                            style={{ color: 'var(--text-2)' }}
+                          >
+                            {copy.modal.itemType}
+                          </span>
+
+                          <select
+                            value={item.preset}
+                            onChange={(event) =>
+                              updateItemPreset(index, event.target.value)
+                            }
+                            dir={isRtl ? 'rtl' : 'ltr'}
+                            style={fieldStyle}
+                            className="input"
+                          >
+                            <option value="">
+                              {copy.modal.chooseItem}
+                            </option>
+
+                            {invoiceItemPresets.map((preset) => (
+                              <option
+                                key={preset.value}
+                                value={preset.value}
+                              >
+                                {preset.label}
+                              </option>
+                            ))}
+
+                            <option value="CUSTOM">
+                              {copy.modal.customItem}
+                            </option>
+                          </select>
+                        </label>
+
+                        <label className="space-y-2 text-start">
+                          <span
+                            className="block w-full text-start text-xs font-black"
+                            style={{ color: 'var(--text-2)' }}
+                          >
+                            {copy.modal.quantity}
+                          </span>
+
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={item.quantity}
+                            placeholder={copy.modal.quantityPlaceholder}
+                            onChange={(event) =>
+                              updateItem(
+                                index,
+                                'quantity',
+                                event.target.value
+                              )
+                            }
+                            dir="ltr"
+                            style={numberFieldStyle}
+                            className="input"
+                          />
+                        </label>
+
+                        <label className="space-y-2 text-start">
+                          <span
+                            className="block w-full text-start text-xs font-black"
+                            style={{ color: 'var(--text-2)' }}
+                          >
+                            {copy.modal.unitPrice}
+                          </span>
+
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unitPrice}
+                            placeholder={copy.modal.unitPricePlaceholder}
+                            onChange={(event) =>
+                              updateItem(
+                                index,
+                                'unitPrice',
+                                event.target.value
+                              )
+                            }
+                            dir="ltr"
+                            style={numberFieldStyle}
+                            className="input"
+                          />
+                        </label>
+
+                        <div className="space-y-2">
+                          <span
+                            className="block w-full text-start text-xs font-black"
+                            style={{ color: 'var(--text-2)' }}
+                          >
+                            {copy.modal.lineTotal}
+                          </span>
+
+                          <div
+                            className="input flex items-center"
+                            dir={isRtl ? 'rtl' : 'ltr'}
+                            style={{
+                              ...moneyDisplayStyle,
+                              justifyContent: isRtl ? 'flex-start' : 'flex-start',
+                              background: 'var(--green-soft)',
+                              color: 'var(--sidebar)',
+                              fontWeight: 900,
+                            }}
+                          >
+                            {formatMoney(lineTotal)}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeItem(index)}
+                          disabled={
+                            !writeAccess.canWrite || items.length === 1
+                          }
+                          className="btn h-[46px] px-4 text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                          style={{
+                            background: 'transparent',
+                            borderColor: 'rgba(220, 38, 38, 0.22)',
+                          }}
+                        >
+                          {copy.actions.delete}
+                        </button>
+                      </div>
+
+                      {item.preset === 'CUSTOM' && (
+                        <label className="mt-3 block space-y-2">
+                          <span className="block text-xs font-black" style={{ color: 'var(--text-2)' }}>
+                            {copy.modal.customDescription}
+                          </span>
+
+                          <input
+                            value={item.description}
+                            onChange={(event) =>
+                              updateItem(
+                                index,
+                                'description',
+                                event.target.value
+                              )
+                            }
+                            placeholder={copy.modal.itemDescription}
+                            dir={isRtl ? 'rtl' : 'ltr'}
+                            style={fieldStyle}
+                            className="input"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <label className="space-y-2">
-                <span className="text-sm font-bold">{copy.modal.tax}</span>
+            <div
+              className="mt-6 grid gap-4 md:grid-cols-3"
+              dir={isRtl ? 'rtl' : 'ltr'}
+            >
+              <label className="space-y-2 text-start">
+                <span className="block w-full text-start text-sm font-bold">
+                  {copy.modal.tax}
+                </span>
 
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={tax}
+                  placeholder={copy.modal.taxPlaceholder}
                   dir="ltr"
                   style={numberFieldStyle}
-                  onChange={(event) => setTax(Number(event.target.value || 0))}
+                  onChange={(event) => setTax(event.target.value)}
                   className="input"
                 />
               </label>
 
-              <label className="space-y-2">
-                <span className="text-sm font-bold">{copy.modal.discount}</span>
+              <label className="space-y-2 text-start">
+                <span className="block w-full text-start text-sm font-bold">
+                  {copy.modal.discount}
+                </span>
 
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={discount}
+                  placeholder={copy.modal.discountPlaceholder}
                   dir="ltr"
                   style={numberFieldStyle}
-                  onChange={(event) => setDiscount(Number(event.target.value || 0))}
+                  onChange={(event) => setDiscount(event.target.value)}
                   className="input"
                 />
               </label>
 
               <div
-                className="rounded-2xl border p-4"
+                className="rounded-2xl border p-4 text-start"
                 style={{ borderColor: 'var(--border)' }}
               >
-                <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+                <p
+                  className="text-start text-sm"
+                  style={{ color: 'var(--text-3)' }}
+                >
                   {copy.modal.finalTotal}
                 </p>
 
-                <p className="mt-1 text-2xl font-black" style={{ color: 'var(--sidebar)' }}>
+                <p
+                  className="mt-1 text-start text-2xl font-black"
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                  style={{ color: 'var(--sidebar)' }}
+                >
                   {formatMoney(total)}
                 </p>
               </div>
