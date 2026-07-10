@@ -1,29 +1,109 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import StatCard from "@/components/ui/StatCard";
-import { formatCurrency, formatTime } from "@/lib/utils";
-import type { Locale } from "@/lib/i18n";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  BriefcaseBusiness,
+  CalendarDays,
+  CalendarPlus,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  FilePlus2,
+  FolderOpen,
+  ListTodo,
+  ReceiptText,
+  Sparkles,
+  UserPlus,
+  Users,
+  WalletCards,
+} from "lucide-react";
+import { formatTime } from "@/lib/utils";
+import type { Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
+
 const AIAssistant = dynamic(
   () => import("@/components/dashboard/AIAssistant"),
   {
     ssr: false,
     loading: () => (
       <div
-        className="card flex h-full min-h-[240px] items-center justify-center p-4 text-sm sm:min-h-[300px] sm:p-6"
+        className="card flex h-full min-h-[260px] items-center justify-center p-5"
         style={{ color: "var(--text-3)" }}
       >
-        جاري تحميل المساعد...
+        <span className="spinner" aria-hidden="true" />
       </div>
     ),
   },
 );
 
+interface AppointmentItem {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime?: string | null;
+  location?: string | null;
+  type: string;
+  status?: string;
+  client?: {
+    id?: string;
+    name: string;
+  } | null;
+  case?: {
+    id?: string;
+    title: string;
+    caseNumber?: string | null;
+  } | null;
+}
+
+interface TaskItem {
+  id: string;
+  title: string;
+  description?: string | null;
+  dueDate?: string | null;
+  priority: "LOW" | "MEDIUM" | "HIGH";
+  completed: boolean;
+  client?: {
+    id?: string;
+    name: string;
+  } | null;
+  case?: {
+    id?: string;
+    title: string;
+    caseNumber?: string | null;
+  } | null;
+}
+
+interface InvoiceAlertItem {
+  id: string;
+  invoiceNumber: string;
+  status: string;
+  issueDate: string;
+  dueDate?: string | null;
+  total: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  isOverdue: boolean;
+  client?: {
+    id?: string;
+    name: string;
+  } | null;
+  case?: {
+    id?: string;
+    title: string;
+    caseNumber?: string | null;
+  } | null;
+}
+
 interface Stats {
+  timeZone?: string;
   clientCount: number;
   activeCaseCount: number;
   totalCasesCount: number;
@@ -33,14 +113,17 @@ interface Stats {
   todayApptCount: number;
   totalRevenue: number;
   pendingAmount: number;
+  overdueAmount: number;
   newClientsThisMonth: number;
-  todayAppts: {
-    id: string;
-    title: string;
-    startTime: string;
-    location?: string;
-    type: string;
-  }[];
+  dueTasksCount: number;
+  dueTodayTasksCount: number;
+  overdueTasksCount: number;
+  unpaidInvoicesCount: number;
+  overdueInvoicesCount: number;
+  todayAppts: AppointmentItem[];
+  upcomingAppointments: AppointmentItem[];
+  upcomingTasks: TaskItem[];
+  overdueInvoices: InvoiceAlertItem[];
 }
 
 interface CaseItem {
@@ -89,6 +172,26 @@ const STATUS_LABELS: Record<Locale, Record<string, string>> = {
     CLOSED: "Closed",
     ARCHIVED: "Archived",
   },
+};
+
+const PRIORITY_LABELS: Record<Locale, Record<string, string>> = {
+  ar: {
+    HIGH: "عالية",
+    MEDIUM: "متوسطة",
+    LOW: "منخفضة",
+  },
+  en: {
+    HIGH: "High",
+    MEDIUM: "Medium",
+    LOW: "Low",
+  },
+};
+
+const PRIORITY_STYLES: Record<string, string> = {
+  HIGH: "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300",
+  MEDIUM:
+    "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  LOW: "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -154,74 +257,164 @@ const ACTIVITY_CONFIG: Record<
 
 const TEXT = {
   ar: {
-    assistantLoading: "جاري تحميل المساعد...",
-    heroBadge: "لوحة إدارة المكتب القانوني",
-    heroTitle: "إدارة القضايا والموكلين من مكان واحد",
-    heroDescription:
-      "مركز تحكم شامل لمتابعة أداء المكتب القانوني، من القضايا والمواعيد إلى المستندات والموكلين والمؤشرات المالية، بواجهة واضحة تساعدك على إدارة العمل بثقة.",
-    todaySummary: "ملخص اليوم",
+    dashboardBadge: "مركز العمل اليومي",
+    morning: "صباح الخير",
+    afternoon: "مساء الخير",
+    evening: "مساء الخير",
+    defaultUser: "مرحبًا بك",
+    clearDay: "لا توجد عناصر عاجلة تحتاج متابعة اليوم.",
+    dailySummary: (appointments: number, tasks: number) =>
+      `لديك ${appointments} موعد اليوم و${tasks} مهمة تحتاج متابعة.`,
+    quickActions: "إجراءات سريعة",
+    addClient: "إضافة موكل",
+    addCase: "إضافة قضية",
+    addAppointment: "إنشاء موعد",
+    createInvoice: "إنشاء فاتورة",
+
+    activeCases: "القضايا النشطة",
+    activeCasesSub: "قضايا مفتوحة وقيد المتابعة",
     todayAppointments: "مواعيد اليوم",
-    activeCases: "قضايا نشطة",
-    clients: "الموكلون",
-    thisMonth: "هذا الشهر",
-    nextAppointment: "أقرب موعد",
-    noAppointment: "لا يوجد",
-    noUpcomingAppointments: "لا توجد مواعيد قادمة",
-    receivables: "المستحقات",
-    unpaid: "غير محصلة",
-    recentCases: "آخر القضايا",
-    recentCasesSub: "أحدث القضايا المسجلة في المكتب",
+    todayAppointmentsSub: "المواعيد المجدولة لهذا اليوم",
+    dueTasks: "مهام تحتاج متابعة",
+    dueTasksSub: "مستحقة اليوم أو متأخرة",
+    receivables: "المبالغ غير المحصلة",
+    receivablesSub: "الرصيد المتبقي على الفواتير",
+
+    needsAttention: "يحتاج انتباهك",
+    needsAttentionSub: "العناصر الأهم التي تتطلب إجراءً مباشرًا",
+    noAttention: "الوضع مستقر",
+    noAttentionSub: "لا توجد فواتير أو مهام متأخرة حاليًا.",
+    overdueTasksTitle: (count: number) => `${count} مهمة متأخرة`,
+    overdueTasksMessage: "تجاوزت موعد الاستحقاق وما تزال غير مكتملة.",
+    dueTodayTasksTitle: (count: number) => `${count} مهمة مستحقة اليوم`,
+    dueTodayTasksMessage: "راجع المهام قبل نهاية يوم العمل.",
+    overdueInvoicesTitle: (count: number) => `${count} فاتورة متأخرة`,
+    overdueInvoicesMessage: (amount: string) =>
+      `إجمالي الرصيد المتأخر ${amount}.`,
+    upcomingAppointmentTitle: "أقرب موعد قادم",
+    viewDetails: "عرض التفاصيل",
+
+    todaySchedule: "جدول اليوم",
+    todayScheduleSub: "المواعيد المرتبة حسب الوقت",
+    noAppointmentsToday: "لا توجد مواعيد اليوم",
+    addAppointmentAction: "إنشاء موعد جديد",
+    upcomingTasks: "المهام القادمة",
+    upcomingTasksSub: "الأقرب استحقاقًا والأعلى أولوية",
+    noUpcomingTasks: "لا توجد مهام غير مكتملة",
+    addTaskAction: "إنشاء مهمة",
+    overdue: "متأخرة",
+    dueToday: "اليوم",
+
+    recentCases: "أحدث القضايا",
+    recentCasesSub: "آخر القضايا المسجلة أو المحدثة",
     noCases: "لا توجد قضايا",
     noClient: "بدون موكل",
-    todayScheduleOnly: "جدول مواعيد اليوم فقط",
-    noAppointmentsToday: "لا مواعيد اليوم",
-    recentDocuments: "آخر المستندات",
-    recentDocumentsSub: "آخر 5 ملفات مرفوعة في النظام",
-    noDocuments: "لا يوجد مستندات بعد",
+    viewAllCases: "عرض كل القضايا",
+
     officeSummary: "ملخص المكتب",
-    officeSummarySub: "نظرة رقمية مختصرة على الأداء",
+    officeSummarySub: "مؤشرات عامة عن العمل والتحصيل",
+    clients: "الموكلون",
+    thisMonth: "هذا الشهر",
     totalCases: "إجمالي القضايا",
     closedCases: "القضايا المغلقة",
-    monthlyRevenue: "إيرادات الشهر",
-    totalRevenue: "إجمالي الإيرادات",
+    monthlyRevenue: "تحصيل الشهر",
+    totalRevenue: "إجمالي التحصيل",
+
+    recentDocuments: "آخر المستندات",
+    recentDocumentsSub: "أحدث الملفات التي رُفعت إلى النظام",
+    noDocuments: "لا توجد مستندات بعد",
+    viewAllDocuments: "عرض كل المستندات",
+
+    assistant: "المساعد القانوني الذكي",
+    assistantSub: "اسأل عن القضايا والمواعيد والعمل اليومي",
+
     recentActivities: "آخر النشاطات",
-    recentActivitiesSub: "آخر 5 عمليات مسجلة داخل المكتب",
-    noActivities: "لا توجد نشاطات حالياً",
+    recentActivitiesSub: "أحدث العمليات المسجلة داخل المكتب",
+    noActivities: "لا توجد نشاطات حاليًا",
+    viewAllActivities: "عرض سجل النشاط",
+
+    viewAll: "عرض الكل",
+    loadingFailed: "تعذر تحميل بعض بيانات لوحة التحكم.",
   },
   en: {
-    assistantLoading: "Loading assistant...",
-    heroBadge: "Legal office management dashboard",
-    heroTitle: "Manage cases and clients from one place",
-    heroDescription:
-      "A complete control center for monitoring your law office performance, from cases and appointments to documents, clients, and financial indicators.",
-    todaySummary: "Today summary",
-    todayAppointments: "Today appointments",
+    dashboardBadge: "Daily workspace",
+    morning: "Good morning",
+    afternoon: "Good afternoon",
+    evening: "Good evening",
+    defaultUser: "Welcome",
+    clearDay: "There are no urgent items requiring attention today.",
+    dailySummary: (appointments: number, tasks: number) =>
+      `You have ${appointments} appointment(s) today and ${tasks} task(s) requiring attention.`,
+    quickActions: "Quick actions",
+    addClient: "Add client",
+    addCase: "Add case",
+    addAppointment: "Create appointment",
+    createInvoice: "Create invoice",
+
     activeCases: "Active cases",
-    clients: "Clients",
-    thisMonth: "this month",
-    nextAppointment: "Next appointment",
-    noAppointment: "None",
-    noUpcomingAppointments: "No upcoming appointments",
-    receivables: "Receivables",
-    unpaid: "Unpaid",
+    activeCasesSub: "Open and in-progress cases",
+    todayAppointments: "Today's appointments",
+    todayAppointmentsSub: "Appointments scheduled for today",
+    dueTasks: "Tasks requiring attention",
+    dueTasksSub: "Due today or overdue",
+    receivables: "Outstanding receivables",
+    receivablesSub: "Remaining balance on invoices",
+
+    needsAttention: "Needs your attention",
+    needsAttentionSub: "Important items requiring direct action",
+    noAttention: "Everything is on track",
+    noAttentionSub: "There are no overdue invoices or tasks right now.",
+    overdueTasksTitle: (count: number) => `${count} overdue task(s)`,
+    overdueTasksMessage: "Past the due date and still incomplete.",
+    dueTodayTasksTitle: (count: number) => `${count} task(s) due today`,
+    dueTodayTasksMessage: "Review these tasks before the end of the workday.",
+    overdueInvoicesTitle: (count: number) => `${count} overdue invoice(s)`,
+    overdueInvoicesMessage: (amount: string) =>
+      `Total overdue balance is ${amount}.`,
+    upcomingAppointmentTitle: "Next upcoming appointment",
+    viewDetails: "View details",
+
+    todaySchedule: "Today's schedule",
+    todayScheduleSub: "Appointments ordered by time",
+    noAppointmentsToday: "No appointments today",
+    addAppointmentAction: "Create an appointment",
+    upcomingTasks: "Upcoming tasks",
+    upcomingTasksSub: "Nearest due dates and highest priorities",
+    noUpcomingTasks: "No incomplete tasks",
+    addTaskAction: "Create task",
+    overdue: "Overdue",
+    dueToday: "Today",
+
     recentCases: "Recent cases",
-    recentCasesSub: "Latest cases registered in the office",
+    recentCasesSub: "Latest registered or updated cases",
     noCases: "No cases found",
     noClient: "No client",
-    todayScheduleOnly: "Today's schedule only",
-    noAppointmentsToday: "No appointments today",
-    recentDocuments: "Recent documents",
-    recentDocumentsSub: "Latest 5 uploaded files in the system",
-    noDocuments: "No documents yet",
+    viewAllCases: "View all cases",
+
     officeSummary: "Office summary",
-    officeSummarySub: "A quick numerical view of performance",
+    officeSummarySub: "General work and collection indicators",
+    clients: "Clients",
+    thisMonth: "this month",
     totalCases: "Total cases",
     closedCases: "Closed cases",
-    monthlyRevenue: "Monthly revenue",
-    totalRevenue: "Total revenue",
+    monthlyRevenue: "Monthly collections",
+    totalRevenue: "Total collections",
+
+    recentDocuments: "Recent documents",
+    recentDocumentsSub: "Latest files uploaded to the system",
+    noDocuments: "No documents yet",
+    viewAllDocuments: "View all documents",
+
+    assistant: "AI legal assistant",
+    assistantSub: "Ask about cases, appointments, and daily work",
+
     recentActivities: "Recent activities",
-    recentActivitiesSub: "Latest 5 logged actions in the office",
+    recentActivitiesSub: "Latest actions logged in the office",
     noActivities: "No activities yet",
+    viewAllActivities: "View activity log",
+
+    viewAll: "View all",
+    loadingFailed: "Some dashboard data could not be loaded.",
   },
 } as const;
 
@@ -627,15 +820,48 @@ function getActivityText(activity: ActivityItem, locale: Locale) {
 }
 
 function formatMoney(value: number, locale: Locale) {
+  const normalizedValue = Math.abs(Number(value) || 0) < 0.005 ? 0 : Number(value);
+
   if (locale === "en") {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "JOD",
       maximumFractionDigits: 2,
-    }).format(value);
+    }).format(normalizedValue);
   }
 
-  return formatCurrency(value);
+  return `${new Intl.NumberFormat("ar-JO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(normalizedValue)} د.أ`;
+}
+
+function extractItems<T>(payload: unknown): T[] {
+  if (!payload || typeof payload !== "object") return [];
+
+  const root = payload as {
+    data?: unknown;
+    items?: unknown;
+    results?: unknown;
+  };
+
+  if (Array.isArray(root.data)) return root.data as T[];
+  if (Array.isArray(root.items)) return root.items as T[];
+  if (Array.isArray(root.results)) return root.results as T[];
+
+  if (root.data && typeof root.data === "object") {
+    const nested = root.data as {
+      data?: unknown;
+      items?: unknown;
+      results?: unknown;
+    };
+
+    if (Array.isArray(nested.data)) return nested.data as T[];
+    if (Array.isArray(nested.items)) return nested.items as T[];
+    if (Array.isArray(nested.results)) return nested.results as T[];
+  }
+
+  return [];
 }
 
 function getDocumentIcon(fileType?: string) {
@@ -648,17 +874,193 @@ function formatDate(date: string, locale: Locale) {
   return new Date(date).toLocaleDateString(locale === "ar" ? "ar-JO" : "en-US");
 }
 
+function formatDateTime(date: string, locale: Locale) {
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(date));
+}
+
+function isPastDate(date?: string | null) {
+  if (!date) return false;
+  return new Date(date).getTime() < Date.now();
+}
+
+function isTodayDate(date?: string | null) {
+  if (!date) return false;
+
+  const value = new Date(date);
+  const today = new Date();
+
+  return (
+    value.getFullYear() === today.getFullYear() &&
+    value.getMonth() === today.getMonth() &&
+    value.getDate() === today.getDate()
+  );
+}
+
+interface SectionHeaderProps {
+  title: string;
+  subtitle: string;
+  href?: string;
+  linkLabel?: string;
+  isRtl: boolean;
+}
+
+function SectionHeader({
+  title,
+  subtitle,
+  href,
+  linkLabel,
+  isRtl,
+}: SectionHeaderProps) {
+  const ArrowIcon = isRtl ? ArrowLeft : ArrowRight;
+
+  return (
+    <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2
+          className="text-base font-black sm:text-lg"
+          style={{ color: "var(--text)" }}
+        >
+          {title}
+        </h2>
+        <p
+          className="mt-1 text-xs leading-5 sm:text-sm"
+          style={{ color: "var(--text-3)" }}
+        >
+          {subtitle}
+        </p>
+      </div>
+
+      {href && linkLabel && (
+        <Link
+          href={href}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
+          style={{ color: "var(--sidebar)" }}
+        >
+          {linkLabel}
+          <ArrowIcon className="h-3.5 w-3.5" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+interface EmptyStateProps {
+  icon: ReactNode;
+  title: string;
+  actionLabel?: string;
+  href?: string;
+}
+
+function EmptyState({ icon, title, actionLabel, href }: EmptyStateProps) {
+  return (
+    <div
+      className="flex min-h-[122px] flex-col items-center justify-center rounded-2xl border border-dashed p-4 text-center"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <div
+        className="flex h-10 w-10 items-center justify-center rounded-xl"
+        style={{ background: "var(--green-soft)", color: "var(--sidebar)" }}
+      >
+        {icon}
+      </div>
+
+      <p className="mt-2.5 text-sm font-bold" style={{ color: "var(--text-2)" }}>
+        {title}
+      </p>
+
+      {href && actionLabel && (
+        <Link
+          href={href}
+          className="mt-2.5 rounded-xl px-3 py-2 text-xs font-black"
+          style={{ background: "var(--green-soft)", color: "var(--sidebar)" }}
+        >
+          {actionLabel}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+interface MetricCardProps {
+  label: string;
+  value: string | number;
+  sub: string;
+  icon: ReactNode;
+  href: string;
+  alert?: boolean;
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+  icon,
+  href,
+  alert = false,
+}: MetricCardProps) {
+  return (
+    <Link
+      href={href}
+      className="group card min-w-0 p-3.5 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:p-4"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+          style={{
+            background: alert ? "var(--red-soft)" : "var(--green-soft)",
+            color: alert ? "#dc2626" : "var(--sidebar)",
+          }}
+        >
+          {icon}
+        </div>
+
+        <ArrowRight
+          className="h-4 w-4 opacity-0 transition group-hover:opacity-100 rtl:rotate-180"
+          style={{ color: "var(--text-3)" }}
+        />
+      </div>
+
+      <p className="mt-3 text-xs font-bold" style={{ color: "var(--text-3)" }}>
+        {label}
+      </p>
+
+      <p
+        className="mt-1 truncate text-2xl font-black"
+        style={{ color: alert ? "#dc2626" : "var(--text)" }}
+      >
+        {value}
+      </p>
+
+      <p
+        className="mt-1.5 line-clamp-2 text-xs leading-5"
+        style={{ color: "var(--text-3)" }}
+      >
+        {sub}
+      </p>
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { locale, isRtl } = useLocale();
   const t = TEXT[locale];
   const statusLabels = STATUS_LABELS[locale];
+  const priorityLabels = PRIORITY_LABELS[locale];
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [userName, setUserName] = useState("");
+  const [officeName, setOfficeName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -671,9 +1073,19 @@ export default function DashboardPage() {
           credentials: "include",
         });
 
-        if (!cancelled && !res.ok) {
-          router.replace("/login");
-          router.refresh();
+        if (!res.ok) {
+          if (!cancelled) {
+            router.replace("/login");
+            router.refresh();
+          }
+          return;
+        }
+
+        const body = await res.json();
+
+        if (!cancelled) {
+          setUserName(body?.data?.name ?? "");
+          setOfficeName(body?.data?.tenant?.name ?? "");
         }
       } catch {
         if (!cancelled) {
@@ -706,14 +1118,35 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadDashboard() {
       try {
+        setHasLoadError(false);
+
+        const timeZone =
+          Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Amman";
+
         const responses = await Promise.all([
-          fetch("/api/dashboard-stats"),
-          fetch("/api/cases?limit=4"),
-          fetch("/api/activity?limit=5"),
-          fetch("/api/documents?limit=5"),
+          fetch(`/api/dashboard-stats?tz=${encodeURIComponent(timeZone)}`, {
+            cache: "no-store",
+            credentials: "include",
+          }),
+          fetch("/api/cases?limit=4", {
+            cache: "no-store",
+            credentials: "include",
+          }),
+          fetch("/api/activity?limit=4", {
+            cache: "no-store",
+            credentials: "include",
+          }),
+          fetch("/api/documents?limit=5", {
+            cache: "no-store",
+            credentials: "include",
+          }),
         ]);
+
+        const hadFailure = responses.some((response) => !response.ok);
 
         const json = await Promise.all(
           responses.map(async (response) => {
@@ -734,545 +1167,942 @@ export default function DashboardPage() {
           }),
         );
 
+        if (cancelled) return;
+
         const [statsData, casesData, activitiesData, documentsData] = json;
 
-        setStats(statsData.data || null);
-        setCases(
-          Array.isArray(casesData.data) ? casesData.data.slice(0, 4) : [],
+        setStats(
+          statsData?.data && !Array.isArray(statsData.data)
+            ? statsData.data
+            : null,
         );
-        setActivities(
-          Array.isArray(activitiesData.data)
-            ? activitiesData.data.slice(0, 5)
-            : [],
-        );
-        setDocuments(
-          Array.isArray(documentsData.data)
-            ? documentsData.data.slice(0, 5)
-            : [],
-        );
+        setCases(extractItems<CaseItem>(casesData).slice(0, 4));
+        setActivities(extractItems<ActivityItem>(activitiesData).slice(0, 4));
+        setDocuments(extractItems<DocumentItem>(documentsData).slice(0, 5));
+        setHasLoadError(hadFailure);
       } catch (error) {
         console.error("Dashboard load failed:", error);
 
-        setStats(null);
-        setCases([]);
-        setActivities([]);
-        setDocuments([]);
+        if (!cancelled) {
+          setStats(null);
+          setCases([]);
+          setActivities([]);
+          setDocuments([]);
+          setHasLoadError(true);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const recentDocuments = useMemo(() => documents.slice(0, 5), [documents]);
-  const firstAppointment = stats?.todayAppts?.[0];
+
+  const firstAppointment = useMemo(() => {
+    const upcoming = stats?.upcomingAppointments ?? [];
+
+    return [...upcoming].sort(
+      (a, b) =>
+        new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+    )[0];
+  }, [stats?.upcomingAppointments]);
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return t.morning;
+    if (hour < 18) return t.afternoon;
+    return t.evening;
+  }, [t]);
+
+  const greetingName = useMemo(() => {
+    const preferred = officeName.trim() || userName.trim();
+    if (!preferred) return "";
+
+    return officeName.trim() ? preferred : preferred.split(/\s+/)[0];
+  }, [officeName, userName]);
+
+  const summaryText =
+    (stats?.todayApptCount ?? 0) === 0 &&
+    (stats?.dueTasksCount ?? 0) === 0 &&
+    (stats?.overdueInvoicesCount ?? 0) === 0
+      ? t.clearDay
+      : t.dailySummary(stats?.todayApptCount ?? 0, stats?.dueTasksCount ?? 0);
+
+  const attentionItems = useMemo(() => {
+    const items: Array<{
+      key: string;
+      title: string;
+      message: string;
+      href: string;
+      icon: ReactNode;
+      tone: "danger" | "warning" | "info";
+    }> = [];
+
+    if ((stats?.overdueTasksCount ?? 0) > 0) {
+      items.push({
+        key: "overdue-tasks",
+        title: t.overdueTasksTitle(stats?.overdueTasksCount ?? 0),
+        message: t.overdueTasksMessage,
+        href: "/dashboard/tasks",
+        icon: <ListTodo className="h-5 w-5" />,
+        tone: "danger",
+      });
+    }
+
+    if ((stats?.dueTodayTasksCount ?? 0) > 0) {
+      items.push({
+        key: "today-tasks",
+        title: t.dueTodayTasksTitle(stats?.dueTodayTasksCount ?? 0),
+        message: t.dueTodayTasksMessage,
+        href: "/dashboard/tasks",
+        icon: <Clock3 className="h-5 w-5" />,
+        tone: "warning",
+      });
+    }
+
+    if ((stats?.overdueInvoicesCount ?? 0) > 0) {
+      items.push({
+        key: "overdue-invoices",
+        title: t.overdueInvoicesTitle(stats?.overdueInvoicesCount ?? 0),
+        message: t.overdueInvoicesMessage(
+          formatMoney(stats?.overdueAmount ?? 0, locale),
+        ),
+        href: "/dashboard/invoices",
+        icon: <ReceiptText className="h-5 w-5" />,
+        tone: "danger",
+      });
+    }
+
+    if (firstAppointment) {
+      items.push({
+        key: "next-appointment",
+        title: t.upcomingAppointmentTitle,
+        message: `${formatDateTime(firstAppointment.startTime, locale)} · ${
+          firstAppointment.title
+        }`,
+        href: "/dashboard/appointments",
+        icon: <CalendarDays className="h-5 w-5" />,
+        tone: "info",
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [
+    firstAppointment,
+    locale,
+    stats?.dueTodayTasksCount,
+    stats?.overdueAmount,
+    stats?.overdueInvoicesCount,
+    stats?.overdueTasksCount,
+    t,
+  ]);
 
   if (loading) {
     return <AppLoader fullScreen={false} />;
   }
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="w-full max-w-full min-w-0 overflow-x-hidden space-y-4 text-start stagger sm:space-y-5">
-      {/* Hero */}
-      <div
-        className="relative max-w-full min-w-0 overflow-hidden rounded-[22px] border p-4 sm:rounded-[28px] sm:p-6 md:p-7"
+    <div
+      dir={isRtl ? "rtl" : "ltr"}
+      className="stagger w-full min-w-0 max-w-full space-y-4 overflow-x-hidden text-start sm:space-y-5"
+    >
+      {hasLoadError && (
+        <div
+          className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-800 dark:text-amber-200"
+          role="status"
+        >
+          {t.loadingFailed}
+        </div>
+      )}
+
+      {/* Compact daily header */}
+      <section
+        className="relative min-w-0 overflow-hidden rounded-[24px] border p-4 sm:p-5"
         style={{
           background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 55%, var(--sidebar-dark) 100%)",
+            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 58%, var(--sidebar-dark) 100%)",
           borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 22px 60px rgba(45, 74, 62, 0.22)",
+          boxShadow: "0 20px 55px rgba(45, 74, 62, 0.20)",
         }}
       >
         <div
-          className="absolute -start-16 -top-16 h-44 w-44 rounded-full"
-          style={{ background: "rgba(245, 200, 66, 0.18)" }}
+          className="absolute -end-16 -top-20 h-48 w-48 rounded-full"
+          style={{ background: "rgba(245, 200, 66, 0.17)" }}
         />
-
         <div
-          className="absolute -bottom-20 end-12 h-56 w-56 rounded-full"
-          style={{ background: "rgba(255, 255, 255, 0.08)" }}
+          className="absolute -bottom-24 start-1/4 h-52 w-52 rounded-full"
+          style={{ background: "rgba(255, 255, 255, 0.06)" }}
         />
 
-        <div className="relative z-10">
-          <div className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="relative z-10 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <div className="min-w-0">
             <div
-              className="inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1 text-[11px] font-black sm:text-xs"
-              style={{
-                background: "rgba(255,255,255,0.13)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              <span>⚖️</span>
-              <span>{t.heroBadge}</span>
-            </div>
-          </div>
-
-          <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(260px,.75fr)] lg:items-center">
-            <div>
-              <h1 className="text-xl font-black leading-relaxed text-white sm:text-2xl md:text-3xl">
-                {t.heroTitle}
-              </h1>
-
-              <p className="mt-3 max-w-2xl text-xs font-semibold leading-7 text-white/75 sm:text-sm">
-                {t.heroDescription}
-              </p>
-            </div>
-
-            <div
-              className="rounded-3xl p-4 sm:p-5"
+              className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-black text-white sm:text-xs"
               style={{
                 background: "rgba(255,255,255,0.12)",
-                border: "1px solid rgba(255,255,255,0.18)",
-                backdropFilter: "blur(10px)",
+                borderColor: "rgba(255,255,255,0.18)",
               }}
             >
-              <p className="text-sm font-black text-white">{t.todaySummary}</p>
+              <Sparkles className="h-3.5 w-3.5" />
+              {t.dashboardBadge}
+            </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-                <div
-                  className="rounded-2xl p-3 sm:p-4"
-                  style={{ background: "rgba(255,255,255,0.12)" }}
-                >
-                  <p className="text-xs font-bold text-white/65">
-                    {t.todayAppointments}
-                  </p>
-                  <p className="mt-1 text-xl font-black text-white sm:text-2xl">
-                    {stats?.todayApptCount ?? 0}
-                  </p>
-                </div>
+            <h1 className="mt-3 text-xl font-black leading-relaxed text-white sm:text-2xl">
+              {greeting}
+              {greetingName ? `، ${greetingName}` : ""}
+            </h1>
 
-                <div
-                  className="rounded-2xl p-3 sm:p-4"
-                  style={{ background: "rgba(255,255,255,0.12)" }}
-                >
-                  <p className="text-xs font-bold text-white/65">
-                    {t.activeCases}
-                  </p>
-                  <p className="mt-1 text-xl font-black text-white sm:text-2xl">
-                    {stats?.activeCaseCount ?? 0}
-                  </p>
-                </div>
-              </div>
+            <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
+              {summaryText}
+            </p>
+          </div>
+
+          <div className="min-w-0">
+            <p className="mb-2 text-xs font-black text-white/70">
+              {t.quickActions}
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
+              <Link
+                href="/dashboard/clients"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
+                style={{
+                  background: "rgba(255,255,255,0.10)",
+                  borderColor: "rgba(255,255,255,0.18)",
+                }}
+              >
+                <UserPlus className="h-4 w-4" />
+                {t.addClient}
+              </Link>
+
+              <Link
+                href="/dashboard/cases"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-3 py-2 text-xs font-black transition hover:brightness-105"
+                style={{
+                  background: "var(--gold)",
+                  color: "#172117",
+                }}
+              >
+                <FilePlus2 className="h-4 w-4" />
+                {t.addCase}
+              </Link>
+
+              <Link
+                href="/dashboard/appointments"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
+                style={{
+                  background: "rgba(255,255,255,0.10)",
+                  borderColor: "rgba(255,255,255,0.18)",
+                }}
+              >
+                <CalendarPlus className="h-4 w-4" />
+                {t.addAppointment}
+              </Link>
+
+              <Link
+                href="/dashboard/invoices"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
+                style={{
+                  background: "rgba(255,255,255,0.10)",
+                  borderColor: "rgba(255,255,255,0.18)",
+                }}
+              >
+                <ReceiptText className="h-4 w-4" />
+                {t.createInvoice}
+              </Link>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Main Stats */}
-      <div className="relative z-0 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard
-          label={t.clients}
-          value={stats?.clientCount ?? 0}
-          sub={`+${stats?.newClientsThisMonth ?? 0} ${t.thisMonth}`}
+      {/* Primary metrics */}
+      <section className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label={t.activeCases}
+          value={stats?.activeCaseCount ?? 0}
+          sub={t.activeCasesSub}
+          icon={<BriefcaseBusiness className="h-5 w-5" />}
+          href="/dashboard/cases"
         />
 
-        <StatCard
-          label={t.nextAppointment}
-          value={firstAppointment ? firstAppointment.title : t.noAppointment}
-          sub={
-            firstAppointment
-              ? `${formatTime(firstAppointment.startTime)}`
-              : t.noUpcomingAppointments
-          }
+        <MetricCard
+          label={t.todayAppointments}
+          value={stats?.todayApptCount ?? 0}
+          sub={t.todayAppointmentsSub}
+          icon={<CalendarDays className="h-5 w-5" />}
+          href="/dashboard/appointments"
         />
 
-        <StatCard
+        <MetricCard
+          label={t.dueTasks}
+          value={stats?.dueTasksCount ?? 0}
+          sub={t.dueTasksSub}
+          icon={<ListTodo className="h-5 w-5" />}
+          href="/dashboard/tasks"
+          alert={(stats?.overdueTasksCount ?? 0) > 0}
+        />
+
+        <MetricCard
           label={t.receivables}
           value={formatMoney(stats?.pendingAmount ?? 0, locale)}
-          sub={t.unpaid}
-          bg={(stats?.pendingAmount ?? 0) > 0 ? "var(--red-soft)" : undefined}
-          color={(stats?.pendingAmount ?? 0) > 0 ? "#dc2626" : undefined}
+          sub={t.receivablesSub}
+          icon={<WalletCards className="h-5 w-5" />}
+          href="/dashboard/invoices"
+          alert={(stats?.overdueInvoicesCount ?? 0) > 0}
         />
-      </div>
+      </section>
 
-      {/* AI + Cases + Appointments */}
-      <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
-        <div className="h-full min-h-[260px] sm:min-h-[300px] [&>*]:h-full">
-          <AIAssistant />
-        </div>
-
-        {/* Recent Cases */}
-        <div className="card min-w-0 h-full min-h-[260px] p-4 sm:min-h-[300px] sm:p-5">
-          <div className="mb-4">
-            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-              {t.recentCases}
-            </p>
-
-            <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
-              {t.recentCasesSub}
-            </p>
+      {/* Attention */}
+      {attentionItems.length === 0 ? (
+        <section
+          className="card flex min-w-0 items-center gap-3 p-3.5 sm:px-4"
+          aria-label={t.needsAttention}
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+            <CheckCircle2 className="h-5 w-5" />
           </div>
 
-          {cases.length === 0 ? (
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h2
+                className="text-sm font-black sm:text-base"
+                style={{ color: "var(--text)" }}
+              >
+                {t.noAttention}
+              </h2>
+              <span
+                className="hidden text-xs sm:inline"
+                style={{ color: "var(--text-3)" }}
+              >
+                · {t.noAttentionSub}
+              </span>
+            </div>
+
             <p
-              className="py-10 text-center text-sm"
+              className="mt-1 text-xs sm:hidden"
               style={{ color: "var(--text-3)" }}
             >
-              {t.noCases}
+              {t.noAttentionSub}
             </p>
-          ) : (
-            <div className="space-y-3">
-              {cases.map((c) => (
-                <div
-                  key={c.id}
-                  className="rounded-2xl border p-3"
+          </div>
+        </section>
+      ) : (
+        <section className="card h-fit min-w-0 p-4 sm:p-5">
+          <SectionHeader
+            title={t.needsAttention}
+            subtitle={t.needsAttentionSub}
+            isRtl={isRtl}
+          />
+
+          <div className="grid min-w-0 gap-3 md:grid-cols-2">
+            {attentionItems.map((item) => {
+              const toneStyles = {
+                danger: {
+                  background: "rgba(220,38,38,0.08)",
+                  border: "rgba(220,38,38,0.22)",
+                  icon: "text-red-600 dark:text-red-300 bg-red-500/15",
+                },
+                warning: {
+                  background: "rgba(245,158,11,0.08)",
+                  border: "rgba(245,158,11,0.22)",
+                  icon:
+                    "text-amber-700 dark:text-amber-300 bg-amber-500/15",
+                },
+                info: {
+                  background: "var(--green-soft)",
+                  border: "var(--border)",
+                  icon:
+                    "text-emerald-700 dark:text-emerald-300 bg-emerald-500/15",
+                },
+              }[item.tone];
+
+              return (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className="group flex min-w-0 items-center gap-3 rounded-2xl border p-3.5 transition hover:-translate-y-0.5"
                   style={{
-                    borderColor: "var(--border)",
-                    background: "var(--card)",
+                    background: toneStyles.background,
+                    borderColor: toneStyles.border,
                   }}
                 >
-                  <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${toneStyles.icon}`}
+                  >
+                    {item.icon}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
                     <p
                       className="truncate text-sm font-black"
                       style={{ color: "var(--text)" }}
                     >
-                      {c.title}
+                      {item.title}
                     </p>
-
-                    <span
-                      className={STATUS_BADGE[c.status] ?? "badge badge-gray"}
-                    >
-                      {statusLabels[c.status] ?? c.status}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-center sm:gap-3">
                     <p
-                      className="line-clamp-2 text-xs break-words"
+                      className="mt-1 line-clamp-2 text-xs leading-5"
                       style={{ color: "var(--text-3)" }}
                     >
-                      {c.client?.name ?? t.noClient}
-                    </p>
-
-                    <p
-                      className="font-mono text-xs break-all"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      #{c.caseNumber?.split("/").pop() ?? c.id.slice(-4)}
+                      {item.message}
                     </p>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Today's Appointments */}
-        <div className="card min-w-0 h-full min-h-[260px] p-4 sm:min-h-[300px] sm:p-5">
-          <div className="mb-4">
-            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-              {t.todayAppointments}
-            </p>
-
-            <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
-              {t.todayScheduleOnly}
-            </p>
+                  {isRtl ? (
+                    <ArrowLeft className="h-4 w-4 shrink-0 opacity-60 transition group-hover:-translate-x-0.5" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4 shrink-0 opacity-60 transition group-hover:translate-x-0.5" />
+                  )}
+                </Link>
+              );
+            })}
           </div>
+        </section>
+      )}
+
+      {/* Daily operations */}
+      <section className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
+        {/* Today's appointments */}
+        <div className="card h-fit min-w-0 p-4 sm:p-5">
+          <SectionHeader
+            title={t.todaySchedule}
+            subtitle={t.todayScheduleSub}
+            href="/dashboard/appointments"
+            linkLabel={t.viewAll}
+            isRtl={isRtl}
+          />
 
           {!stats?.todayAppts?.length ? (
-            <p
-              className="py-10 text-center text-sm"
-              style={{ color: "var(--text-3)" }}
-            >
-              {t.noAppointmentsToday}
-            </p>
+            <EmptyState
+              icon={<CalendarDays className="h-5 w-5" />}
+              title={t.noAppointmentsToday}
+              href="/dashboard/appointments"
+              actionLabel={t.addAppointmentAction}
+            />
           ) : (
-            <div className="space-y-4">
-              {stats.todayAppts.map((a) => (
-                <div key={a.id} className="flex gap-3">
+            <div className="space-y-3">
+              {stats.todayAppts.slice(0, 5).map((appointment) => (
+                <Link
+                  key={appointment.id}
+                  href="/dashboard/appointments"
+                  className="group flex min-w-0 gap-3 rounded-2xl border p-3 transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+                  style={{ borderColor: "var(--border)" }}
+                >
                   <div
                     className="w-1 shrink-0 self-stretch rounded-full"
                     style={{
-                      background: TYPE_COLOR[a.type] ?? "var(--text-3)",
-                      minHeight: 44,
+                      background:
+                        TYPE_COLOR[appointment.type] ?? "var(--text-3)",
+                      minHeight: 52,
                     }}
                   />
 
-                  <div className="min-w-0">
-                    <p
-                      className="text-sm font-black break-words"
-                      style={{ color: "var(--text)" }}
-                    >
-                      {formatTime(a.startTime)}
-                    </p>
-
-                    <p
-                      className="line-clamp-2 text-sm font-medium break-words"
-                      style={{ color: "var(--text)" }}
-                    >
-                      {a.title}
-                    </p>
-
-                    {a.location && (
-                      <p
-                        className="line-clamp-2 text-xs break-words"
-                        style={{ color: "var(--text-3)" }}
-                      >
-                        {a.location}
-                      </p>
-                    )}
+                  <div
+                    className="flex h-11 min-w-[68px] shrink-0 items-center justify-center rounded-xl px-2 text-sm font-black"
+                    style={{
+                      background: "var(--green-soft)",
+                      color: "var(--sidebar)",
+                    }}
+                  >
+                    {formatTime(appointment.startTime)}
                   </div>
-                </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="truncate text-sm font-black"
+                      style={{ color: "var(--text)" }}
+                    >
+                      {appointment.title}
+                    </p>
+
+                    <p
+                      className="mt-1 truncate text-xs"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {appointment.client?.name ??
+                        appointment.case?.title ??
+                        appointment.location ??
+                        "—"}
+                    </p>
+                  </div>
+
+                  {isRtl ? (
+                    <ArrowLeft className="mt-1 h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
+                  ) : (
+                    <ArrowRight className="mt-1 h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
+                  )}
+                </Link>
               ))}
             </div>
           )}
         </div>
-      </div>
 
-      {/* Documents + Office Summary */}
-      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-3">
-        {/* Documents */}
-        <div className="card min-w-0 p-4 sm:p-5 xl:col-span-2">
-          <div className="mb-4">
-            <h3 className="text-base font-bold sm:text-lg" style={{ color: "var(--text)" }}>
-              {t.recentDocuments}
-            </h3>
+        {/* Upcoming tasks */}
+        <div className="card h-fit min-w-0 p-4 sm:p-5">
+          <SectionHeader
+            title={t.upcomingTasks}
+            subtitle={t.upcomingTasksSub}
+            href="/dashboard/tasks"
+            linkLabel={t.viewAll}
+            isRtl={isRtl}
+          />
 
-            <p className="mt-1 text-xs sm:text-sm" style={{ color: "var(--text-2)" }}>
-              {t.recentDocumentsSub}
-            </p>
+          {!stats?.upcomingTasks?.length ? (
+            <EmptyState
+              icon={<ListTodo className="h-5 w-5" />}
+              title={t.noUpcomingTasks}
+              href="/dashboard/tasks"
+              actionLabel={t.addTaskAction}
+            />
+          ) : (
+            <div className="space-y-3">
+              {stats.upcomingTasks.slice(0, 5).map((task) => {
+                const overdue =
+                  isPastDate(task.dueDate) && !isTodayDate(task.dueDate);
+                const dueToday = isTodayDate(task.dueDate);
+
+                return (
+                  <Link
+                    key={task.id}
+                    href="/dashboard/tasks"
+                    className="group flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <div
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                      style={{
+                        background: overdue
+                          ? "var(--red-soft)"
+                          : "var(--green-soft)",
+                        color: overdue ? "#dc2626" : "var(--sidebar)",
+                      }}
+                    >
+                      {overdue ? (
+                        <AlertTriangle className="h-5 w-5" />
+                      ) : (
+                        <CheckCircle2 className="h-5 w-5" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className="truncate text-sm font-black"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {task.title}
+                      </p>
+
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                            PRIORITY_STYLES[task.priority] ??
+                            PRIORITY_STYLES.MEDIUM
+                          }`}
+                        >
+                          {priorityLabels[task.priority] ?? task.priority}
+                        </span>
+
+                        {task.dueDate && (
+                          <span
+                            className="text-[11px]"
+                            style={{
+                              color: overdue ? "#dc2626" : "var(--text-3)",
+                            }}
+                          >
+                            {overdue
+                              ? t.overdue
+                              : dueToday
+                                ? t.dueToday
+                                : formatDate(task.dueDate, locale)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {isRtl ? (
+                      <ArrowLeft className="h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Lower dashboard: independent columns prevent empty row gaps */}
+      <section className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
+        <div className="min-w-0 space-y-4">
+          <div className="card min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title={t.recentCases}
+              subtitle={t.recentCasesSub}
+              href="/dashboard/cases"
+              linkLabel={t.viewAllCases}
+              isRtl={isRtl}
+            />
+
+            {cases.length === 0 ? (
+              <EmptyState
+                icon={<BriefcaseBusiness className="h-5 w-5" />}
+                title={t.noCases}
+                href="/dashboard/cases"
+                actionLabel={t.addCase}
+              />
+            ) : (
+              <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                {cases.map((caseItem) => (
+                  <Link
+                    key={caseItem.id}
+                    href={`/dashboard/cases/${caseItem.id}`}
+                    className="group min-w-0 rounded-2xl border p-3.5 transition hover:-translate-y-0.5 hover:shadow-md"
+                    style={{
+                      borderColor: "var(--border)",
+                      background: "var(--card)",
+                    }}
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p
+                          className="truncate text-sm font-black"
+                          style={{ color: "var(--text)" }}
+                        >
+                          {caseItem.title}
+                        </p>
+                        <p
+                          className="mt-1 truncate text-xs"
+                          style={{ color: "var(--text-3)" }}
+                        >
+                          {caseItem.client?.name ?? t.noClient}
+                        </p>
+                      </div>
+
+                      <span
+                        className={
+                          STATUS_BADGE[caseItem.status] ?? "badge badge-gray"
+                        }
+                      >
+                        {statusLabels[caseItem.status] ?? caseItem.status}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <span
+                        className="font-mono text-xs"
+                        style={{ color: "var(--text-3)" }}
+                      >
+                        #
+                        {caseItem.caseNumber?.split("/").pop() ??
+                          caseItem.id.slice(-4)}
+                      </span>
+
+                      {isRtl ? (
+                        <ArrowLeft className="h-4 w-4 opacity-0 transition group-hover:opacity-60" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 opacity-0 transition group-hover:opacity-60" />
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3">
+          <div className="card min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title={t.recentDocuments}
+              subtitle={t.recentDocumentsSub}
+              href="/dashboard/documents"
+              linkLabel={t.viewAllDocuments}
+              isRtl={isRtl}
+            />
+
             {recentDocuments.length === 0 ? (
-              <p
-                className="py-6 text-center text-sm"
-                style={{ color: "var(--text-3)" }}
-              >
-                {t.noDocuments}
-              </p>
+              <EmptyState
+                icon={<FolderOpen className="h-5 w-5" />}
+                title={t.noDocuments}
+                href="/dashboard/documents"
+                actionLabel={t.viewAllDocuments}
+              />
             ) : (
-              recentDocuments.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex flex-col items-start justify-between gap-3 rounded-2xl border p-3 sm:flex-row sm:items-center"
-                  style={{
-                    borderColor: "var(--border)",
-                    background: "var(--card)",
-                  }}
-                >
-                  <div className="flex w-full min-w-0 items-center gap-3 sm:w-auto">
+              <div className="space-y-3">
+                {recentDocuments.map((doc) => (
+                  <Link
+                    key={doc.id}
+                    href="/dashboard/documents"
+                    className="group flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+                    style={{ borderColor: "var(--border)" }}
+                  >
                     <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg sm:h-11 sm:w-11 sm:text-xl"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
                       style={{ background: "var(--green-soft)" }}
                     >
                       {getDocumentIcon(doc.fileType)}
                     </div>
 
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p
-                        className="line-clamp-2 text-sm font-bold break-words"
+                        className="truncate text-sm font-bold"
                         style={{ color: "var(--text)" }}
                       >
                         {doc.fileName}
                       </p>
 
-                      {!!doc.tags?.length && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {doc.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full border px-2 py-1 text-[10px]"
-                              style={{
-                                background: "var(--green-soft)",
-                                color: "var(--sidebar)",
-                                borderColor: "transparent",
-                              }}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                      <div className="mt-1 flex min-w-0 items-center gap-2">
+                        <span
+                          className="shrink-0 text-[11px]"
+                          style={{ color: "var(--text-3)" }}
+                        >
+                          {formatDate(doc.createdAt, locale)}
+                        </span>
 
-                  <span
-                    className="shrink-0 text-xs whitespace-nowrap"
-                    style={{ color: "var(--text-3)" }}
-                  >
-                    {formatDate(doc.createdAt, locale)}
-                  </span>
-                </div>
-              ))
+                        {!!doc.tags?.length && (
+                          <span
+                            className="truncate text-[10px]"
+                            style={{ color: "var(--text-3)" }}
+                          >
+                            {doc.tags.slice(0, 2).join(" · ")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {isRtl ? (
+                      <ArrowLeft className="h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
+                    )}
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
+
+        <section className="card min-w-0 p-4 sm:p-5">
+          <SectionHeader
+            title={t.recentActivities}
+            subtitle={t.recentActivitiesSub}
+            href="/dashboard/activity"
+            linkLabel={t.viewAllActivities}
+            isRtl={isRtl}
+          />
+
+          {activities.length === 0 ? (
+            <EmptyState
+              icon={<Activity className="h-5 w-5" />}
+              title={t.noActivities}
+            />
+          ) : (
+            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+              {activities.slice(0, 4).map((activity) => {
+                const activityType = normalizeActivityType(activity);
+                const config = ACTIVITY_CONFIG[activityType] ?? {
+                  icon: "✨",
+                  color: "",
+                };
+                const activityText = getActivityText(activity, locale);
+
+                return (
+                  <Link
+                    key={activity.id}
+                    href="/dashboard/activity"
+                    className="group flex min-w-0 items-start gap-3 rounded-2xl border p-3 transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-base ${config.color}`}
+                    >
+                      {config.icon}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <p
+                          className="line-clamp-2 text-sm font-bold"
+                          style={{ color: "var(--text)" }}
+                        >
+                          {activityText.title}
+                        </p>
+
+                        <span
+                          className="shrink-0 whitespace-nowrap text-[10px]"
+                          style={{ color: "var(--text-3)" }}
+                        >
+                          {formatDate(activity.createdAt, locale)}
+                        </span>
+                      </div>
+
+                      {activityText.message && (
+                        <p
+                          className="mt-1 line-clamp-2 text-xs leading-5"
+                          style={{ color: "var(--text-3)" }}
+                        >
+                          {activityText.message}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
         </div>
 
-        {/* Office Summary */}
-        <div className="card min-w-0 p-4 sm:p-5">
-          <div className="mb-5">
-            <h3 className="text-base font-bold sm:text-lg" style={{ color: "var(--text)" }}>
-              {t.officeSummary}
-            </h3>
-
-            <p className="mt-1 text-xs sm:text-sm" style={{ color: "var(--text-2)" }}>
-              {t.officeSummarySub}
-            </p>
+        <aside className="min-w-0 space-y-4">
+          <div className="min-h-[240px] [&>*]:h-full">
+            <AIAssistant />
           </div>
 
-          <div className="space-y-3">
-            <div
-              className="rounded-2xl border p-4"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <p
-                className="text-xs font-semibold"
-                style={{ color: "var(--text-3)" }}
-              >
-                {t.totalCases}
-              </p>
+          <div className="card min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title={t.officeSummary}
+              subtitle={t.officeSummarySub}
+              isRtl={isRtl}
+            />
 
-              <p
-                className="mt-1 text-xl font-black sm:text-2xl"
-                style={{ color: "var(--text)" }}
+            <div className="grid grid-cols-2 gap-3">
+              <div
+                className="rounded-2xl border p-3.5"
+                style={{ borderColor: "var(--border)" }}
               >
-                {stats?.totalCasesCount ?? 0}
-              </p>
-            </div>
-
-            <div
-              className="rounded-2xl border p-4"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <p
-                className="text-xs font-semibold"
-                style={{ color: "var(--text-3)" }}
-              >
-                {t.closedCases}
-              </p>
-
-              <div className="mt-1 flex items-end justify-between gap-3">
+                <Users className="h-4 w-4" style={{ color: "var(--sidebar)" }} />
                 <p
-                  className="text-xl font-black sm:text-2xl"
-                  style={{ color: "var(--text)" }}
-                >
-                  {stats?.closedCasesCount ?? 0}
-                </p>
-
-                <span
-                  className="text-xs font-bold"
+                  className="mt-3 text-xs font-bold"
                   style={{ color: "var(--text-3)" }}
                 >
-                  {stats?.closedCaseRate ?? 0}%
-                </span>
+                  {t.clients}
+                </p>
+                <p
+                  className="mt-1 text-xl font-black"
+                  style={{ color: "var(--text)" }}
+                >
+                  {stats?.clientCount ?? 0}
+                </p>
+                <p
+                  className="mt-1 text-[10px]"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  +{stats?.newClientsThisMonth ?? 0} {t.thisMonth}
+                </p>
+              </div>
+
+              <div
+                className="rounded-2xl border p-3.5"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <BriefcaseBusiness
+                  className="h-4 w-4"
+                  style={{ color: "var(--sidebar)" }}
+                />
+                <p
+                  className="mt-3 text-xs font-bold"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {t.totalCases}
+                </p>
+                <p
+                  className="mt-1 text-xl font-black"
+                  style={{ color: "var(--text)" }}
+                >
+                  {stats?.totalCasesCount ?? 0}
+                </p>
+              </div>
+
+              <div
+                className="rounded-2xl border p-3.5"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <CheckCircle2
+                  className="h-4 w-4"
+                  style={{ color: "var(--sidebar)" }}
+                />
+                <p
+                  className="mt-3 text-xs font-bold"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {t.closedCases}
+                </p>
+                <div className="mt-1 flex items-end justify-between gap-2">
+                  <p
+                    className="text-xl font-black"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {stats?.closedCasesCount ?? 0}
+                  </p>
+                  <span
+                    className="text-[10px] font-bold"
+                    style={{ color: "var(--text-3)" }}
+                  >
+                    {stats?.closedCaseRate ?? 0}%
+                  </span>
+                </div>
+              </div>
+
+              <div
+                className="rounded-2xl border p-3.5"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <CircleDollarSign
+                  className="h-4 w-4"
+                  style={{ color: "var(--sidebar)" }}
+                />
+                <p
+                  className="mt-3 text-xs font-bold"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {t.monthlyRevenue}
+                </p>
+                <p
+                  className="mt-1 truncate text-base font-black"
+                  style={{ color: "var(--sidebar)" }}
+                >
+                  {formatMoney(stats?.monthlyRevenue ?? 0, locale)}
+                </p>
               </div>
             </div>
 
             <div
-              className="rounded-2xl border p-4"
-              style={{ borderColor: "var(--border)" }}
+              className="mt-3 flex items-center justify-between gap-3 rounded-2xl border p-3.5"
+              style={{
+                borderColor: "var(--border)",
+                background: "var(--green-soft)",
+              }}
             >
-              <p
-                className="text-xs font-semibold"
-                style={{ color: "var(--text-3)" }}
-              >
-                {t.monthlyRevenue}
-              </p>
-
-              <p
-                className="mt-1 text-xl font-black sm:text-2xl"
-                style={{ color: "var(--sidebar)" }}
-              >
-                {formatMoney(stats?.monthlyRevenue ?? 0, locale)}
-              </p>
-            </div>
-
-            <div
-              className="rounded-2xl border p-4"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <p
-                className="text-xs font-semibold"
-                style={{ color: "var(--text-3)" }}
-              >
-                {t.totalRevenue}
-              </p>
-
-              <p
-                className="mt-1 text-xl font-black sm:text-2xl"
-                style={{ color: "var(--sidebar)" }}
-              >
-                {formatMoney(stats?.totalRevenue ?? 0, locale)}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Activity Timeline */}
-      <div className="card min-w-0 p-4 sm:p-5">
-        <div className="mb-4">
-          <h3 className="text-lg font-black" style={{ color: "var(--text)" }}>
-            {t.recentActivities}
-          </h3>
-
-          <p className="mt-1 text-xs sm:text-sm" style={{ color: "var(--text-2)" }}>
-            {t.recentActivitiesSub}
-          </p>
-        </div>
-
-        {activities.length === 0 ? (
-          <div
-            className="rounded-2xl border border-dashed p-4 text-center text-sm sm:p-6"
-            style={{
-              borderColor: "var(--border)",
-              color: "var(--text-3)",
-            }}
-          >
-            {t.noActivities}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {activities.slice(0, 5).map((activity) => {
-              const activityType = normalizeActivityType(activity);
-              const config = ACTIVITY_CONFIG[activityType] ?? {
-                icon: "✨",
-                color: "",
-              };
-              const activityText = getActivityText(activity, locale);
-
-              return (
-                <div
-                  key={activity.id}
-                  className="flex items-start gap-3 rounded-2xl border p-3 sm:p-4"
-                  style={{
-                    borderColor: "var(--border)",
-                    background: "var(--green-soft)",
-                    color: "var(--text)",
-                  }}
+              <div>
+                <p
+                  className="text-xs font-bold"
+                  style={{ color: "var(--text-3)" }}
                 >
-                  <div className="shrink-0 text-xl">{config.icon}</div>
+                  {t.totalRevenue}
+                </p>
+                <p
+                  className="mt-1 text-lg font-black"
+                  style={{ color: "var(--sidebar)" }}
+                >
+                  {formatMoney(stats?.totalRevenue ?? 0, locale)}
+                </p>
+              </div>
 
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
-                      <p className="line-clamp-2 font-bold break-words">{activityText.title}</p>
-
-                      <span
-                        className="whitespace-nowrap text-xs"
-                        style={{ color: "var(--text-3)" }}
-                      >
-                        {formatDate(activity.createdAt, locale)}
-                      </span>
-                    </div>
-
-                    {activityText.message && (
-                      <p
-                        className="mt-1 line-clamp-2 text-sm break-words"
-                        style={{ color: "var(--text-2)" }}
-                      >
-                        {activityText.message}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+              <CircleDollarSign
+                className="h-6 w-6"
+                style={{ color: "var(--sidebar)" }}
+              />
+            </div>
           </div>
-        )}
-      </div>
+
+        </aside>
+      </section>
     </div>
   );
 }

@@ -16,6 +16,7 @@ const TITLE_KEYS: Record<string, keyof typeof translations.ar.dashboard> = {
   "/dashboard/cases": "cases",
   "/dashboard/clients": "clients",
   "/dashboard/documents": "documents",
+  "/dashboard/invoices": "invoices",
   "/dashboard/payments": "payments",
   "/dashboard/reports": "reports",
   "/dashboard/settings": "settings",
