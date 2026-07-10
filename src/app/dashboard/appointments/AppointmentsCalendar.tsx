@@ -50,12 +50,12 @@ export default function AppointmentsCalendar({
             ? {
                 right: 'prev,next today',
                 center: 'title',
-                left: 'dayGridMonth,timeGridWeek,timeGridDay',
+                left: 'dayGridMonth,timeGridWeek',
               }
             : {
                 left: 'prev,next today',
                 center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay',
+                right: 'dayGridMonth,timeGridWeek',
               }
         }
         buttonText={
@@ -64,13 +64,11 @@ export default function AppointmentsCalendar({
                 today: 'اليوم',
                 month: 'شهر',
                 week: 'أسبوع',
-                day: 'يوم',
               }
             : {
                 today: 'Today',
                 month: 'Month',
                 week: 'Week',
-                day: 'Day',
               }
         }
         eventTimeFormat={{

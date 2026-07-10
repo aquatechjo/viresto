@@ -865,11 +865,11 @@ export function buildInvoicePrintHtml(
       .details-grid, .bottom { grid-template-columns: 1fr; }
       .footer { flex-direction: column; align-items: flex-start; }
       .hero {
-  grid-template-columns: 1fr;
-  grid-template-areas:
-    "heading"
-    "brand";
-}
+          grid-template-columns: 1fr;
+          grid-template-areas:
+          "heading"
+         "brand";
+        }
     }
 
     @media print {

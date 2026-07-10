@@ -1330,60 +1330,131 @@ export default function CaseDetailPage() {
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={openCaseEdit}
-              disabled={caseArchived}
-              title={caseArchived ? pageText.archivedCaseEditBlocked : undefined}
-              className="btn disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.22)",
-              }}
-            >
-              {pageText.editCase}
-            </button>
+          <div
+            dir={isRtl ? "rtl" : "ltr"}
+            className="flex flex-wrap items-center justify-start gap-2"
+          >
+            {isArabic ? (
+              <>
+                <button
+                  type="button"
+                  onClick={openCaseEdit}
+                  disabled={caseArchived}
+                  title={
+                    caseArchived
+                      ? pageText.archivedCaseEditBlocked
+                      : undefined
+                  }
+                  className="btn disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    background: "rgba(255,255,255,0.14)",
+                    color: "#fff",
+                    borderColor: "rgba(255,255,255,0.22)",
+                  }}
+                >
+                  {pageText.editCase}
+                </button>
 
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="btn"
-              style={{
-                background: "#fff",
-                color: "var(--sidebar)",
-                borderColor: "rgba(255,255,255,0.32)",
-              }}
-            >
-              {pageText.back}
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceOpen(true)}
+                  className="btn"
+                  style={{
+                    background: "rgba(255,255,255,0.14)",
+                    color: "#fff",
+                    borderColor: "rgba(255,255,255,0.22)",
+                  }}
+                >
+                  {pageText.invoice}
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setPaymentOpen(true)}
-              className="btn"
-              style={{
-                background: "rgba(245,200,66,0.18)",
-                color: "#fff",
-                borderColor: "rgba(245,200,66,0.35)",
-              }}
-            >
-              {pageText.payment}
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentOpen(true)}
+                  className="btn"
+                  style={{
+                    background: "rgba(245,200,66,0.18)",
+                    color: "#fff",
+                    borderColor: "rgba(245,200,66,0.35)",
+                  }}
+                >
+                  {pageText.payment}
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setInvoiceOpen(true)}
-              className="btn"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.22)",
-              }}
-            >
-              {pageText.invoice}
-            </button>
+                <button
+                  type="button"
+                  onClick={() => router.back()}
+                  className="btn"
+                  style={{
+                    background: "#fff",
+                    color: "var(--sidebar)",
+                    borderColor: "rgba(255,255,255,0.32)",
+                  }}
+                >
+                  {pageText.back}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => router.back()}
+                  className="btn"
+                  style={{
+                    background: "#fff",
+                    color: "var(--sidebar)",
+                    borderColor: "rgba(255,255,255,0.32)",
+                  }}
+                >
+                  {pageText.back}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openCaseEdit}
+                  disabled={caseArchived}
+                  title={
+                    caseArchived
+                      ? pageText.archivedCaseEditBlocked
+                      : undefined
+                  }
+                  className="btn disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    background: "rgba(255,255,255,0.14)",
+                    color: "#fff",
+                    borderColor: "rgba(255,255,255,0.22)",
+                  }}
+                >
+                  {pageText.editCase}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentOpen(true)}
+                  className="btn"
+                  style={{
+                    background: "rgba(245,200,66,0.18)",
+                    color: "#fff",
+                    borderColor: "rgba(245,200,66,0.35)",
+                  }}
+                >
+                  {pageText.payment}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setInvoiceOpen(true)}
+                  className="btn"
+                  style={{
+                    background: "rgba(255,255,255,0.14)",
+                    color: "#fff",
+                    borderColor: "rgba(255,255,255,0.22)",
+                  }}
+                >
+                  {pageText.invoice}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1452,9 +1523,9 @@ export default function CaseDetailPage() {
       </div>
 
       {/* Official case details */}
-      <div className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+      <div className="card p-5" dir={isRtl ? "rtl" : "ltr"}>
+        <div className="flex flex-wrap items-center justify-start gap-3">
+          <div className={isRtl ? "text-right" : "text-left"}>
             <p
               className="text-xs font-black"
               style={{ color: "var(--text-3)" }}
@@ -1471,40 +1542,46 @@ export default function CaseDetailPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div
+          dir={isRtl ? "rtl" : "ltr"}
+          className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
+        >
           <DetailItem
             label={pageText.caseNumber}
             value={c.caseNumber || pageText.notAdded}
             dir="ltr"
+            isRtl={isRtl}
           />
 
           <DetailItem
             label={pageText.court}
+            isRtl={isRtl}
             value={c.court || pageText.notAdded}
           />
 
           <DetailItem
             label={pageText.judgeName}
+            isRtl={isRtl}
             value={c.judgeName || pageText.notAdded}
           />
 
           <DetailItem
             label={pageText.plaintiffName}
+            isRtl={isRtl}
             value={c.plaintiffName || pageText.notAdded}
           />
 
           <DetailItem
             label={pageText.defendantName}
+            isRtl={isRtl}
             value={c.defendantName || pageText.notAdded}
           />
         </div>
       </div>
 
       {/* Quick actions */}
-      <div className="card p-4">
-        <div
-          className={`flex flex-wrap gap-2 ${isRtl ? "justify-end" : "justify-start"}`}
-        >
+      <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
+        <div className="flex flex-wrap items-center justify-start gap-2">
           <button
             onClick={() => setAppointmentOpen(true)}
             disabled={caseArchived}
@@ -1773,6 +1850,7 @@ export default function CaseDetailPage() {
         {/* Main sections */}
         <div className="space-y-5 xl:col-span-8">
           <SectionCard
+            isRtl={isRtl}
             title={pageText.appointmentsSection}
             count={c.appointments.length}
             countLabel={pageText.item}
@@ -1865,6 +1943,7 @@ export default function CaseDetailPage() {
           </SectionCard>
 
           <SectionCard
+            isRtl={isRtl}
             title={pageText.tasksSection}
             count={c.tasks.length}
             countLabel={pageText.item}
@@ -1947,6 +2026,7 @@ export default function CaseDetailPage() {
           </SectionCard>
 
           <SectionCard
+            isRtl={isRtl}
             title={pageText.invoicesSection}
             count={c.invoices.length}
             countLabel={pageText.item}
@@ -2044,6 +2124,7 @@ export default function CaseDetailPage() {
           </SectionCard>
 
           <SectionCard
+            isRtl={isRtl}
             title={pageText.paymentsSection}
             count={c.payments.length}
             countLabel={pageText.item}
@@ -2168,6 +2249,7 @@ export default function CaseDetailPage() {
           </SectionCard>
 
           <SectionCard
+            isRtl={isRtl}
             title={pageText.documentsSection}
             count={c.documents.length}
             countLabel={pageText.item}
@@ -3089,20 +3171,25 @@ function SectionCard({
   action,
   children,
   countLabel,
+  isRtl,
 }: {
   title: string;
   count: number;
   action?: ReactNode;
   children: ReactNode;
   countLabel: string;
+  isRtl: boolean;
 }) {
   return (
-    <div className="card overflow-hidden p-0">
+    <div
+      className="card overflow-hidden p-0"
+      dir={isRtl ? "rtl" : "ltr"}
+    >
       <div
-        className="flex items-center justify-between gap-4 border-b px-5 py-4"
+        className="flex flex-wrap items-center justify-between gap-4 border-b px-5 py-4"
         style={{ borderColor: "var(--border)" }}
       >
-        <div>
+        <div className={isRtl ? "text-right" : "text-left"}>
           <h2 className="font-black" style={{ color: "var(--text)" }}>
             {title}
           </h2>
@@ -3138,27 +3225,40 @@ function DetailItem({
   label,
   value,
   dir,
+  isRtl,
 }: {
   label: string;
   value: string;
   dir?: "ltr" | "rtl" | "auto";
+  isRtl: boolean;
 }) {
   return (
     <div
-      className="rounded-2xl border p-4"
+      dir={isRtl ? "rtl" : "ltr"}
+      className={`rounded-2xl border p-4 ${
+        isRtl ? "text-right" : "text-left"
+      }`}
       style={{
         borderColor: "var(--border)",
         background: "var(--card)",
       }}
     >
-      <p className="text-xs font-black" style={{ color: "var(--text-3)" }}>
+      <p
+        className={`text-xs font-black ${
+          isRtl ? "text-right" : "text-left"
+        }`}
+        style={{ color: "var(--text-3)" }}
+      >
         {label}
       </p>
 
       <p
         dir={dir}
         className="mt-1 break-words text-sm font-black"
-        style={{ color: "var(--text)" }}
+        style={{
+          color: "var(--text)",
+          textAlign: isRtl ? "right" : "left",
+        }}
       >
         {value}
       </p>

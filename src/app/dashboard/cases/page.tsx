@@ -66,13 +66,6 @@ type StatusFilter = (typeof STATUS_KEYS)[number];
 
 const CASE_STATUS_KEYS = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
-const STATUS_BADGE: Record<string, string> = {
-  OPEN: "badge badge-green",
-  IN_PROGRESS: "badge badge-blue",
-  CLOSED: "badge badge-gray",
-  ARCHIVED: "badge badge-gray",
-};
-
 const COPY = {
   ar: {
     loadError: "فشل تحميل القضايا",
@@ -89,8 +82,7 @@ const COPY = {
     viewBilling: "عرض الاشتراك",
     close: "إغلاق",
     archivedClientBadge: "موكل مؤرشف",
-    openClientFile: "ملف الموكل ←",
-    editCase: "تعديل القضية",
+    editCase: "تعديل",
     hero: {
       badge: "إدارة القضايا",
       title: "القضايا",
@@ -129,6 +121,7 @@ const COPY = {
     },
     table: {
       case: "القضية",
+      caseNumber: "رقم القضية",
       client: "الموكل",
       fees: "الأتعاب",
       paid: "المدفوع",
@@ -136,6 +129,7 @@ const COPY = {
       appointments: "المواعيد",
       documents: "المستندات",
       status: "الحالة",
+      actions: "الإجراءات",
     },
     modal: {
       title: "إضافة قضية جديدة",
@@ -176,8 +170,7 @@ const COPY = {
     viewBilling: "View billing",
     close: "Close",
     archivedClientBadge: "Archived client",
-    openClientFile: "Client file →",
-    editCase: "Edit case",
+    editCase: "Edit",
     hero: {
       badge: "Case management",
       title: "Cases",
@@ -216,6 +209,7 @@ const COPY = {
     },
     table: {
       case: "Case",
+      caseNumber: "Case number",
       client: "Client",
       fees: "Fees",
       paid: "Paid",
@@ -223,6 +217,7 @@ const COPY = {
       appointments: "Appointments",
       documents: "Documents",
       status: "Status",
+      actions: "Actions",
     },
     modal: {
       title: "Add new case",
@@ -913,17 +908,20 @@ export default function CasesPage() {
       ) : (
         <div className="card overflow-hidden p-0">
           <div className="max-w-full overflow-x-auto">
-            <div className="min-w-[1180px]">
-              <div className="grid grid-cols-[1fr_1.35fr_0.9fr_0.9fr_1fr_0.9fr_0.85fr_1fr_1.05fr] items-center gap-x-4 border-b border-emerald-300/20 px-5 py-4 text-sm font-black text-emerald-50/90">
+            <div className="w-full min-w-[1180px]">
+              <div
+                dir={isRtl ? "rtl" : "ltr"}
+                className="grid grid-cols-[1.35fr_0.9fr_1.25fr_0.9fr_0.9fr_1fr_0.8fr_0.8fr_0.75fr] items-center gap-x-4 border-b border-emerald-300/20 px-5 py-4 text-sm font-black text-[var(--text-2)]"
+              >
                 <div className="text-start">{text.table.case}</div>
+                <div className="text-center">{text.table.caseNumber}</div>
                 <div className="text-start">{text.table.client}</div>
-                <div className="text-end">{text.table.fees}</div>
-                <div className="text-end">{text.table.paid}</div>
-                <div className="text-end">{text.table.remaining}</div>
+                <div className="text-center">{text.table.fees}</div>
+                <div className="text-center">{text.table.paid}</div>
+                <div className="text-center">{text.table.remaining}</div>
                 <div className="text-center">{text.table.appointments}</div>
                 <div className="text-center">{text.table.documents}</div>
-                <div className="text-center">{text.table.status}</div>
-                <div />
+                <div className="text-center">{text.table.actions}</div>
               </div>
 
               {filtered.map((item) => {
@@ -935,29 +933,34 @@ export default function CasesPage() {
                   <div
                     key={item.id}
                     onClick={() => router.push(`/dashboard/cases/${item.id}`)}
-                    className="grid cursor-pointer grid-cols-[1fr_1.35fr_0.9fr_0.9fr_1fr_0.9fr_0.85fr_1fr_1.05fr] items-center gap-x-4 border-b border-emerald-300/15 px-5 py-5 transition last:border-b-0 hover:bg-emerald-300/5"
+                    dir={isRtl ? "rtl" : "ltr"}
+                    className="grid cursor-pointer grid-cols-[1.35fr_0.9fr_1.25fr_0.9fr_0.9fr_1fr_0.8fr_0.8fr_0.75fr] items-center gap-x-4 border-b border-emerald-300/15 px-5 py-5 transition last:border-b-0 hover:bg-emerald-300/5"
                   >
                     <div className="min-w-0 text-start">
-                      <p dir="ltr" className="font-mono text-sm font-black text-emerald-50">
-                        {item.caseNumber ?? `#${item.id.slice(-6)}`}
-                      </p>
-
                       <p
                         dir={isRtl ? "rtl" : "ltr"}
-                        className={`mt-1 max-w-[180px] truncate text-xs font-bold ${
+                        className={`max-w-[210px] truncate text-sm font-black text-[var(--text)] ${
                           isRtl ? "text-right" : "text-left"
                         }`}
-                        style={{ color: "var(--text-3)" }}
+                        title={item.title}
                       >
                         {item.title}
                       </p>
+                    </div>
+
+                    <div
+                      dir="ltr"
+                      className="min-w-0 truncate text-center font-mono text-sm font-black text-[var(--text)]"
+                      title={item.caseNumber || "-"}
+                    >
+                      {item.caseNumber || "-"}
                     </div>
 
                     <div className="min-w-0 text-start">
                       <div className="flex flex-col items-start gap-1">
                         <span
                           dir={isRtl ? "rtl" : "ltr"}
-                          className={`max-w-[190px] truncate text-sm font-black text-emerald-50 ${
+                          className={`max-w-[190px] truncate text-sm font-black text-[var(--text)] ${
                             isRtl ? "text-right" : "text-left"
                           }`}
                         >
@@ -979,13 +982,13 @@ export default function CasesPage() {
                       </div>
                     </div>
 
-                    <div dir="ltr" className="text-end text-sm font-black text-emerald-50">
+                    <div dir="ltr" className="text-center text-sm font-black text-[var(--text)]">
                       {formatMoney(item.feeAgreed)}
                     </div>
 
                     <div
                       dir="ltr"
-                      className="text-end text-sm font-black"
+                      className="text-center text-sm font-black"
                       style={{ color: "var(--sidebar)" }}
                     >
                       {formatMoney(paidAmount)}
@@ -993,7 +996,7 @@ export default function CasesPage() {
 
                     <div
                       dir="ltr"
-                      className="text-end text-sm font-black"
+                      className="text-center text-sm font-black"
                       style={{
                         color: remainingAmount > 0 ? "#dc2626" : "var(--text)",
                       }}
@@ -1001,39 +1004,16 @@ export default function CasesPage() {
                       {formatMoney(remainingAmount)}
                     </div>
 
-                    <div className="text-center text-sm font-black text-emerald-50/95">
+                    <div className="text-center text-sm font-black text-[var(--text)]">
                       {item._count?.appointments ?? 0}
                     </div>
 
-                    <div className="text-center text-sm font-black text-emerald-50/95">
+                    <div className="text-center text-sm font-black text-[var(--text)]">
                       {item._count?.documents ?? 0}
                     </div>
 
-                    <div className="flex justify-center">
-                      <div className="flex flex-wrap justify-center gap-2">
-                        <span className={STATUS_BADGE[item.status] ?? "badge badge-gray"}>
-                          {text.filters.statuses[
-                            item.status as keyof typeof text.filters.statuses
-                          ] ?? item.status}
-                        </span>
-
-                        {archivedClient && (
-                          <span
-                            className="rounded-full border px-2.5 py-1 text-xs font-black"
-                            style={{
-                              background: "#fff7ed",
-                              color: "#b45309",
-                              borderColor: "rgba(180, 83, 9, 0.22)",
-                            }}
-                          >
-                            {text.archivedClientBadge}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
                     <div
-                      className="flex flex-wrap justify-center gap-2"
+                      className="flex justify-center"
                       onClick={(event) => event.stopPropagation()}
                     >
                       <button
@@ -1045,7 +1025,7 @@ export default function CasesPage() {
                             ? writeAccess.message || text.planLimitFallback
                             : text.editCase
                         }
-                        className="inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-black transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex min-w-[88px] items-center justify-center rounded-2xl border px-4 py-2 text-xs font-black transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
                         style={{
                           borderColor: "rgba(16,185,129,0.28)",
                           color: "var(--sidebar)",
@@ -1053,20 +1033,6 @@ export default function CasesPage() {
                       >
                         {text.editCase}
                       </button>
-
-                      {item.client?.id && (
-                        <Link
-                          href={`/dashboard/clients/${item.client.id}`}
-                          className="inline-flex min-w-[120px] items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
-                          style={{
-                            borderColor: "var(--border)",
-                            color: "var(--text-2)",
-                          }}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {text.openClientFile}
-                        </Link>
-                      )}
                     </div>
                   </div>
                 );

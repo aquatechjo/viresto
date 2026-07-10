@@ -30,7 +30,6 @@ interface Client {
   };
 }
 
-type CaseFilter = "all" | "withCases" | "withoutCases";
 type ArchiveFilter = "active" | "archived" | "all";
 type LocaleKey = "ar" | "en";
 
@@ -614,7 +613,6 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
   const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const writeAccess = useTenantWriteAccess(localeKey);
@@ -654,7 +652,6 @@ export default function ClientsPage() {
 
   function clearFilters() {
     setQ("");
-    setCaseFilter("all");
     setArchiveFilter("active");
   }
 
@@ -680,24 +677,16 @@ export default function ClientsPage() {
     const query = q.trim().toLowerCase();
 
     return clients.filter((client) => {
-      const casesCount = client._count?.cases ?? 0;
-
-      const matchesSearch =
+      return (
         !query ||
         client.name?.toLowerCase().includes(query) ||
         client.phone?.toLowerCase().includes(query) ||
         client.email?.toLowerCase().includes(query) ||
         client.nationalId?.toLowerCase().includes(query) ||
-        client.address?.toLowerCase().includes(query);
-
-      const matchesCaseFilter =
-        caseFilter === "all" ||
-        (caseFilter === "withCases" && casesCount > 0) ||
-        (caseFilter === "withoutCases" && casesCount === 0);
-
-      return matchesSearch && matchesCaseFilter;
+        client.address?.toLowerCase().includes(query)
+      );
     });
-  }, [clients, caseFilter, q]);
+  }, [clients, q]);
 
   const totalClients = clients.length;
   const clientsWithCases = clients.filter(
@@ -889,37 +878,7 @@ export default function ClientsPage() {
               </button>
             ))}
 
-            {(
-              [
-                ["all", text.filters.all],
-                ["withCases", text.filters.withCases],
-                ["withoutCases", text.filters.withoutCases],
-              ] as [CaseFilter, string][]
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setCaseFilter(key)}
-                className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
-                style={
-                  caseFilter === key
-                    ? {
-                        background: "rgba(245,200,66,0.18)",
-                        color: "var(--text-1)",
-                        border: "1px solid rgba(245,200,66,0.35)",
-                      }
-                    : {
-                        background: "var(--green-soft)",
-                        color: "var(--text-2)",
-                        border: "1px solid var(--border)",
-                      }
-                }
-              >
-                {label}
-              </button>
-            ))}
-
-            {(q || caseFilter !== "all" || archiveFilter !== "active") && (
+            {(q || archiveFilter !== "active") && (
               <button
                 type="button"
                 onClick={clearFilters}

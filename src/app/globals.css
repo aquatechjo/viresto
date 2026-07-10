@@ -17,7 +17,7 @@
   --sidebar-dark: #1e3329;
   --sidebar-hover: #3a5c4e;
   --sidebar-text: #ffffff;
-  --sidebar-muted: rgba(255, 255, 255, 0.55);
+  --sidebar-muted: rgba(255, 255, 255, 0.72);
 
   /* --- Backgrounds --- */
   --bg: #eef0eb;
@@ -27,14 +27,14 @@
   --overlay: rgba(10, 20, 15, 0.48);
 
   /* --- Borders --- */
-  --border: #dde4db;
-  --border-dark: #c3cfc1;
+  --border: #cbd7cf;
+  --border-dark: #afc0b6;
 
   /* --- Text --- */
-  --text: #1a2e25;
-  --text-2: #537065;
-  --text-3: #8ba498;
-  --muted: #8ba498;
+  --text: #14271f;
+  --text-2: #385247;
+  --text-3: #60766c;
+  --muted: #60766c;
 
   /* --- Accent --- */
   --gold: #f0b429;
@@ -42,12 +42,12 @@
   --gold-border: #fcd97a;
 
   /* --- Semantic Colors --- */
-  --success: #16a34a;
-  --warning: #d97706;
+  --success: #15803d;
+  --warning: #b45309;
   --danger: #dc2626;
-  --info: #2563eb;
+  --info: #1d4ed8;
 
-  /* --- Soft Backgrounds (badges / alerts) --- */
+  /* --- Soft Backgrounds --- */
   --green-soft: #dceee5;
   --amber-soft: #fef3c7;
   --red-soft: #fee2e2;
