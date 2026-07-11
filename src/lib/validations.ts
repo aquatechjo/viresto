@@ -146,6 +146,7 @@ export const paymentSchema = z.object({
 export const appointmentSchema = z.object({
   clientId: z.string().optional(),
   caseId: z.string().optional(),
+  assignedToId: optionalId,
   title: z.string().min(1, "العنوان مطلوب"),
   description: z.string().optional(),
   startTime: z.string(),

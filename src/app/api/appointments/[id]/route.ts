@@ -10,6 +10,13 @@ import { verifySameOrigin } from "@/lib/csrf";
 
 type Params = { params: Promise<{ id: string }> };
 
+const appointmentUserSelect = {
+  id: true,
+  name: true,
+  role: true,
+  isActive: true,
+} as const;
+
 function hasExplicitTimeZone(value: unknown) {
   if (typeof value !== "string") return true;
 
@@ -66,6 +73,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         title: true,
         caseId: true,
         clientId: true,
+        assignedToId: true,
+        createdById: true,
         startTime: true,
         endTime: true,
         type: true,
@@ -92,6 +101,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (!exists) {
       return notFound("الموعد غير موجود");
+    }
+
+    if (
+      auth.user.role === "STAFF" &&
+      exists.assignedToId !== auth.user.userId
+    ) {
+      return err("يمكنك تعديل المواعيد المسندة إليك فقط", 403);
     }
 
     const isCurrentlyArchivedClient = Boolean(
@@ -188,8 +204,41 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       endTime: _endTime,
       clientId,
       caseId,
+      assignedToId,
       ...rest
     } = parsed.data;
+
+    let nextAssignedToId: string | undefined;
+
+    if (assignedToId !== undefined) {
+      if (!assignedToId) {
+        return err("المسؤول عن الموعد مطلوب", 400);
+      }
+
+      if (
+        auth.user.role === "STAFF" &&
+        assignedToId !== auth.user.userId
+      ) {
+        return err("الموظف يستطيع إسناد الموعد لنفسه فقط", 403);
+      }
+
+      const assignee = await prisma.user.findFirst({
+        where: {
+          id: assignedToId,
+          tenantId: auth.user.tenantId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!assignee) {
+        return err("المسؤول المحدد غير موجود أو حسابه معطل", 400);
+      }
+
+      nextAssignedToId = assignee.id;
+    }
 
     let linkedClientId = clientId !== undefined ? clientId : exists.clientId;
 
@@ -258,6 +307,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ...rest,
         ...(shouldUpdateClientRelation ? { clientId: linkedClientId } : {}),
         ...(caseId !== undefined ? { caseId } : {}),
+        ...(nextAssignedToId !== undefined
+          ? { assignedToId: nextAssignedToId }
+          : {}),
         ...(startTime !== undefined ? { startTime } : {}),
         ...(endTime !== undefined ? { endTime } : {}),
       },
@@ -281,6 +333,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
               },
             },
           },
+        },
+        assignedTo: {
+          select: appointmentUserSelect,
+        },
+        createdBy: {
+          select: appointmentUserSelect,
         },
       },
     });

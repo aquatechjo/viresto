@@ -82,6 +82,14 @@ export async function GET(req: NextRequest, { params }: Params) {
         },
         appointments: {
           where: { tenantId },
+          include: {
+            assignedTo: {
+              select: caseUserSelect,
+            },
+            createdBy: {
+              select: caseUserSelect,
+            },
+          },
           orderBy: { startTime: "asc" },
         },
         documents: {

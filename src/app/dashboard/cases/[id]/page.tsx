@@ -37,6 +37,8 @@ interface Appointment {
   type: string;
   status: string;
   location?: string | null;
+  assignedTo?: TeamMember | null;
+  createdBy?: TeamMember | null;
 }
 
 interface DocumentItem {
@@ -305,6 +307,7 @@ const APPOINTMENT_INIT = {
   endTime: "",
   location: "",
   description: "",
+  assignedToId: "",
 };
 
 const TASK_INIT = {
@@ -653,6 +656,10 @@ export default function CaseDetailPage() {
         ...previous,
         assignedToId: previous.assignedToId || loadedCurrentUserId,
       }));
+      setAppointmentForm((previous) => ({
+        ...previous,
+        assignedToId: previous.assignedToId || loadedCurrentUserId,
+      }));
 
       if (response.ok && data.success) {
         setC(data.data);
@@ -942,8 +949,13 @@ export default function CaseDetailPage() {
         body: JSON.stringify({
           title: appointmentForm.title.trim(),
           type: appointmentForm.type,
-          startTime: appointmentForm.startTime,
-          endTime: appointmentForm.endTime || undefined,
+          startTime: new Date(appointmentForm.startTime).toISOString(),
+          endTime: appointmentForm.endTime
+            ? new Date(appointmentForm.endTime).toISOString()
+            : undefined,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          assignedToId:
+            appointmentForm.assignedToId || currentUserId,
           location: appointmentForm.location || undefined,
           description: appointmentForm.description || undefined,
           clientId: c?.client.id,
@@ -956,7 +968,10 @@ export default function CaseDetailPage() {
       if (response.ok && data.success) {
         toast.success("تمت إضافة الموعد");
         setAppointmentOpen(false);
-        setAppointmentForm(APPOINTMENT_INIT);
+        setAppointmentForm({
+          ...APPOINTMENT_INIT,
+          assignedToId: currentUserId,
+        });
         load();
       } else {
         toast.error(getApiMessage(data, "تعذر إضافة الموعد"));
@@ -1047,7 +1062,9 @@ export default function CaseDetailPage() {
     const data = await response.json().catch(() => ({}));
 
     if (response.ok && data.success) {
-      toast.success(isCompleted ? "تمت إعادة فتح المهمة" : "تم إكمال المهمة");
+      toast.success(
+        isCompleted ? "تمت إعادة فتح المهمة" : "تم إكمال المهمة",
+      );
       load();
     } else {
       toast.error(getApiMessage(data, "تعذر تحديث المهمة"));
@@ -1994,11 +2011,17 @@ export default function CaseDetailPage() {
                           appointment.status}
                       </span>
 
+                      {appointment.assignedTo && (
+                        <span>
+                          {pageText.taskAssignee}: {appointment.assignedTo.name}
+                        </span>
+                      )}
+
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => deleteAppointment(appointment)}
-                          disabled={caseArchived}
+                          disabled={caseArchived || currentRole === "STAFF"}
                           title={
                             caseArchived
                               ? pageText.archivedAppointmentBlocked
@@ -2044,30 +2067,21 @@ export default function CaseDetailPage() {
                   <div
                     key={task.id}
                     className={`flex items-center gap-3 rounded-2xl border p-3 ${
-                      task.status === "COMPLETED" || task.completed
-                        ? "opacity-60"
-                        : ""
+                      task.status === "COMPLETED" || task.completed ? "opacity-60" : ""
                     }`}
                     style={{ borderColor: "var(--border)" }}
                   >
                     <button
                       type="button"
                       onClick={() => toggleTask(task)}
-                      disabled={
-                        currentRole === "STAFF" &&
-                        task.assignedTo?.id !== currentUserId
-                      }
+                      disabled={currentRole === "STAFF" && task.assignedTo?.id !== currentUserId}
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black"
                       style={{
                         borderColor: "var(--sidebar)",
-                        background:
-                          task.status === "COMPLETED" || task.completed
-                            ? "var(--sidebar)"
-                            : "transparent",
-                        color:
-                          task.status === "COMPLETED" || task.completed
-                            ? "#fff"
-                            : "transparent",
+                        background: task.status === "COMPLETED" || task.completed
+                          ? "var(--sidebar)"
+                          : "transparent",
+                        color: task.status === "COMPLETED" || task.completed ? "#fff" : "transparent",
                       }}
                     >
                       ✓
@@ -2087,10 +2101,7 @@ export default function CaseDetailPage() {
                           : pageText.noDate}
                       </p>
                       {task.assignedTo && (
-                        <p
-                          className="mt-1 text-xs font-bold"
-                          style={{ color: "var(--text-2)" }}
-                        >
+                        <p className="mt-1 text-xs font-bold" style={{ color: "var(--text-2)" }}>
                           {pageText.taskAssignee}: {task.assignedTo.name}
                         </p>
                       )}
@@ -2806,7 +2817,10 @@ export default function CaseDetailPage() {
         open={appointmentOpen}
         onClose={() => {
           setAppointmentOpen(false);
-          setAppointmentForm(APPOINTMENT_INIT);
+          setAppointmentForm({
+            ...APPOINTMENT_INIT,
+            assignedToId: currentUserId,
+          });
         }}
         title={pageText.addAppointmentTitle}
       >
@@ -2865,6 +2879,26 @@ export default function CaseDetailPage() {
               />
             </FormField>
           </div>
+
+          <FormField label={pageText.taskAssignee} required>
+            <select
+              className="input"
+              value={appointmentForm.assignedToId}
+              disabled={currentRole === "STAFF"}
+              onChange={(event) =>
+                setAppointmentForm((previous) => ({
+                  ...previous,
+                  assignedToId: event.target.value,
+                }))
+              }
+            >
+              {teamMembers.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={pageText.startTime} required>
@@ -3387,13 +3421,12 @@ function CaseTeamEditor({
   const eligibleLeads = members.filter(
     (member) => member.role === "ADMIN" || member.role === "LAWYER",
   );
-  const participants = members.filter((member) => member.id !== leadLawyerId);
+  const participants = members.filter(
+    (member) => member.id !== leadLawyerId,
+  );
 
   return (
-    <div
-      className="rounded-2xl border p-4"
-      style={{ borderColor: "var(--border)", background: "var(--card-2)" }}
-    >
+    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
       <FormField label={leadLabel} required>
         <select
           className="input"
@@ -3411,10 +3444,7 @@ function CaseTeamEditor({
         </select>
       </FormField>
 
-      <p
-        className="mb-2 mt-3 text-xs font-black"
-        style={{ color: "var(--text-2)" }}
-      >
+      <p className="mb-2 mt-3 text-xs font-black" style={{ color: "var(--text-2)" }}>
         {membersLabel}
       </p>
       <div className="grid max-h-36 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">

@@ -29,6 +29,8 @@ interface Appt {
   type: string;
   status: string;
   description?: string;
+  assignedTo?: TeamMember | null;
+  createdBy?: TeamMember | null;
   client?: {
     id?: string;
     name: string;
@@ -43,6 +45,13 @@ interface Appt {
       archivedAt?: string | null;
     } | null;
   } | null;
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role: "ADMIN" | "LAWYER" | "STAFF";
+  isActive?: boolean;
 }
 
 interface ClientItem {
@@ -93,6 +102,7 @@ const INIT = {
   location: "",
   type: "MEETING",
   description: "",
+  assignedToId: "",
 };
 
 const TENANT_TIME_ZONE = "Asia/Amman";
@@ -646,6 +656,7 @@ export default function AppointmentsPage() {
           noLocation: "بدون مكان",
           noDescription: "لا توجد ملاحظات",
           endTime: "ينتهي",
+          assignee: "المسؤول",
         }
       : {
           title: "Appointments log",
@@ -661,6 +672,7 @@ export default function AppointmentsPage() {
           noLocation: "No location",
           noDescription: "No notes",
           endTime: "Ends",
+          assignee: "Assignee",
         };
   const appointmentFormCopy =
     locale === "ar"
@@ -671,6 +683,9 @@ export default function AppointmentsPage() {
           loadingCases: "جارٍ تحميل القضايا...",
           caseLoadError: "تعذر تحميل قضايا الموكل",
           invalidCase: "القضية المحددة لا تتبع الموكل المختار",
+          assignee: "المسؤول عن الموعد",
+          allAssignees: "جميع المسؤولين",
+          myAppointments: "مواعيدي",
         }
       : {
           caseLabel: "Case",
@@ -679,6 +694,9 @@ export default function AppointmentsPage() {
           loadingCases: "Loading cases...",
           caseLoadError: "Could not load the client's cases",
           invalidCase: "The selected case does not belong to the chosen client",
+          assignee: "Appointment assignee",
+          allAssignees: "All assignees",
+          myAppointments: "My appointments",
         };
   const fieldDir = {
     dir: (isRtl ? "rtl" : "ltr") as "rtl" | "ltr",
@@ -691,6 +709,9 @@ export default function AppointmentsPage() {
   const [appts, setAppts] = useState<Appt[]>([]);
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentRole, setCurrentRole] = useState<TeamMember["role"]>("STAFF");
   const [loadingCases, setLoadingCases] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -704,15 +725,17 @@ export default function AppointmentsPage() {
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [assigneeFilter, setAssigneeFilter] = useState("all");
   const writeAccess = useTenantWriteAccess(locale);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     try {
       if (!options?.silent) setLoading(true);
 
-      const [appointmentsRes, clientsRes] = await Promise.all([
+      const [appointmentsRes, clientsRes, teamRes] = await Promise.all([
         fetch("/api/appointments?includeArchivedClients=true"),
         fetch("/api/clients?limit=100&archive=active"),
+        fetch("/api/team?mode=assignees"),
       ]);
 
       const safeJson = async (response: Response) => {
@@ -725,9 +748,10 @@ export default function AppointmentsPage() {
         }
       };
 
-      const [appointmentsData, clientsData] = await Promise.all([
+      const [appointmentsData, clientsData, teamData] = await Promise.all([
         safeJson(appointmentsRes),
         safeJson(clientsRes),
+        safeJson(teamRes),
       ]);
 
       setAppts(
@@ -740,12 +764,30 @@ export default function AppointmentsPage() {
             ? clientsData.data
             : [],
       );
+      const loadedMembers = Array.isArray(teamData.data?.members)
+        ? teamData.data.members
+        : [];
+      const loadedCurrentUserId = String(teamData.data?.currentUserId || "");
+      const loadedRole = teamData.data?.currentRole;
+
+      setTeamMembers(loadedMembers);
+      setCurrentUserId(loadedCurrentUserId);
+      setCurrentRole(
+        loadedRole === "ADMIN" || loadedRole === "LAWYER"
+          ? loadedRole
+          : "STAFF",
+      );
+      setForm((previous) => ({
+        ...previous,
+        assignedToId: previous.assignedToId || loadedCurrentUserId,
+      }));
     } catch {
       toast.error(a.messages.loadError);
 
       if (!options?.silent) {
         setAppts([]);
         setClients([]);
+        setTeamMembers([]);
       }
     } finally {
       if (!options?.silent) setLoading(false);
@@ -854,17 +896,23 @@ export default function AppointmentsPage() {
 
     return appts.filter((appt) => {
       const matchesType = typeFilter === "all" || appt.type === typeFilter;
+      const matchesAssignee =
+        assigneeFilter === "all" ||
+        (assigneeFilter === "me"
+          ? appt.assignedTo?.id === currentUserId
+          : appt.assignedTo?.id === assigneeFilter);
 
       const matchesSearch =
         !query ||
         appt.title?.toLowerCase().includes(query) ||
         appt.location?.toLowerCase().includes(query) ||
+        appt.assignedTo?.name?.toLowerCase().includes(query) ||
         appt.client?.name?.toLowerCase().includes(query) ||
         appt.case?.title?.toLowerCase().includes(query);
 
-      return matchesType && matchesSearch;
+      return matchesType && matchesAssignee && matchesSearch;
     });
-  }, [appts, search, typeFilter]);
+  }, [appts, assigneeFilter, currentUserId, search, typeFilter]);
 
   const appointmentLog = useMemo(
     () =>
@@ -895,7 +943,10 @@ export default function AppointmentsPage() {
     }));
   }, [appointmentLog, locale, tenantTimeZone]);
 
-  const hasActiveFilters = Boolean(search.trim()) || typeFilter !== "all";
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    typeFilter !== "all" ||
+    assigneeFilter !== "all";
 
   const calendarEvents = useMemo(
     () =>
@@ -908,9 +959,11 @@ export default function AppointmentsPage() {
         end: appt.endTime,
         backgroundColor: TYPE_COLOR[appt.type] || "var(--sidebar)",
         borderColor: TYPE_COLOR[appt.type] || "var(--sidebar)",
+        editable:
+          currentRole !== "STAFF" || appt.assignedTo?.id === currentUserId,
         extendedProps: appt,
       })),
-    [filteredAppts],
+    [currentRole, currentUserId, filteredAppts],
   );
 
   function f(key: keyof typeof INIT) {
@@ -937,7 +990,7 @@ export default function AppointmentsPage() {
   }
 
   function resetForm() {
-    setForm(INIT);
+    setForm({ ...INIT, assignedToId: currentUserId });
     setEditMode(false);
     setSelectedAppt(null);
   }
@@ -945,6 +998,7 @@ export default function AppointmentsPage() {
   function clearFilters() {
     setSearch("");
     setTypeFilter("all");
+    setAssigneeFilter("all");
   }
 
   async function saveAppointment(event: React.FormEvent) {
@@ -955,7 +1009,7 @@ export default function AppointmentsPage() {
       return;
     }
 
-    if (!form.title.trim() || !form.startTime) {
+    if (!form.title.trim() || !form.startTime || !form.assignedToId) {
       toast.error(a.messages.requiredTitleTime);
       return;
     }
@@ -1092,6 +1146,21 @@ export default function AppointmentsPage() {
       return;
     }
 
+    const targetAppointment = appts.find((appt) => appt.id === id);
+
+    if (
+      currentRole === "STAFF" &&
+      targetAppointment?.assignedTo?.id !== currentUserId
+    ) {
+      toast.warning(
+        locale === "ar"
+          ? "يمكنك تعديل المواعيد المسندة إليك فقط"
+          : "You can only update appointments assigned to you",
+      );
+      revert();
+      return;
+    }
+
     if (!start) {
       toast.error(errorMessage);
       revert();
@@ -1163,6 +1232,18 @@ export default function AppointmentsPage() {
       return;
     }
 
+    if (
+      currentRole === "STAFF" &&
+      appt.assignedTo?.id !== currentUserId
+    ) {
+      toast.warning(
+        locale === "ar"
+          ? "يمكنك تعديل المواعيد المسندة إليك فقط"
+          : "You can only update appointments assigned to you",
+      );
+      return;
+    }
+
     setSelectedAppt(appt);
     setForm({
       title: appt.title,
@@ -1173,6 +1254,7 @@ export default function AppointmentsPage() {
       location: appt.location || "",
       type: appt.type || "MEETING",
       description: appt.description || "",
+      assignedToId: appt.assignedTo?.id || currentUserId,
     });
 
     setEditMode(true);
@@ -1305,7 +1387,7 @@ export default function AppointmentsPage() {
       {/* Filters */}
       <div className="card p-4">
         <div
-          className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]"
+          className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px_260px]"
           dir={isRtl ? "rtl" : "ltr"}
         >
           <input
@@ -1334,6 +1416,22 @@ export default function AppointmentsPage() {
             {Object.entries(typeLabels).map(([key, label]) => (
               <option key={key} value={key} dir={isRtl ? "rtl" : "ltr"}>
                 {label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+            className="input h-14"
+            {...fieldDir}
+            aria-label={appointmentFormCopy.assignee}
+          >
+            <option value="all">{appointmentFormCopy.allAssignees}</option>
+            <option value="me">{appointmentFormCopy.myAppointments}</option>
+            {teamMembers.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}
               </option>
             ))}
           </select>
@@ -1616,6 +1714,13 @@ export default function AppointmentsPage() {
                               📍{" "}
                               {appt.location || appointmentLogCopy.noLocation}
                             </span>
+
+                            <span
+                              className="truncate"
+                              style={{ color: "var(--text-2)" }}
+                            >
+                              👤 {appointmentLogCopy.assignee}: {appt.assignedTo?.name || "-"}
+                            </span>
                           </div>
                         </div>
                       </button>
@@ -1720,6 +1825,22 @@ export default function AppointmentsPage() {
                   {caseItem.caseNumber
                     ? `${caseItem.caseNumber} — ${caseItem.title}`
                     : caseItem.title}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label={appointmentFormCopy.assignee} required>
+            <select
+              value={form.assignedToId}
+              onChange={f("assignedToId")}
+              disabled={currentRole === "STAFF"}
+              className="input disabled:cursor-not-allowed disabled:opacity-70"
+              {...fieldDir}
+            >
+              {teamMembers.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
                 </option>
               ))}
             </select>
@@ -1948,6 +2069,23 @@ export default function AppointmentsPage() {
                   </div>
                 )}
 
+                {selectedAppt.assignedTo?.name && (
+                  <div>
+                    <p
+                      className="text-xs font-bold"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {appointmentFormCopy.assignee}
+                    </p>
+                    <p
+                      className="mt-1 text-sm font-bold"
+                      style={{ color: "var(--text)" }}
+                    >
+                      {selectedAppt.assignedTo.name}
+                    </p>
+                  </div>
+                )}
+
                 {selectedAppt.location && (
                   <div className="sm:col-span-2">
                     <p
@@ -1981,7 +2119,11 @@ export default function AppointmentsPage() {
 
               <button
                 type="button"
-                disabled={selectedApptArchived}
+                disabled={
+                  selectedApptArchived ||
+                  (currentRole === "STAFF" &&
+                    selectedAppt.assignedTo?.id !== currentUserId)
+                }
                 title={
                   selectedApptArchived
                     ? a.messages.archivedEditBlocked
@@ -1995,7 +2137,7 @@ export default function AppointmentsPage() {
 
               <button
                 type="button"
-                disabled={selectedApptArchived}
+                disabled={selectedApptArchived || currentRole === "STAFF"}
                 title={
                   selectedApptArchived
                     ? a.messages.archivedDeleteBlocked

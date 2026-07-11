@@ -8,6 +8,13 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 
+const appointmentUserSelect = {
+  id: true,
+  name: true,
+  role: true,
+  isActive: true,
+} as const;
+
 function hasExplicitTimeZone(value: unknown) {
   if (typeof value !== "string") return true;
 
@@ -40,6 +47,7 @@ export async function GET(req: NextRequest) {
     const from = sp.get("from");
     const to = sp.get("to");
     const includeArchivedClients = sp.get("includeArchivedClients") === "true";
+    const assignedToId = sp.get("assignedToId")?.trim() || "";
 
     const fromDate = from ? new Date(from) : null;
     const toDate = to ? new Date(to) : null;
@@ -55,6 +63,11 @@ export async function GET(req: NextRequest) {
     const data = await prisma.appointment.findMany({
       where: {
         tenantId: auth.user.tenantId,
+        ...(assignedToId === "me"
+          ? { assignedToId: auth.user.userId }
+          : assignedToId
+            ? { assignedToId }
+            : {}),
 
         ...(includeArchivedClients
           ? {}
@@ -119,6 +132,12 @@ export async function GET(req: NextRequest) {
               },
             },
           },
+        },
+        assignedTo: {
+          select: appointmentUserSelect,
+        },
+        createdBy: {
+          select: appointmentUserSelect,
         },
       },
 
@@ -212,6 +231,24 @@ export async function POST(req: NextRequest) {
     }
 
     const { clientId, caseId } = parsed.data;
+    const assignedToId = parsed.data.assignedToId || auth.user.userId;
+
+    if (auth.user.role === "STAFF" && assignedToId !== auth.user.userId) {
+      return err("الموظف يستطيع إسناد الموعد لنفسه فقط", 403);
+    }
+
+    const assignee = await prisma.user.findFirst({
+      where: {
+        id: assignedToId,
+        tenantId: auth.user.tenantId,
+        isActive: true,
+      },
+      select: appointmentUserSelect,
+    });
+
+    if (!assignee) {
+      return err("المسؤول المحدد غير موجود أو حسابه معطل", 400);
+    }
     let linkedClientId = clientId || null;
 
     if (clientId) {
@@ -271,6 +308,7 @@ export async function POST(req: NextRequest) {
       startTime: _startTime,
       endTime: _endTime,
       clientId: _clientId,
+      assignedToId: _assignedToId,
       ...rest
     } = parsed.data;
 
@@ -278,9 +316,39 @@ export async function POST(req: NextRequest) {
       data: {
         tenantId: auth.user.tenantId,
         ...rest,
+        assignedToId,
+        createdById: auth.user.userId,
         ...(linkedClientId ? { clientId: linkedClientId } : {}),
         startTime,
         ...(endTime ? { endTime } : {}),
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+          },
+        },
+        assignedTo: {
+          select: appointmentUserSelect,
+        },
+        createdBy: {
+          select: appointmentUserSelect,
+        },
       },
     });
 
