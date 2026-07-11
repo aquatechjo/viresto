@@ -8,7 +8,6 @@ import { logActivity } from "@/lib/activity";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 
-
 type Params = { params: Promise<{ id: string }> };
 
 const taskUserSelect = {
@@ -17,6 +16,15 @@ const taskUserSelect = {
   role: true,
   isActive: true,
 } as const;
+
+function hasOwn(value: object, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function nullableId(value: unknown) {
+  const id = String(value ?? "").trim();
+  return id || null;
+}
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
@@ -36,7 +44,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const meta = getRequestMeta(req);
-
     const { id } = await params;
 
     const exists = await prisma.task.findFirst({
@@ -64,6 +71,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         case: {
           select: {
             id: true,
+            clientId: true,
             client: {
               select: {
                 id: true,
@@ -88,13 +96,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return err("يمكنك تحديث المهام المسندة إليك فقط", 403);
     }
 
-    if ("completed" in body && "status" in body) {
+    if (hasOwn(body, "completed") && hasOwn(body, "status")) {
       return err("أرسل الحالة الجديدة فقط دون completed", 400);
     }
 
     const data: Prisma.TaskUncheckedUpdateInput = {};
 
-    if ("completed" in body) {
+    if (hasOwn(body, "completed")) {
       if (typeof body.completed !== "boolean") {
         return err("قيمة completed غير صالحة", 400);
       }
@@ -104,7 +112,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.completedAt = body.completed ? new Date() : null;
     }
 
-    if ("status" in body) {
+    if (hasOwn(body, "status")) {
       const status = String(body.status).trim().toUpperCase();
 
       if (!Object.values(TaskStatus).includes(status as TaskStatus)) {
@@ -116,7 +124,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.completedAt = status === "COMPLETED" ? new Date() : null;
     }
 
-    if ("title" in body) {
+    if (hasOwn(body, "title")) {
       const title = String(body.title).trim();
 
       if (!title) {
@@ -130,7 +138,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.title = title;
     }
 
-    if ("description" in body) {
+    if (hasOwn(body, "description")) {
       const description = String(body.description ?? "").trim();
 
       if (description.length > 2000) {
@@ -140,8 +148,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.description = description || null;
     }
 
-    if ("priority" in body) {
-      const priority = String(body.priority).toUpperCase();
+    if (hasOwn(body, "priority")) {
+      const priority = String(body.priority).trim().toUpperCase();
 
       if (!Object.values(TaskPriority).includes(priority as TaskPriority)) {
         return err("أولوية المهمة غير صحيحة", 400);
@@ -150,7 +158,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.priority = priority as TaskPriority;
     }
 
-    if ("dueDate" in body) {
+    if (hasOwn(body, "dueDate")) {
       if (body.dueDate) {
         const date = new Date(body.dueDate);
 
@@ -164,12 +172,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
-    if ("assignedToId" in body) {
+    if (hasOwn(body, "assignedToId")) {
       if (auth.user.role === "STAFF") {
         return err("لا تملك صلاحية إعادة إسناد المهمة", 403);
       }
 
-      const assignedToId = String(body.assignedToId ?? "").trim();
+      const assignedToId = nullableId(body.assignedToId);
 
       if (!assignedToId) {
         return err("المسؤول عن المهمة مطلوب", 400);
@@ -191,6 +199,85 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       data.assignedToId = assignee.id;
+    }
+
+    const changesClientLink = hasOwn(body, "clientId");
+    const changesCaseLink = hasOwn(body, "caseId");
+
+    if (changesClientLink || changesCaseLink) {
+      if (auth.user.role === "STAFF") {
+        return err("لا تملك صلاحية تعديل ارتباط المهمة", 403);
+      }
+
+      let nextClientId = changesClientLink
+        ? nullableId(body.clientId)
+        : exists.clientId;
+      const nextCaseId = changesCaseLink
+        ? nullableId(body.caseId)
+        : exists.caseId;
+
+      if (nextClientId) {
+        const client = await prisma.client.findFirst({
+          where: {
+            id: nextClientId,
+            tenantId: auth.user.tenantId,
+          },
+          select: {
+            id: true,
+            archivedAt: true,
+          },
+        });
+
+        if (!client) {
+          return err("الموكل المحدد غير موجود", 400);
+        }
+
+        if (client.archivedAt) {
+          return err("لا يمكن ربط المهمة بموكل مؤرشف", 400);
+        }
+      }
+
+      if (nextCaseId) {
+        const relatedCase = await prisma.case.findFirst({
+          where: {
+            id: nextCaseId,
+            tenantId: auth.user.tenantId,
+          },
+          select: {
+            id: true,
+            clientId: true,
+            client: {
+              select: {
+                id: true,
+                archivedAt: true,
+              },
+            },
+          },
+        });
+
+        if (!relatedCase) {
+          return err("القضية المحددة غير موجودة", 400);
+        }
+
+        if (relatedCase.client?.archivedAt) {
+          return err("لا يمكن ربط المهمة بقضية لموكل مؤرشف", 400);
+        }
+
+        if (
+          nextClientId &&
+          relatedCase.clientId &&
+          relatedCase.clientId !== nextClientId
+        ) {
+          return err("القضية المحددة لا تتبع الموكل المحدد", 400);
+        }
+
+        if (!nextClientId && relatedCase.clientId) {
+          nextClientId = relatedCase.clientId;
+        }
+      }
+
+      data.clientId = nextClientId;
+      data.caseId = nextCaseId;
     }
 
     if (Object.keys(data).length === 0) {
@@ -259,7 +346,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
     });
 
-    if (exists.caseId) {
+    if (exists.caseId || updated.caseId) {
+      const activityCaseId = updated.caseId || exists.caseId;
       const title =
         "status" in data || "completed" in data
           ? data.completed === true
@@ -269,18 +357,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
               : "تم تحديث حالة مهمة"
           : "تم تعديل مهمة";
 
-      await logActivity({
-        actorId: auth.user.userId,
-        ipAddress: meta.ipAddress,
-        userAgent: meta.userAgent,
-        tenantId: auth.user.tenantId,
-        type: "CASE_UPDATED",
-        title,
-        message: updated.title,
-        entityType: "CASE",
-        entityId: exists.caseId,
-      });
+      if (activityCaseId) {
+        await logActivity({
+          actorId: auth.user.userId,
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+          tenantId: auth.user.tenantId,
+          type: "CASE_UPDATED",
+          title,
+          message: updated.title,
+          entityType: "CASE",
+          entityId: activityCaseId,
+        });
+      }
     }
+
     return ok(updated);
   });
 }
@@ -303,7 +394,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     }
 
     const meta = getRequestMeta(req);
-
     const { id } = await params;
 
     const exists = await prisma.task.findFirst({
@@ -375,6 +465,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         entityId: exists.caseId,
       });
     }
+
     return ok({ deleted: true });
   });
 }

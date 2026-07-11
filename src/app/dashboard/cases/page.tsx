@@ -972,12 +972,13 @@ export default function CasesPage() {
       ) : (
         <div className="card overflow-hidden p-0">
           <div className="max-w-full overflow-x-auto">
-            <div className="w-full min-w-[1320px]">
+            <div className="w-full min-w-[1460px]">
               <div
                 dir={isRtl ? "rtl" : "ltr"}
-                className="grid grid-cols-[1.25fr_0.85fr_1.1fr_1fr_0.85fr_0.85fr_0.9fr_0.7fr_0.7fr_0.7fr] items-center gap-x-4 border-b border-emerald-300/20 px-5 py-4 text-sm font-black text-[var(--text-2)]"
+                className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.05fr_1fr_0.82fr_0.82fr_0.88fr_0.68fr_0.68fr_0.7fr] items-center gap-x-4 border-b border-emerald-300/20 px-5 py-4 text-sm font-black text-[var(--text-2)]"
               >
                 <div className="text-start">{text.table.case}</div>
+                <div className="text-center">{text.table.status}</div>
                 <div className="text-center">{text.table.caseNumber}</div>
                 <div className="text-start">{text.table.client}</div>
                 <div className="text-start">{text.table.leadLawyer}</div>
@@ -993,13 +994,20 @@ export default function CasesPage() {
                 const paidAmount = paid(item);
                 const remainingAmount = remaining(item);
                 const archivedClient = isArchivedClientCase(item);
+                const statusKey = CASE_STATUS_KEYS.find(
+                  (status) => status === item.status,
+                );
+                const statusLabel = statusKey
+                  ? text.filters.statuses[statusKey]
+                  : item.status || "-";
+                const statusStyle = getCaseStatusBadgeStyle(item.status);
 
                 return (
                   <div
                     key={item.id}
                     onClick={() => router.push(`/dashboard/cases/${item.id}`)}
                     dir={isRtl ? "rtl" : "ltr"}
-                    className="grid cursor-pointer grid-cols-[1.25fr_0.85fr_1.1fr_1fr_0.85fr_0.85fr_0.9fr_0.7fr_0.7fr_0.7fr] items-center gap-x-4 border-b border-emerald-300/15 px-5 py-5 transition last:border-b-0 hover:bg-emerald-300/5"
+                    className="grid cursor-pointer grid-cols-[1.2fr_0.8fr_0.8fr_1.05fr_1fr_0.82fr_0.82fr_0.88fr_0.68fr_0.68fr_0.7fr] items-center gap-x-4 border-b border-emerald-300/15 px-5 py-5 transition last:border-b-0 hover:bg-emerald-300/5"
                   >
                     <div className="min-w-0 text-start">
                       <p
@@ -1011,6 +1019,15 @@ export default function CasesPage() {
                       >
                         {item.title}
                       </p>
+                    </div>
+
+                    <div className="flex justify-center">
+                      <span
+                        className="inline-flex min-w-[88px] items-center justify-center whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-black"
+                        style={statusStyle}
+                      >
+                        {statusLabel}
+                      </span>
                     </div>
 
                     <div
@@ -1700,6 +1717,45 @@ function CaseTeamFields({
       </div>
     </div>
   );
+}
+
+function getCaseStatusBadgeStyle(status: string) {
+  switch (status) {
+    case "OPEN":
+      return {
+        background: "var(--green-soft)",
+        borderColor: "rgba(16, 185, 129, 0.28)",
+        color: "var(--sidebar)",
+      };
+
+    case "IN_PROGRESS":
+      return {
+        background: "var(--amber-soft)",
+        borderColor: "rgba(245, 158, 11, 0.28)",
+        color: "#92400e",
+      };
+
+    case "CLOSED":
+      return {
+        background: "var(--card-2)",
+        borderColor: "var(--border)",
+        color: "var(--text-2)",
+      };
+
+    case "ARCHIVED":
+      return {
+        background: "var(--card)",
+        borderColor: "var(--border)",
+        color: "var(--text-3)",
+      };
+
+    default:
+      return {
+        background: "var(--card-2)",
+        borderColor: "var(--border)",
+        color: "var(--text-2)",
+      };
+  }
 }
 
 function FinancialCard({
