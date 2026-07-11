@@ -256,6 +256,7 @@ export async function POST(req: NextRequest) {
         },
         select: {
           id: true,
+          feeAgreed: true,
           client: {
             select: {
               id: true,
@@ -267,6 +268,45 @@ export async function POST(req: NextRequest) {
 
       if (!selectedCase) {
         return err("القضية غير موجودة لهذا الموكل", 404);
+      }
+
+      const caseFee = roundMoney(Number(selectedCase.feeAgreed || 0));
+
+      if (caseFee <= 0) {
+        return err(
+          "لا يمكن إنشاء فاتورة لهذه القضية قبل تحديد قيمة الأتعاب المتفق عليها",
+          400,
+        );
+      }
+
+      const previousInvoices = await prisma.invoice.aggregate({
+        where: {
+          tenantId: auth.user.tenantId,
+          caseId,
+          status: {
+            not: "CANCELLED",
+          },
+        },
+        _sum: {
+          total: true,
+        },
+      });
+
+      const alreadyInvoiced = roundMoney(
+        Number(previousInvoices._sum.total || 0),
+      );
+
+      const remaining = roundMoney(Math.max(caseFee - alreadyInvoiced, 0));
+
+      if (totals.total > remaining) {
+        return err(
+          `قيمة الفاتورة تتجاوز أتعاب القضية. قيمة الأتعاب ${caseFee.toFixed(
+            2,
+          )} د.أ، والمفوتر سابقًا ${alreadyInvoiced.toFixed(
+            2,
+          )} د.أ، والمتبقي ${remaining.toFixed(2)} د.أ`,
+          400,
+        );
       }
     }
 

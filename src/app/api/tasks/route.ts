@@ -8,21 +8,48 @@ import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 
+const allowedStatuses = [
+  "TODO",
+  "IN_PROGRESS",
+  "BLOCKED",
+  "COMPLETED",
+  "CANCELLED",
+] as const;
+
+const taskUserSelect = {
+  id: true,
+  name: true,
+  role: true,
+  isActive: true,
+} as const;
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
     if (auth.error || !auth.user) return auth.error;
 
-    const completed = new URL(req.url).searchParams.get("completed");
+    const sp = new URL(req.url).searchParams;
+    const completed = sp.get("completed");
+    const status = sp.get("status")?.trim().toUpperCase() || "";
+    const assignedToId = sp.get("assignedToId")?.trim() || "";
 
     if (completed !== null && completed !== "true" && completed !== "false") {
       return err("قيمة completed غير صالحة", 400);
     }
 
+    if (status && !allowedStatuses.includes(status as any)) {
+      return err("حالة المهمة غير صالحة", 400);
+    }
+
     const data = await prisma.task.findMany({
       where: {
         tenantId: auth.user.tenantId,
+        ...(status ? { status: status as any } : {}),
+        ...(assignedToId === "me"
+          ? { assignedToId: auth.user.userId }
+          : assignedToId
+            ? { assignedToId }
+            : {}),
         ...(completed !== null
           ? {
               completed: completed === "true",
@@ -50,8 +77,18 @@ export async function GET(req: NextRequest) {
             },
           },
         },
+        assignedTo: {
+          select: taskUserSelect,
+        },
+        createdBy: {
+          select: taskUserSelect,
+        },
       },
-      orderBy: [{ completed: "asc" }, { dueDate: "asc" }],
+      orderBy: [
+        { completed: "asc" },
+        { dueDate: "asc" },
+        { createdAt: "desc" },
+      ],
     });
 
     return ok(data);
@@ -85,6 +122,24 @@ export async function POST(req: NextRequest) {
     }
 
     const { clientId, caseId } = parsed.data;
+    const assignedToId = parsed.data.assignedToId || auth.user.userId;
+
+    if (auth.user.role === "STAFF" && assignedToId !== auth.user.userId) {
+      return err("الموظف يستطيع إسناد المهمة لنفسه فقط", 403);
+    }
+
+    const assignee = await prisma.user.findFirst({
+      where: {
+        id: assignedToId,
+        tenantId: auth.user.tenantId,
+        isActive: true,
+      },
+      select: taskUserSelect,
+    });
+
+    if (!assignee) {
+      return err("المسؤول المحدد غير موجود أو حسابه معطل", 400);
+    }
 
     let linkedClientId = clientId || null;
     let linkedClientArchivedAt: Date | null = null;
@@ -150,9 +205,9 @@ export async function POST(req: NextRequest) {
       return err("لا يمكن إنشاء مهمة مرتبطة بموكل مؤرشف", 400);
     }
 
-    let dueDate: Date | undefined;
+    let dueDate: Date | null | undefined;
 
-    if (parsed.data.dueDate !== undefined) {
+    if (parsed.data.dueDate) {
       const date = new Date(parsed.data.dueDate);
 
       if (Number.isNaN(date.getTime())) {
@@ -160,14 +215,27 @@ export async function POST(req: NextRequest) {
       }
 
       dueDate = date;
+    } else if (parsed.data.dueDate === null) {
+      dueDate = null;
     }
 
-    const { dueDate: _dueDate, ...rest } = parsed.data;
+    const {
+      dueDate: _dueDate,
+      assignedToId: _assignedToId,
+      status: statusInput,
+      ...rest
+    } = parsed.data;
+    const status = statusInput || "TODO";
 
     const task = await prisma.task.create({
       data: {
         tenantId: auth.user.tenantId,
         ...rest,
+        assignedToId,
+        createdById: auth.user.userId,
+        status,
+        completed: status === "COMPLETED",
+        completedAt: status === "COMPLETED" ? new Date() : null,
         ...(linkedClientId ? { clientId: linkedClientId } : {}),
         ...(dueDate !== undefined ? { dueDate } : {}),
       },
@@ -191,6 +259,12 @@ export async function POST(req: NextRequest) {
               },
             },
           },
+        },
+        assignedTo: {
+          select: taskUserSelect,
+        },
+        createdBy: {
+          select: taskUserSelect,
         },
       },
     });

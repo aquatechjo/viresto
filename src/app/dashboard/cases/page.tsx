@@ -30,6 +30,11 @@ interface Case {
   plaintiffName?: string | null;
   defendantName?: string | null;
   description?: string | null;
+  leadLawyer?: TeamMember | null;
+  members?: Array<{
+    id: string;
+    user: TeamMember;
+  }>;
 
   client?: {
     id?: string;
@@ -43,6 +48,13 @@ interface Case {
     appointments: number;
     documents: number;
   };
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role: "ADMIN" | "LAWYER" | "STAFF";
+  isActive?: boolean;
 }
 
 interface ClientOpt {
@@ -123,6 +135,7 @@ const COPY = {
       case: "القضية",
       caseNumber: "رقم القضية",
       client: "الموكل",
+      leadLawyer: "المحامي المسؤول",
       fees: "الأتعاب",
       paid: "المدفوع",
       remaining: "المتبقي",
@@ -148,6 +161,8 @@ const COPY = {
       officialData: "بيانات القضية الرسمية",
       description: "الوصف",
       status: "حالة القضية",
+      leadLawyer: "المحامي المسؤول",
+      participants: "أعضاء القضية المشاركون",
       cancel: "إلغاء",
       save: "حفظ",
       update: "حفظ التعديل",
@@ -211,6 +226,7 @@ const COPY = {
       case: "Case",
       caseNumber: "Case number",
       client: "Client",
+      leadLawyer: "Lead lawyer",
       fees: "Fees",
       paid: "Paid",
       remaining: "Remaining",
@@ -236,6 +252,8 @@ const COPY = {
       officialData: "Official case details",
       description: "Description",
       status: "Case status",
+      leadLawyer: "Lead lawyer",
+      participants: "Participating case members",
       cancel: "Cancel",
       save: "Save",
       update: "Save changes",
@@ -243,7 +261,25 @@ const COPY = {
   },
 } as const;
 
-const INIT = {
+interface CaseFormState {
+  clientId: string;
+  title: string;
+  caseNumber: string;
+  court: string;
+  judgeName: string;
+  plaintiffName: string;
+  defendantName: string;
+  feeAgreed: string;
+  description: string;
+  leadLawyerId: string;
+  memberIds: string[];
+}
+
+interface EditCaseFormState extends Omit<CaseFormState, "clientId"> {
+  status: string;
+}
+
+const INIT: CaseFormState = {
   clientId: "",
   title: "",
   caseNumber: "",
@@ -253,9 +289,11 @@ const INIT = {
   defendantName: "",
   feeAgreed: "",
   description: "",
+  leadLawyerId: "",
+  memberIds: [],
 };
 
-const EDIT_INIT = {
+const EDIT_INIT: EditCaseFormState = {
   title: "",
   caseNumber: "",
   court: "",
@@ -265,6 +303,8 @@ const EDIT_INIT = {
   feeAgreed: "",
   description: "",
   status: "OPEN",
+  leadLawyerId: "",
+  memberIds: [],
 };
 
 function formatMoney(value: number) {
@@ -319,6 +359,8 @@ export default function CasesPage() {
 
   const [cases, setCases] = useState<Case[]>([]);
   const [clients, setClients] = useState<ClientOpt[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -342,9 +384,10 @@ export default function CasesPage() {
     try {
       setLoading(true);
 
-      const casesRes = await fetch(
-        "/api/cases?page=1&limit=100&includeArchivedClients=true",
-      );
+      const [casesRes, teamRes] = await Promise.all([
+        fetch("/api/cases?page=1&limit=100&includeArchivedClients=true"),
+        fetch("/api/team?mode=assignees"),
+      ]);
 
       if (!casesRes.ok) {
         setCases([]);
@@ -352,8 +395,13 @@ export default function CasesPage() {
       }
 
       const casesData = await casesRes.json().catch(() => ({ data: [] }));
+      const teamData = await teamRes.json().catch(() => ({ data: {} }));
 
       setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : []);
+      setTeamMembers(
+        Array.isArray(teamData.data?.members) ? teamData.data.members : [],
+      );
+      setCurrentUserId(String(teamData.data?.currentUserId || ""));
     } catch {
       toast.error(text.loadError);
       setCases([]);
@@ -465,6 +513,10 @@ export default function CasesPage() {
         item.judgeName?.toLowerCase().includes(query) ||
         item.plaintiffName?.toLowerCase().includes(query) ||
         item.defendantName?.toLowerCase().includes(query) ||
+        item.leadLawyer?.name?.toLowerCase().includes(query) ||
+        item.members?.some((member) =>
+          member.user.name.toLowerCase().includes(query),
+        ) ||
         item.client?.name?.toLowerCase().includes(query);
 
       return matchesStatus && matchesSearch;
@@ -479,7 +531,7 @@ export default function CasesPage() {
       return;
     }
 
-    if (!form.clientId || !form.title.trim()) {
+    if (!form.clientId || !form.title.trim() || !form.leadLawyerId) {
       toast.error(text.requiredError);
       return;
     }
@@ -550,6 +602,8 @@ export default function CasesPage() {
           description: editForm.description,
           status: editForm.status,
           feeAgreed: parseFloat(editForm.feeAgreed) || 0,
+          leadLawyerId: editForm.leadLawyerId,
+          memberIds: editForm.memberIds,
         }),
       });
 
@@ -572,7 +626,7 @@ export default function CasesPage() {
     }
   }
 
-  function f(key: keyof typeof INIT) {
+  function f(key: Exclude<keyof CaseFormState, "memberIds">) {
     return (
       event: ChangeEvent<
         HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -585,7 +639,7 @@ export default function CasesPage() {
     };
   }
 
-  function ef(key: keyof typeof EDIT_INIT) {
+  function ef(key: Exclude<keyof EditCaseFormState, "memberIds">) {
     return (
       event: ChangeEvent<
         HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -604,7 +658,15 @@ export default function CasesPage() {
   }
 
   function resetCreateCaseForm() {
-    setForm(INIT);
+    const defaultLead = teamMembers.find(
+      (member) =>
+        member.id === currentUserId &&
+        (member.role === "ADMIN" || member.role === "LAWYER"),
+    )?.id || teamMembers.find(
+      (member) => member.role === "ADMIN" || member.role === "LAWYER",
+    )?.id || "";
+
+    setForm({ ...INIT, leadLawyerId: defaultLead });
     setClients([]);
     setClientSearch("");
     setClientListOpen(false);
@@ -664,6 +726,8 @@ export default function CasesPage() {
       )
         ? item.status
         : "OPEN",
+      leadLawyerId: item.leadLawyer?.id || "",
+      memberIds: item.members?.map((member) => member.user.id) || [],
     });
     setEditOpen(true);
   }
@@ -908,14 +972,15 @@ export default function CasesPage() {
       ) : (
         <div className="card overflow-hidden p-0">
           <div className="max-w-full overflow-x-auto">
-            <div className="w-full min-w-[1180px]">
+            <div className="w-full min-w-[1320px]">
               <div
                 dir={isRtl ? "rtl" : "ltr"}
-                className="grid grid-cols-[1.35fr_0.9fr_1.25fr_0.9fr_0.9fr_1fr_0.8fr_0.8fr_0.75fr] items-center gap-x-4 border-b border-emerald-300/20 px-5 py-4 text-sm font-black text-[var(--text-2)]"
+                className="grid grid-cols-[1.25fr_0.85fr_1.1fr_1fr_0.85fr_0.85fr_0.9fr_0.7fr_0.7fr_0.7fr] items-center gap-x-4 border-b border-emerald-300/20 px-5 py-4 text-sm font-black text-[var(--text-2)]"
               >
                 <div className="text-start">{text.table.case}</div>
                 <div className="text-center">{text.table.caseNumber}</div>
                 <div className="text-start">{text.table.client}</div>
+                <div className="text-start">{text.table.leadLawyer}</div>
                 <div className="text-center">{text.table.fees}</div>
                 <div className="text-center">{text.table.paid}</div>
                 <div className="text-center">{text.table.remaining}</div>
@@ -934,7 +999,7 @@ export default function CasesPage() {
                     key={item.id}
                     onClick={() => router.push(`/dashboard/cases/${item.id}`)}
                     dir={isRtl ? "rtl" : "ltr"}
-                    className="grid cursor-pointer grid-cols-[1.35fr_0.9fr_1.25fr_0.9fr_0.9fr_1fr_0.8fr_0.8fr_0.75fr] items-center gap-x-4 border-b border-emerald-300/15 px-5 py-5 transition last:border-b-0 hover:bg-emerald-300/5"
+                    className="grid cursor-pointer grid-cols-[1.25fr_0.85fr_1.1fr_1fr_0.85fr_0.85fr_0.9fr_0.7fr_0.7fr_0.7fr] items-center gap-x-4 border-b border-emerald-300/15 px-5 py-5 transition last:border-b-0 hover:bg-emerald-300/5"
                   >
                     <div className="min-w-0 text-start">
                       <p
@@ -980,6 +1045,17 @@ export default function CasesPage() {
                           </span>
                         )}
                       </div>
+                    </div>
+
+                    <div className="min-w-0 text-start">
+                      <p className="truncate text-sm font-black text-[var(--text)]">
+                        {item.leadLawyer?.name || "-"}
+                      </p>
+                      {(item.members?.length ?? 0) > 0 && (
+                        <p className="mt-1 text-[11px] font-bold text-[var(--text-3)]">
+                          +{item.members?.length} {isRtl ? "مشاركين" : "participants"}
+                        </p>
+                      )}
                     </div>
 
                     <div dir="ltr" className="text-center text-sm font-black text-[var(--text)]">
@@ -1182,6 +1258,32 @@ export default function CasesPage() {
             />
           </FormField>
 
+          <CaseTeamFields
+            members={teamMembers}
+            leadLawyerId={form.leadLawyerId}
+            memberIds={form.memberIds}
+            onLeadChange={(leadLawyerId) =>
+              setForm((previous) => ({
+                ...previous,
+                leadLawyerId,
+                memberIds: previous.memberIds.filter(
+                  (memberId) => memberId !== leadLawyerId,
+                ),
+              }))
+            }
+            onToggleMember={(memberId) =>
+              setForm((previous) => ({
+                ...previous,
+                memberIds: previous.memberIds.includes(memberId)
+                  ? previous.memberIds.filter((id) => id !== memberId)
+                  : [...previous.memberIds, memberId],
+              }))
+            }
+            isRtl={isRtl}
+            leadLabel={text.modal.leadLawyer}
+            membersLabel={text.modal.participants}
+          />
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={text.modal.caseNumber}>
               <input
@@ -1337,6 +1439,32 @@ export default function CasesPage() {
             />
           </FormField>
 
+          <CaseTeamFields
+            members={teamMembers}
+            leadLawyerId={editForm.leadLawyerId}
+            memberIds={editForm.memberIds}
+            onLeadChange={(leadLawyerId) =>
+              setEditForm((previous) => ({
+                ...previous,
+                leadLawyerId,
+                memberIds: previous.memberIds.filter(
+                  (memberId) => memberId !== leadLawyerId,
+                ),
+              }))
+            }
+            onToggleMember={(memberId) =>
+              setEditForm((previous) => ({
+                ...previous,
+                memberIds: previous.memberIds.includes(memberId)
+                  ? previous.memberIds.filter((id) => id !== memberId)
+                  : [...previous.memberIds, memberId],
+              }))
+            }
+            isRtl={isRtl}
+            leadLabel={text.modal.leadLawyer}
+            membersLabel={text.modal.participants}
+          />
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={text.modal.caseNumber}>
               <input
@@ -1486,6 +1614,90 @@ export default function CasesPage() {
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+function CaseTeamFields({
+  members,
+  leadLawyerId,
+  memberIds,
+  onLeadChange,
+  onToggleMember,
+  isRtl,
+  leadLabel,
+  membersLabel,
+}: {
+  members: TeamMember[];
+  leadLawyerId: string;
+  memberIds: string[];
+  onLeadChange: (id: string) => void;
+  onToggleMember: (id: string) => void;
+  isRtl: boolean;
+  leadLabel: string;
+  membersLabel: string;
+}) {
+  const eligibleLeads = members.filter(
+    (member) => member.role === "ADMIN" || member.role === "LAWYER",
+  );
+  const participants = members.filter(
+    (member) => member.id !== leadLawyerId,
+  );
+
+  return (
+    <div className="rounded-3xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
+      <FormField label={leadLabel} required>
+        <select
+          value={leadLawyerId}
+          onChange={(event) => onLeadChange(event.target.value)}
+          className={`input ${isRtl ? "!text-right" : "!text-left"}`}
+          dir={isRtl ? "rtl" : "ltr"}
+        >
+          <option value="" disabled>
+            {isRtl ? "اختر المحامي المسؤول..." : "Choose the lead lawyer..."}
+          </option>
+          {eligibleLeads.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.name}
+            </option>
+          ))}
+        </select>
+      </FormField>
+
+      <div className="mt-3">
+        <p className="mb-2 text-xs font-black" style={{ color: "var(--text-2)" }}>
+          {membersLabel}
+        </p>
+        {participants.length === 0 ? (
+          <p className="text-xs font-semibold" style={{ color: "var(--text-3)" }}>
+            {isRtl ? "لا يوجد أعضاء إضافيون." : "No additional members available."}
+          </p>
+        ) : (
+          <div className="grid max-h-36 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+            {participants.map((member) => (
+              <label
+                key={member.id}
+                className="flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-bold"
+                style={{ borderColor: "var(--border)", background: "var(--card)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={memberIds.includes(member.id)}
+                  onChange={() => onToggleMember(member.id)}
+                />
+                <span>{member.name}</span>
+                <span className="text-[10px]" style={{ color: "var(--text-3)" }}>
+                  {member.role === "ADMIN"
+                    ? isRtl ? "مدير" : "Admin"
+                    : member.role === "LAWYER"
+                      ? isRtl ? "محامٍ" : "Lawyer"
+                      : isRtl ? "موظف" : "Staff"}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -11,6 +11,13 @@ import { verifySameOrigin } from "@/lib/csrf";
 
 type Params = { params: Promise<{ id: string }> };
 
+const caseUserSelect = {
+  id: true,
+  name: true,
+  role: true,
+  isActive: true,
+} as const;
+
 function safeDecrypt(value?: string | null) {
   if (!value) return null;
 
@@ -46,6 +53,19 @@ export async function GET(req: NextRequest, { params }: Params) {
             archivedAt: true,
           },
         },
+        leadLawyer: {
+          select: caseUserSelect,
+        },
+        members: {
+          include: {
+            user: {
+              select: caseUserSelect,
+            },
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
         payments: {
           where: { tenantId },
           include: {
@@ -79,6 +99,14 @@ export async function GET(req: NextRequest, { params }: Params) {
         },
         tasks: {
           where: { tenantId },
+          include: {
+            assignedTo: {
+              select: caseUserSelect,
+            },
+            createdBy: {
+              select: caseUserSelect,
+            },
+          },
           orderBy: [
             { completed: "asc" },
             { dueDate: "asc" },
@@ -198,6 +226,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         title: true,
         status: true,
         clientId: true,
+        leadLawyerId: true,
         client: {
           select: {
             id: true,
@@ -264,20 +293,119 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
-    const updated = await prisma.case.update({
+    const nextLeadLawyerId =
+      parsed.data.leadLawyerId !== undefined
+        ? parsed.data.leadLawyerId
+        : exists.leadLawyerId;
+
+    if (!nextLeadLawyerId) {
+      return err("يجب تحديد المحامي المسؤول عن القضية", 400);
+    }
+
+    const leadLawyer = await prisma.user.findFirst({
       where: {
-        id: exists.id,
-      },
-      data: parsed.data,
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            archivedAt: true,
-          },
+        id: nextLeadLawyerId,
+        tenantId: auth.user.tenantId,
+        isActive: true,
+        role: {
+          in: ["ADMIN", "LAWYER"],
         },
       },
+      select: caseUserSelect,
+    });
+
+    if (!leadLawyer) {
+      return err("المحامي المسؤول غير موجود أو لا يملك صلاحية محامٍ", 400);
+    }
+
+    const memberIds =
+      parsed.data.memberIds !== undefined
+        ? Array.from(new Set(parsed.data.memberIds)).filter(
+            (memberId) => memberId !== nextLeadLawyerId,
+          )
+        : undefined;
+
+    if (memberIds && memberIds.length > 0) {
+      const validMembers = await prisma.user.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          isActive: true,
+          id: {
+            in: memberIds,
+          },
+        },
+      });
+
+      if (validMembers !== memberIds.length) {
+        return err("أحد أعضاء القضية غير موجود أو حسابه معطل", 400);
+      }
+    }
+
+    const {
+      memberIds: _memberIds,
+      leadLawyerId: _leadLawyerId,
+      ...caseData
+    } = parsed.data;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (memberIds !== undefined) {
+        await tx.caseMember.deleteMany({
+          where: {
+            caseId: exists.id,
+            tenantId: auth.user!.tenantId,
+          },
+        });
+
+        if (memberIds.length > 0) {
+          await tx.caseMember.createMany({
+            data: memberIds.map((userId) => ({
+              tenantId: auth.user!.tenantId,
+              caseId: exists.id,
+              userId,
+            })),
+          });
+        }
+      } else {
+        await tx.caseMember.deleteMany({
+          where: {
+            caseId: exists.id,
+            tenantId: auth.user!.tenantId,
+            userId: nextLeadLawyerId,
+          },
+        });
+      }
+
+      return tx.case.update({
+        where: {
+          id: exists.id,
+        },
+        data: {
+          ...caseData,
+          leadLawyerId: nextLeadLawyerId,
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+          leadLawyer: {
+            select: caseUserSelect,
+          },
+          members: {
+            include: {
+              user: {
+                select: caseUserSelect,
+              },
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+      });
     });
 
     const statusChanged =

@@ -10,6 +10,58 @@ function addHours(date: Date, hours: number) {
   return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }
 
+function formatArabicUnit(
+  value: number,
+  singular: string,
+  dual: string,
+  plural: string,
+) {
+  if (value === 1) return singular;
+  if (value === 2) return dual;
+  if (value >= 3 && value <= 10) return `${value} ${plural}`;
+  return `${value} ${singular}`;
+}
+
+function formatRemainingTime(targetDate: Date, fromDate: Date) {
+  const diffMs = targetDate.getTime() - fromDate.getTime();
+
+  if (diffMs <= 0) {
+    return {
+      ar: "حان الوقت",
+      en: "now",
+    };
+  }
+
+  const totalMinutes = Math.max(1, Math.ceil(diffMs / (60 * 1000)));
+
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const arParts: string[] = [];
+  const enParts: string[] = [];
+
+  if (days > 0) {
+    arParts.push(formatArabicUnit(days, "يوم واحد", "يومان", "أيام"));
+    enParts.push(`${days} ${days === 1 ? "day" : "days"}`);
+  }
+
+  if (hours > 0) {
+    arParts.push(formatArabicUnit(hours, "ساعة واحدة", "ساعتان", "ساعات"));
+    enParts.push(`${hours} ${hours === 1 ? "hour" : "hours"}`);
+  }
+
+  if (minutes > 0 && days === 0) {
+    arParts.push(formatArabicUnit(minutes, "دقيقة واحدة", "دقيقتان", "دقائق"));
+    enParts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`);
+  }
+
+  return {
+    ar: arParts.join(" و"),
+    en: enParts.join(" and "),
+  };
+}
+
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat("ar-JO", {
     dateStyle: "medium",
@@ -207,13 +259,15 @@ export async function generateImportantNotifications(tenantId: string) {
           ? ` للموكل ${appointment.client.name}`
           : "";
 
+        const remaining = formatRemainingTime(appointment.startTime, now);
+
         return createTenantNotification({
           tenantId,
           type: NotificationType.APPOINTMENT,
           titleAr: "موعد قريب",
           titleEn: "Upcoming appointment",
-          messageAr: `الموعد ${appointment.title}${caseText}${clientText} قريب خلال ${APPOINTMENT_SOON_HOURS} ساعة. الوقت: ${formatDate(appointment.startTime)}.`,
-          messageEn: `The appointment ${appointment.title} is due within ${APPOINTMENT_SOON_HOURS} hours. Time: ${appointment.startTime.toISOString()}.`,
+          messageAr: `الموعد ${appointment.title}${caseText}${clientText} متبقٍ على موعده ${remaining.ar}. الوقت: ${formatDate(appointment.startTime)}.`,
+          messageEn: `The appointment ${appointment.title} is due in ${remaining.en}. Time: ${appointment.startTime.toISOString()}.`,
           href: "/dashboard/appointments",
           dedupeForever: true,
         });
@@ -250,13 +304,17 @@ export async function generateImportantNotifications(tenantId: string) {
           ? formatDate(invoice.dueDate)
           : "غير محدد";
 
+        const remaining = invoice.dueDate
+          ? formatRemainingTime(invoice.dueDate, now)
+          : null;
+
         return createTenantNotification({
           tenantId,
           type: NotificationType.INVOICE,
           titleAr: "فاتورة تستحق قريبًا",
           titleEn: "Invoice due soon",
-          messageAr: `الفاتورة ${invoice.invoiceNumber}${clientText}${caseText} بقيمة ${safeMoney(invoice.total)} JOD تستحق خلال ${INVOICE_SOON_HOURS} ساعة. تاريخ الاستحقاق: ${dueDateText}.`,
-          messageEn: `Invoice ${invoice.invoiceNumber} is due within ${INVOICE_SOON_HOURS} hours. Total: ${safeMoney(invoice.total)} JOD.`,
+          messageAr: `الفاتورة ${invoice.invoiceNumber}${clientText}${caseText} بقيمة ${safeMoney(invoice.total)} JOD متبقٍ على استحقاقها ${remaining?.ar || "وقت غير محدد"}. تاريخ الاستحقاق: ${dueDateText}.`,
+          messageEn: `Invoice ${invoice.invoiceNumber} is due in ${remaining?.en || "an unspecified time"}. Total: ${safeMoney(invoice.total)} JOD.`,
           href: `/dashboard/invoices/${invoice.id}`,
           dedupeForever: true,
         });

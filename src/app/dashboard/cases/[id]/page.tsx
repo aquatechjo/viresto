@@ -57,7 +57,16 @@ interface TaskItem {
   dueDate?: string | null;
   priority: string;
   completed: boolean;
+  status?: "TODO" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "CANCELLED";
+  assignedTo?: TeamMember | null;
   createdAt: string;
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role: "ADMIN" | "LAWYER" | "STAFF";
+  isActive?: boolean;
 }
 
 interface InvoiceItem {
@@ -111,6 +120,11 @@ interface CaseDetail {
   status: string;
   feeAgreed: number;
   description?: string | null;
+  leadLawyer?: TeamMember | null;
+  members: Array<{
+    id: string;
+    user: TeamMember;
+  }>;
   createdAt: string;
   updatedAt: string;
   client: {
@@ -298,6 +312,7 @@ const TASK_INIT = {
   priority: "MEDIUM",
   dueDate: "",
   description: "",
+  assignedToId: "",
 };
 
 const INVOICE_INIT = {
@@ -324,6 +339,8 @@ const CASE_EDIT_INIT = {
   status: "OPEN",
   feeAgreed: "",
   description: "",
+  leadLawyerId: "",
+  memberIds: [] as string[],
 };
 
 function getApiMessage(data: any, fallback: string) {
@@ -376,6 +393,9 @@ export default function CaseDetailPage() {
     editCaseTitle: isArabic ? "تعديل بيانات القضية" : "Edit case details",
     saveChanges: isArabic ? "حفظ التعديلات" : "Save changes",
     court: isArabic ? "المحكمة" : "Court",
+    leadLawyer: isArabic ? "المحامي المسؤول" : "Lead lawyer",
+    participants: isArabic ? "أعضاء القضية المشاركون" : "Case participants",
+    taskAssignee: isArabic ? "المسؤول عن المهمة" : "Task assignee",
     feeAgreed: isArabic ? "الأتعاب المتفق عليها" : "Agreed fees",
     caseNumber: isArabic ? "رقم القضية" : "Case number",
     judgeName: isArabic ? "اسم القاضي" : "Judge name",
@@ -573,6 +593,9 @@ export default function CaseDetailPage() {
   };
 
   const [c, setC] = useState<CaseDetail | null>(null);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentRole, setCurrentRole] = useState<TeamMember["role"]>("STAFF");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -606,8 +629,30 @@ export default function CaseDetailPage() {
     try {
       setLoading(true);
 
-      const response = await fetch(`/api/cases/${id}`);
-      const data = await response.json().catch(() => ({}));
+      const [response, teamResponse] = await Promise.all([
+        fetch(`/api/cases/${id}`),
+        fetch("/api/team?mode=assignees"),
+      ]);
+      const [data, teamData] = await Promise.all([
+        response.json().catch(() => ({})),
+        teamResponse.json().catch(() => ({})),
+      ]);
+
+      setTeamMembers(
+        Array.isArray(teamData.data?.members) ? teamData.data.members : [],
+      );
+      const loadedCurrentUserId = String(teamData.data?.currentUserId || "");
+      setCurrentUserId(loadedCurrentUserId);
+      setCurrentRole(
+        teamData.data?.currentRole === "ADMIN" ||
+          teamData.data?.currentRole === "LAWYER"
+          ? teamData.data.currentRole
+          : "STAFF",
+      );
+      setTaskForm((previous) => ({
+        ...previous,
+        assignedToId: previous.assignedToId || loadedCurrentUserId,
+      }));
 
       if (response.ok && data.success) {
         setC(data.data);
@@ -681,6 +726,8 @@ export default function CaseDetailPage() {
 
     return (c?.tasks ?? []).filter(
       (task) =>
+        task.status !== "COMPLETED" &&
+        task.status !== "CANCELLED" &&
         !task.completed &&
         task.dueDate &&
         new Date(task.dueDate).getTime() < now,
@@ -709,6 +756,8 @@ export default function CaseDetailPage() {
       status: c.status || "OPEN",
       feeAgreed: String(c.feeAgreed ?? ""),
       description: c.description || "",
+      leadLawyerId: c.leadLawyer?.id || "",
+      memberIds: c.members?.map((member) => member.user.id) || [],
     });
     setCaseEditOpen(true);
   }
@@ -725,7 +774,7 @@ export default function CaseDetailPage() {
       return;
     }
 
-    if (!caseEditForm.title.trim()) {
+    if (!caseEditForm.title.trim() || !caseEditForm.leadLawyerId) {
       toast.error(isArabic ? "عنوان القضية مطلوب" : "Case title is required");
       return;
     }
@@ -746,6 +795,8 @@ export default function CaseDetailPage() {
           status: caseEditForm.status,
           feeAgreed: safeNumber(caseEditForm.feeAgreed),
           description: caseEditForm.description.trim() || null,
+          leadLawyerId: caseEditForm.leadLawyerId,
+          memberIds: caseEditForm.memberIds,
         }),
       });
 
@@ -960,8 +1011,11 @@ export default function CaseDetailPage() {
         body: JSON.stringify({
           title: taskForm.title.trim(),
           priority: taskForm.priority,
-          dueDate: taskForm.dueDate || undefined,
+          dueDate: taskForm.dueDate
+            ? new Date(taskForm.dueDate).toISOString()
+            : undefined,
           description: taskForm.description || undefined,
+          assignedToId: taskForm.assignedToId || currentUserId,
           clientId: c?.client.id,
           caseId: id,
         }),
@@ -972,7 +1026,7 @@ export default function CaseDetailPage() {
       if (response.ok && data.success) {
         toast.success("تمت إضافة المهمة");
         setTaskOpen(false);
-        setTaskForm(TASK_INIT);
+        setTaskForm({ ...TASK_INIT, assignedToId: currentUserId });
         load();
       } else {
         toast.error(getApiMessage(data, "تعذر إضافة المهمة"));
@@ -983,18 +1037,17 @@ export default function CaseDetailPage() {
   }
 
   async function toggleTask(task: TaskItem) {
+    const isCompleted = task.status === "COMPLETED" || task.completed;
     const response = await fetch(`/api/tasks/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed: !task.completed }),
+      body: JSON.stringify({ status: isCompleted ? "TODO" : "COMPLETED" }),
     });
 
     const data = await response.json().catch(() => ({}));
 
     if (response.ok && data.success) {
-      toast.success(
-        task.completed ? "تمت إعادة فتح المهمة" : "تم إكمال المهمة",
-      );
+      toast.success(isCompleted ? "تمت إعادة فتح المهمة" : "تم إكمال المهمة");
       load();
     } else {
       toast.error(getApiMessage(data, "تعذر تحديث المهمة"));
@@ -1553,7 +1606,7 @@ export default function CaseDetailPage() {
 
         <div
           dir={isRtl ? "rtl" : "ltr"}
-          className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
+          className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7"
         >
           <DetailItem
             label={pageText.caseNumber}
@@ -1584,6 +1637,22 @@ export default function CaseDetailPage() {
             label={pageText.defendantName}
             isRtl={isRtl}
             value={c.defendantName || pageText.notAdded}
+          />
+
+          <DetailItem
+            label={pageText.leadLawyer}
+            isRtl={isRtl}
+            value={c.leadLawyer?.name || pageText.notAdded}
+          />
+
+          <DetailItem
+            label={pageText.participants}
+            isRtl={isRtl}
+            value={
+              c.members?.length
+                ? c.members.map((member) => member.user.name).join("، ")
+                : pageText.notAdded
+            }
           />
         </div>
       </div>
@@ -1975,20 +2044,30 @@ export default function CaseDetailPage() {
                   <div
                     key={task.id}
                     className={`flex items-center gap-3 rounded-2xl border p-3 ${
-                      task.completed ? "opacity-60" : ""
+                      task.status === "COMPLETED" || task.completed
+                        ? "opacity-60"
+                        : ""
                     }`}
                     style={{ borderColor: "var(--border)" }}
                   >
                     <button
                       type="button"
                       onClick={() => toggleTask(task)}
+                      disabled={
+                        currentRole === "STAFF" &&
+                        task.assignedTo?.id !== currentUserId
+                      }
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black"
                       style={{
                         borderColor: "var(--sidebar)",
-                        background: task.completed
-                          ? "var(--sidebar)"
-                          : "transparent",
-                        color: task.completed ? "#fff" : "transparent",
+                        background:
+                          task.status === "COMPLETED" || task.completed
+                            ? "var(--sidebar)"
+                            : "transparent",
+                        color:
+                          task.status === "COMPLETED" || task.completed
+                            ? "#fff"
+                            : "transparent",
                       }}
                     >
                       ✓
@@ -2007,6 +2086,14 @@ export default function CaseDetailPage() {
                           ? `${pageText.dueDate}: ${formatDate(task.dueDate)}`
                           : pageText.noDate}
                       </p>
+                      {task.assignedTo && (
+                        <p
+                          className="mt-1 text-xs font-bold"
+                          style={{ color: "var(--text-2)" }}
+                        >
+                          {pageText.taskAssignee}: {task.assignedTo.name}
+                        </p>
+                      )}
                     </div>
 
                     <span
@@ -2020,7 +2107,7 @@ export default function CaseDetailPage() {
                     <button
                       type="button"
                       onClick={() => deleteTask(task)}
-                      disabled={caseArchived}
+                      disabled={currentRole === "STAFF" || caseArchived}
                       title={
                         caseArchived ? pageText.archivedTaskBlocked : undefined
                       }
@@ -2436,6 +2523,32 @@ export default function CaseDetailPage() {
             </FormField>
           </div>
 
+          <CaseTeamEditor
+            members={teamMembers}
+            leadLawyerId={caseEditForm.leadLawyerId}
+            memberIds={caseEditForm.memberIds}
+            onLeadChange={(leadLawyerId) =>
+              setCaseEditForm((previous) => ({
+                ...previous,
+                leadLawyerId,
+                memberIds: previous.memberIds.filter(
+                  (memberId) => memberId !== leadLawyerId,
+                ),
+              }))
+            }
+            onToggleMember={(memberId) =>
+              setCaseEditForm((previous) => ({
+                ...previous,
+                memberIds: previous.memberIds.includes(memberId)
+                  ? previous.memberIds.filter((id) => id !== memberId)
+                  : [...previous.memberIds, memberId],
+              }))
+            }
+            isRtl={isRtl}
+            leadLabel={pageText.leadLawyer}
+            membersLabel={pageText.participants}
+          />
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={pageText.court}>
               <input
@@ -2822,7 +2935,7 @@ export default function CaseDetailPage() {
         open={taskOpen}
         onClose={() => {
           setTaskOpen(false);
-          setTaskForm(TASK_INIT);
+          setTaskForm({ ...TASK_INIT, assignedToId: currentUserId });
         }}
         title={pageText.addTaskTitle}
       >
@@ -2865,7 +2978,7 @@ export default function CaseDetailPage() {
 
             <FormField label={pageText.dueDate}>
               <input
-                type="date"
+                type="datetime-local"
                 className="input"
                 value={taskForm.dueDate}
                 onChange={(event) =>
@@ -2877,6 +2990,26 @@ export default function CaseDetailPage() {
               />
             </FormField>
           </div>
+
+          <FormField label={pageText.taskAssignee} required>
+            <select
+              className="input"
+              value={taskForm.assignedToId}
+              disabled={currentRole === "STAFF"}
+              onChange={(event) =>
+                setTaskForm((previous) => ({
+                  ...previous,
+                  assignedToId: event.target.value,
+                }))
+              }
+            >
+              {teamMembers.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
           <FormField label={pageText.description}>
             <textarea
@@ -3228,6 +3361,78 @@ function EmptyLine({ text }: { text: string }) {
       }}
     >
       {text}
+    </div>
+  );
+}
+
+function CaseTeamEditor({
+  members,
+  leadLawyerId,
+  memberIds,
+  onLeadChange,
+  onToggleMember,
+  isRtl,
+  leadLabel,
+  membersLabel,
+}: {
+  members: TeamMember[];
+  leadLawyerId: string;
+  memberIds: string[];
+  onLeadChange: (id: string) => void;
+  onToggleMember: (id: string) => void;
+  isRtl: boolean;
+  leadLabel: string;
+  membersLabel: string;
+}) {
+  const eligibleLeads = members.filter(
+    (member) => member.role === "ADMIN" || member.role === "LAWYER",
+  );
+  const participants = members.filter((member) => member.id !== leadLawyerId);
+
+  return (
+    <div
+      className="rounded-2xl border p-4"
+      style={{ borderColor: "var(--border)", background: "var(--card-2)" }}
+    >
+      <FormField label={leadLabel} required>
+        <select
+          className="input"
+          value={leadLawyerId}
+          onChange={(event) => onLeadChange(event.target.value)}
+        >
+          <option value="" disabled>
+            {isRtl ? "اختر المحامي المسؤول..." : "Choose the lead lawyer..."}
+          </option>
+          {eligibleLeads.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.name}
+            </option>
+          ))}
+        </select>
+      </FormField>
+
+      <p
+        className="mb-2 mt-3 text-xs font-black"
+        style={{ color: "var(--text-2)" }}
+      >
+        {membersLabel}
+      </p>
+      <div className="grid max-h-36 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+        {participants.map((member) => (
+          <label
+            key={member.id}
+            className="flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-bold"
+            style={{ borderColor: "var(--border)", background: "var(--card)" }}
+          >
+            <input
+              type="checkbox"
+              checked={memberIds.includes(member.id)}
+              onChange={() => onToggleMember(member.id)}
+            />
+            <span>{member.name}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

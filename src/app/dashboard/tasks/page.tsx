@@ -18,7 +18,11 @@ interface Task {
   description?: string
   dueDate?: string
   priority: string
+  status?: TaskStatus
   completed: boolean
+  completedAt?: string | null
+  assignedTo?: TeamMember | null
+  createdBy?: TeamMember | null
   client?: {
     id?: string
     name: string
@@ -33,6 +37,15 @@ interface Task {
       archivedAt?: string | null
     } | null
   } | null
+}
+
+type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED'
+
+interface TeamMember {
+  id: string
+  name: string
+  role: 'ADMIN' | 'LAWYER' | 'STAFF'
+  isActive?: boolean
 }
 
 interface ClientItem {
@@ -67,6 +80,23 @@ const PRIORITY_LABELS: Record<Locale, Record<string, string>> = {
   },
 }
 
+const STATUS_LABELS: Record<Locale, Record<TaskStatus, string>> = {
+  ar: {
+    TODO: 'جديدة',
+    IN_PROGRESS: 'قيد التنفيذ',
+    BLOCKED: 'متوقفة',
+    COMPLETED: 'مكتملة',
+    CANCELLED: 'ملغاة',
+  },
+  en: {
+    TODO: 'New',
+    IN_PROGRESS: 'In progress',
+    BLOCKED: 'Blocked',
+    COMPLETED: 'Completed',
+    CANCELLED: 'Cancelled',
+  },
+}
+
 const INIT = {
   title: '',
   description: '',
@@ -74,6 +104,7 @@ const INIT = {
   priority: 'MEDIUM',
   clientId: '',
   caseId: '',
+  assignedToId: '',
 }
 
 
@@ -145,6 +176,7 @@ export default function TasksPage() {
   const common = tAny.common ?? translations.ar.common
   const isRtl = locale === 'ar'
   const priorityLabels = PRIORITY_LABELS[locale] ?? PRIORITY_LABELS.ar
+  const statusLabels = STATUS_LABELS[locale] ?? STATUS_LABELS.ar
   const fieldProps = {
     dir: isRtl ? 'rtl' : 'ltr',
     style: { textAlign: isRtl ? 'right' : 'left', direction: isRtl ? 'rtl' : 'ltr' } as React.CSSProperties,
@@ -163,10 +195,14 @@ export default function TasksPage() {
   const [saving, setSaving] = useState(false)
   const [clients, setClients] = useState<ClientItem[]>([])
   const [cases, setCases] = useState<CaseItem[]>([])
+  const [members, setMembers] = useState<TeamMember[]>([])
+  const [currentUserId, setCurrentUserId] = useState('')
+  const [currentRole, setCurrentRole] = useState<TeamMember['role']>('STAFF')
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [clientFilter, setClientFilter] = useState('all')
   const [caseFilter, setCaseFilter] = useState('all')
+  const [assigneeFilter, setAssigneeFilter] = useState('all')
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const writeAccess = useTenantWriteAccess(locale)
@@ -177,30 +213,56 @@ export default function TasksPage() {
     return Boolean(task.client?.archivedAt || task.case?.client?.archivedAt)
   }, [])
 
+  const getTaskStatus = useCallback(
+    (task: Task): TaskStatus =>
+      task.status ?? (task.completed ? 'COMPLETED' : 'TODO'),
+    []
+  )
+
   const load = useCallback(async () => {
     try {
       setLoading(true)
 
-      const [tasksRes, clientsRes, casesRes] = await Promise.all([
+      const [tasksRes, clientsRes, casesRes, membersRes] = await Promise.all([
         fetch('/api/tasks'),
         fetch('/api/clients?limit=100'),
         fetch('/api/cases?limit=100'),
+        fetch('/api/team?mode=assignees'),
       ])
 
-      const [tasksData, clientsData, casesData] = await Promise.all([
+      const [tasksData, clientsData, casesData, membersData] = await Promise.all([
         tasksRes.json(),
         clientsRes.json(),
         casesRes.json(),
+        membersRes.json(),
       ])
 
       setTasks(Array.isArray(tasksData.data) ? tasksData.data : [])
       setClients(Array.isArray(clientsData.data?.data) ? clientsData.data.data : [])
       setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : [])
+      const loadedMembers = Array.isArray(membersData.data?.members)
+        ? membersData.data.members
+        : []
+      const loadedCurrentUserId = String(membersData.data?.currentUserId ?? '')
+      const loadedCurrentRole = membersData.data?.currentRole
+
+      setMembers(loadedMembers)
+      setCurrentUserId(loadedCurrentUserId)
+      setCurrentRole(
+        loadedCurrentRole === 'ADMIN' || loadedCurrentRole === 'LAWYER'
+          ? loadedCurrentRole
+          : 'STAFF'
+      )
+      setForm((previous) => ({
+        ...previous,
+        assignedToId: previous.assignedToId || loadedCurrentUserId,
+      }))
     } catch {
       toast.error(taskCopy.messages.loadError)
       setTasks([])
       setClients([])
       setCases([])
+      setMembers([])
     } finally {
       setLoading(false)
     }
@@ -211,8 +273,16 @@ export default function TasksPage() {
   }, [load])
 
   const isOverdue = useCallback(
-    (task: Task) => !task.completed && !!task.dueDate && new Date(task.dueDate) < now,
-    [now]
+    (task: Task) => {
+      const status = getTaskStatus(task)
+      return (
+        status !== 'COMPLETED' &&
+        status !== 'CANCELLED' &&
+        !!task.dueDate &&
+        new Date(task.dueDate) < now
+      )
+    },
+    [getTaskStatus, now]
   )
 
   const isSoon = useCallback(
@@ -224,8 +294,11 @@ export default function TasksPage() {
   )
 
   const total = tasks.length
-  const done = tasks.filter((task) => task.completed).length
-  const pending = total - done
+  const done = tasks.filter((task) => getTaskStatus(task) === 'COMPLETED').length
+  const pending = tasks.filter((task) => {
+    const status = getTaskStatus(task)
+    return status !== 'COMPLETED' && status !== 'CANCELLED'
+  }).length
   const overdue = tasks.filter((task) => isOverdue(task)).length
 
   const filtered = tasks.filter((task) => {
@@ -233,13 +306,16 @@ export default function TasksPage() {
 
     const matchesStatus =
       filter === 'all' ||
-      (filter === 'pending' && !task.completed) ||
-      (filter === 'done' && task.completed)
+      (filter === 'pending' &&
+        getTaskStatus(task) !== 'COMPLETED' &&
+        getTaskStatus(task) !== 'CANCELLED') ||
+      (filter === 'done' && getTaskStatus(task) === 'COMPLETED')
 
     const matchesSearch =
       !query ||
       task.title?.toLowerCase().includes(query) ||
       task.description?.toLowerCase().includes(query) ||
+      task.assignedTo?.name?.toLowerCase().includes(query) ||
       task.client?.name?.toLowerCase().includes(query) ||
       task.case?.title?.toLowerCase().includes(query)
 
@@ -252,16 +328,23 @@ export default function TasksPage() {
     const matchesCase =
       caseFilter === 'all' || task.case?.title === caseFilter
 
+    const matchesAssignee =
+      assigneeFilter === 'all' ||
+      (assigneeFilter === 'me'
+        ? task.assignedTo?.id === currentUserId
+        : task.assignedTo?.id === assigneeFilter)
+
     return (
       matchesStatus &&
       matchesSearch &&
       matchesPriority &&
       matchesClient &&
-      matchesCase
+      matchesCase &&
+      matchesAssignee
     )
   })
 
-  async function toggle(id: string, completed: boolean) {
+  async function updateStatus(id: string, status: TaskStatus) {
     if (!writeAccess.canWrite) {
       toast.warning(writeAccess.message || taskCopy.messages.updateError)
       return
@@ -271,19 +354,59 @@ export default function TasksPage() {
       const response = await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed }),
+        body: JSON.stringify({ status }),
       })
 
-      if (!response.ok) {
-        toast.error(taskCopy.messages.updateError)
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || !data.success) {
+        toast.error(data.message ?? taskCopy.messages.updateError)
         return
       }
 
       setTasks((current) =>
-        current.map((task) => (task.id === id ? { ...task, completed } : task))
+        current.map((task) => (task.id === id ? data.data : task))
       )
 
-      toast.success(completed ? taskCopy.messages.completedSuccess : taskCopy.messages.reopenedSuccess)
+      toast.success(
+        status === 'COMPLETED'
+          ? taskCopy.messages.completedSuccess
+          : locale === 'ar'
+            ? 'تم تحديث حالة المهمة'
+            : 'Task status updated'
+      )
+    } catch {
+      toast.error(taskCopy.messages.updateUnexpectedError)
+    }
+  }
+
+  async function toggle(task: Task) {
+    const nextStatus =
+      getTaskStatus(task) === 'COMPLETED' ? 'TODO' : 'COMPLETED'
+
+    await updateStatus(task.id, nextStatus)
+  }
+
+  async function updateAssignee(id: string, assignedToId: string) {
+    if (!writeAccess.canWrite || currentRole === 'STAFF') return
+
+    try {
+      const response = await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedToId }),
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || !data.success) {
+        toast.error(data.message ?? taskCopy.messages.updateError)
+        return
+      }
+
+      setTasks((current) =>
+        current.map((task) => (task.id === id ? data.data : task))
+      )
+      toast.success(locale === 'ar' ? 'تم تغيير المسؤول عن المهمة' : 'Task assignee updated')
     } catch {
       toast.error(taskCopy.messages.updateUnexpectedError)
     }
@@ -351,8 +474,12 @@ export default function TasksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          dueDate: form.dueDate
+            ? new Date(form.dueDate).toISOString()
+            : undefined,
           clientId: form.clientId || undefined,
           caseId: form.caseId || undefined,
+          assignedToId: form.assignedToId || currentUserId,
         }),
       })
 
@@ -365,7 +492,7 @@ export default function TasksPage() {
 
       toast.success(taskCopy.messages.createSuccess)
       setOpen(false)
-      setForm(INIT)
+      setForm({ ...INIT, assignedToId: currentUserId })
       load()
     } catch {
       toast.error(taskCopy.messages.createUnexpectedError)
@@ -379,6 +506,7 @@ export default function TasksPage() {
     setPriorityFilter('all')
     setClientFilter('all')
     setCaseFilter('all')
+    setAssigneeFilter('all')
     setFilter('all')
   }
 
@@ -388,6 +516,10 @@ export default function TasksPage() {
       return
     }
 
+    setForm((previous) => ({
+      ...previous,
+      assignedToId: previous.assignedToId || currentUserId,
+    }))
     setOpen(true)
   }
 
@@ -484,7 +616,7 @@ export default function TasksPage() {
 
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? 'rtl' : 'ltr'}>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_.8fr_.8fr_auto]">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.7fr_.7fr_.7fr_.7fr_auto]">
           <input
             aria-label={taskCopy.filters.searchAria}
             value={search}
@@ -506,6 +638,22 @@ export default function TasksPage() {
             <option value="HIGH" dir={isRtl ? 'rtl' : 'ltr'}>{priorityLabels.HIGH}</option>
             <option value="MEDIUM" dir={isRtl ? 'rtl' : 'ltr'}>{priorityLabels.MEDIUM}</option>
             <option value="LOW" dir={isRtl ? 'rtl' : 'ltr'}>{priorityLabels.LOW}</option>
+          </select>
+
+          <select
+            aria-label={locale === 'ar' ? 'فلترة حسب المسؤول' : 'Filter by assignee'}
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+            className="input"
+            {...fieldProps}
+          >
+            <option value="all">{locale === 'ar' ? 'جميع المسؤولين' : 'All assignees'}</option>
+            <option value="me">{locale === 'ar' ? 'مهامي' : 'My tasks'}</option>
+            {members.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
           </select>
 
           <select
@@ -603,25 +751,27 @@ export default function TasksPage() {
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           {filtered.map((task) => {
             const archivedTask = isArchivedTask(task)
+            const taskStatus = getTaskStatus(task)
+            const isTerminal = taskStatus === 'COMPLETED' || taskStatus === 'CANCELLED'
 
             return (
               <div
                 key={task.id}
                 className={`card group p-4 text-start transition-all duration-200 hover:-translate-y-0.5 ${
-                  task.completed ? 'opacity-70' : ''
+                  isTerminal ? 'opacity-70' : ''
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <button
                     aria-label={taskCopy.card.toggleAria}
-                    onClick={() => toggle(task.id, !task.completed)}
-                    disabled={!writeAccess.canWrite}
+                    onClick={() => toggle(task)}
+                    disabled={!writeAccess.canWrite || (currentRole === 'STAFF' && task.assignedTo?.id !== currentUserId)}
                     title={!writeAccess.canWrite ? writeAccess.message || taskCopy.messages.updateError : taskCopy.card.toggleAria}
                     className="mt-1 flex h-7 w-7 disabled:cursor-not-allowed disabled:opacity-50 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black transition-all"
                     style={{
                       borderColor: 'var(--sidebar)',
-                      background: task.completed ? 'var(--sidebar)' : 'transparent',
-                      color: task.completed ? '#fff' : 'transparent',
+                      background: taskStatus === 'COMPLETED' ? 'var(--sidebar)' : 'transparent',
+                      color: taskStatus === 'COMPLETED' ? '#fff' : 'transparent',
                     }}
                   >
                     ✓
@@ -632,7 +782,7 @@ export default function TasksPage() {
                       <div className="min-w-0">
                         <p
                           className={`text-sm font-black leading-6 ${
-                            task.completed ? 'line-through' : ''
+                            taskStatus === 'COMPLETED' ? 'line-through' : ''
                           }`}
                           style={{ color: 'var(--text)' }}
                         >
@@ -675,6 +825,8 @@ export default function TasksPage() {
                           {formatDate(task.dueDate, {
                             day: 'numeric',
                             month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
                           })}
                         </span>
                       )}
@@ -704,21 +856,58 @@ export default function TasksPage() {
                         </span>
                       )}
 
-                      <span
-                        className="rounded-full px-2.5 py-1 text-xs font-bold"
+                      {task.assignedTo && currentRole === 'STAFF' && (
+                        <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: 'var(--green-soft)', color: 'var(--text-2)' }}>
+                          👤 {locale === 'ar' ? 'المسؤول:' : 'Assignee:'} {task.assignedTo.name}
+                        </span>
+                      )}
+
+                      {currentRole !== 'STAFF' && (
+                        <select
+                          aria-label={locale === 'ar' ? 'المسؤول عن المهمة' : 'Task assignee'}
+                          value={task.assignedTo?.id ?? ''}
+                          onChange={(event) => updateAssignee(task.id, event.target.value)}
+                          disabled={!writeAccess.canWrite}
+                          className="rounded-full border px-2.5 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                          style={{ background: 'var(--green-soft)', color: 'var(--text-2)', borderColor: 'var(--border)' }}
+                        >
+                          {!task.assignedTo && (
+                            <option value="" disabled>
+                              {locale === 'ar' ? 'بدون مسؤول' : 'Unassigned'}
+                            </option>
+                          )}
+                          {members.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      <select
+                        aria-label={locale === 'ar' ? 'حالة المهمة' : 'Task status'}
+                        value={taskStatus}
+                        onChange={(event) => updateStatus(task.id, event.target.value as TaskStatus)}
+                        disabled={!writeAccess.canWrite || (currentRole === 'STAFF' && task.assignedTo?.id !== currentUserId)}
+                        className="rounded-full border px-2.5 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
                         style={{
-                          background: task.completed ? '#ecfdf5' : 'var(--green-soft)',
-                          color: task.completed ? '#059669' : 'var(--sidebar)',
+                          background: taskStatus === 'COMPLETED' ? '#ecfdf5' : 'var(--green-soft)',
+                          color: taskStatus === 'COMPLETED' ? '#059669' : 'var(--sidebar)',
+                          borderColor: 'var(--border)',
                         }}
                       >
-                        {task.completed ? taskCopy.status.done : taskCopy.status.pending}
-                      </span>
+                        {(Object.keys(statusLabels) as TaskStatus[]).map((status) => (
+                          <option key={status} value={status}>
+                            {statusLabels[status]}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
                   <button
                     aria-label={taskCopy.actions.deleteTask}
-                    disabled={!writeAccess.canWrite || archivedTask}
+                    disabled={!writeAccess.canWrite || archivedTask || currentRole === 'STAFF'}
                     title={
                       !writeAccess.canWrite
                         ? writeAccess.message || taskCopy.messages.deleteError
@@ -755,7 +944,7 @@ export default function TasksPage() {
         open={open}
         onClose={() => {
           setOpen(false)
-          setForm(INIT)
+          setForm({ ...INIT, assignedToId: currentUserId })
         }}
         title={taskCopy.modal.createTitle}
         size="sm"
@@ -815,7 +1004,7 @@ export default function TasksPage() {
             <FormField label={taskCopy.form.dueDate}>
               <input
                 aria-label={taskCopy.form.dueDate}
-                type="date"
+                type="datetime-local"
                 value={form.dueDate}
                 onChange={(event) =>
                   setForm((previous) => ({
@@ -829,6 +1018,32 @@ export default function TasksPage() {
               />
             </FormField>
           </div>
+
+          <FormField label={locale === 'ar' ? 'المسؤول عن المهمة' : 'Task assignee'} required>
+            <select
+              aria-label={locale === 'ar' ? 'المسؤول عن المهمة' : 'Task assignee'}
+              value={form.assignedToId}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  assignedToId: event.target.value,
+                }))
+              }
+              disabled={currentRole === 'STAFF'}
+              className="input disabled:cursor-not-allowed disabled:opacity-70"
+              {...fieldProps}
+            >
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name} — {member.role === 'ADMIN'
+                    ? locale === 'ar' ? 'مدير النظام' : 'Admin'
+                    : member.role === 'LAWYER'
+                      ? locale === 'ar' ? 'محامٍ' : 'Lawyer'
+                      : locale === 'ar' ? 'موظف' : 'Staff'}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={taskCopy.form.client}>
@@ -883,7 +1098,7 @@ export default function TasksPage() {
               type="button"
               onClick={() => {
                 setOpen(false)
-                setForm(INIT)
+                setForm({ ...INIT, assignedToId: currentUserId })
               }}
               className="btn btn-ghost flex-1"
             >

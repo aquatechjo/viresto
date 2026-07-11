@@ -11,8 +11,35 @@ const allowedRoles = ["ADMIN", "LAWYER", "STAFF"] as const;
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN"]);
+    const mode = new URL(req.url).searchParams.get("mode");
+    const auth = await requireRole(
+      req,
+      mode === "assignees"
+        ? ["ADMIN", "LAWYER", "STAFF"]
+        : ["ADMIN"],
+    );
     if (auth.error || !auth.user) return auth.error;
+
+    if (mode === "assignees") {
+      const members = await prisma.user.findMany({
+        where: {
+          tenantId: auth.user.tenantId,
+          isActive: true,
+        },
+        orderBy: [{ role: "asc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          role: true,
+        },
+      });
+
+      return ok({
+        currentUserId: auth.user.userId,
+        currentRole: auth.user.role,
+        members,
+      });
+    }
 
     const users = await prisma.user.findMany({
       where: {

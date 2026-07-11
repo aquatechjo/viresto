@@ -95,6 +95,11 @@ const optionalDateString = z
 
 export const caseSchema = z.object({
   clientId: z.string().min(1, "الموكل مطلوب"),
+  leadLawyerId: optionalId,
+  memberIds: z
+    .array(z.string().min(1))
+    .max(50, "عدد المشاركين أكبر من المسموح")
+    .optional(),
   title: z.string().min(1, "العنوان مطلوب"),
 
   caseNumber: optionalText,
@@ -169,12 +174,25 @@ export const documentSchema = z.object({
 });
 
 export const taskSchema = z.object({
-  title: z.string().min(1, "العنوان مطلوب"),
-  description: z.string().optional(),
-  dueDate: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
-  clientId: z.string().optional(),
-  caseId: z.string().optional(),
+  title: z
+    .string()
+    .trim()
+    .min(1, "العنوان مطلوب")
+    .max(200, "عنوان المهمة طويل جدًا"),
+  description: z
+    .string()
+    .trim()
+    .max(2000, "وصف المهمة طويل جدًا")
+    .optional()
+    .nullable(),
+  dueDate: optionalDateString,
+  priority: z.enum(["URGENT", "LOW", "MEDIUM", "HIGH"]).optional(),
+  status: z
+    .enum(["TODO", "IN_PROGRESS", "BLOCKED", "COMPLETED", "CANCELLED"])
+    .optional(),
+  assignedToId: optionalId,
+  clientId: optionalId,
+  caseId: optionalId,
 });
 
 export const updateProfileSchema = z.object({

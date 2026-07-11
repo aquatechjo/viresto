@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { TaskPriority } from "@prisma/client";
+import { Prisma, TaskPriority, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
@@ -10,6 +10,13 @@ import { verifySameOrigin } from "@/lib/csrf";
 
 
 type Params = { params: Promise<{ id: string }> };
+
+const taskUserSelect = {
+  id: true,
+  name: true,
+  role: true,
+  isActive: true,
+} as const;
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
@@ -42,7 +49,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         title: true,
         caseId: true,
         clientId: true,
+        assignedToId: true,
+        createdById: true,
         completed: true,
+        status: true,
         priority: true,
         dueDate: true,
         client: {
@@ -71,12 +81,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const body = await req.json().catch(() => ({}));
 
-    const data: {
-      completed?: boolean;
-      title?: string;
-      priority?: TaskPriority;
-      dueDate?: Date | null;
-    } = {};
+    if (
+      auth.user.role === "STAFF" &&
+      exists.assignedToId !== auth.user.userId
+    ) {
+      return err("يمكنك تحديث المهام المسندة إليك فقط", 403);
+    }
+
+    if ("completed" in body && "status" in body) {
+      return err("أرسل الحالة الجديدة فقط دون completed", 400);
+    }
+
+    const data: Prisma.TaskUncheckedUpdateInput = {};
 
     if ("completed" in body) {
       if (typeof body.completed !== "boolean") {
@@ -84,6 +100,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       data.completed = body.completed;
+      data.status = body.completed ? "COMPLETED" : "TODO";
+      data.completedAt = body.completed ? new Date() : null;
+    }
+
+    if ("status" in body) {
+      const status = String(body.status).trim().toUpperCase();
+
+      if (!Object.values(TaskStatus).includes(status as TaskStatus)) {
+        return err("حالة المهمة غير صحيحة", 400);
+      }
+
+      data.status = status as TaskStatus;
+      data.completed = status === "COMPLETED";
+      data.completedAt = status === "COMPLETED" ? new Date() : null;
     }
 
     if ("title" in body) {
@@ -98,6 +128,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       data.title = title;
+    }
+
+    if ("description" in body) {
+      const description = String(body.description ?? "").trim();
+
+      if (description.length > 2000) {
+        return err("وصف المهمة طويل جدًا", 400);
+      }
+
+      data.description = description || null;
     }
 
     if ("priority" in body) {
@@ -124,18 +164,63 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
+    if ("assignedToId" in body) {
+      if (auth.user.role === "STAFF") {
+        return err("لا تملك صلاحية إعادة إسناد المهمة", 403);
+      }
+
+      const assignedToId = String(body.assignedToId ?? "").trim();
+
+      if (!assignedToId) {
+        return err("المسؤول عن المهمة مطلوب", 400);
+      }
+
+      const assignee = await prisma.user.findFirst({
+        where: {
+          id: assignedToId,
+          tenantId: auth.user.tenantId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!assignee) {
+        return err("المسؤول المحدد غير موجود أو حسابه معطل", 400);
+      }
+
+      data.assignedToId = assignee.id;
+    }
+
     if (Object.keys(data).length === 0) {
       return err("لا توجد بيانات للتعديل", 400);
+    }
+
+    if (auth.user.role === "STAFF") {
+      const allowedStaffFields = new Set([
+        "status",
+        "completed",
+        "completedAt",
+      ]);
+      const hasForbiddenField = Object.keys(data).some(
+        (key) => !allowedStaffFields.has(key),
+      );
+
+      if (hasForbiddenField) {
+        return err("الموظف يستطيع تحديث حالة المهمة فقط", 403);
+      }
     }
 
     const isArchivedClient = Boolean(
       exists.client?.archivedAt || exists.case?.client?.archivedAt,
     );
 
-    const onlyCompletionChange =
-      Object.keys(data).length === 1 && typeof data.completed === "boolean";
+    const onlyStatusChange = Object.keys(data).every((key) =>
+      ["status", "completed", "completedAt"].includes(key),
+    );
 
-    if (isArchivedClient && !onlyCompletionChange) {
+    if (isArchivedClient && !onlyStatusChange) {
       return err("لا يمكن تعديل بيانات مهمة مرتبطة بموكل مؤرشف", 400);
     }
 
@@ -165,15 +250,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             },
           },
         },
+        assignedTo: {
+          select: taskUserSelect,
+        },
+        createdBy: {
+          select: taskUserSelect,
+        },
       },
     });
 
     if (exists.caseId) {
       const title =
-        "completed" in data
-          ? data.completed
+        "status" in data || "completed" in data
+          ? data.completed === true
             ? "تم إكمال مهمة"
-            : "تم إعادة فتح مهمة"
+            : data.status === "CANCELLED"
+              ? "تم إلغاء مهمة"
+              : "تم تحديث حالة مهمة"
           : "تم تعديل مهمة";
 
       await logActivity({

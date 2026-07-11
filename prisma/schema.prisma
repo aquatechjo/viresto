@@ -29,6 +29,7 @@ model Tenant {
   activities    Activity[]
   appointments  Appointment[]
   cases         Case[]
+  caseMembers   CaseMember[]
   clients       Client[]
   documents     Document[]
   invoices      Invoice[]
@@ -183,6 +184,10 @@ model User {
   tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   verificationCodes  VerificationCode[]
   passwordResetCodes PasswordResetCode[]
+  assignedTasks       Task[]              @relation("TaskAssignee")
+  createdTasks        Task[]              @relation("TaskCreator")
+  leadCases           Case[]              @relation("CaseLeadLawyer")
+  caseMemberships     CaseMember[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -218,6 +223,7 @@ model Case {
   id            String     @id @default(cuid())
   tenantId      String
   clientId      String
+  leadLawyerId  String?
   title         String
   caseNumber    String?
   court         String?
@@ -232,6 +238,8 @@ model Case {
 
   appointments Appointment[]
   client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  leadLawyer   User?         @relation("CaseLeadLawyer", fields: [leadLawyerId], references: [id], onDelete: SetNull)
+  members      CaseMember[]
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   documents    Document[]
   invoices     Invoice[]
@@ -241,6 +249,24 @@ model Case {
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, caseNumber])
+  @@index([tenantId, leadLawyerId])
+}
+
+model CaseMember {
+  id        String   @id @default(cuid())
+  tenantId  String
+  caseId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([tenantId])
+  @@index([tenantId, userId])
+  @@index([caseId])
 }
 
 model Payment {
@@ -334,23 +360,33 @@ model Document {
 }
 
 model Task {
-  id          String       @id @default(cuid())
-  tenantId    String
-  clientId    String?
-  caseId      String?
-  title       String
-  description String?
-  dueDate     DateTime?
-  priority    TaskPriority @default(MEDIUM)
-  completed   Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  case        Case?        @relation(fields: [caseId], references: [id])
-  client      Client?      @relation(fields: [clientId], references: [id])
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id           String       @id @default(cuid())
+  tenantId     String
+  clientId     String?
+  caseId       String?
+  assignedToId String?
+  createdById  String?
+  title        String
+  description  String?
+  dueDate      DateTime?
+  priority     TaskPriority @default(MEDIUM)
+  status       TaskStatus   @default(TODO)
+  completed    Boolean      @default(false)
+  completedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  assignedTo   User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  case         Case?        @relation(fields: [caseId], references: [id])
+  client       Client?      @relation(fields: [clientId], references: [id])
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([tenantId, completed])
+  @@index([tenantId, status])
+  @@index([tenantId, assignedToId, status])
+  @@index([tenantId, dueDate])
+  @@index([createdById])
 }
 
 model Activity {
@@ -550,9 +586,18 @@ enum AppointmentStatus {
 }
 
 enum TaskPriority {
+  URGENT
   LOW
   MEDIUM
   HIGH
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
 }
 
 enum InvoiceStatus {

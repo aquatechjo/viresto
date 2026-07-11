@@ -11,6 +11,13 @@ import { assertTenantCanCreate } from "@/lib/billing-limits";
 
 const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
+const caseUserSelect = {
+  id: true,
+  name: true,
+  role: true,
+  isActive: true,
+} as const;
+
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
@@ -114,6 +121,14 @@ export async function GET(req: NextRequest) {
                   },
                 },
               },
+              {
+                leadLawyer: {
+                  name: {
+                    contains: q,
+                    mode: "insensitive",
+                  },
+                },
+              },
             ],
           }
         : {}),
@@ -128,6 +143,19 @@ export async function GET(req: NextRequest) {
               id: true,
               name: true,
               archivedAt: true,
+            },
+          },
+          leadLawyer: {
+            select: caseUserSelect,
+          },
+          members: {
+            include: {
+              user: {
+                select: caseUserSelect,
+              },
+            },
+            orderBy: {
+              createdAt: "asc",
             },
           },
           payments: {
@@ -230,20 +258,91 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const newCase = await prisma.case.create({
-      data: {
+    const leadLawyerId =
+      parsed.data.leadLawyerId || auth.user.userId;
+
+    const leadLawyer = await prisma.user.findFirst({
+      where: {
+        id: leadLawyerId,
         tenantId: auth.user.tenantId,
-        ...parsed.data,
-      },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            archivedAt: true,
-          },
+        isActive: true,
+        role: {
+          in: ["ADMIN", "LAWYER"],
         },
       },
+      select: caseUserSelect,
+    });
+
+    if (!leadLawyer) {
+      return err("المحامي المسؤول غير موجود أو لا يملك صلاحية محامٍ", 400);
+    }
+
+    const memberIds = Array.from(
+      new Set(parsed.data.memberIds || []),
+    ).filter((memberId) => memberId !== leadLawyerId);
+
+    if (memberIds.length > 0) {
+      const validMembers = await prisma.user.count({
+        where: {
+          tenantId: auth.user.tenantId,
+          isActive: true,
+          id: {
+            in: memberIds,
+          },
+        },
+      });
+
+      if (validMembers !== memberIds.length) {
+        return err("أحد أعضاء القضية غير موجود أو حسابه معطل", 400);
+      }
+    }
+
+    const {
+      memberIds: _memberIds,
+      leadLawyerId: _leadLawyerId,
+      ...caseData
+    } = parsed.data;
+
+    const newCase = await prisma.$transaction(async (tx) => {
+      return tx.case.create({
+        data: {
+          tenantId: auth.user!.tenantId,
+          ...caseData,
+          leadLawyerId,
+          ...(memberIds.length > 0
+            ? {
+                members: {
+                  create: memberIds.map((userId) => ({
+                    tenantId: auth.user!.tenantId,
+                    userId,
+                  })),
+                },
+              }
+            : {}),
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+          leadLawyer: {
+            select: caseUserSelect,
+          },
+          members: {
+            include: {
+              user: {
+                select: caseUserSelect,
+              },
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+      });
     });
 
     await logActivity({

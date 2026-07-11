@@ -295,8 +295,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.notes !== undefined ? data.notes?.trim() || null : undefined;
 
     let nextClientId = data.clientId ?? invoice.clientId;
-    let nextCaseId =
+    const nextCaseId =
       data.caseId !== undefined ? data.caseId || null : invoice.caseId;
+
+    let nextCaseFee: number | null = null;
 
     if (data.clientId) {
       const client = await prisma.client.findFirst({
@@ -326,6 +328,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         select: {
           id: true,
           clientId: true,
+          feeAgreed: true,
           client: {
             select: {
               id: true,
@@ -347,6 +350,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (!data.clientId) {
         nextClientId = selectedCase.clientId;
       }
+
+      nextCaseFee = roundMoney(Number(selectedCase.feeAgreed || 0));
     }
 
     const itemsForTotals =
@@ -374,6 +379,51 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const nextStatus = (statusRaw || invoice.status) as InvoiceStatusValue;
+    if (nextCaseId && nextStatus !== "CANCELLED") {
+      const caseFee = nextCaseFee ?? 0;
+
+      if (caseFee <= 0) {
+        return err(
+          "لا يمكن ربط الفاتورة بهذه القضية قبل تحديد قيمة الأتعاب المتفق عليها",
+          400,
+        );
+      }
+
+      const otherInvoices = await prisma.invoice.aggregate({
+        where: {
+          tenantId: auth.user.tenantId,
+          caseId: nextCaseId,
+          id: {
+            not: invoice.id,
+          },
+          status: {
+            not: "CANCELLED",
+          },
+        },
+        _sum: {
+          total: true,
+        },
+      });
+
+      const alreadyInvoiced = roundMoney(Number(otherInvoices._sum.total || 0));
+
+      const nextInvoiceTotal = roundMoney(
+        totals ? totals.total : Number(invoice.total),
+      );
+
+      const remaining = roundMoney(Math.max(caseFee - alreadyInvoiced, 0));
+
+      if (nextInvoiceTotal > remaining) {
+        return err(
+          `قيمة الفاتورة تتجاوز أتعاب القضية. قيمة الأتعاب ${caseFee.toFixed(
+            2,
+          )} د.أ، والمفوتر في الفواتير الأخرى ${alreadyInvoiced.toFixed(
+            2,
+          )} د.أ، والحد المتاح لهذه الفاتورة ${remaining.toFixed(2)} د.أ`,
+          400,
+        );
+      }
+    }
 
     const shouldUpdateClientRelation =
       data.clientId !== undefined || data.caseId !== undefined;
