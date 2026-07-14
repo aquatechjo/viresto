@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
-export default function LegacyInvoicesPage() {
+export default function FinancePage() {
   redirect('/dashboard/finance/invoices')
 }

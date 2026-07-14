@@ -12,10 +12,10 @@ import {
   Briefcase,
   Users,
   FileText,
-  Wallet,
   ReceiptText,
-  CreditCard,
+  Banknote,
   BarChart3,
+  CreditCard,
   Settings,
   Menu,
   Activity,
@@ -36,17 +36,15 @@ type NavLabelKey =
   | "appointments"
   | "tasks"
   | "team"
-  | "payments"
-  | "invoices"
-  | "reports"
   | "activity"
   | "billing";
 
-type SectionKey = "main" | "management" | "business";
+type SectionKey = "main" | "management" | "finance" | "business";
 
 type NavItem = {
   href: string;
-  labelKey: NavLabelKey;
+  labelKey?: NavLabelKey;
+  label?: { ar: string; en: string };
   icon: ElementType;
   roles: Role[];
 };
@@ -110,31 +108,36 @@ const NAV: NavGroup[] = [
     ],
   },
   {
-    sectionKey: "business",
+    sectionKey: "finance",
     items: [
       {
-        href: "/dashboard/payments",
-        labelKey: "payments",
-        icon: Wallet,
-        roles: ["ADMIN", "LAWYER"],
-      },
-      {
-        href: "/dashboard/invoices",
-        labelKey: "invoices",
+        href: "/dashboard/finance/invoices",
+        label: { ar: "الفواتير", en: "Invoices" },
         icon: ReceiptText,
         roles: ["ADMIN", "LAWYER"],
       },
+      {
+        href: "/dashboard/finance/payments",
+        label: { ar: "الدفعات", en: "Payments" },
+        icon: Banknote,
+        roles: ["ADMIN", "LAWYER"],
+      },
+      {
+        href: "/dashboard/finance/reports",
+        label: { ar: "التقارير", en: "Reports" },
+        icon: BarChart3,
+        roles: ["ADMIN", "LAWYER"],
+      },
+    ],
+  },
+  {
+    sectionKey: "business",
+    items: [
       {
         href: "/dashboard/billing",
         labelKey: "billing",
         icon: CreditCard,
         roles: ["ADMIN"],
-      },
-      {
-        href: "/dashboard/reports",
-        labelKey: "reports",
-        icon: BarChart3,
-        roles: ["ADMIN", "LAWYER"],
       },
       {
         href: "/dashboard/activity",
@@ -268,7 +271,11 @@ export default function Sidebar() {
           {NAV.map((group) => (
             <div key={group.sectionKey} className="mb-3.5 last:mb-0 sm:mb-4">
               <p className="mb-1.5 px-3 text-start text-[10px] font-black uppercase tracking-wide text-emerald-100/55 sm:mb-2 sm:text-[11px]">
-                {t.sidebar.sections[group.sectionKey]}
+                {group.sectionKey === "finance"
+                  ? locale === "ar"
+                    ? "المالية"
+                    : "Finance"
+                  : t.sidebar.sections[group.sectionKey]}
               </p>
 
               <div className="space-y-1">
@@ -309,7 +316,11 @@ export default function Sidebar() {
                         />
 
                         <span className="min-w-0 flex-1 truncate text-start">
-                          {t.sidebar.nav[item.labelKey]}
+                          {item.label
+                            ? item.label[locale]
+                            : item.labelKey
+                              ? t.sidebar.nav[item.labelKey]
+                              : ""}
                         </span>
                       </Link>
                     );
