@@ -388,7 +388,7 @@ export default function LoginPage() {
 
   return (
     <main
-      className="relative min-h-screen overflow-hidden"
+      className="dark relative min-h-screen overflow-hidden"
       dir={isArabic ? "rtl" : "ltr"}
       style={{
         background:
