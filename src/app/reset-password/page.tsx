@@ -116,18 +116,18 @@ function ResetPasswordContent() {
   return (
     <main
       dir="rtl"
-      className="min-h-screen bg-[#06170f] px-4 py-10 text-white"
+      className="min-h-screen bg-[#041819] px-4 py-10 text-white"
     >
       <div className="mx-auto flex min-h-[calc(100vh-80px)] w-full max-w-md items-center justify-center">
-        <section className="w-full rounded-[28px] border border-emerald-300/15 bg-white/[0.07] p-6 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl sm:p-8">
+        <section className="w-full rounded-[28px] border border-copper-300/15 bg-white/[0.07] p-6 shadow-2xl shadow-copper-950/30 backdrop-blur-xl sm:p-8">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-2xl">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-copper-300/20 bg-copper-400/10 text-2xl">
               ✅
             </div>
 
             <h1 className="text-2xl font-black">تغيير كلمة المرور</h1>
 
-            <p className="mt-3 text-sm leading-7 text-emerald-50/70">
+            <p className="mt-3 text-sm leading-7 text-copper-50/70">
               أدخل كود التحقق المرسل إلى بريدك الإلكتروني، ثم اختر كلمة مرور
               جديدة.
             </p>
@@ -135,7 +135,7 @@ function ResetPasswordContent() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-emerald-50/80">
+              <label className="text-sm font-bold text-copper-50/80">
                 البريد الإلكتروني
               </label>
 
@@ -145,12 +145,12 @@ function ResetPasswordContent() {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="example@email.com"
                 autoComplete="email"
-                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right text-white outline-none transition placeholder:text-white/35 focus:border-emerald-300/60 focus:ring-4 focus:ring-emerald-400/10"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right text-white outline-none transition placeholder:text-white/35 focus:border-copper-300/60 focus:ring-4 focus:ring-copper-400/10"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-emerald-50/80">
+              <label className="text-sm font-bold text-copper-50/80">
                 كود التحقق
               </label>
 
@@ -161,12 +161,12 @@ function ResetPasswordContent() {
                   setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                 }
                 placeholder="000000"
-                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center text-xl font-black tracking-[0.45em] text-white outline-none transition placeholder:text-white/35 focus:border-emerald-300/60 focus:ring-4 focus:ring-emerald-400/10"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center text-xl font-black tracking-[0.45em] text-white outline-none transition placeholder:text-white/35 focus:border-copper-300/60 focus:ring-4 focus:ring-copper-400/10"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-emerald-50/80">
+              <label className="text-sm font-bold text-copper-50/80">
                 كلمة المرور الجديدة
               </label>
 
@@ -176,12 +176,12 @@ function ResetPasswordContent() {
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="8 أحرف على الأقل"
                 autoComplete="new-password"
-                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right text-white outline-none transition placeholder:text-white/35 focus:border-emerald-300/60 focus:ring-4 focus:ring-emerald-400/10"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right text-white outline-none transition placeholder:text-white/35 focus:border-copper-300/60 focus:ring-4 focus:ring-copper-400/10"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-emerald-50/80">
+              <label className="text-sm font-bold text-copper-50/80">
                 تأكيد كلمة المرور
               </label>
 
@@ -191,14 +191,14 @@ function ResetPasswordContent() {
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 placeholder="أعد كتابة كلمة المرور"
                 autoComplete="new-password"
-                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right text-white outline-none transition placeholder:text-white/35 focus:border-emerald-300/60 focus:ring-4 focus:ring-emerald-400/10"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right text-white outline-none transition placeholder:text-white/35 focus:border-copper-300/60 focus:ring-4 focus:ring-copper-400/10"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-2xl bg-emerald-400 px-4 py-3 font-black text-[#06170f] transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-2xl bg-copper-400 px-4 py-3 font-black text-[#041819] transition hover:bg-copper-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "جاري التغيير..." : "تغيير كلمة المرور"}
             </button>
@@ -209,7 +209,7 @@ function ResetPasswordContent() {
               type="button"
               onClick={resendCode}
               disabled={resending}
-              className="text-sm font-bold text-emerald-200 transition hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="text-sm font-bold text-copper-200 transition hover:text-copper-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {resending ? "جاري إعادة الإرسال..." : "إعادة إرسال الكود"}
             </button>

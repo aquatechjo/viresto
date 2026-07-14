@@ -250,7 +250,7 @@ const VIRESTO_FALLBACK_LOGO =
       <rect width="512" height="512" rx="128" fill="#ffffff"/>
       <path
         d="M116 128h82l58 166 58-166h82L294 384h-76L116 128Z"
-        fill="#12382d"
+        fill="#0f3d3e"
       />
     </svg>
   `);
@@ -427,14 +427,14 @@ export function buildInvoicePrintHtml(
   <title>${escapeHtml(copy.invoice)} ${escapeHtml(invoiceNo)}</title>
   <style>
     :root {
-      --brand: #12382d;
-      --brand-2: #1f5847;
-      --brand-soft: #eaf4ef;
-      --ink: #10231d;
-      --muted: #637b71;
-      --line: #dbe7e1;
+      --brand: #0f3d3e;
+      --brand-2: #b87333;
+      --brand-soft: #f7e9dc;
+      --ink: #102d2e;
+      --muted: #647c7c;
+      --line: #dce9e7;
       --paper: #ffffff;
-      --page: #eef3f0;
+      --page: #eef5f4;
       --warning: #b45309;
     }
 
@@ -443,7 +443,7 @@ export function buildInvoicePrintHtml(
     html {
       min-height: 100%;
       color-scheme: light only;
-      background: #eef3f0;
+      background: #eef5f4;
     }
 
     body { min-height: 100%; }
@@ -650,12 +650,12 @@ export function buildInvoicePrintHtml(
 
     .summary-card.total {
       background: var(--brand-soft);
-      border-color: #c8ddd3;
+      border-color: #bfd8d4;
     }
 
     .label {
-      color: #385248 !important;
-      -webkit-text-fill-color: #385248;
+      color: #456463 !important;
+      -webkit-text-fill-color: #456463;
       opacity: 1 !important;
       font-size: 10.5px;
       font-weight: 850;
@@ -663,8 +663,8 @@ export function buildInvoicePrintHtml(
     }
 
     .summary-card.total .label {
-      color: #12382d !important;
-      -webkit-text-fill-color: #12382d;
+      color: #0f3d3e !important;
+      -webkit-text-fill-color: #0f3d3e;
     }
 
     .value {
@@ -714,8 +714,8 @@ export function buildInvoicePrintHtml(
 
     .muted {
       margin-top: 4px;
-      color: #40594f !important;
-      -webkit-text-fill-color: #40594f;
+      color: #4d6767 !important;
+      -webkit-text-fill-color: #4d6767;
       opacity: 1 !important;
       font-size: 11.5px;
       line-height: 1.8;
@@ -754,7 +754,7 @@ export function buildInvoicePrintHtml(
     td {
       padding: 12px 11px;
       font-size: 12px;
-      border-bottom: 1px solid #edf2ef;
+      border-bottom: 1px solid #edf4f3;
       vertical-align: top;
     }
 
@@ -772,7 +772,7 @@ export function buildInvoicePrintHtml(
     }
 
     .notes {
-      border: 1px dashed #c5d7cf;
+      border: 1px dashed #bad2cf;
       border-radius: 18px;
       padding: 16px;
       background: #fbfdfc;
@@ -788,8 +788,8 @@ export function buildInvoicePrintHtml(
 
     .notes p {
       margin: 0;
-      color: #314a40 !important;
-      -webkit-text-fill-color: #314a40;
+      color: #3d5a5a !important;
+      -webkit-text-fill-color: #3d5a5a;
       font-size: 11.8px;
       line-height: 2;
       white-space: pre-wrap;
@@ -809,10 +809,10 @@ export function buildInvoicePrintHtml(
       align-items: center;
       gap: 14px;
       padding: 9px 0;
-      color: #314a40 !important;
-      -webkit-text-fill-color: #314a40;
+      color: #3d5a5a !important;
+      -webkit-text-fill-color: #3d5a5a;
       font-size: 12.5px;
-      border-bottom: 1px solid #e8f0ec;
+      border-bottom: 1px solid #e7f0ef;
     }
 
     .total-row:last-child { border-bottom: none; }
@@ -834,7 +834,7 @@ export function buildInvoicePrintHtml(
       border-radius: 16px;
       background: var(--brand-soft);
       color: var(--brand);
-      border: 1px solid #c8ddd3;
+      border: 1px solid #bfd8d4;
       font-size: 11.5px;
       font-weight: 850;
     }
@@ -847,10 +847,10 @@ export function buildInvoicePrintHtml(
     }
 
     .signature {
-      border-top: 1px solid #bfcfc7;
+      border-top: 1px solid #b6cdca;
       padding-top: 9px;
-      color: #496158 !important;
-      -webkit-text-fill-color: #496158;
+      color: #587271 !important;
+      -webkit-text-fill-color: #587271;
       font-size: 11px;
       text-align: center;
     }
@@ -858,13 +858,13 @@ export function buildInvoicePrintHtml(
     .footer {
       margin-top: 28px;
       padding-top: 15px;
-      border-top: 1px solid #edf2ef;
+      border-top: 1px solid #edf4f3;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 14px;
-      color: #496158 !important;
-      -webkit-text-fill-color: #496158;
+      color: #587271 !important;
+      -webkit-text-fill-color: #587271;
       font-size: 10.5px;
     }
 

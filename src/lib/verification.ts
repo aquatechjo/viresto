@@ -23,6 +23,16 @@ export function hashOtpCode(code: string) {
     .digest("hex");
 }
 
+export function verifyOtpCodeHash(code: string, expectedHash: string) {
+  const actualHash = hashOtpCode(code);
+  const actualBuffer = Buffer.from(actualHash, "hex");
+  const expectedBuffer = Buffer.from(expectedHash, "hex");
+
+  if (actualBuffer.length !== expectedBuffer.length) return false;
+
+  return crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
 export async function createVerificationCode({
   userId,
   type,

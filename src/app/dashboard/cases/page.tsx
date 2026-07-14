@@ -758,14 +758,14 @@ export default function CasesPage() {
           background:
             "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
           borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
+          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
         }}
       >
         <div
           className={`absolute -top-14 h-40 w-40 rounded-full ${
             isRtl ? "-right-14" : "-left-14"
           }`}
-          style={{ background: "rgba(245, 200, 66, 0.16)" }}
+          style={{ background: "rgba(184, 115, 51, 0.16)" }}
         />
 
         <div
@@ -1120,7 +1120,7 @@ export default function CasesPage() {
                         }
                         className="inline-flex min-w-[88px] items-center justify-center rounded-2xl border px-4 py-2 text-xs font-black transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
                         style={{
-                          borderColor: "rgba(16,185,129,0.28)",
+                          borderColor: "rgba(53, 138, 136,0.28)",
                           color: "var(--sidebar)",
                         }}
                       >
@@ -1724,7 +1724,7 @@ function getCaseStatusBadgeStyle(status: string) {
     case "OPEN":
       return {
         background: "var(--green-soft)",
-        borderColor: "rgba(16, 185, 129, 0.28)",
+        borderColor: "rgba(53, 138, 136, 0.28)",
         color: "var(--sidebar)",
       };
 

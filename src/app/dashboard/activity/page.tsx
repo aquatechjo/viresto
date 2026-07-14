@@ -748,14 +748,14 @@ export default function ActivityPage() {
           background:
             "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
           borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
+          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
         }}
       >
         <div
           className={`absolute -top-14 h-40 w-40 rounded-full ${
             isRtl ? "-right-14" : "-left-14"
           }`}
-          style={{ background: "rgba(245, 200, 66, 0.16)" }}
+          style={{ background: "rgba(184, 115, 51, 0.16)" }}
         />
 
         <div
@@ -881,7 +881,7 @@ export default function ActivityPage() {
           <button
             type="submit"
             disabled={refreshing}
-            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:bg-[#1f4d35] dark:text-emerald-50 dark:hover:bg-[#276342]"
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:bg-[#1c5354] dark:text-emerald-50 dark:hover:bg-[#23696a]"
             title={copy.filters.search}
           >
             <Search className="h-4 w-4" />
@@ -1067,7 +1067,7 @@ export default function ActivityPage() {
                         {href ? (
                           <Link
                             href={href}
-                            className="inline-flex items-center justify-center rounded-xl border border-emerald-500/30 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+                            className="inline-flex items-center justify-center rounded-xl border border-emerald-500/30 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
                           >
                             {copy.table.view}
                           </Link>
@@ -1099,7 +1099,7 @@ export default function ActivityPage() {
                 type="button"
                 disabled={!pagination.hasPreviousPage || refreshing}
                 onClick={() => setPage((current) => Math.max(current - 1, 1))}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
               >
                 {copy.table.previous}
               </button>
@@ -1122,8 +1122,8 @@ export default function ActivityPage() {
                       onClick={() => setPage(pageNumber)}
                       className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl border px-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         pagination.page === pageNumber
-                          ? "border-emerald-500 bg-emerald-600 text-white shadow-sm dark:border-emerald-300 dark:bg-emerald-300 dark:text-[#062013]"
-                          : "border-emerald-500/30 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+                          ? "border-emerald-500 bg-emerald-600 text-white shadow-sm dark:border-emerald-300 dark:bg-emerald-300 dark:text-[#072829]"
+                          : "border-emerald-500/30 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
                       }`}
                     >
                       {pageNumber}
@@ -1140,7 +1140,7 @@ export default function ActivityPage() {
                     Math.min(current + 1, Math.max(pagination.totalPages, 1)),
                   )
                 }
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#173827]"
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
               >
                 {copy.table.next}
               </button>

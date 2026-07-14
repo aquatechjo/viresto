@@ -123,7 +123,7 @@ interface BillingData {
 
 const statusClasses: Record<StatusTone, string> = {
   success:
-    "border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-400/30 dark:bg-[#1f4d35] dark:text-emerald-50",
+    "border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-400/30 dark:bg-[#1c5354] dark:text-emerald-50",
   warning:
     "border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200",
   danger:
@@ -750,7 +750,7 @@ export default function BillingPage() {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#335f49] dark:bg-[#0b1f16]">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#286061] dark:bg-[#061b1c]">
               <p
                 className="text-xs font-bold"
                 style={{ color: "var(--muted)" }}
@@ -760,7 +760,7 @@ export default function BillingPage() {
               <p className="mt-1 font-black">{data.tenant.name}</p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#335f49] dark:bg-[#0b1f16]">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#286061] dark:bg-[#061b1c]">
               <p
                 className="text-xs font-bold"
                 style={{ color: "var(--muted)" }}
@@ -772,7 +772,7 @@ export default function BillingPage() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#335f49] dark:bg-[#0b1f16]">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#286061] dark:bg-[#061b1c]">
               <p
                 className="text-xs font-bold"
                 style={{ color: "var(--muted)" }}
@@ -838,7 +838,7 @@ export default function BillingPage() {
               return (
                 <div
                   key={key}
-                  className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#335f49] dark:bg-[#0b1f16]"
+                  className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#286061] dark:bg-[#061b1c]"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-black">{usageLabels[key]}</p>
@@ -908,9 +908,9 @@ export default function BillingPage() {
                 key={plan.id}
                 className={[
                   "relative flex h-full min-h-[620px] flex-col overflow-hidden rounded-[28px] border p-5 text-white shadow-2xl shadow-emerald-950/10",
-                  "bg-[#07140f]",
+                  "bg-[#041718]",
                   highlighted
-                    ? "border-emerald-500/55 bg-[#062619] ring-1 ring-emerald-400/30"
+                    ? "border-emerald-500/55 bg-[#082c2d] ring-1 ring-emerald-400/30"
                     : "border-white/10",
                   active ? "ring-2 ring-emerald-300" : "",
                 ].join(" ")}
@@ -919,7 +919,7 @@ export default function BillingPage() {
                   className="pointer-events-none absolute inset-0 opacity-70"
                   style={{
                     background:
-                      "radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.22), transparent 42%)",
+                      "radial-gradient(circle at 50% 0%, rgba(53, 138, 136, 0.22), transparent 42%)",
                   }}
                 />
 

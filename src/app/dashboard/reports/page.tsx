@@ -702,7 +702,7 @@ if (loading) {
             background:
               'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
             borderColor: 'rgba(255,255,255,0.12)',
-            boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+            boxShadow: '0 18px 50px rgba(15, 61, 62, 0.18)',
           }}
         >
           <h1 className="text-2xl font-black text-white">{copy.error.title}</h1>
@@ -763,12 +763,12 @@ if (loading) {
             background:
               'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
             borderColor: 'rgba(255,255,255,0.12)',
-            boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+            boxShadow: '0 18px 50px rgba(15, 61, 62, 0.18)',
           }}
         >
           <div
             className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-            style={{ background: 'rgba(245, 200, 66, 0.16)' }}
+            style={{ background: 'rgba(184, 115, 51, 0.16)' }}
           />
 
           <div
@@ -835,9 +835,9 @@ if (loading) {
                 title={exportDisabled ? exportDisabledTitle : copy.actions.fullExcel}
                 className="btn disabled:cursor-not-allowed disabled:opacity-60"
                 style={{
-                  background: 'rgba(245,200,66,0.18)',
+                  background: 'rgba(184, 115, 51,0.18)',
                   color: '#fff',
-                  borderColor: 'rgba(245,200,66,0.35)',
+                  borderColor: 'rgba(184, 115, 51,0.35)',
                 }}
               >
                 {copy.actions.fullExcel}

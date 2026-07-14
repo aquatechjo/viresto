@@ -294,14 +294,14 @@ if (loading) {
           background:
             'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
           borderColor: 'rgba(255,255,255,0.12)',
-          boxShadow: '0 18px 50px rgba(45, 74, 62, 0.18)',
+          boxShadow: '0 18px 50px rgba(15, 61, 62, 0.18)',
         }}
       >
         <div
           className={`absolute -top-14 h-40 w-40 rounded-full ${
             isRtl ? '-right-14' : '-left-14'
           }`}
-          style={{ background: 'rgba(245, 200, 66, 0.16)' }}
+          style={{ background: 'rgba(184, 115, 51, 0.16)' }}
         />
 
         <div
@@ -668,9 +668,9 @@ if (loading) {
                         style={
                           completed
                             ? {
-                                background: 'rgba(16, 185, 129, 0.13)',
+                                background: 'rgba(53, 138, 136, 0.13)',
                                 color: 'var(--sidebar)',
-                                border: '1px solid rgba(16, 185, 129, 0.22)',
+                                border: '1px solid rgba(53, 138, 136, 0.22)',
                               }
                             : pendingAmount > 0 || remainingAmount > 0
                               ? {

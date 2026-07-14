@@ -11,6 +11,7 @@ import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnl
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 
 type Locale = "ar" | "en";
+type EmailChangeStep = "OLD_CODE" | "NEW_EMAIL" | "NEW_CODE";
 
 interface User {
   name: string;
@@ -128,7 +129,30 @@ const COPY = {
     name: "الاسم",
     emailShort: "البريد",
     emailChangeDisabled:
-      "تغيير البريد الإلكتروني غير متاح حالياً لحماية تحقق الحساب",
+      "يتطلب تغيير البريد تأكيد البريد الحالي ثم تأكيد البريد الجديد.",
+    changeEmail: "تغيير البريد الإلكتروني",
+    emailChangeTitle: "تغيير بريد تسجيل الدخول",
+    emailChangeOldDescription:
+      "أرسلنا رمز تحقق إلى بريدك الإلكتروني الحالي.",
+    emailChangeNewDescription:
+      "أدخل البريد الجديد وسنرسل إليه رمز تحقق قبل اعتماد التغيير.",
+    emailChangeConfirmDescription:
+      "أدخل الرمز المرسل إلى البريد الإلكتروني الجديد.",
+    verificationCode: "رمز التحقق",
+    verifyCurrentEmail: "تأكيد البريد الحالي",
+    newAccountEmail: "البريد الإلكتروني الجديد",
+    sendNewEmailCode: "إرسال الرمز إلى البريد الجديد",
+    confirmNewEmail: "تأكيد البريد الجديد",
+    resendCode: "إعادة إرسال الرمز",
+    sendingCode: "جاري إرسال الرمز...",
+    verifyingCode: "جاري التحقق...",
+    emailChangeStarted: "تم إرسال رمز التحقق إلى بريدك الحالي",
+    currentEmailVerified: "تم تأكيد البريد الحالي",
+    newEmailCodeSent: "تم إرسال رمز التحقق إلى البريد الجديد",
+    emailChanged: "تم تغيير البريد الإلكتروني بنجاح",
+    emailChangeError: "تعذر إكمال تغيير البريد الإلكتروني",
+    invalidVerificationCode: "أدخل رمز التحقق المكوّن من 6 أرقام",
+    invalidNewEmail: "أدخل بريدًا إلكترونيًا جديدًا صالحًا",
     companyTitle: "بيانات المكتب",
     companySubtitle: "تظهر هذه البيانات في الفواتير والطباعة",
     companyName: "اسم المكتب / الشركة",
@@ -229,7 +253,30 @@ const COPY = {
     name: "Name",
     emailShort: "Email",
     emailChangeDisabled:
-      "Email changes are currently disabled to protect account verification",
+      "Changing the email requires verifying both the current and new addresses.",
+    changeEmail: "Change email address",
+    emailChangeTitle: "Change sign-in email",
+    emailChangeOldDescription:
+      "We sent a verification code to your current email address.",
+    emailChangeNewDescription:
+      "Enter the new address and we will verify it before applying the change.",
+    emailChangeConfirmDescription:
+      "Enter the code sent to the new email address.",
+    verificationCode: "Verification code",
+    verifyCurrentEmail: "Verify current email",
+    newAccountEmail: "New email address",
+    sendNewEmailCode: "Send code to new email",
+    confirmNewEmail: "Confirm new email",
+    resendCode: "Resend code",
+    sendingCode: "Sending code...",
+    verifyingCode: "Verifying...",
+    emailChangeStarted: "A verification code was sent to your current email",
+    currentEmailVerified: "Current email verified",
+    newEmailCodeSent: "A verification code was sent to the new email",
+    emailChanged: "Email address changed successfully",
+    emailChangeError: "Unable to complete the email change",
+    invalidVerificationCode: "Enter the 6-digit verification code",
+    invalidNewEmail: "Enter a valid new email address",
     companyTitle: "Office information",
     companySubtitle: "These details appear on invoices and printouts",
     companyName: "Office / company name",
@@ -447,6 +494,16 @@ export default function SettingsPage() {
   const [savingCompany, setSavingCompany] = useState(false);
   const [savingAi, setSavingAi] = useState(false);
 
+  const [emailChangeOpen, setEmailChangeOpen] = useState(false);
+  const [emailChangeStep, setEmailChangeStep] =
+    useState<EmailChangeStep>("OLD_CODE");
+  const [emailChangeRequestId, setEmailChangeRequestId] = useState("");
+  const [emailChangeSentTo, setEmailChangeSentTo] = useState("");
+  const [oldEmailCode, setOldEmailCode] = useState("");
+  const [newAccountEmail, setNewAccountEmail] = useState("");
+  const [newEmailCode, setNewEmailCode] = useState("");
+  const [emailChangeLoading, setEmailChangeLoading] = useState(false);
+
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [qrCode, setQrCode] = useState("");
   const [twoFACode, setTwoFACode] = useState("");
@@ -548,6 +605,143 @@ export default function SettingsPage() {
       toast.error(copy.saveProfileUnexpectedError);
     } finally {
       setSavingProfile(false);
+    }
+  }
+
+  function resetEmailChange() {
+    setEmailChangeOpen(false);
+    setEmailChangeStep("OLD_CODE");
+    setEmailChangeRequestId("");
+    setEmailChangeSentTo("");
+    setOldEmailCode("");
+    setNewAccountEmail("");
+    setNewEmailCode("");
+    setEmailChangeLoading(false);
+  }
+
+  async function callEmailChangeApi(payload: Record<string, string>) {
+    const response = await fetch("/api/auth/change-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.success) {
+      throw new Error(getApiMessage(data, copy.emailChangeError));
+    }
+
+    return data.data || {};
+  }
+
+  async function startEmailChange() {
+    try {
+      setEmailChangeOpen(true);
+      setEmailChangeStep("OLD_CODE");
+      setEmailChangeLoading(true);
+      setOldEmailCode("");
+      setNewAccountEmail("");
+      setNewEmailCode("");
+
+      const data = await callEmailChangeApi({
+        action: "REQUEST_OLD_CODE",
+      });
+
+      setEmailChangeRequestId(data.requestId || "");
+      setEmailChangeSentTo(data.sentTo || user?.email || "");
+      toast.success(copy.emailChangeStarted);
+    } catch (error) {
+      resetEmailChange();
+      toast.error(
+        error instanceof Error ? error.message : copy.emailChangeError,
+      );
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  }
+
+  async function verifyCurrentEmailCode() {
+    if (!/^\d{6}$/.test(oldEmailCode)) {
+      toast.error(copy.invalidVerificationCode);
+      return;
+    }
+
+    try {
+      setEmailChangeLoading(true);
+      await callEmailChangeApi({
+        action: "VERIFY_OLD_CODE",
+        requestId: emailChangeRequestId,
+        code: oldEmailCode,
+      });
+      setEmailChangeStep("NEW_EMAIL");
+      toast.success(copy.currentEmailVerified);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : copy.emailChangeError,
+      );
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  }
+
+  async function requestNewEmailCode() {
+    const normalizedEmail = newAccountEmail.trim().toLowerCase();
+
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      toast.error(copy.invalidNewEmail);
+      return;
+    }
+
+    try {
+      setEmailChangeLoading(true);
+      const data = await callEmailChangeApi({
+        action: "REQUEST_NEW_CODE",
+        requestId: emailChangeRequestId,
+        newEmail: normalizedEmail,
+      });
+      setNewAccountEmail(normalizedEmail);
+      setNewEmailCode("");
+      setEmailChangeSentTo(data.sentTo || normalizedEmail);
+      setEmailChangeStep("NEW_CODE");
+      toast.success(copy.newEmailCodeSent);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : copy.emailChangeError,
+      );
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  }
+
+  async function confirmNewEmailCode() {
+    if (!/^\d{6}$/.test(newEmailCode)) {
+      toast.error(copy.invalidVerificationCode);
+      return;
+    }
+
+    try {
+      setEmailChangeLoading(true);
+      const data = await callEmailChangeApi({
+        action: "CONFIRM_NEW_EMAIL",
+        requestId: emailChangeRequestId,
+        code: newEmailCode,
+      });
+      const updatedEmail = data.email || newAccountEmail;
+
+      setUser((previous) =>
+        previous ? { ...previous, email: updatedEmail } : previous,
+      );
+      setProfileForm((previous) => ({ ...previous, email: updatedEmail }));
+      resetEmailChange();
+      toast.success(copy.emailChanged);
+
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : copy.emailChangeError,
+      );
+    } finally {
+      setEmailChangeLoading(false);
     }
   }
 
@@ -816,12 +1010,12 @@ export default function SettingsPage() {
             background:
               "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
             borderColor: "rgba(255,255,255,0.12)",
-            boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
+            boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
           }}
         >
           <div
             className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-            style={{ background: "rgba(245, 200, 66, 0.16)" }}
+            style={{ background: "rgba(184, 115, 51, 0.16)" }}
           />
 
           <div
@@ -878,9 +1072,9 @@ export default function SettingsPage() {
               <span
                 className="rounded-full px-4 py-2 text-xs font-black"
                 style={{
-                  background: "rgba(245,200,66,0.18)",
+                  background: "rgba(184, 115, 51,0.18)",
                   color: "#fff",
-                  border: "1px solid rgba(245,200,66,0.35)",
+                  border: "1px solid rgba(184, 115, 51,0.35)",
                 }}
               >
                 {copy.planPrefix} {planLabel}
@@ -1027,6 +1221,17 @@ export default function SettingsPage() {
                     >
                       {copy.emailChangeDisabled}
                     </p>
+
+                    <button
+                      type="button"
+                      onClick={startEmailChange}
+                      disabled={emailChangeLoading}
+                      className="btn btn-ghost mt-2 w-full"
+                    >
+                      {emailChangeLoading
+                        ? copy.sendingCode
+                        : copy.changeEmail}
+                    </button>
                   </FormField>
 
                   <div className="grid grid-cols-2 gap-2 pt-2">
@@ -1395,13 +1600,198 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {emailChangeOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div
+            className="w-full max-w-lg rounded-[28px] border p-6 shadow-2xl"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+              boxShadow: "0 30px 90px rgba(0,0,0,0.45)",
+            }}
+            dir={direction}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div className={isArabic ? "text-right" : "text-left"}>
+                <h2
+                  className="text-xl font-black"
+                  style={{ color: "var(--text)" }}
+                >
+                  {copy.emailChangeTitle}
+                </h2>
+                <p
+                  className="mt-2 text-sm font-semibold leading-7"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {emailChangeStep === "OLD_CODE"
+                    ? copy.emailChangeOldDescription
+                    : emailChangeStep === "NEW_EMAIL"
+                      ? copy.emailChangeNewDescription
+                      : copy.emailChangeConfirmDescription}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={resetEmailChange}
+                disabled={emailChangeLoading}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg font-bold transition hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10"
+                style={{
+                  borderColor: "var(--border)",
+                  color: "var(--text-2)",
+                }}
+                aria-label={isArabic ? "إغلاق" : "Close"}
+              >
+                ×
+              </button>
+            </div>
+
+            {emailChangeSentTo && emailChangeStep !== "NEW_EMAIL" ? (
+              <div
+                dir="ltr"
+                className="mb-4 rounded-2xl border px-4 py-3 text-center text-sm font-bold"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--green-soft)",
+                  color: "var(--sidebar)",
+                }}
+              >
+                {emailChangeSentTo}
+              </div>
+            ) : null}
+
+            {emailChangeStep === "OLD_CODE" ? (
+              <div className="space-y-4">
+                <FormField label={copy.verificationCode} required>
+                  <input
+                    value={oldEmailCode}
+                    onChange={(event) =>
+                      setOldEmailCode(
+                        event.target.value.replace(/\D/g, "").slice(0, 6),
+                      )
+                    }
+                    dir="ltr"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    className="input text-center text-xl font-black tracking-[0.35em]"
+                    placeholder="000000"
+                    autoFocus
+                  />
+                </FormField>
+
+                <button
+                  type="button"
+                  onClick={verifyCurrentEmailCode}
+                  disabled={emailChangeLoading || oldEmailCode.length !== 6}
+                  className="btn btn-primary w-full"
+                >
+                  {emailChangeLoading
+                    ? copy.verifyingCode
+                    : copy.verifyCurrentEmail}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={startEmailChange}
+                  disabled={emailChangeLoading}
+                  className="btn btn-ghost w-full"
+                >
+                  {copy.resendCode}
+                </button>
+              </div>
+            ) : null}
+
+            {emailChangeStep === "NEW_EMAIL" ? (
+              <div className="space-y-4">
+                <FormField label={copy.newAccountEmail} required>
+                  <input
+                    type="email"
+                    value={newAccountEmail}
+                    onChange={(event) => setNewAccountEmail(event.target.value)}
+                    dir="ltr"
+                    autoComplete="email"
+                    className="input"
+                    style={ltrInputStyle}
+                    placeholder="new@example.com"
+                    autoFocus
+                  />
+                </FormField>
+
+                <button
+                  type="button"
+                  onClick={requestNewEmailCode}
+                  disabled={emailChangeLoading || !newAccountEmail.trim()}
+                  className="btn btn-primary w-full"
+                >
+                  {emailChangeLoading
+                    ? copy.sendingCode
+                    : copy.sendNewEmailCode}
+                </button>
+              </div>
+            ) : null}
+
+            {emailChangeStep === "NEW_CODE" ? (
+              <div className="space-y-4">
+                <FormField label={copy.verificationCode} required>
+                  <input
+                    value={newEmailCode}
+                    onChange={(event) =>
+                      setNewEmailCode(
+                        event.target.value.replace(/\D/g, "").slice(0, 6),
+                      )
+                    }
+                    dir="ltr"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    className="input text-center text-xl font-black tracking-[0.35em]"
+                    placeholder="000000"
+                    autoFocus
+                  />
+                </FormField>
+
+                <button
+                  type="button"
+                  onClick={confirmNewEmailCode}
+                  disabled={emailChangeLoading || newEmailCode.length !== 6}
+                  className="btn btn-primary w-full"
+                >
+                  {emailChangeLoading
+                    ? copy.verifyingCode
+                    : copy.confirmNewEmail}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={requestNewEmailCode}
+                  disabled={emailChangeLoading}
+                  className="btn btn-ghost w-full"
+                >
+                  {copy.resendCode}
+                </button>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={resetEmailChange}
+              disabled={emailChangeLoading}
+              className="btn btn-ghost mt-3 w-full"
+            >
+              {copy.cancel}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {showAiConfirm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
           <div
             className="w-full max-w-lg rounded-[28px] border p-6 shadow-2xl"
             style={{
               background: "rgba(5, 24, 18, 0.98)",
-              borderColor: "rgba(52, 211, 153, 0.42)",
+              borderColor: "rgba(83, 168, 164, 0.42)",
               boxShadow:
                 "0 30px 90px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.08)",
             }}

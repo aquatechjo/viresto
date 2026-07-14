@@ -26,32 +26,38 @@ const TITLE_KEYS: Record<string, keyof typeof translations.ar.dashboard> = {
   "/dashboard/team": "team",
 };
 
-function useDebounce<T>(val: T, ms: number) {
-  const [d, setD] = useState(val);
+function useDebounce<T>(value: T, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
   useEffect(() => {
-    const t = setTimeout(() => setD(val), ms);
-    return () => clearTimeout(t);
-  }, [val, ms]);
+    const timeout = window.setTimeout(
+      () => setDebouncedValue(value),
+      delay,
+    );
 
-  return d;
+    return () => window.clearTimeout(timeout);
+  }, [value, delay]);
+
+  return debouncedValue;
 }
 
-interface SR {
+interface SearchResults {
   clients: any[];
   cases: any[];
   tasks: any[];
   documents: any[];
 }
 
-const EMPTY_RESULTS: SR = {
+const EMPTY_RESULTS: SearchResults = {
   clients: [],
   cases: [],
   tasks: [],
   documents: [],
 };
 
-function normalizeSearchResults(data: Partial<SR> | null | undefined): SR {
+function normalizeSearchResults(
+  data: Partial<SearchResults> | null | undefined,
+): SearchResults {
   return {
     clients: Array.isArray(data?.clients) ? data.clients : [],
     cases: Array.isArray(data?.cases) ? data.cases : [],
@@ -59,6 +65,13 @@ function normalizeSearchResults(data: Partial<SR> | null | undefined): SR {
     documents: Array.isArray(data?.documents) ? data.documents : [],
   };
 }
+
+const COMPACT_CONTROL =
+  "[&>button]:h-9 [&>button]:w-9 [&>button]:min-w-9 " +
+  "[&>button]:items-center [&>button]:justify-center " +
+  "[&>button]:rounded-xl [&>button]:px-0 " +
+  "sm:[&>button]:h-10 sm:[&>button]:w-10 sm:[&>button]:min-w-10 " +
+  "sm:[&>button]:rounded-2xl";
 
 export default function TopBar() {
   const pathname = usePathname();
@@ -68,81 +81,73 @@ export default function TopBar() {
 
   const titleKey =
     Object.entries(TITLE_KEYS)
-      .filter(([k]) => pathname === k || pathname.startsWith(k + "/"))
+      .filter(([path]) => pathname === path || pathname.startsWith(`${path}/`))
       .sort((a, b) => b[0].length - a[0].length)[0]?.[1] ?? "title";
 
   const title = t.dashboard[titleKey] ?? t.dashboard.title;
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SR | null>(null);
+  const [results, setResults] = useState<SearchResults | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dateStr, setDateStr] = useState("");
 
-  const dq = useDebounce(query, 280);
-  const ref = useRef<HTMLDivElement>(null);
+  const debouncedQuery = useDebounce(query, 280);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    function handlePointerDown(event: MouseEvent) {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
-    };
+    }
 
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    document.addEventListener("mousedown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
   }, []);
 
   useEffect(() => {
-    if (dq.length < 2) {
+    if (debouncedQuery.length < 2) {
       setResults(null);
+      setLoading(false);
       return;
     }
 
+    let cancelled = false;
     setLoading(true);
 
-    let cancelled = false;
-
-    fetch(`/api/search?q=${encodeURIComponent(dq)}`)
-      .then((r) => r.json())
-      .then((d) => {
+    fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`)
+      .then((response) => response.json())
+      .then((data) => {
         if (cancelled) return;
 
-        if (d?.success) {
-          setResults(normalizeSearchResults(d.data));
-        } else {
+        setResults(
+          data?.success
+            ? normalizeSearchResults(data.data)
+            : EMPTY_RESULTS,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
           setResults(EMPTY_RESULTS);
         }
       })
-      .catch(() => {
-        if (!cancelled) setResults(EMPTY_RESULTS);
-      })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [dq]);
-
-  const safeResults = results ?? EMPTY_RESULTS;
-
-  const hasResults =
-    safeResults.clients.length +
-      safeResults.cases.length +
-      safeResults.tasks.length +
-      safeResults.documents.length >
-    0;
-
-  const statusLabels = t.cases.statuses as Record<string, string>;
-
-  const PRIORITY_DOT: Record<string, string> = {
-    HIGH: "🔴",
-    MEDIUM: "🟡",
-    LOW: "🟢",
-  };
-
-  const [dateStr, setDateStr] = useState("");
+  }, [debouncedQuery]);
 
   useEffect(() => {
     const formatter =
@@ -161,6 +166,23 @@ export default function TopBar() {
     setDateStr(formatter.format(new Date()));
   }, [locale]);
 
+  const safeResults = results ?? EMPTY_RESULTS;
+
+  const hasResults =
+    safeResults.clients.length +
+      safeResults.cases.length +
+      safeResults.tasks.length +
+      safeResults.documents.length >
+    0;
+
+  const statusLabels = t.cases.statuses as Record<string, string>;
+
+  const priorityDot: Record<string, string> = {
+    HIGH: "🔴",
+    MEDIUM: "🟡",
+    LOW: "🟢",
+  };
+
   const alignClass = isRtl ? "text-right" : "text-left";
 
   function closeSearch() {
@@ -173,56 +195,115 @@ export default function TopBar() {
       dir={isRtl ? "rtl" : "ltr"}
       className={`
         fixed top-0 z-40 min-w-0 overflow-visible border-b border-slate-200
-        bg-white/90 shadow-sm backdrop-blur-[18px] transition-colors
-        dark:border-[#2d4a3e] dark:bg-[#0d241a]/95
+        bg-white/92 shadow-sm backdrop-blur-[18px] transition-colors
+        dark:border-[#0f3d3e] dark:bg-[#082526]/95
         ${
           isRtl
-            ? "right-0 left-0 pr-[68px] pl-3 xl:right-64 xl:left-0 xl:px-6"
-            : "left-0 right-0 pl-[68px] pr-3 xl:left-64 xl:right-0 xl:px-6"
+            ? "right-0 left-0 pr-[62px] pl-2.5 sm:pr-[68px] sm:pl-4 xl:right-64 xl:px-6"
+            : "left-0 right-0 pl-[62px] pr-2.5 sm:pl-[68px] sm:pr-4 xl:left-64 xl:px-6"
         }
       `}
     >
       <div
         className="
-          flex min-h-[72px] w-full min-w-0 flex-wrap items-center gap-2 py-3
-          md:gap-3 xl:min-h-[76px] xl:flex-nowrap xl:gap-3
+          grid min-h-[112px] w-full min-w-0
+          grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]
+          items-center gap-x-1.5 gap-y-2 py-2.5
+          sm:min-h-[116px] sm:gap-x-2
+          xl:min-h-[76px]
+          xl:grid-cols-[minmax(280px,1fr)_auto_auto_auto_auto_auto_auto]
+          xl:gap-3 xl:py-3
         "
       >
-        {/* Search - desktop order stays: search, date, language, theme, profile, title */}
+        {/* Page title — first cell on mobile, last cell on desktop */}
         <div
-          ref={ref}
+          className={`
+            col-start-1 row-start-1 min-w-0
+            xl:col-start-7 xl:row-start-1 xl:max-w-[220px]
+            ${isRtl ? "text-right xl:text-left" : "text-left xl:text-right"}
+          `}
+        >
+          <h1 className="truncate text-sm font-black text-slate-800 dark:text-emerald-50 sm:text-base">
+            {title}
+          </h1>
+        </div>
+
+        {/* Language */}
+        <div
+          className={`col-start-2 row-start-1 shrink-0 xl:col-start-3 ${COMPACT_CONTROL}`}
+        >
+          <LanguageToggle />
+        </div>
+
+        {/* Theme */}
+        <div
+          className={`col-start-3 row-start-1 shrink-0 xl:col-start-4 ${COMPACT_CONTROL}`}
+        >
+          <ThemeToggle />
+        </div>
+
+        {/* Notifications */}
+        <div
+          className={`relative z-50 col-start-4 row-start-1 shrink-0 overflow-visible xl:col-start-5 ${COMPACT_CONTROL}`}
+        >
+          <NotificationBell />
+        </div>
+
+        {/* Profile — avatar only on mobile/tablet, full control on desktop */}
+        <div className="relative z-50 col-start-5 row-start-1 min-w-0 shrink-0 overflow-visible xl:col-start-6">
+          <ProfileMenu />
+        </div>
+
+        {/* Date — desktop only */}
+        <span
           className="
-            order-3 relative w-full min-w-0 basis-full
-            md:min-w-[360px] xl:order-1 xl:w-auto xl:min-w-[280px] xl:flex-1 xl:basis-0 xl:max-w-[760px]
-            2xl:max-w-[860px]
+            hidden h-10 shrink-0 items-center gap-1.5 rounded-2xl
+            border border-slate-200 bg-slate-50/90 px-3 text-xs font-bold
+            text-slate-700 shadow-sm transition-all hover:border-emerald-200
+            hover:bg-white xl:col-start-2 xl:row-start-1 xl:flex
+            dark:border-emerald-700/60 dark:bg-[#082c2d] dark:text-white
+            dark:hover:border-emerald-500/80 dark:hover:bg-[#185354]
+          "
+        >
+          📅 {dateStr || "—"}
+        </span>
+
+        {/* Search — full-width second row on mobile/tablet */}
+        <div
+          ref={searchRef}
+          className="
+            relative col-span-full row-start-2 w-full min-w-0
+            xl:col-span-1 xl:col-start-1 xl:row-start-1
+            xl:min-w-[280px] xl:max-w-[860px]
           "
         >
           <span
             className={`
-              pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm text-slate-400 dark:text-emerald-200
+              pointer-events-none absolute top-1/2 -translate-y-1/2
+              text-slate-400 dark:text-emerald-200
               ${isRtl ? "right-3" : "left-3"}
             `}
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-4 w-4" aria-hidden="true" />
           </span>
 
           <input
             aria-label={t.topbar.searchPlaceholder}
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
+            onChange={(event) => {
+              setQuery(event.target.value);
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
             placeholder={t.topbar.searchPlaceholder}
             className={`
-              h-11 w-full rounded-2xl border border-slate-200 bg-white py-2
+              h-10 w-full rounded-2xl border border-slate-200 bg-white py-2
               text-[16px] font-semibold text-slate-800 placeholder:text-slate-400
               shadow-sm outline-none transition-all hover:border-emerald-300
               focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10
-              dark:border-emerald-700/60 dark:bg-[#08291d] dark:text-white
+              sm:h-11 sm:text-sm
+              dark:border-emerald-700/60 dark:bg-[#082c2d] dark:text-white
               dark:placeholder:text-emerald-200/80 dark:hover:border-emerald-500/80
-              sm:text-sm
               ${isRtl ? "pr-10 pl-10 text-right" : "pl-10 pr-10 text-left"}
             `}
           />
@@ -236,13 +317,14 @@ export default function TopBar() {
             />
           )}
 
-          {/* Dropdown */}
           {open && query.length >= 2 && (
             <div
               className={`
-                absolute top-full z-[55] mt-2 max-h-[62vh] w-full overflow-y-auto rounded-2xl
-                border border-slate-200 bg-white shadow-2xl dark:border-[#2d4a3e] dark:bg-[#10291d]
-                max-w-[calc(100vw-1.5rem)] xl:min-w-[440px]
+                absolute top-full z-[55] mt-2 max-h-[62vh] w-full
+                max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-2xl
+                border border-slate-200 bg-white shadow-2xl
+                dark:border-[#0f3d3e] dark:bg-[#0b292a]
+                xl:min-w-[440px]
                 ${isRtl ? "right-0" : "left-0"}
               `}
             >
@@ -252,61 +334,61 @@ export default function TopBar() {
                 </p>
               )}
 
-              {safeResults.clients.map((c) => (
+              {safeResults.clients.map((client) => (
                 <button
                   type="button"
-                  key={c.id}
+                  key={client.id}
                   onClick={() => {
-                    router.push(`/dashboard/clients/${c.id}`);
+                    router.push(`/dashboard/clients/${client.id}`);
                     closeSearch();
                   }}
-                  className={`flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:hover:bg-[#173827]`}
+                  className={`flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:hover:bg-[#123f40]`}
                 >
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--green-soft)] text-xs font-bold text-[var(--sidebar)]">
-                    {c.name?.[0] ?? "C"}
+                    {client.name?.[0] ?? "C"}
                   </span>
 
                   <div className="min-w-0 flex-1">
                     <p
                       className={`truncate text-sm font-semibold text-slate-800 dark:text-emerald-50 ${alignClass}`}
                     >
-                      {c.name}
+                      {client.name}
                     </p>
 
                     <p
                       className={`truncate text-xs text-slate-500 dark:text-emerald-200 ${alignClass}`}
                     >
-                      {c.phone ?? (locale === "ar" ? "موكل" : "Client")}
+                      {client.phone ??
+                        (locale === "ar" ? "موكل" : "Client")}
                     </p>
                   </div>
                 </button>
               ))}
 
-              {safeResults.cases.map((c) => (
+              {safeResults.cases.map((caseItem) => (
                 <button
                   type="button"
-                  key={c.id}
+                  key={caseItem.id}
                   onClick={() => {
-                    router.push(`/dashboard/cases/${c.id}`);
+                    router.push(`/dashboard/cases/${caseItem.id}`);
                     closeSearch();
                   }}
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#2d4a3e] dark:hover:bg-[#173827]`}
+                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
                 >
-                  <span className="shrink-0 text-xs">
-                    <Scale className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
-                  </span>
+                  <Scale className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
 
                   <div className="min-w-0 flex-1">
                     <p
                       className={`truncate text-sm font-semibold text-slate-800 dark:text-emerald-50 ${alignClass}`}
                     >
-                      {c.title}
+                      {caseItem.title}
                     </p>
 
                     <p
                       className={`truncate text-xs text-slate-500 dark:text-emerald-200 ${alignClass}`}
                     >
-                      {c.client?.name} · {statusLabels[c.status] ?? c.status}
+                      {caseItem.client?.name} ·{" "}
+                      {statusLabels[caseItem.status] ?? caseItem.status}
                     </p>
                   </div>
                 </button>
@@ -320,10 +402,10 @@ export default function TopBar() {
                     router.push("/dashboard/tasks");
                     closeSearch();
                   }}
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#2d4a3e] dark:hover:bg-[#173827]`}
+                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
                 >
                   <span className="shrink-0 text-xs">
-                    {PRIORITY_DOT[task.priority]}
+                    {priorityDot[task.priority]}
                   </span>
 
                   <p
@@ -344,7 +426,7 @@ export default function TopBar() {
                     router.push("/dashboard/documents");
                     closeSearch();
                   }}
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#2d4a3e] dark:hover:bg-[#173827]`}
+                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
                 >
                   <span className="shrink-0 text-xs">📄</span>
 
@@ -366,66 +448,6 @@ export default function TopBar() {
               ))}
             </div>
           )}
-        </div>
-
-        {/* Date */}
-        <span
-          className="
-            order-2 hidden h-10 shrink-0 items-center gap-1.5 rounded-2xl border border-slate-200
-            bg-slate-50/90 px-3 text-xs font-bold text-slate-700 shadow-sm
-            transition-all hover:border-emerald-200 hover:bg-white lg:flex xl:order-2
-            dark:border-emerald-700/60 dark:bg-[#08291d] dark:text-white
-            dark:hover:border-emerald-500/80 dark:hover:bg-[#103b2a]
-          "
-        >
-          📅 {dateStr || "—"}
-        </span>
-
-        {/* Language */}
-        <div
-          className="
-    order-2 shrink-0 xl:order-3
-    [&>button]:h-10 [&>button]:w-10 [&>button]:min-w-10
-    [&>button]:rounded-2xl [&>button]:px-0
-    [&>button]:items-center [&>button]:justify-center
-  "
-        >
-          <LanguageToggle />
-        </div>
-
-        {/* Theme */}
-        <div
-          className="
-    order-2 shrink-0 xl:order-4
-    [&>button]:h-10 [&>button]:w-10 [&>button]:min-w-10
-    [&>button]:rounded-2xl [&>button]:px-0
-    [&>button]:items-center [&>button]:justify-center
-  "
-        >
-          <ThemeToggle />
-        </div>
-
-        {/* Notifications */}
-        <div className="relative z-50 order-2 shrink-0 overflow-visible xl:order-5">
-          <NotificationBell />
-        </div>
-
-        {/* Profile */}
-        <div className="relative z-50 order-2 min-w-0 shrink-0 overflow-visible max-[420px]:max-w-[210px] sm:max-w-[260px] xl:order-6 xl:max-w-[285px]">
-          <ProfileMenu />
-        </div>
-
-        {/* Page title */}
-        <div
-          className={`
-            order-1 min-w-0 flex-1 basis-0
-            xl:order-7 xl:flex-none xl:shrink-0
-            ${isRtl ? "text-right xl:text-left" : "text-left xl:text-right"}
-          `}
-        >
-          <h1 className="truncate text-sm font-black text-slate-800 dark:text-emerald-50 sm:text-base xl:max-w-[220px]">
-            {title}
-          </h1>
         </div>
       </div>
     </header>

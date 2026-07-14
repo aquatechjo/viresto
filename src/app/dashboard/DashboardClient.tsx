@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -24,25 +23,11 @@ import {
   Users,
   WalletCards,
 } from "lucide-react";
-import { formatTime } from "@/lib/utils";
 import type { Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
 
-const AIAssistant = dynamic(
-  () => import("@/components/dashboard/AIAssistant"),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        className="card flex h-full min-h-[260px] items-center justify-center p-5"
-        style={{ color: "var(--text-3)" }}
-      >
-        <span className="spinner" aria-hidden="true" />
-      </div>
-    ),
-  },
-);
+const TENANT_TIME_ZONE = "Asia/Amman";
 
 interface AppointmentItem {
   id: string;
@@ -874,13 +859,29 @@ function formatDate(date: string, locale: Locale) {
   return new Date(date).toLocaleDateString(locale === "ar" ? "ar-JO" : "en-US");
 }
 
-function formatDateTime(date: string, locale: Locale) {
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+function formatAppointmentDateTime(date: string, locale: Locale) {
+  return new Intl.DateTimeFormat(
+    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
+    {
+    timeZone: TENANT_TIME_ZONE,
     day: "numeric",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(date));
+    },
+  ).format(new Date(date));
+}
+
+function formatAppointmentTime(date: string, locale: Locale) {
+  return new Intl.DateTimeFormat(
+    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
+    {
+    timeZone: TENANT_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    },
+  ).format(new Date(date));
 }
 
 function isPastDate(date?: string | null) {
@@ -1124,14 +1125,14 @@ export default function DashboardPage() {
       try {
         setHasLoadError(false);
 
-        const timeZone =
-          Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Amman";
-
         const responses = await Promise.all([
-          fetch(`/api/dashboard-stats?tz=${encodeURIComponent(timeZone)}`, {
-            cache: "no-store",
-            credentials: "include",
-          }),
+          fetch(
+            `/api/dashboard-stats?tz=${encodeURIComponent(TENANT_TIME_ZONE)}`,
+            {
+              cache: "no-store",
+              credentials: "include",
+            },
+          ),
           fetch("/api/cases?limit=4", {
             cache: "no-store",
             credentials: "include",
@@ -1286,9 +1287,10 @@ export default function DashboardPage() {
       items.push({
         key: "next-appointment",
         title: t.upcomingAppointmentTitle,
-        message: `${formatDateTime(firstAppointment.startTime, locale)} · ${
-          firstAppointment.title
-        }`,
+        message: `${formatAppointmentDateTime(
+          firstAppointment.startTime,
+          locale,
+        )} · ${firstAppointment.title}`,
         href: "/dashboard/appointments",
         icon: <CalendarDays className="h-5 w-5" />,
         tone: "info",
@@ -1331,12 +1333,12 @@ export default function DashboardPage() {
           background:
             "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 58%, var(--sidebar-dark) 100%)",
           borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 20px 55px rgba(45, 74, 62, 0.20)",
+          boxShadow: "0 20px 55px rgba(15, 61, 62, 0.20)",
         }}
       >
         <div
           className="absolute -end-16 -top-20 h-48 w-48 rounded-full"
-          style={{ background: "rgba(245, 200, 66, 0.17)" }}
+          style={{ background: "rgba(184, 115, 51, 0.17)" }}
         />
         <div
           className="absolute -bottom-24 start-1/4 h-52 w-52 rounded-full"
@@ -1389,7 +1391,7 @@ export default function DashboardPage() {
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-3 py-2 text-xs font-black transition hover:brightness-105"
                 style={{
                   background: "var(--gold)",
-                  color: "#172117",
+                  color: "#102d2e",
                 }}
               >
                 <FilePlus2 className="h-4 w-4" />
@@ -1612,7 +1614,7 @@ export default function DashboardPage() {
                       color: "var(--sidebar)",
                     }}
                   >
-                    {formatTime(appointment.startTime)}
+                    {formatAppointmentTime(appointment.startTime, locale)}
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -1960,11 +1962,7 @@ export default function DashboardPage() {
         </div>
 
         <aside className="min-w-0 space-y-4">
-          <div className="min-h-[240px] [&>*]:h-full">
-            <AIAssistant />
-          </div>
-
-          <div className="card min-w-0 p-4 sm:p-5">
+<div className="card min-w-0 p-4 sm:p-5">
             <SectionHeader
               title={t.officeSummary}
               subtitle={t.officeSummarySub}

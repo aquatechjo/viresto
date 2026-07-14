@@ -392,7 +392,7 @@ export default function LoginPage() {
       dir={isArabic ? "rtl" : "ltr"}
       style={{
         background:
-          "radial-gradient(circle at 15% 20%, rgba(245,200,66,.18), transparent 28%), radial-gradient(circle at 85% 15%, rgba(255,255,255,.12), transparent 26%), linear-gradient(135deg, #10261f 0%, #1f4639 48%, #071713 100%)",
+          "radial-gradient(circle at 15% 20%, rgba(184, 115, 51,.18), transparent 28%), radial-gradient(circle at 85% 15%, rgba(255,255,255,.12), transparent 26%), linear-gradient(135deg, #092a2b 0%, #185354 48%, #041819 100%)",
       }}
     >
       <button
@@ -407,7 +407,7 @@ export default function LoginPage() {
         <span dir="ltr" className="flex items-center gap-1">
           <span
             className={`rounded-full px-3 py-1 text-xs font-black transition ${
-              isArabic ? "bg-white text-[#17352b] shadow-sm" : "text-white/70"
+              isArabic ? "bg-white text-[#103839] shadow-sm" : "text-white/70"
             }`}
           >
             AR
@@ -415,7 +415,7 @@ export default function LoginPage() {
 
           <span
             className={`rounded-full px-3 py-1 text-xs font-black transition ${
-              !isArabic ? "bg-white text-[#17352b] shadow-sm" : "text-white/70"
+              !isArabic ? "bg-white text-[#103839] shadow-sm" : "text-white/70"
             }`}
           >
             EN
@@ -427,7 +427,7 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute inset-0">
         <motion.div
           className="absolute -right-24 top-20 h-72 w-72 rounded-full blur-3xl"
-          style={{ background: "rgba(245, 200, 66, 0.18)" }}
+          style={{ background: "rgba(184, 115, 51, 0.18)" }}
           animate={{
             x: [0, -40, 20, 0],
             y: [0, 30, -20, 0],
@@ -508,26 +508,27 @@ export default function LoginPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7 }}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <div
-                className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-3xl bg-white p-2"
+                className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-copper-400/35 bg-[#082c2d]"
                 style={{
-                  boxShadow: "0 18px 50px rgba(0,0,0,.18)",
+                  boxShadow: "0 16px 40px rgba(0,0,0,.22)",
                 }}
               >
                 <Image
                   src="/logo.png"
                   alt={copy.logoAlt}
-                  width={44}
-                  height={44}
-                  className="h-full w-full object-contain"
+                  width={64}
+                  height={64}
+                  className="h-full w-full scale-[1.2] object-cover"
                   priority
                 />
               </div>
 
               <div>
                 <p className="text-3xl font-black text-white">Viresto</p>
-                <p className="mt-1 text-sm font-semibold text-white/55">
+
+                <p className="mt-1 text-sm font-bold text-copper-300">
                   {copy.brandSubtitle}
                 </p>
               </div>
@@ -663,20 +664,20 @@ export default function LoginPage() {
                 initial={{ rotate: -8, scale: 0.9 }}
                 animate={{ rotate: 0, scale: 1 }}
                 transition={{ duration: 0.5 }}
-                className="relative mx-auto mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-3xl bg-white p-2"
+                className="relative mx-auto mb-3 flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border border-copper-400/35 bg-[#082c2d] shadow-xl shadow-black/25"
               >
                 <Image
                   src="/logo.png"
                   alt={copy.logoAlt}
-                  width={52}
-                  height={52}
-                  className="h-full w-full object-contain"
+                  width={80}
+                  height={80}
+                  className="h-full w-full scale-[1.2] object-cover"
                   priority
                 />
               </motion.div>
 
               <p className="text-3xl font-black text-white">Viresto</p>
-              <p className="mt-1 text-sm font-semibold text-white/55">
+              <p className="mt-1 text-sm font-bold text-copper-300">
                 {copy.brandSubtitle}
               </p>
             </div>
@@ -690,27 +691,27 @@ export default function LoginPage() {
             >
               <div
                 className="absolute -right-12 -top-12 h-32 w-32 rounded-full blur-2xl"
-                style={{ background: "rgba(245,200,66,.24)" }}
+                style={{ background: "rgba(184, 115, 51,.24)" }}
               />
 
               <div
                 dir={isArabic ? "rtl" : "ltr"}
-                className={`relative rounded-[28px] bg-white/90 p-6 text-slate-900 shadow-inner sm:p-7 dark:bg-[#10291d]/95 dark:text-emerald-50 ${textAlignClass}`}
+                className={`relative rounded-[28px] bg-white/90 p-6 text-slate-900 shadow-inner sm:p-7 dark:bg-[#0b292a]/95 dark:text-copper-50 ${textAlignClass}`}
               >
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
                 >
-                  <div className="mb-4 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800 dark:bg-[#1f4d35] dark:text-emerald-50">
+                  <div className="mb-4 inline-flex rounded-full bg-copper-50 px-3 py-1 text-xs font-black text-copper-800 dark:bg-[#1c5354] dark:text-copper-50">
                     {copy.welcomeBadge}
                   </div>
 
-                  <h2 className="text-2xl font-black text-slate-900 dark:text-emerald-50">
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-copper-50">
                     {copy.formTitle}
                   </h2>
 
-                  <p className="mt-2 text-sm font-medium text-slate-600 dark:text-emerald-100/75">
+                  <p className="mt-2 text-sm font-medium text-slate-600 dark:text-copper-100/75">
                     {copy.formDescription}
                   </p>
                 </motion.div>
@@ -817,7 +818,7 @@ export default function LoginPage() {
                   >
                     <Link
                       href={forgotPasswordHref}
-                      className="text-sm font-black text-[#1f4639] transition hover:underline dark:text-emerald-300"
+                      className="text-sm font-black text-[#185354] transition hover:underline dark:text-copper-300"
                     >
                       {copy.forgotPassword}
                     </Link>
@@ -855,10 +856,10 @@ export default function LoginPage() {
                     <Link
                       href={registerHref}
                       prefetch={false}
-                      className="block w-full rounded-2xl px-3 py-2 text-center text-sm font-semibold text-slate-600 transition hover:bg-emerald-500/10 dark:text-emerald-100/75"
+                      className="block w-full rounded-2xl px-3 py-2 text-center text-sm font-semibold text-slate-600 transition hover:bg-copper-500/10 dark:text-copper-100/75"
                     >
                       {copy.noAccount}{" "}
-                      <span className="font-black text-[#1f4639] underline-offset-4 hover:underline dark:text-emerald-300">
+                      <span className="font-black text-[#185354] underline-offset-4 hover:underline dark:text-copper-300">
                         {copy.register}
                       </span>
                     </Link>

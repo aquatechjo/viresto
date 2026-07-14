@@ -668,8 +668,8 @@ function getStoredLocale(): Locale {
 function VirestoLogo() {
   return (
     <span className="flex items-center gap-3" aria-label="Viresto">
-      <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-emerald-300/25 bg-white/[0.07] p-2 shadow-[0_14px_34px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl">
-        <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_35%_25%,rgba(52,211,153,0.30),transparent_42%),linear-gradient(135deg,rgba(255,255,255,0.12),rgba(16,185,129,0.08))]" />
+      <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-copper-300/25 bg-white/[0.07] p-2 shadow-[0_14px_34px_rgba(53, 138, 136,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl">
+        <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_35%_25%,rgba(83, 168, 164,0.30),transparent_42%),linear-gradient(135deg,rgba(255,255,255,0.12),rgba(53, 138, 136,0.08))]" />
         <img
           src="/logo.png"
           alt="Viresto logo"
@@ -718,9 +718,9 @@ export default function HomePage() {
   return (
     <main
       dir={isArabic ? "rtl" : "ltr"}
-      className="min-h-screen overflow-x-hidden bg-[#07110d] text-white"
+      className="min-h-screen overflow-x-hidden bg-[#041819] text-white"
     >
-      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-[#07110d]/85 backdrop-blur-xl">
+      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-[#041819]/85 backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-5 sm:px-6">
           <Link href="/" className="flex shrink-0 items-center">
             <VirestoLogo />
@@ -744,7 +744,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={changeLanguage}
-              className="hidden h-12 w-16 items-center justify-center rounded-2xl border border-emerald-400/35 bg-white/[0.03] text-sm font-black uppercase tracking-wide text-emerald-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-emerald-300/60 hover:bg-emerald-500/10 hover:text-white sm:flex"
+              className="hidden h-12 w-16 items-center justify-center rounded-2xl border border-copper-400/35 bg-white/[0.03] text-sm font-black uppercase tracking-wide text-copper-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-copper-300/60 hover:bg-copper-500/10 hover:text-white sm:flex"
               aria-label={copy.nav.language}
               title={copy.nav.language}
             >
@@ -762,9 +762,9 @@ export default function HomePage() {
       </nav>
 
       <section className="relative px-5 pb-10 pt-28 sm:px-6 lg:pb-12 lg:pt-32">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,.18),transparent_42%)]" />
-        <div className="pointer-events-none absolute left-[-12rem] top-36 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-10rem] top-28 h-96 w-96 rounded-full bg-emerald-400/10 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(53, 138, 136,.18),transparent_42%)]" />
+        <div className="pointer-events-none absolute left-[-12rem] top-36 h-80 w-80 rounded-full bg-copper-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute right-[-10rem] top-28 h-96 w-96 rounded-full bg-copper-400/10 blur-3xl" />
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
           <div
@@ -775,13 +775,13 @@ export default function HomePage() {
             }
           >
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 shadow-lg shadow-black/10">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="h-2 w-2 rounded-full bg-copper-400" />
               {copy.hero.badge}
             </div>
 
             <h1 className="max-w-2xl text-3xl font-black leading-[1.1] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
               <span className="block">{copy.hero.titleTop}</span>
-              <span className="block text-emerald-400">
+              <span className="block text-copper-400">
                 {copy.hero.titleAccent}
               </span>
               {copy.hero.titleBottom ? (
@@ -796,7 +796,7 @@ export default function HomePage() {
             <div className="mt-8 flex flex-wrap gap-4">
               <Link
                 href="/dashboard"
-                className="flex h-14 items-center justify-center rounded-2xl bg-emerald-500 px-7 font-bold text-black transition-all hover:bg-emerald-400"
+                className="flex h-14 items-center justify-center rounded-2xl bg-copper-500 px-7 font-bold text-black transition-all hover:bg-copper-400"
               >
                 {copy.hero.primary}
               </Link>
@@ -822,14 +822,14 @@ export default function HomePage() {
           </div>
 
           <div className="relative w-full">
-            <div className="absolute -inset-6 rounded-[2.5rem] bg-emerald-500/10 blur-3xl" />
+            <div className="absolute -inset-6 rounded-[2.5rem] bg-copper-500/10 blur-3xl" />
 
             <div className="relative rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
               <div className="mb-5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div className="h-3 w-3 rounded-full bg-yellow-400" />
-                  <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                  <div className="h-3 w-3 rounded-full bg-copper-400" />
                 </div>
 
                 <span className="text-xs font-semibold text-slate-400">
@@ -839,7 +839,7 @@ export default function HomePage() {
 
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                  <div className="rounded-2xl border border-copper-500/20 bg-copper-500/10 p-4">
                     <p className="text-xs text-slate-300">
                       {copy.preview.revenue}
                     </p>
@@ -867,7 +867,7 @@ export default function HomePage() {
                       {copy.preview.assistant}
                     </p>
 
-                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">
+                    <span className="rounded-full bg-copper-500/10 px-3 py-1 text-xs font-bold text-copper-300">
                       {copy.preview.live}
                     </span>
                   </div>
@@ -907,7 +907,7 @@ export default function HomePage() {
         className="mx-auto max-w-7xl px-5 pt-12 pb-20 sm:px-6"
       >
         <div className="mx-auto mb-16 max-w-3xl text-center">
-          <p className="text-sm font-bold text-emerald-400">
+          <p className="text-sm font-bold text-copper-400">
             {copy.features.eyebrow}
           </p>
 
@@ -927,7 +927,7 @@ export default function HomePage() {
               className="rounded-[2rem] border border-white/10 bg-white/5 p-7 transition-all hover:bg-white/[0.07]"
             >
               <div className="mb-5 text-4xl">{feature.icon}</div>
-              <h3 className="text-xl font-bold text-emerald-50">
+              <h3 className="text-xl font-bold text-copper-50">
                 {feature.title}
               </h3>
               <p className="mt-3 text-sm leading-7 text-slate-300">
@@ -940,7 +940,7 @@ export default function HomePage() {
 
       <section id="pricing" className="mx-auto max-w-7xl px-5 py-20 sm:px-6">
         <div className="mb-14 text-center">
-          <p className="text-sm font-bold text-emerald-400">
+          <p className="text-sm font-bold text-copper-400">
             {copy.pricing.eyebrow}
           </p>
 
@@ -961,22 +961,22 @@ export default function HomePage() {
                 className={[
                   "relative flex h-full min-h-[690px] flex-col overflow-hidden rounded-[2rem] border p-6 transition-all sm:p-7",
                   plan.highlighted
-                    ? "border-emerald-400/45 bg-emerald-500/10 shadow-2xl shadow-emerald-950/35"
+                    ? "border-copper-400/45 bg-copper-500/10 shadow-2xl shadow-copper-950/35"
                     : "border-white/10 bg-white/5 hover:bg-white/[0.07]",
                 ].join(" ")}
               >
                 {plan.highlighted ? (
-                  <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/80 to-transparent" />
+                  <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-copper-300/80 to-transparent" />
                 ) : null}
 
                 <div className="mb-6 flex min-h-[116px] flex-col">
                   <div className="mb-4 flex items-start justify-between gap-4">
-                    <h3 className="text-3xl font-black text-emerald-100">
+                    <h3 className="text-3xl font-black text-copper-100">
                       {plan.name}
                     </h3>
 
                     {plan.badge ? (
-                      <span className="shrink-0 rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-black shadow-lg shadow-emerald-950/30">
+                      <span className="shrink-0 rounded-full bg-copper-500 px-3 py-1 text-xs font-black text-black shadow-lg shadow-copper-950/30">
                         {plan.badge}
                       </span>
                     ) : null}
@@ -1010,7 +1010,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-7 flex-1">
-                  <p className="mb-4 text-sm font-black text-emerald-300">
+                  <p className="mb-4 text-sm font-black text-copper-300">
                     {isArabic ? "معلومات الخطة" : "Plan details"}
                   </p>
 
@@ -1028,7 +1028,7 @@ export default function HomePage() {
                           className={[
                             "mt-0.5 shrink-0 font-black",
                             feature.included
-                              ? "text-emerald-300"
+                              ? "text-copper-300"
                               : "text-slate-600",
                           ].join(" ")}
                         >
@@ -1051,7 +1051,7 @@ export default function HomePage() {
 
                 <Link
                   href="/register"
-                  className="mt-8 flex h-12 items-center justify-center rounded-2xl bg-emerald-500 font-bold text-black transition hover:bg-emerald-400"
+                  className="mt-8 flex h-12 items-center justify-center rounded-2xl bg-copper-500 font-bold text-black transition hover:bg-copper-400"
                 >
                   {copy.pricing.action}
                 </Link>
@@ -1063,7 +1063,7 @@ export default function HomePage() {
 
       <section className="mx-auto max-w-5xl px-5 py-20 sm:px-6">
         <div className="mb-12 text-center">
-          <p className="text-sm font-bold text-emerald-400">
+          <p className="text-sm font-bold text-copper-400">
             {copy.faq.eyebrow}
           </p>
 
@@ -1078,7 +1078,7 @@ export default function HomePage() {
               key={item.question}
               className="rounded-3xl border border-white/10 bg-white/5 p-6"
             >
-              <h3 className="text-lg font-black text-emerald-100">
+              <h3 className="text-lg font-black text-copper-100">
                 {item.question}
               </h3>
               <p className="mt-3 leading-7 text-slate-300">{item.answer}</p>
@@ -1088,8 +1088,8 @@ export default function HomePage() {
       </section>
 
       <section id="cta" className="mx-auto max-w-7xl px-5 py-20 sm:px-6">
-        <div className="rounded-[2.5rem] border border-emerald-400/20 bg-emerald-500/10 p-10 text-center md:p-16">
-          <p className="font-bold text-emerald-400">{copy.cta.eyebrow}</p>
+        <div className="rounded-[2.5rem] border border-copper-400/20 bg-copper-500/10 p-10 text-center md:p-16">
+          <p className="font-bold text-copper-400">{copy.cta.eyebrow}</p>
 
           <h2 className="mt-5 text-4xl font-black text-white md:text-5xl">
             {copy.cta.title}
@@ -1101,7 +1101,7 @@ export default function HomePage() {
 
           <Link
             href="/dashboard"
-            className="mt-8 inline-flex h-14 items-center justify-center rounded-2xl bg-emerald-500 px-8 font-bold text-black transition hover:bg-emerald-400"
+            className="mt-8 inline-flex h-14 items-center justify-center rounded-2xl bg-copper-500 px-8 font-bold text-black transition hover:bg-copper-400"
           >
             {copy.cta.action}
           </Link>

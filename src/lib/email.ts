@@ -15,16 +15,16 @@ function verificationEmailHtml(code: string) {
   const appName = getAppName();
 
   return `
-  <div dir="rtl" style="font-family: Arial, sans-serif; background:#f4f7f3; padding:32px; color:#173827;">
-    <div style="max-width:560px; margin:0 auto; background:#ffffff; border:1px solid #dfe8dc; border-radius:20px; padding:28px;">
-      <h1 style="margin:0 0 12px; font-size:22px; color:#1e3329;">تأكيد البريد الإلكتروني</h1>
-      <p style="margin:0 0 20px; font-size:15px; line-height:1.8; color:#537065;">
+  <div dir="rtl" style="font-family: Arial, sans-serif; background:#f3f7f6; padding:32px; color:#123f40;">
+    <div style="max-width:560px; margin:0 auto; background:#ffffff; border:1px solid #dbe8e5; border-radius:20px; padding:28px;">
+      <h1 style="margin:0 0 12px; font-size:22px; color:#082c2d;">تأكيد البريد الإلكتروني</h1>
+      <p style="margin:0 0 20px; font-size:15px; line-height:1.8; color:#617e7c;">
         استخدم الرمز التالي لتأكيد بريدك الإلكتروني في ${appName}.
       </p>
-      <div dir="ltr" style="letter-spacing:8px; text-align:center; font-size:32px; font-weight:900; color:#1e3329; background:#eef6f0; border-radius:16px; padding:18px 12px;">
+      <div dir="ltr" style="letter-spacing:8px; text-align:center; font-size:32px; font-weight:900; color:#082c2d; background:#f7e9dc; border:1px solid #dfb184; border-radius:16px; padding:18px 12px;">
         ${code}
       </div>
-      <p style="margin:22px 0 0; font-size:13px; line-height:1.8; color:#8ba498;">
+      <p style="margin:22px 0 0; font-size:13px; line-height:1.8; color:#789c99;">
         تنتهي صلاحية الرمز خلال 10 دقائق. لا تشارك هذا الرمز مع أي شخص.
       </p>
     </div>
@@ -124,4 +124,136 @@ export async function sendPasswordResetEmail({
     const errorText = await response.text();
     throw new Error(`Failed to send password reset email: ${errorText}`);
   }
+}
+
+type SendEmailChangeCodeInput = {
+  to: string;
+  code: string;
+  stage: "OLD" | "NEW";
+};
+
+export async function sendEmailChangeCode({
+  to,
+  code,
+  stage,
+}: SendEmailChangeCodeInput) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const isOldEmail = stage === "OLD";
+  const title = isOldEmail
+    ? "تأكيد طلب تغيير البريد الإلكتروني"
+    : "تأكيد البريد الإلكتروني الجديد";
+  const description = isOldEmail
+    ? "وصلنا طلب لتغيير البريد الإلكتروني المرتبط بحسابك. استخدم الرمز التالي للمتابعة."
+    : "استخدم الرمز التالي لتأكيد أن هذا البريد الإلكتروني الجديد يعود إليك.";
+
+  if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV EMAIL CHANGE ${stage}] to=${to} code=${code}`);
+      return { skipped: true };
+    }
+
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: getEmailFrom(),
+      to,
+      subject: `${title} - ${getAppName()}`,
+      text: `${description}\nرمز التحقق: ${code}\nتنتهي صلاحية الرمز خلال 10 دقائق.`,
+      html: `
+        <div dir="rtl" style="font-family:Arial,sans-serif;background:#f3f7f6;padding:32px;color:#123f40;">
+          <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #dbe8e5;border-radius:20px;padding:28px;">
+            <h1 style="margin:0 0 12px;font-size:22px;color:#082c2d;">${title}</h1>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.8;color:#617e7c;">${description}</p>
+            <div dir="ltr" style="letter-spacing:8px;text-align:center;font-size:32px;font-weight:900;color:#082c2d;background:#f7e9dc;border:1px solid #dfb184;border-radius:16px;padding:18px 12px;">${code}</div>
+            <p style="margin:22px 0 0;font-size:13px;line-height:1.8;color:#789c99;">تنتهي صلاحية الرمز خلال 10 دقائق. لا تشارك هذا الرمز مع أي شخص.</p>
+          </div>
+        </div>`,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Failed to send email change code: ${response.status} ${errorText}`,
+    );
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
+type SendEmailChangeCompletedInput = {
+  to: string;
+  accountEmail: string;
+  isOldEmail: boolean;
+};
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+export async function sendEmailChangeCompletedEmail({
+  to,
+  accountEmail,
+  isOldEmail,
+}: SendEmailChangeCompletedInput) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const safeAccountEmail = escapeHtml(accountEmail);
+  const message = isOldEmail
+    ? `تم تغيير البريد الإلكتروني لحسابك إلى ${accountEmail}. إذا لم تنفذ هذه العملية، تواصل مع الدعم فورًا.`
+    : `تم اعتماد ${accountEmail} كبريد الدخول الجديد لحسابك.`;
+
+  if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV EMAIL CHANGE COMPLETED] to=${to} ${message}`);
+      return { skipped: true };
+    }
+
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: getEmailFrom(),
+      to,
+      subject: `تم تغيير البريد الإلكتروني - ${getAppName()}`,
+      text: message,
+      html: `
+        <div dir="rtl" style="font-family:Arial,sans-serif;background:#f3f7f6;padding:32px;color:#123f40;">
+          <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #dbe8e5;border-radius:20px;padding:28px;">
+            <h1 style="margin:0 0 12px;font-size:22px;color:#082c2d;">تم تغيير البريد الإلكتروني</h1>
+            <p style="margin:0;font-size:15px;line-height:1.8;color:#617e7c;">${
+              isOldEmail
+                ? `تم تغيير البريد الإلكتروني لحسابك إلى <b dir="ltr">${safeAccountEmail}</b>. إذا لم تنفذ هذه العملية، تواصل مع الدعم فورًا.`
+                : `تم اعتماد <b dir="ltr">${safeAccountEmail}</b> كبريد الدخول الجديد لحسابك.`
+            }</p>
+          </div>
+        </div>`,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Failed to send email change completion notice: ${response.status} ${errorText}`,
+    );
+  }
+
+  return response.json().catch(() => ({ ok: true }));
 }

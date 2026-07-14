@@ -372,7 +372,7 @@ function CreateClientModal({
       aria-modal="true"
     >
       <div
-        className="w-full max-w-2xl rounded-[28px] border border-[#335f49] bg-[#10291d] p-6 text-start shadow-2xl"
+        className="w-full max-w-2xl rounded-[28px] border border-[#286061] bg-[#0b292a] p-6 text-start shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="mb-6 flex items-start justify-between gap-4">
@@ -388,7 +388,7 @@ function CreateClientModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#08291d] text-xl text-emerald-100 transition hover:bg-[#173827]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#082c2d] text-xl text-emerald-100 transition hover:bg-[#123f40]"
             aria-label={text.modal.close}
           >
             ×
@@ -584,7 +584,7 @@ function CreateClientModal({
             <button
               type="submit"
               disabled={loading}
-              className="rounded-2xl bg-[#2f5f4b] px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#3a735b] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-[#1b6262] px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#2b7778] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? text.modal.saving : text.modal.save}
             </button>
@@ -593,7 +593,7 @@ function CreateClientModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-2xl border border-[#335f49] bg-transparent px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#173827] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl border border-[#286061] bg-transparent px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#123f40] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {text.modal.cancel}
             </button>
@@ -726,12 +726,12 @@ export default function ClientsPage() {
             background:
               "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
             borderColor: "rgba(255,255,255,0.12)",
-            boxShadow: "0 18px 50px rgba(45, 74, 62, 0.18)",
+            boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
           }}
         >
           <div
             className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-            style={{ background: "rgba(245, 200, 66, 0.16)" }}
+            style={{ background: "rgba(184, 115, 51, 0.16)" }}
           />
 
           <div
@@ -863,9 +863,9 @@ export default function ClientsPage() {
                 style={
                   archiveFilter === key
                     ? {
-                        background: "rgba(245,200,66,0.18)",
+                        background: "rgba(184, 115, 51,0.18)",
                         color: "var(--text-1)",
-                        border: "1px solid rgba(245,200,66,0.35)",
+                        border: "1px solid rgba(184, 115, 51,0.35)",
                       }
                     : {
                         background: "var(--green-soft)",
@@ -981,17 +981,17 @@ export default function ClientsPage() {
                     )}
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#061b1c] dark:text-emerald-50">
                         ⚖️ {client._count?.cases ?? 0} {text.card.cases}
                       </span>
 
-                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#061b1c] dark:text-emerald-50">
                         📅 {client._count?.appointments ?? 0}{" "}
                         {text.card.appointments}
                       </span>
 
                       {client.nationalId && (
-                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#0b1f16] dark:text-emerald-50">
+                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#061b1c] dark:text-emerald-50">
                           🪪{" "}
                           <span className="truncate">{client.nationalId}</span>
                         </span>

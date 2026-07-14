@@ -7,6 +7,11 @@ import interactionPlugin from '@fullcalendar/interaction'
 import arLocale from '@fullcalendar/core/locales/ar'
 import type { Locale } from '@/lib/i18n'
 
+const arJoLocale = {
+  ...arLocale,
+  code: 'ar-JO-u-nu-latn',
+}
+
 interface AppointmentsCalendarProps {
   locale: Locale
   timeZone?: string
@@ -34,7 +39,7 @@ export default function AppointmentsCalendar({
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
         timeZone={timeZone}
-        locale={isRtl ? arLocale : 'en'}
+        locale={isRtl ? arJoLocale : 'en'}
         direction={isRtl ? 'rtl' : 'ltr'}
         height="auto"
         selectable

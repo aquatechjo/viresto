@@ -131,7 +131,7 @@ export default function ForgotPasswordPage() {
   return (
     <main
       dir={isRtl ? "rtl" : "ltr"}
-      className="relative min-h-screen overflow-hidden bg-[#06170f] px-4 py-10 text-white"
+      className="relative min-h-screen overflow-hidden bg-[#041819] px-4 py-10 text-white"
     >
       <button
         type="button"
@@ -147,7 +147,7 @@ export default function ForgotPasswordPage() {
           <span
             className={[
               "rounded-full px-3 py-1 text-xs font-black transition",
-              isRtl ? "bg-white text-[#17352b] shadow-sm" : "text-white/70",
+              isRtl ? "bg-white text-[#103839] shadow-sm" : "text-white/70",
             ].join(" ")}
           >
             AR
@@ -156,7 +156,7 @@ export default function ForgotPasswordPage() {
           <span
             className={[
               "rounded-full px-3 py-1 text-xs font-black transition",
-              !isRtl ? "bg-white text-[#17352b] shadow-sm" : "text-white/70",
+              !isRtl ? "bg-white text-[#103839] shadow-sm" : "text-white/70",
             ].join(" ")}
           >
             EN
@@ -164,23 +164,23 @@ export default function ForgotPasswordPage() {
         </span>
       </button>
 
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(52,211,153,0.14),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_30%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(83, 168, 164,0.14),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(53, 138, 136,0.12),transparent_30%)]" />
 
       <div className="relative mx-auto flex min-h-[calc(100vh-80px)] w-full max-w-md items-center justify-center">
         <section
           className={[
-            "w-full rounded-[28px] border border-emerald-300/15 bg-white/[0.07] p-6 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl sm:p-8",
+            "w-full rounded-[28px] border border-copper-300/15 bg-white/[0.07] p-6 shadow-2xl shadow-copper-950/30 backdrop-blur-xl sm:p-8",
             isRtl ? "text-right" : "text-left",
           ].join(" ")}
         >
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-2xl">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-copper-300/20 bg-copper-400/10 text-2xl">
               🔐
             </div>
 
             <h1 className="text-2xl font-black">{copy.title}</h1>
 
-            <p className="mt-3 text-sm leading-7 text-emerald-50/70">
+            <p className="mt-3 text-sm leading-7 text-copper-50/70">
               {copy.description}
             </p>
           </div>
@@ -189,7 +189,7 @@ export default function ForgotPasswordPage() {
             <div className="space-y-2">
               <label
                 htmlFor="email"
-                className="block text-sm font-bold text-emerald-50/80"
+                className="block text-sm font-bold text-copper-50/80"
               >
                 {copy.emailLabel}
               </label>
@@ -202,14 +202,14 @@ export default function ForgotPasswordPage() {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder={copy.emailPlaceholder}
                 autoComplete="email"
-                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left text-white outline-none transition placeholder:text-white/35 focus:border-emerald-300/60 focus:ring-4 focus:ring-emerald-400/10"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left text-white outline-none transition placeholder:text-white/35 focus:border-copper-300/60 focus:ring-4 focus:ring-copper-400/10"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-2xl bg-emerald-400 px-4 py-3 font-black text-[#06170f] transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-2xl bg-copper-400 px-4 py-3 font-black text-[#041819] transition hover:bg-copper-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? copy.submitting : copy.submit}
             </button>
@@ -218,7 +218,7 @@ export default function ForgotPasswordPage() {
           <div className="mt-6 text-center">
             <Link
               href={`/login?lang=${locale}`}
-              className="text-sm font-bold text-emerald-200 transition hover:text-emerald-100"
+              className="text-sm font-bold text-copper-200 transition hover:text-copper-100"
             >
               {copy.backToLogin}
             </Link>

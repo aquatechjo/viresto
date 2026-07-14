@@ -3,6 +3,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import SessionGuard from "@/components/security/SessionGuard";
+import AIAssistant from "@/components/dashboard/AIAssistant";
 import { useLocale } from "@/lib/useLocale";
 
 export default function DashboardLayout({
@@ -28,10 +29,12 @@ export default function DashboardLayout({
       >
         <TopBar />
 
-        <main className="dashboard-page-shell min-w-0 w-full max-w-full overflow-x-clip px-3 pb-6 pt-[136px] sm:px-4 sm:pb-8 md:px-5 xl:px-6 xl:pt-[96px]">
+        <main className="dashboard-page-shell min-w-0 w-full max-w-full overflow-x-clip px-3 pb-28 pt-[124px] sm:px-4 sm:pb-28 sm:pt-[128px] md:px-5 xl:px-6 xl:pb-10 xl:pt-[96px]">
           {children}
         </main>
       </div>
+
+      <AIAssistant />
     </div>
   );
 }

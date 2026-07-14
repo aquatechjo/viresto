@@ -5,7 +5,7 @@ export default function PricingSection() {
     <section dir="rtl" className="w-full bg-slate-950 py-20 text-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto mb-14 max-w-3xl text-center">
-          <p className="mb-3 text-sm font-semibold text-emerald-400">
+          <p className="mb-3 text-sm font-semibold text-copper-400">
             خطط Viresto
           </p>
 
@@ -29,12 +29,12 @@ export default function PricingSection() {
                 className={[
                   "relative rounded-3xl border p-6 shadow-2xl transition",
                   plan.highlighted
-                    ? "border-emerald-400 bg-slate-900 shadow-emerald-950/50"
+                    ? "border-copper-400 bg-slate-900 shadow-copper-950/50"
                     : "border-white/10 bg-slate-900/70",
                 ].join(" ")}
               >
                 {plan.badge && (
-                  <div className="absolute left-6 top-6 rounded-full bg-emerald-500/15 px-4 py-1 text-sm font-semibold text-emerald-300 ring-1 ring-emerald-400/30">
+                  <div className="absolute left-6 top-6 rounded-full bg-copper-500/15 px-4 py-1 text-sm font-semibold text-copper-300 ring-1 ring-copper-400/30">
                     {plan.badge}
                   </div>
                 )}
@@ -46,7 +46,7 @@ export default function PricingSection() {
 
                 <div className="mb-6">
                   <div className="flex items-end gap-2">
-                    <span className="text-5xl font-black text-emerald-400">
+                    <span className="text-5xl font-black text-copper-400">
                       {displayPrice}
                     </span>
                     <span className="pb-2 text-sm text-slate-300">
@@ -56,7 +56,7 @@ export default function PricingSection() {
 
                   {hasLaunchPrice && (
                     <div className="mt-2 flex items-center gap-2 text-sm">
-                      <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-emerald-300">
+                      <span className="rounded-full bg-copper-500/10 px-3 py-1 text-copper-300">
                         سعر الإطلاق
                       </span>
                       <span className="text-slate-400 line-through">
@@ -91,8 +91,8 @@ export default function PricingSection() {
                     className={[
                       "w-full rounded-xl px-5 py-3 text-sm font-bold transition",
                       plan.highlighted
-                        ? "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
-                        : "border border-white/15 text-white hover:border-emerald-400 hover:text-emerald-300",
+                        ? "bg-copper-400 text-slate-950 hover:bg-copper-300"
+                        : "border border-white/15 text-white hover:border-copper-400 hover:text-copper-300",
                     ].join(" ")}
                   >
                     ابدأ الآن
@@ -110,7 +110,7 @@ export default function PricingSection() {
                           className={[
                             "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs",
                             feature.included
-                              ? "bg-emerald-400/15 text-emerald-300"
+                              ? "bg-copper-400/15 text-copper-300"
                               : "bg-slate-800 text-slate-500",
                           ].join(" ")}
                         >
@@ -154,7 +154,7 @@ export default function PricingSection() {
                 className="rounded-2xl border border-white/10 bg-slate-950/60 p-5"
               >
                 <p className="font-semibold">{addon.name}</p>
-                <p className="mt-3 text-2xl font-black text-emerald-400">
+                <p className="mt-3 text-2xl font-black text-copper-400">
                   {addon.priceJod}{" "}
                   <span className="text-sm font-medium text-slate-300">
                     JOD / {addon.unit}

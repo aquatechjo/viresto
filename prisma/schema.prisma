@@ -165,31 +165,32 @@ model PaymentWebhookEvent {
 }
 
 model User {
-  id                 String              @id @default(cuid())
-  tenantId           String
-  name               String
-  email              String              @unique
-  phone              String?
-  emailVerifiedAt    DateTime?
-  phoneVerifiedAt    DateTime?
-  passwordHash       String
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  isActive           Boolean             @default(true)
-  role               UserRole            @default(LAWYER)
-  twoFactorEnabled   Boolean             @default(false)
-  twoFactorSecret    String?
-  isSystemAdmin      Boolean             @default(false)
-  sessions           Session[]
-  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  verificationCodes  VerificationCode[]
-  passwordResetCodes PasswordResetCode[]
-  assignedTasks       Task[]              @relation("TaskAssignee")
-  createdTasks        Task[]              @relation("TaskCreator")
-  leadCases           Case[]              @relation("CaseLeadLawyer")
-  caseMemberships     CaseMember[]
-  assignedAppointments Appointment[]      @relation("AppointmentAssignee")
-  createdAppointments  Appointment[]      @relation("AppointmentCreator")
+  id                   String               @id @default(cuid())
+  tenantId             String
+  name                 String
+  email                String               @unique
+  phone                String?
+  emailVerifiedAt      DateTime?
+  phoneVerifiedAt      DateTime?
+  passwordHash         String
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  isActive             Boolean              @default(true)
+  role                 UserRole             @default(LAWYER)
+  twoFactorEnabled     Boolean              @default(false)
+  twoFactorSecret      String?
+  isSystemAdmin        Boolean              @default(false)
+  sessions             Session[]
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  verificationCodes    VerificationCode[]
+  passwordResetCodes   PasswordResetCode[]
+  emailChangeRequests  EmailChangeRequest[]
+  assignedTasks        Task[]               @relation("TaskAssignee")
+  createdTasks         Task[]               @relation("TaskCreator")
+  leadCases            Case[]               @relation("CaseLeadLawyer")
+  caseMemberships      CaseMember[]
+  assignedAppointments Appointment[]        @relation("AppointmentAssignee")
+  createdAppointments  Appointment[]        @relation("AppointmentCreator")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -313,26 +314,26 @@ model Payment {
 }
 
 model Appointment {
-  id          String            @id @default(cuid())
-  tenantId    String
-  clientId    String?
-  caseId      String?
+  id           String            @id @default(cuid())
+  tenantId     String
+  clientId     String?
+  caseId       String?
   assignedToId String?
   createdById  String?
-  title       String
-  description String?
-  startTime   DateTime
-  endTime     DateTime?
-  location    String?
-  type        AppointmentType   @default(MEETING)
-  status      AppointmentStatus @default(SCHEDULED)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  case        Case?             @relation(fields: [caseId], references: [id])
-  client      Client?           @relation(fields: [clientId], references: [id])
-  assignedTo  User?             @relation("AppointmentAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy   User?             @relation("AppointmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  startTime    DateTime
+  endTime      DateTime?
+  location     String?
+  type         AppointmentType   @default(MEETING)
+  status       AppointmentStatus @default(SCHEDULED)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  case         Case?             @relation(fields: [caseId], references: [id])
+  client       Client?           @relation(fields: [clientId], references: [id])
+  assignedTo   User?             @relation("AppointmentAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy    User?             @relation("AppointmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([tenantId, startTime])
@@ -638,6 +639,31 @@ model VerificationCode {
   createdAt DateTime @default(now())
 
   @@index([userId, type])
+}
+
+model EmailChangeRequest {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  currentEmail String
+  newEmail     String?
+
+  oldCodeHash     String
+  oldCodeAttempts Int       @default(0)
+  oldVerifiedAt   DateTime?
+
+  newCodeHash     String?
+  newCodeAttempts Int     @default(0)
+
+  expiresAt   DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, completedAt, createdAt])
+  @@index([expiresAt])
 }
 
 model PasswordResetCode {

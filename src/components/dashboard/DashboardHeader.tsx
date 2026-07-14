@@ -40,7 +40,7 @@ export default function DashboardHeader() {
 }, [])
 
   return (
-    <div className="relative overflow-visible rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#17352b] via-[#1d4637] to-[#10241d] p-7 md:p-9 text-white shadow-2xl">
+    <div className="relative overflow-visible rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#185354] via-[#0f3d3e] to-[#082c2d] p-7 md:p-9 text-white shadow-2xl">
 
       <div className="absolute -top-10 -left-10 w-40 h-40 bg-emerald-400/10 rounded-full blur-3xl" />
       <div className="absolute bottom-0 right-0 w-52 h-52 bg-green-300/10 rounded-full blur-3xl" />
@@ -50,7 +50,7 @@ export default function DashboardHeader() {
         {/* Left Content */}
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-sm mb-4">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="w-2 h-2 rounded-full bg-copper-400" />
             نظام Viresto مفعل
           </div>
 
@@ -97,7 +97,7 @@ export default function DashboardHeader() {
             </button>
 
             {openNotifications && (
-              <div className="absolute left-0 top-14 z-[99999] w-80 rounded-2xl bg-[#1d4637] text-white border border-white/10 p-4 shadow-2xl">
+              <div className="absolute left-0 top-14 z-[99999] w-80 rounded-2xl bg-[#0f3d3e] text-white border border-white/10 p-4 shadow-2xl">
 
                 <h3 className="font-bold mb-3 text-lg">
                   التنبيهات
@@ -153,7 +153,7 @@ export default function DashboardHeader() {
 {/* New Case */}
 <Link
   href="/dashboard/cases"
-  className="flex items-center gap-2 h-12 px-4 py-2.5 rounded-2xl bg-white text-[#17352b] font-bold shadow-lg shadow-black/10 hover:scale-[1.02] hover:shadow-xl transition-all"
+  className="flex items-center gap-2 h-12 px-4 py-2.5 rounded-2xl bg-copper-500 text-[#041819] font-bold shadow-lg shadow-black/10 hover:bg-copper-400 hover:scale-[1.02] hover:shadow-xl transition-all"
 >
   <span className="text-lg leading-none">+</span>
   قضية جديدة

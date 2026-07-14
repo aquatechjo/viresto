@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ElementType } from "react";
 import { toast } from "sonner";
@@ -17,7 +17,6 @@ import {
   CreditCard,
   BarChart3,
   Settings,
-  LogOut,
   Menu,
   Activity,
   X,
@@ -159,7 +158,6 @@ function isRole(value: unknown): value is Role {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { locale, isRtl } = useLocale();
   const t = translations[locale];
 
@@ -168,11 +166,11 @@ export default function Sidebar() {
 
   useEffect(() => {
     fetch("/api/auth/me", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        const userData = d?.data;
+      .then((response) => response.json())
+      .then((data) => {
+        const userData = data?.data;
 
-        if (d.success && userData && isRole(userData.role)) {
+        if (data.success && userData && isRole(userData.role)) {
           setUser({
             name: userData.name,
             email: userData.email,
@@ -193,15 +191,17 @@ export default function Sidebar() {
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false);
-    };
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+      }
+    }
 
-    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [mobileOpen]);
 
@@ -214,7 +214,6 @@ export default function Sidebar() {
     }).catch(() => null);
 
     toast.success(t.sidebar.logoutSuccess);
-
     window.location.href = "/login";
   }
 
@@ -224,161 +223,173 @@ export default function Sidebar() {
       : pathname.startsWith(href);
   }
 
-  const Inner = () => (
-    <div
-      dir={isRtl ? "rtl" : "ltr"}
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0f2b21] text-emerald-50"
-    >
-      {/* Brand */}
-      <div className="shrink-0 border-b border-emerald-100/10 px-4 py-4 sm:px-5 sm:py-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-emerald-50/10 ring-1 ring-emerald-100/10 sm:h-14 sm:w-14">
-            <img
-              src="/logo.png"
-              alt="Viresto"
-              className="h-10 w-10 object-contain sm:h-12 sm:w-12"
-            />
-          </div>
+  function SidebarContent({ mobile = false }: { mobile?: boolean }) {
+    return (
+      <div
+        dir={isRtl ? "rtl" : "ltr"}
+        className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0f3d3e] text-emerald-50"
+      >
+        {/* Brand */}
+        <div className="shrink-0 border-b border-emerald-100/10 px-4 py-3.5 sm:px-5 sm:py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-copper-400/30 bg-[#082c2d] shadow-lg shadow-black/20">
+              <img
+                src="/logo.png"
+                alt="Viresto"
+                className="h-full w-full scale-[1.22] object-cover"
+              />
+            </div>
 
-          <div className="min-w-0">
-            <p className="truncate text-lg font-black leading-tight text-emerald-50">
-              Viresto
-            </p>
-            <p className="mt-0.5 truncate text-xs font-bold text-emerald-100/55">
-              Legal Platform
-            </p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-lg font-black leading-tight text-white">
+                Viresto
+              </p>
+
+              <p className="mt-1 truncate text-xs font-bold text-copper-300">
+                Legal Platform
+              </p>
+            </div>
+
+            {mobile && (
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                aria-label={locale === "ar" ? "إغلاق القائمة" : "Close menu"}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-[#0b292a] text-emerald-50 transition hover:bg-[#123f40]"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Navigation */}
-      <nav className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4">
-        {NAV.map((group) => (
-          <div key={group.sectionKey} className="mb-4 last:mb-0 sm:mb-5">
-            <p className="mb-2 px-3 text-start text-[11px] font-black uppercase tracking-wide text-emerald-100/55">
-              {t.sidebar.sections[group.sectionKey]}
-            </p>
+        {/* Navigation */}
+        <nav className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4">
+          {NAV.map((group) => (
+            <div key={group.sectionKey} className="mb-3.5 last:mb-0 sm:mb-4">
+              <p className="mb-1.5 px-3 text-start text-[10px] font-black uppercase tracking-wide text-emerald-100/55 sm:mb-2 sm:text-[11px]">
+                {t.sidebar.sections[group.sectionKey]}
+              </p>
 
-            <div className="space-y-1.5">
-              {group.items
-                .filter((item) => {
-                  if (!user) return true;
-                  return item.roles.includes(user.role);
-                })
-                .map((item) => {
-                  const active = isActive(item.href);
-                  const Icon = item.icon;
+              <div className="space-y-1">
+                {group.items
+                  .filter((item) => {
+                    if (!user) return true;
+                    return item.roles.includes(user.role);
+                  })
+                  .map((item) => {
+                    const active = isActive(item.href);
+                    const Icon = item.icon;
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`
-                        group flex h-11 min-w-0 items-center gap-3 rounded-2xl px-3 text-sm font-black transition-all duration-200 sm:h-12 sm:px-4
-                        ${
-                          active
-                            ? "bg-[#294d3c] text-emerald-50 shadow-sm ring-1 ring-emerald-100/10"
-                            : "text-emerald-100/70 hover:bg-[#173827] hover:text-emerald-50"
-                        }
-                      `}
-                    >
-                      <Icon
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
                         className={`
-                          h-5 w-5 shrink-0 transition-all
+                          group flex h-10 min-w-0 items-center gap-3 rounded-2xl
+                          px-3 text-sm font-black transition-all duration-200
+                          sm:h-11 sm:px-4
                           ${
                             active
-                              ? "text-emerald-300"
-                              : "text-emerald-100/55 group-hover:text-emerald-200"
+                              ? "bg-[#b87333] text-[#041819] shadow-sm ring-1 ring-copper-300/40"
+                              : "text-emerald-100/70 hover:bg-[#123f40] hover:text-emerald-50"
                           }
                         `}
-                      />
+                      >
+                        <Icon
+                          className={`
+                            h-[18px] w-[18px] shrink-0 transition-all sm:h-5 sm:w-5
+                            ${
+                              active
+                                ? "text-[#041819]"
+                                : "text-emerald-100/55 group-hover:text-emerald-200"
+                            }
+                          `}
+                          aria-hidden="true"
+                        />
 
-                      <span className="min-w-0 flex-1 truncate text-start">
-                        {t.sidebar.nav[item.labelKey]}
-                      </span>
-                    </Link>
-                  );
-                })}
+                        <span className="min-w-0 flex-1 truncate text-start">
+                          {t.sidebar.nav[item.labelKey]}
+                        </span>
+                      </Link>
+                    );
+                  })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
+        </nav>
 
-      {/* User + Logout */}
-      <div className="shrink-0 border-t border-emerald-100/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
-        <Link
-          href="/dashboard/settings"
-          className="flex min-w-0 items-center gap-3 rounded-2xl bg-emerald-50/5 p-3 transition hover:bg-emerald-50/10"
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#294d3c] text-sm font-black text-emerald-50 sm:h-11 sm:w-11">
-            {user ? initials(user.name) : "L"}
-          </div>
+        {/* User + Logout */}
+        <div className="shrink-0 border-t border-emerald-100/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
+          <Link
+            href="/dashboard/settings"
+            className="flex min-w-0 items-center gap-3 rounded-2xl bg-emerald-50/5 p-2.5 transition hover:bg-emerald-50/10 sm:p-3"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-copper-500 text-xs font-black text-[#041819] sm:h-10 sm:w-10 sm:rounded-2xl sm:text-sm">
+              {user ? initials(user.name) : "L"}
+            </div>
 
-          <div className="min-w-0 flex-1 text-start">
-            <p className="truncate text-sm font-black text-emerald-50">
-              {user?.name ?? "..."}
-            </p>
+            <div className="min-w-0 flex-1 text-start">
+              <p className="truncate text-sm font-black text-emerald-50">
+                {user?.name ?? "..."}
+              </p>
 
-            <p className="mt-0.5 truncate text-xs font-medium text-emerald-100/65">
-              {user ? (t.sidebar.roles[user.role] ?? user.role) : ""}
-            </p>
-          </div>
+              <p className="mt-0.5 truncate text-[11px] font-medium text-emerald-100/65 sm:text-xs">
+                {user ? (t.sidebar.roles[user.role] ?? user.role) : ""}
+              </p>
+            </div>
 
-          <Settings className="h-4 w-4 shrink-0 text-emerald-100/60" />
-        </Link>
+            <Settings
+              className="h-4 w-4 shrink-0 text-emerald-100/60"
+              aria-hidden="true"
+            />
+          </Link>
 
-        <button
-          suppressHydrationWarning
-          type="button"
-          onClick={logout}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#f4d35e] px-4 py-3 text-sm font-bold text-[#06170f] transition hover:bg-[#ffe27a]"
-        >
-          {locale === "ar" ? "تسجيل الخروج" : "Logout"}
-        </button>
+          <button
+            suppressHydrationWarning
+            type="button"
+            onClick={logout}
+            className="mt-2.5 flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-[#b87333] px-4 text-sm font-bold text-[#041819] transition hover:bg-[#cc8e55] sm:mt-3 sm:h-11"
+          >
+            {locale === "ar" ? "تسجيل الخروج" : "Logout"}
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <>
-      {/* Mobile trigger */}
+      {/* Mobile / tablet trigger */}
       <button
         type="button"
-        aria-label={
-          mobileOpen
-            ? locale === "ar"
-              ? "إغلاق القائمة"
-              : "Close menu"
-            : t.sidebar.openMenu
-        }
+        aria-label={t.sidebar.openMenu}
         aria-expanded={mobileOpen}
-        title={
-          mobileOpen
-            ? locale === "ar"
-              ? "إغلاق القائمة"
-              : "Close menu"
-            : t.sidebar.openMenu
-        }
-        onClick={() => setMobileOpen((value) => !value)}
+        title={t.sidebar.openMenu}
+        onClick={() => setMobileOpen(true)}
         className={`
-          fixed top-[max(0.75rem,env(safe-area-inset-top))] z-[80] flex h-11 w-11 items-center justify-center
-          rounded-2xl border border-emerald-400/20 bg-[#10291d]
-          text-emerald-50 shadow-lg transition hover:bg-[#173827] xl:hidden
+          fixed top-[max(0.75rem,env(safe-area-inset-top))] z-[80]
+          flex h-10 w-10 items-center justify-center rounded-2xl
+          border border-emerald-400/20 bg-[#0b292a] text-emerald-50
+          shadow-lg transition duration-200 hover:bg-[#123f40] xl:hidden
           ${isRtl ? "right-3" : "left-3"}
+          ${
+            mobileOpen
+              ? "pointer-events-none scale-95 opacity-0"
+              : "scale-100 opacity-100"
+          }
         `}
       >
-        {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      {/* Mobile */}
+      {/* Mobile / tablet drawer */}
       {mobileOpen && (
         <div
-          className={`
-            fixed inset-0 z-[70] flex xl:hidden
-            ${isRtl ? "justify-end" : "justify-start"}
-          `}
+          className="fixed inset-0 z-[70] xl:hidden"
           role="dialog"
           aria-modal="true"
+          aria-label={locale === "ar" ? "قائمة التنقل" : "Navigation menu"}
         >
           <button
             type="button"
@@ -387,8 +398,14 @@ export default function Sidebar() {
             onClick={() => setMobileOpen(false)}
           />
 
-          <aside className="relative z-[1] h-dvh w-[min(20.5rem,88vw)] max-w-[88vw] shadow-2xl">
-            <Inner />
+          <aside
+            className={`
+              absolute inset-y-0 z-[1] h-dvh w-[min(19rem,88vw)]
+              max-w-[88vw] shadow-2xl
+              ${isRtl ? "right-0" : "left-0"}
+            `}
+          >
+            <SidebarContent mobile />
           </aside>
         </div>
       )}
@@ -400,7 +417,7 @@ export default function Sidebar() {
           ${isRtl ? "right-0" : "left-0"}
         `}
       >
-        <Inner />
+        <SidebarContent />
       </aside>
     </>
   );

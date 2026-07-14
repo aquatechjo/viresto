@@ -48,10 +48,10 @@ export default function LanguageToggle() {
         hover:bg-white
 
         dark:border-emerald-700/60
-        dark:bg-[#08291d]
+        dark:bg-[#082c2d]
         dark:text-white
         dark:hover:border-emerald-500/80
-        dark:hover:bg-[#103b2a]
+        dark:hover:bg-[#185354]
       "
       aria-label="Toggle language"
       title="Toggle language"
