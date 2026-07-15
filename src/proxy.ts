@@ -19,6 +19,12 @@ const publicPaths = [
   "/api/perf"
 ];
 
+// These routes authenticate machine-to-machine requests inside their handlers.
+// Keep this list exact so no sibling API route bypasses the user session check.
+const machineAuthenticatedPaths = new Set([
+  "/api/cron/prune-activity",
+]);
+
 function isPublicPath(pathname: string) {
   return publicPaths.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
@@ -129,6 +135,10 @@ export async function proxy(req: NextRequest) {
 
   if (isAsset) {
     return applySecurityHeaders(NextResponse.next());
+  }
+
+  if (machineAuthenticatedPaths.has(pathname)) {
+    return finalizeResponse(NextResponse.next(), pathname);
   }
 
   const publicRegisterEnabled =
