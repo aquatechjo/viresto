@@ -720,6 +720,36 @@ select.input {
   color: #fff;
 }
 
+/* Dark mode button contrast */
+.dark .btn-secondary,
+.dark .btn-ghost {
+  color: var(--text);
+  border-color: var(--border-dark);
+}
+.dark .btn-secondary:hover,
+.dark .btn-ghost:hover {
+  background: var(--green-soft);
+  color: #a7f3d0;
+  border-color: #4b8f8b;
+}
+.dark .btn-outline {
+  color: #a7f3d0;
+  border-color: #4b8f8b;
+}
+.dark .btn-outline:hover {
+  background: var(--green-soft);
+  color: #d1fae5;
+  border-color: #6ab0ab;
+}
+.dark .btn-soft {
+  color: #a7f3d0;
+  border-color: var(--border);
+}
+.dark .btn-soft:hover {
+  background: #185354;
+  color: #fff;
+}
+
 /* Sizes */
 .btn-xs {
   min-height: 30px;

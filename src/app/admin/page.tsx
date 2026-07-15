@@ -151,7 +151,22 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     }),
   ]);
 
-  const totals = tenants.reduce(
+  const orderedTenants = [...tenants].sort((first, second) => {
+    const firstIsSystemTenant = first.users.some(
+      (user) => user.isSystemAdmin,
+    );
+    const secondIsSystemTenant = second.users.some(
+      (user) => user.isSystemAdmin,
+    );
+
+    if (firstIsSystemTenant !== secondIsSystemTenant) {
+      return firstIsSystemTenant ? -1 : 1;
+    }
+
+    return second.createdAt.getTime() - first.createdAt.getTime();
+  });
+
+  const totals = orderedTenants.reduce(
     (acc, tenant) => {
       acc.users += tenant._count.users;
       acc.clients += tenant._count.clients;
@@ -199,7 +214,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     ? requestedStatus
     : "ALL";
 
-  const filteredTenants = tenants.filter((tenant) => {
+  const filteredTenants = orderedTenants.filter((tenant) => {
     const subscription = selectAdminSubscription(tenant.subscriptions);
     const effectiveStatus = subscription
       ? getEffectiveSubscriptionStatus(
