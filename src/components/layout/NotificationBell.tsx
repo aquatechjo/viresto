@@ -85,11 +85,13 @@ export default function NotificationBell() {
       const json = await response.json();
 
       if (json?.success) {
-        setNotifications(
-          Array.isArray(json.data?.notifications)
-            ? json.data.notifications
-            : [],
-        );
+        const unreadNotifications = Array.isArray(json.data?.notifications)
+          ? (json.data.notifications as NotificationItem[]).filter(
+              (notification) => !notification.readAt,
+            )
+          : [];
+
+        setNotifications(unreadNotifications);
         setUnreadCount(Number(json.data?.unreadCount ?? 0));
       } else {
         setNotifications([]);
@@ -127,20 +129,15 @@ export default function NotificationBell() {
   async function markAllAsRead() {
     if (unreadCount === 0) return;
 
-    const readAt = new Date().toISOString();
-
-    setNotifications((prev) =>
-      prev.map((notification) => ({
-        ...notification,
-        readAt: notification.readAt ?? readAt,
-      })),
-    );
+    setNotifications([]);
     setUnreadCount(0);
 
     try {
-      await fetch("/api/notifications/read-all", {
+      const response = await fetch("/api/notifications/read-all", {
         method: "PATCH",
       });
+
+      if (!response.ok) throw new Error(copy.error);
     } catch {
       loadNotifications();
     }
@@ -148,19 +145,20 @@ export default function NotificationBell() {
 
   async function openNotification(notification: NotificationItem) {
     if (!notification.readAt) {
-      const readAt = new Date().toISOString();
-
       setNotifications((prev) =>
-        prev.map((item) =>
-          item.id === notification.id ? { ...item, readAt } : item,
-        ),
+        prev.filter((item) => item.id !== notification.id),
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
 
       try {
-        await fetch(`/api/notifications/${notification.id}/read`, {
-          method: "PATCH",
-        });
+        const response = await fetch(
+          `/api/notifications/${notification.id}/read`,
+          {
+            method: "PATCH",
+          },
+        );
+
+        if (!response.ok) throw new Error(copy.error);
       } catch {
         loadNotifications();
       }
@@ -212,14 +210,16 @@ export default function NotificationBell() {
       {open && (
         <div
           className="
-            absolute top-full z-[90] mt-2 w-[calc(100vw-1rem)] max-w-[360px]
+            absolute top-full z-[90] mt-2
             overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl
             dark:border-[#0f3d3e] dark:bg-[#0b292a]
-            sm:w-96
           "
-          style={{ insetInlineEnd: 0 }}
+          style={{
+            width: "min(24rem, calc(100vw - 1rem))",
+            ...(isRtl ? { left: 0 } : { right: 0 }),
+          }}
         >
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-[#0f3d3e]">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-[#0f3d3e]">
             <div className="min-w-0">
               <p className="truncate text-sm font-black text-slate-900 dark:text-emerald-50">
                 {copy.title}
@@ -237,7 +237,7 @@ export default function NotificationBell() {
               onClick={markAllAsRead}
               disabled={unreadCount === 0}
               className="
-                inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200
+                inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-200
                 px-3 py-1.5 text-xs font-black text-slate-700 transition
                 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed
                 disabled:opacity-45 dark:border-emerald-700/60 dark:text-emerald-100
@@ -277,18 +277,35 @@ export default function NotificationBell() {
                   type="button"
                   key={notification.id}
                   onClick={() => openNotification(notification)}
-                  className="
-                    flex w-full min-w-0 gap-3 border-b border-slate-100 px-4 py-3 text-start
+                  className={`
+                    grid w-full min-w-0 items-start gap-3 border-b border-slate-100 px-4 py-3 text-start
                     transition hover:bg-slate-50 dark:border-[#0f3d3e]/70 dark:hover:bg-[#123f40]
-                  "
+                  `}
+                  style={{
+                    gridTemplateColumns: isRtl
+                      ? "minmax(0, 1fr) 44px"
+                      : "44px minmax(0, 1fr)",
+                  }}
                 >
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-sm dark:bg-[#082c2d]">
+                  <span
+                    className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-base dark:bg-[#082c2d]"
+                    style={{
+                      gridColumn: isRtl ? 2 : 1,
+                      gridRow: 1,
+                    }}
+                  >
                     {TYPE_ICON[notification.type] ?? "🔔"}
                   </span>
 
-                  <span className="min-w-0 flex-1">
+                  <span
+                    className={`min-w-0 ${isRtl ? "text-right" : "text-left"}`}
+                    style={{
+                      gridColumn: isRtl ? 1 : 2,
+                      gridRow: 1,
+                    }}
+                  >
                     <span className="flex items-start justify-between gap-2">
-                      <span className="min-w-0 truncate text-sm font-black text-slate-900 dark:text-emerald-50">
+                      <span className="min-w-0 flex-1 break-words text-sm font-black leading-6 text-slate-900 dark:text-emerald-50">
                         {title}
                       </span>
 
