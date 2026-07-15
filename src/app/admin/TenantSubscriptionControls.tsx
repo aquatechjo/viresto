@@ -63,6 +63,13 @@ const statusClasses: Record<string, string> = {
   MISSING: "badge badge-gray",
 };
 
+const providerLabels: Record<string, string> = {
+  MANUAL: "يدوي",
+  TAP: "دفع إلكتروني - Tap",
+  PAYTABS: "دفع إلكتروني - PayTabs",
+  HYPERPAY: "دفع إلكتروني - HyperPay",
+};
+
 function formatDate(value?: string | null) {
   if (!value) return "-";
 
@@ -219,7 +226,7 @@ export default function TenantSubscriptionControls({
           ["المبلغ المسجل", current ? formatMoney(current.amount, current.currency) : "-"],
           ["بداية المدة", formatDate(current?.currentPeriodStart)],
           ["نهاية المدة", formatDate(current?.currentPeriodEnd)],
-          ["المزود", current?.provider ?? "-"],
+          ["طريقة التفعيل", current ? providerLabels[current.provider] ?? current.provider : "-"],
         ].map(([label, value]) => (
           <div
             key={label}
@@ -340,7 +347,7 @@ export default function TenantSubscriptionControls({
                 type="button"
                 onClick={() => execute("END_NOW")}
                 disabled={Boolean(busyAction)}
-                className="rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                className="rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-400/40 dark:text-red-300 dark:hover:bg-red-500/10"
               >
                 {busyAction === "END_NOW" ? "جاري الإنهاء..." : "إنهاء الآن"}
               </button>

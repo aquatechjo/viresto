@@ -73,7 +73,15 @@ function formatDate(value?: Date | null) {
   return value.toLocaleDateString("ar-JO");
 }
 
-export default async function AdminPage() {
+type AdminPageProps = {
+  searchParams: Promise<{
+    q?: string;
+    plan?: string;
+    status?: string;
+  }>;
+};
+
+export default async function AdminPage({ searchParams }: AdminPageProps) {
   try {
     await requireSystemAdmin();
   } catch {
@@ -169,10 +177,62 @@ export default async function AdminPage() {
     },
   );
 
+  const params = await searchParams;
+  const query = String(params.q || "").trim().toLowerCase();
+  const requestedPlan = String(params.plan || "").toUpperCase();
+  const requestedStatus = String(params.status || "").toUpperCase();
+  const planFilter = ["BASIC", "PRO", "BUSINESS"].includes(requestedPlan)
+    ? requestedPlan
+    : "ALL";
+  const statusFilter = ["ACTIVE", "EXPIRED", "SUSPENDED"].includes(
+    requestedStatus,
+  )
+    ? requestedStatus
+    : "ALL";
+
+  const filteredTenants = tenants.filter((tenant) => {
+    const subscription = selectAdminSubscription(tenant.subscriptions);
+    const effectiveStatus = subscription
+      ? getEffectiveSubscriptionStatus(
+          subscription.status,
+          subscription.currentPeriodEnd,
+        )
+      : "MISSING";
+    const isSuspended =
+      tenant.isSuspended || tenant.status === "SUSPENDED";
+
+    const matchesQuery =
+      !query ||
+      tenant.name.toLowerCase().includes(query) ||
+      tenant.slug.toLowerCase().includes(query) ||
+      tenant.email?.toLowerCase().includes(query) ||
+      tenant.users.some(
+        (user) =>
+          user.name.toLowerCase().includes(query) ||
+          user.email.toLowerCase().includes(query),
+      );
+
+    const matchesPlan =
+      planFilter === "ALL" || subscription?.plan.code === planFilter;
+
+    const matchesStatus =
+      statusFilter === "ALL" ||
+      (statusFilter === "SUSPENDED" && isSuspended) ||
+      (statusFilter === "ACTIVE" &&
+        !isSuspended &&
+        ["ACTIVE", "TRIALING"].includes(effectiveStatus)) ||
+      (statusFilter === "EXPIRED" &&
+        !isSuspended &&
+        !["ACTIVE", "TRIALING"].includes(effectiveStatus));
+
+    return matchesQuery && matchesPlan && matchesStatus;
+  });
+
   return (
     <main className="min-h-screen space-y-6 p-5 md:p-8" dir="rtl">
       {/* Hero */}
       <div
+        id="overview"
         className="relative overflow-hidden rounded-[28px] border p-6"
         style={{
           background:
@@ -201,7 +261,7 @@ export default async function AdminPage() {
                 border: "1px solid rgba(255,255,255,0.18)",
               }}
             >
-              System Admin
+              إدارة الشركة
             </div>
 
             <h1 className="text-2xl font-black text-white">
@@ -315,11 +375,85 @@ export default async function AdminPage() {
         ))}
       </div>
 
-      <ManualPaymentsPanel />
+      <div id="manual-payments" className="scroll-mt-32">
+        <ManualPaymentsPanel />
+      </div>
 
       {/* Tenants */}
-      <div className="grid gap-5">
-        {tenants.map((tenant) => {
+      <section id="offices" className="scroll-mt-32 space-y-4">
+        <div className="card p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <h2 className="text-xl font-black">دليل المكاتب</h2>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-3)" }}>
+                ابحث عن مكتب أو صفِّ النتائج حسب الخطة وحالة الاشتراك، ثم افتح
+                تفاصيل المكتب المطلوب فقط.
+              </p>
+            </div>
+
+            <p className="text-sm font-black" style={{ color: "var(--text-3)" }}>
+              {filteredTenants.length} من {tenants.length} مكتب
+            </p>
+          </div>
+
+          <form
+            method="get"
+            action="/admin#offices"
+            className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_auto_auto]"
+          >
+            <label className="space-y-1 text-sm">
+              <span className="font-bold">البحث</span>
+              <input
+                name="q"
+                defaultValue={params.q ?? ""}
+                className="input"
+                placeholder="اسم المكتب، الرابط أو البريد..."
+              />
+            </label>
+
+            <label className="space-y-1 text-sm">
+              <span className="font-bold">الخطة</span>
+              <select name="plan" defaultValue={planFilter} className="input">
+                <option value="ALL">كل الخطط</option>
+                <option value="BASIC">Basic</option>
+                <option value="PRO">Pro</option>
+                <option value="BUSINESS">Business</option>
+              </select>
+            </label>
+
+            <label className="space-y-1 text-sm">
+              <span className="font-bold">الحالة</span>
+              <select name="status" defaultValue={statusFilter} className="input">
+                <option value="ALL">كل الحالات</option>
+                <option value="ACTIVE">نشط</option>
+                <option value="EXPIRED">غير نشط</option>
+                <option value="SUSPENDED">معلّق</option>
+              </select>
+            </label>
+
+            <div className="flex items-end">
+              <button className="btn btn-primary w-full">تطبيق</button>
+            </div>
+
+            <div className="flex items-end">
+              <a href="/admin#offices" className="btn btn-ghost w-full">
+                مسح
+              </a>
+            </div>
+          </form>
+        </div>
+
+        <div className="grid gap-4">
+          {filteredTenants.length === 0 && (
+            <div className="card p-8 text-center">
+              <p className="font-black">لا توجد مكاتب مطابقة</p>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-3)" }}>
+                غيّر كلمات البحث أو امسح عوامل التصفية.
+              </p>
+            </div>
+          )}
+
+          {filteredTenants.map((tenant) => {
           const hasSystemAdmin = tenant.users.some(
             (user) => user.isSystemAdmin,
           );
@@ -334,10 +468,17 @@ export default async function AdminPage() {
             : "MISSING";
 
           return (
-            <section key={tenant.id} className="card overflow-hidden p-0">
+            <details
+              key={tenant.id}
+              open={
+                filteredTenants.length === 1 &&
+                Boolean(query || planFilter !== "ALL" || statusFilter !== "ALL")
+              }
+              className="card group overflow-hidden p-0"
+            >
               {/* Tenant Header */}
-              <div
-                className="flex flex-col gap-4 border-b p-5 xl:flex-row xl:items-start xl:justify-between"
+              <summary
+                className="flex cursor-pointer list-none flex-col gap-4 border-b p-5 xl:flex-row xl:items-start xl:justify-between"
                 style={{ borderColor: "var(--border)" }}
               >
                 <div className="min-w-0">
@@ -386,7 +527,7 @@ export default async function AdminPage() {
                         color: "var(--text-3)",
                       }}
                     >
-                      Slug: {tenant.slug}
+                      رابط المكتب: {tenant.slug}
                     </span>
 
                     <span
@@ -415,28 +556,40 @@ export default async function AdminPage() {
                 </div>
 
                 <div className="shrink-0">
-                  {hasSystemAdmin ? (
-                    <span
-                      className="inline-flex rounded-xl px-4 py-2 text-sm font-bold"
-                      style={{
-                        background: "var(--input-bg)",
-                        color: "var(--text-3)",
-                      }}
-                    >
-                      محمي
-                    </span>
-                  ) : tenant.isSuspended ? (
-                    <form action={activateTenant.bind(null, tenant.id)}>
-                      <button className="btn btn-primary">تفعيل المكتب</button>
-                    </form>
-                  ) : (
-                    <form action={suspendTenant.bind(null, tenant.id)}>
-                      <button className="rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50">
-                        تعليق المكتب
-                      </button>
-                    </form>
-                  )}
+                  <span className="inline-flex rounded-xl border px-4 py-2 text-sm font-black group-open:hidden" style={{ borderColor: "var(--border)" }}>
+                    عرض التفاصيل ↓
+                  </span>
+                  <span className="hidden rounded-xl border px-4 py-2 text-sm font-black group-open:inline-flex" style={{ borderColor: "var(--border)" }}>
+                    إخفاء التفاصيل ↑
+                  </span>
                 </div>
+              </summary>
+
+              <div
+                className="flex justify-end border-b px-5 py-3"
+                style={{ borderColor: "var(--border)" }}
+              >
+                {hasSystemAdmin ? (
+                  <span
+                    className="inline-flex rounded-xl px-4 py-2 text-sm font-bold"
+                    style={{
+                      background: "var(--input-bg)",
+                      color: "var(--text-3)",
+                    }}
+                  >
+                    مكتب الشركة محمي
+                  </span>
+                ) : tenant.isSuspended ? (
+                  <form action={activateTenant.bind(null, tenant.id)}>
+                    <button className="btn btn-primary">رفع تعليق المكتب</button>
+                  </form>
+                ) : (
+                  <form action={suspendTenant.bind(null, tenant.id)}>
+                    <button className="rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 dark:border-red-400/40 dark:text-red-300 dark:hover:bg-red-500/10">
+                      تعليق المكتب
+                    </button>
+                  </form>
+                )}
               </div>
 
               {/* Tenant Stats */}
@@ -550,7 +703,7 @@ export default async function AdminPage() {
                           <th>الاسم</th>
                           <th>الإيميل</th>
                           <th>الدور</th>
-                          <th>System Admin</th>
+                          <th>مدير النظام</th>
                           <th>الحالة</th>
                           <th>تاريخ الإنشاء</th>
                           <th>إجراء</th>
@@ -599,13 +752,13 @@ export default async function AdminPage() {
                                 <form
                                   action={deactivateUser.bind(null, user.id)}
                                 >
-                                  <button className="rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50">
+                                  <button className="rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 dark:border-red-400/40 dark:text-red-300 dark:hover:bg-red-500/10">
                                     تعطيل
                                   </button>
                                 </form>
                               ) : (
                                 <form action={activateUser.bind(null, user.id)}>
-                                  <button className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-50">
+                                  <button className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/40 dark:text-emerald-200 dark:hover:bg-emerald-500/10">
                                     تفعيل
                                   </button>
                                 </form>
@@ -618,10 +771,11 @@ export default async function AdminPage() {
                   </div>
                 </div>
               </div>
-            </section>
+            </details>
           );
-        })}
-      </div>
+          })}
+        </div>
+      </section>
     </main>
   );
 }
