@@ -16,8 +16,9 @@ const publicPaths = [
   "/reset-password",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
-  "/api/perf"
 ];
+
+const exactPublicPaths = new Set(["/api/perf/ping"]);
 
 // These routes authenticate machine-to-machine requests inside their handlers.
 // Keep this list exact so no sibling API route bypasses the user session check.
@@ -26,8 +27,11 @@ const machineAuthenticatedPaths = new Set([
 ]);
 
 function isPublicPath(pathname: string) {
-  return publicPaths.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  return (
+    exactPublicPaths.has(pathname) ||
+    publicPaths.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    )
   );
 }
 

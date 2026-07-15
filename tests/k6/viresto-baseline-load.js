@@ -74,6 +74,7 @@ export default function (data) {
   });
 
   const db = http.get(`${BASE_URL}/api/perf/db`, {
+    headers: authHeaders,
     tags: { name: "GET /api/perf/db" },
   });
 
