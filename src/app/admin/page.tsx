@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import ManualPaymentsPanel from "./ManualPaymentsPanel";
+import TenantDeletionControls from "./TenantDeletionControls";
 import TenantSubscriptionControls from "./TenantSubscriptionControls";
 import { requireSystemAdmin } from "@/lib/system-admin";
 import {
@@ -118,6 +119,14 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           take: 20,
           include: {
             plan: true,
+          },
+        },
+        subscriptionPayments: {
+          where: {
+            status: "PENDING",
+          },
+          select: {
+            id: true,
           },
         },
       },
@@ -770,6 +779,23 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     </table>
                   </div>
                 </div>
+              </div>
+
+              {/* Permanent deletion */}
+              <div className="px-5 pb-5">
+                <TenantDeletionControls
+                  tenantId={tenant.id}
+                  tenantName={tenant.name}
+                  isProtectedTenant={hasSystemAdmin}
+                  isSuspended={
+                    tenant.isSuspended || tenant.status === "SUSPENDED"
+                  }
+                  hasActiveSubscription={[
+                    "ACTIVE",
+                    "TRIALING",
+                  ].includes(effectiveSubscriptionStatus)}
+                  pendingPaymentCount={tenant.subscriptionPayments.length}
+                />
               </div>
             </details>
           );

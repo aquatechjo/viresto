@@ -822,6 +822,33 @@ select.input {
   border-color: var(--gold-border);
 }
 
+/* Keep semantic badges readable against their dark-mode soft backgrounds. */
+.dark .badge-green {
+  color: #a7f3d0;
+  border-color: rgba(110, 231, 183, 0.35);
+}
+.dark .badge-amber,
+.dark .badge-gold {
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.35);
+}
+.dark .badge-red {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+.dark .badge-blue {
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+.dark .badge-purple {
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.35);
+}
+.dark .badge-gray {
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
 /* Case Status */
 .badge-OPEN {
   background: var(--green-soft);
