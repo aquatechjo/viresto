@@ -19,6 +19,7 @@ import {
   Settings,
   Menu,
   Activity,
+  ShieldCheck,
   X,
 } from "lucide-react";
 
@@ -153,6 +154,7 @@ interface User {
   name: string;
   email: string;
   role: Role;
+  isSystemAdmin: boolean;
 }
 
 function isRole(value: unknown): value is Role {
@@ -178,6 +180,7 @@ export default function Sidebar() {
             name: userData.name,
             email: userData.email,
             role: userData.role,
+            isSystemAdmin: Boolean(userData.isSystemAdmin),
           });
         }
       })
@@ -329,6 +332,32 @@ export default function Sidebar() {
             </div>
           ))}
         </nav>
+
+        {user?.isSystemAdmin && (
+          <div className="shrink-0 px-3 pb-2 sm:px-4 sm:pb-3">
+            <Link
+              href="/admin"
+              className="group flex min-h-12 items-center gap-3 rounded-2xl border border-copper-300/35 bg-copper-500/15 px-3 py-2.5 text-emerald-50 transition hover:border-copper-300/65 hover:bg-copper-500/25 sm:px-4"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#b87333] text-[#041819] shadow-sm">
+                <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+              </span>
+
+              <span className="min-w-0 flex-1 text-start">
+                <span className="block truncate text-sm font-black">
+                  {locale === "ar"
+                    ? "لوحة إدارة الشركة"
+                    : "Company admin"}
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] font-semibold text-emerald-100/60">
+                  {locale === "ar"
+                    ? "المكاتب والاشتراكات"
+                    : "Offices & subscriptions"}
+                </span>
+              </span>
+            </Link>
+          </div>
+        )}
 
         {/* User + Logout */}
         <div className="shrink-0 border-t border-emerald-100/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
