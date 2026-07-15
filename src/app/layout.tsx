@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Toaster } from 'sonner'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
+import DynamicDocumentTitle from '@/components/DynamicDocumentTitle'
 
 const siteUrl = 'https://www.virestojo.com'
 
@@ -161,7 +162,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           }}
         />
 
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <DynamicDocumentTitle />
+          {children}
+        </ThemeProvider>
 
         <Toaster
           position="bottom-left"
