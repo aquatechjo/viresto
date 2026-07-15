@@ -1,155 +1,230 @@
-'use server'
+"use server";
 
-import { revalidatePath } from 'next/cache'
-import { prisma } from '@/lib/prisma'
-import { requireSystemAdmin } from '@/lib/system-admin'
-
-const plans = ['FREE', 'PRO', 'ENTERPRISE'] as const
-const statuses = ['ACTIVE', 'TRIAL', 'EXPIRED', 'SUSPENDED'] as const
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { requireSystemAdmin } from "@/lib/system-admin";
+import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
 
 export async function suspendTenant(id: string) {
-  await requireSystemAdmin()
+  const admin = await requireSystemAdmin();
 
   const tenant = await prisma.tenant.findUnique({
     where: { id },
     select: {
       id: true,
+      name: true,
       users: {
         select: {
           isSystemAdmin: true,
         },
       },
     },
-  })
+  });
 
   if (!tenant) {
-    throw new Error('المكتب غير موجود')
+    throw new Error("المكتب غير موجود");
   }
 
-  const hasSystemAdmin = tenant.users.some((user) => user.isSystemAdmin)
+  const hasSystemAdmin = tenant.users.some((user) => user.isSystemAdmin);
 
   if (hasSystemAdmin) {
-    throw new Error('لا يمكن تعليق مكتب النظام الرئيسي')
+    throw new Error("لا يمكن تعليق مكتب النظام الرئيسي");
   }
 
-  await prisma.tenant.update({
-    where: { id },
-    data: {
-      isSuspended: true,
-      status: 'SUSPENDED',
-    },
-  })
+  await prisma.$transaction(async (tx) => {
+    await tx.tenant.update({
+      where: { id },
+      data: {
+        isSuspended: true,
+        status: "SUSPENDED",
+      },
+    });
 
-  revalidatePath('/admin')
+    await tx.session.updateMany({
+      where: {
+        tenantId: id,
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    await tx.activity.create({
+      data: {
+        tenantId: id,
+        actorId: admin.id,
+        type: "SYSTEM_ADMIN_TENANT_SUSPENDED",
+        title: "تم تعليق المكتب من إدارة النظام",
+        message: tenant.name,
+        entityType: "Tenant",
+        entityId: id,
+      },
+    });
+  });
+
+  revalidatePath("/admin");
 }
 
 export async function activateTenant(id: string) {
-  await requireSystemAdmin()
-
-  await prisma.tenant.update({
-    where: { id },
-    data: {
-      isSuspended: false,
-      status: 'ACTIVE',
-    },
-  })
-
-  revalidatePath('/admin')
-}
-
-export async function updateTenantBilling(id: string, formData: FormData) {
-  await requireSystemAdmin()
-
-  const plan = String(formData.get('plan') ?? '').toUpperCase()
-  const status = String(formData.get('status') ?? '').toUpperCase()
-  const maxUsersRaw = Number(formData.get('maxUsers') ?? 0)
-  const trialEndsAtRaw = String(formData.get('trialEndsAt') ?? '').trim()
-
-  if (!plans.includes(plan as any)) {
-    throw new Error('الخطة غير صحيحة')
-  }
-
-  if (!statuses.includes(status as any)) {
-    throw new Error('حالة الاشتراك غير صحيحة')
-  }
-
-  if (!Number.isFinite(maxUsersRaw) || maxUsersRaw < 1 || maxUsersRaw > 10000) {
-    throw new Error('عدد المستخدمين غير صالح')
-  }
+  const admin = await requireSystemAdmin();
 
   const tenant = await prisma.tenant.findUnique({
     where: { id },
     select: {
       id: true,
-      users: {
-        select: { isSystemAdmin: true },
+      name: true,
+      subscriptions: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+        select: {
+          status: true,
+          currentPeriodEnd: true,
+        },
       },
     },
-  })
+  });
 
   if (!tenant) {
-    throw new Error('المكتب غير موجود')
+    throw new Error("المكتب غير موجود");
   }
 
-  const hasSystemAdmin = tenant.users.some((user) => user.isSystemAdmin)
-  const nextStatus = status as any
+  const activeSubscription = tenant.subscriptions.find((subscription) =>
+    ["ACTIVE", "TRIALING"].includes(
+      getEffectiveSubscriptionStatus(
+        subscription.status,
+        subscription.currentPeriodEnd,
+      ),
+    ),
+  );
 
-  if (hasSystemAdmin && nextStatus === 'SUSPENDED') {
-    throw new Error('لا يمكن إيقاف مكتب النظام الرئيسي')
-  }
+  const nextTenantStatus =
+    activeSubscription?.status === "TRIALING"
+      ? "TRIAL"
+      : activeSubscription
+        ? "ACTIVE"
+        : "EXPIRED";
 
-  await prisma.tenant.update({
-    where: { id },
-    data: {
-      plan: plan as any,
-      status: nextStatus,
-      isSuspended: nextStatus === 'SUSPENDED',
-      maxUsers: Math.floor(maxUsersRaw),
-      trialEndsAt: trialEndsAtRaw ? new Date(`${trialEndsAtRaw}T23:59:59.000Z`) : null,
-    },
-  })
+  await prisma.$transaction(async (tx) => {
+    await tx.tenant.update({
+      where: { id },
+      data: {
+        isSuspended: false,
+        status: nextTenantStatus,
+      },
+    });
 
-  revalidatePath('/admin')
+    await tx.activity.create({
+      data: {
+        tenantId: id,
+        actorId: admin.id,
+        type: "SYSTEM_ADMIN_TENANT_RESTORED",
+        title: "تم رفع تعليق المكتب من إدارة النظام",
+        message: tenant.name,
+        entityType: "Tenant",
+        entityId: id,
+      },
+    });
+  });
+
+  revalidatePath("/admin");
 }
 
 export async function deactivateUser(id: string) {
-  await requireSystemAdmin()
+  const admin = await requireSystemAdmin();
 
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
       id: true,
+      tenantId: true,
+      name: true,
+      email: true,
       isSystemAdmin: true,
     },
-  })
+  });
 
   if (!user) {
-    throw new Error('المستخدم غير موجود')
+    throw new Error("المستخدم غير موجود");
   }
 
   if (user.isSystemAdmin) {
-    throw new Error('لا يمكن تعطيل حساب مدير النظام')
+    throw new Error("لا يمكن تعطيل حساب مدير النظام");
   }
 
-  await prisma.user.update({
-    where: { id },
-    data: {
-      isActive: false,
-    },
-  })
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id },
+      data: {
+        isActive: false,
+      },
+    });
 
-  revalidatePath('/admin')
+    await tx.session.updateMany({
+      where: {
+        userId: id,
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    await tx.activity.create({
+      data: {
+        tenantId: user.tenantId,
+        actorId: admin.id,
+        type: "SYSTEM_ADMIN_USER_DEACTIVATED",
+        title: "تم تعطيل مستخدم من إدارة النظام",
+        message: `${user.name} - ${user.email}`,
+        entityType: "User",
+        entityId: id,
+      },
+    });
+  });
+
+  revalidatePath("/admin");
 }
 
 export async function activateUser(id: string) {
-  await requireSystemAdmin()
+  const admin = await requireSystemAdmin();
 
-  await prisma.user.update({
+  const user = await prisma.user.findUnique({
     where: { id },
-    data: {
-      isActive: true,
+    select: {
+      id: true,
+      tenantId: true,
+      name: true,
+      email: true,
     },
-  })
+  });
 
-  revalidatePath('/admin')
+  if (!user) {
+    throw new Error("المستخدم غير موجود");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id },
+      data: {
+        isActive: true,
+      },
+    });
+
+    await tx.activity.create({
+      data: {
+        tenantId: user.tenantId,
+        actorId: admin.id,
+        type: "SYSTEM_ADMIN_USER_ACTIVATED",
+        title: "تم تفعيل مستخدم من إدارة النظام",
+        message: `${user.name} - ${user.email}`,
+        entityType: "User",
+        entityId: id,
+      },
+    });
+  });
+
+  revalidatePath("/admin");
 }

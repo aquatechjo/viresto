@@ -1,30 +1,65 @@
 import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import ManualPaymentsPanel from "./ManualPaymentsPanel";
+import TenantSubscriptionControls from "./TenantSubscriptionControls";
 import { requireSystemAdmin } from "@/lib/system-admin";
 import {
   suspendTenant,
   activateTenant,
   deactivateUser,
   activateUser,
-  updateTenantBilling,
 } from "./actions";
-import { PLAN_META, STATUS_LABELS } from "@/lib/plans";
+import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
 
-const planOptions = ["FREE", "PRO", "ENTERPRISE"] as const;
-const statusOptions = ["ACTIVE", "TRIAL", "EXPIRED", "SUSPENDED"] as const;
+type AdminSubscription = Prisma.SubscriptionGetPayload<{
+  include: {
+    plan: true;
+  };
+}>;
+
+function selectAdminSubscription(subscriptions: AdminSubscription[]) {
+  return (
+    subscriptions.find((subscription) =>
+      ["ACTIVE", "TRIALING"].includes(
+        getEffectiveSubscriptionStatus(
+          subscription.status,
+          subscription.currentPeriodEnd,
+        ),
+      ),
+    ) ??
+    subscriptions.find((subscription) =>
+      ["ACTIVE", "TRIALING"].includes(subscription.status),
+    ) ??
+    subscriptions[0] ??
+    null
+  );
+}
+
+const subscriptionStatusLabels: Record<string, string> = {
+  ACTIVE: "نشط",
+  TRIALING: "فترة تجريبية",
+  PAST_DUE: "متأخر الدفع",
+  UNPAID: "غير مدفوع",
+  CANCELLED: "منتهي",
+  EXPIRED: "منتهي",
+  MISSING: "لا يوجد اشتراك",
+};
 
 const statusClasses: Record<string, string> = {
   ACTIVE: "badge badge-green",
-  TRIAL: "badge badge-blue",
+  TRIALING: "badge badge-blue",
+  PAST_DUE: "badge badge-amber",
+  UNPAID: "badge badge-amber",
+  CANCELLED: "badge badge-red",
   EXPIRED: "badge badge-amber",
-  SUSPENDED: "badge badge-red",
+  MISSING: "badge badge-gray",
 };
 
 const planClasses: Record<string, string> = {
-  FREE: "badge badge-gray",
+  BASIC: "badge badge-gray",
   PRO: "badge badge-green",
-  ENTERPRISE: "badge badge-blue",
+  BUSINESS: "badge badge-blue",
 };
 
 const roleLabels: Record<string, string> = {
@@ -45,33 +80,59 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-  const tenants = await prisma.tenant.findMany({
-    include: {
-      _count: {
-        select: {
-          users: true,
-          clients: true,
-          cases: true,
-          payments: true,
-          documents: true,
-          invoices: true,
+  const [tenants, billingPlans] = await Promise.all([
+    prisma.tenant.findMany({
+      include: {
+        _count: {
+          select: {
+            users: true,
+            clients: true,
+            cases: true,
+            payments: true,
+            documents: true,
+            invoices: true,
+          },
+        },
+        users: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            isSystemAdmin: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+        subscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: {
+            plan: true,
+          },
         },
       },
-      users: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          isActive: true,
-          isSystemAdmin: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.billingPlan.findMany({
+      where: {
+        isActive: true,
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: {
+        sortOrder: "asc",
+      },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        currency: true,
+        priceMonthly: true,
+        priceYearly: true,
+        maxUsers: true,
+      },
+    }),
+  ]);
 
   const totals = tenants.reduce(
     (acc, tenant) => {
@@ -81,9 +142,17 @@ export default async function AdminPage() {
       acc.invoices += tenant._count.invoices;
       acc.documents += tenant._count.documents;
 
+      const subscription = selectAdminSubscription(tenant.subscriptions);
+      const effectiveStatus = subscription
+        ? getEffectiveSubscriptionStatus(
+            subscription.status,
+            subscription.currentPeriodEnd,
+          )
+        : "MISSING";
+
       if (tenant.isSuspended || tenant.status === "SUSPENDED") {
         acc.suspended += 1;
-      } else {
+      } else if (["ACTIVE", "TRIALING"].includes(effectiveStatus)) {
         acc.active += 1;
       }
 
@@ -140,8 +209,8 @@ export default async function AdminPage() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              إدارة المكاتب، الحسابات، الخطط، حدود المستخدمين، وحالة الاشتراكات
-              من لوحة مركزية واحدة.
+              إدارة المكاتب، الحسابات، الاشتراكات الفعلية، وطلبات الدفع من
+              لوحة شركة مركزية واحدة.
             </p>
           </div>
 
@@ -182,9 +251,9 @@ export default async function AdminPage() {
             bg: "var(--card)",
           },
           {
-            label: "مكاتب نشطة",
+            label: "اشتراكات نشطة",
             value: totals.active,
-            hint: "غير معلقة",
+            hint: "فعالة حاليًا",
             color: "var(--sidebar)",
             bg: "var(--green-soft)",
           },
@@ -254,14 +323,15 @@ export default async function AdminPage() {
           const hasSystemAdmin = tenant.users.some(
             (user) => user.isSystemAdmin,
           );
-          const trialValue = tenant.trialEndsAt
-            ? tenant.trialEndsAt.toISOString().slice(0, 10)
-            : "";
-
-          const tenantStatus =
-            STATUS_LABELS[tenant.status as keyof typeof STATUS_LABELS];
-
-          const tenantStatusLabel = tenantStatus?.ar ?? tenant.status;
+          const currentSubscription = selectAdminSubscription(
+            tenant.subscriptions,
+          );
+          const effectiveSubscriptionStatus = currentSubscription
+            ? getEffectiveSubscriptionStatus(
+                currentSubscription.status,
+                currentSubscription.currentPeriodEnd,
+              )
+            : "MISSING";
 
           return (
             <section key={tenant.id} className="card overflow-hidden p-0">
@@ -280,17 +350,25 @@ export default async function AdminPage() {
                     </h2>
 
                     <span
-                      className={planClasses[tenant.plan] ?? "badge badge-gray"}
+                      className={
+                        planClasses[currentSubscription?.plan.code ?? ""] ??
+                        "badge badge-gray"
+                      }
                     >
-                      {PLAN_META[tenant.plan].nameAr} - {tenant.plan}
+                      {currentSubscription
+                        ? `${currentSubscription.plan.name} - ${currentSubscription.plan.code}`
+                        : "لا توجد خطة"}
                     </span>
 
                     <span
                       className={
-                        statusClasses[tenant.status] ?? "badge badge-gray"
+                        statusClasses[effectiveSubscriptionStatus] ??
+                        "badge badge-gray"
                       }
                     >
-                      {tenantStatusLabel}
+                      {subscriptionStatusLabels[
+                        effectiveSubscriptionStatus
+                      ] ?? effectiveSubscriptionStatus}
                     </span>
 
                     {hasSystemAdmin && (
@@ -318,7 +396,7 @@ export default async function AdminPage() {
                         color: "var(--text-3)",
                       }}
                     >
-                      Max Users: {tenant.maxUsers}
+                      حد المستخدمين: {currentSubscription?.plan.maxUsers ?? 0}
                     </span>
 
                     <span
@@ -328,7 +406,10 @@ export default async function AdminPage() {
                         color: "var(--text-3)",
                       }}
                     >
-                      Trial Ends: {formatDate(tenant.trialEndsAt)}
+                      نهاية الاشتراك: {formatDate(
+                        currentSubscription?.currentPeriodEnd ??
+                          currentSubscription?.trialEndsAt,
+                      )}
                     </span>
                   </div>
                 </div>
@@ -395,101 +476,44 @@ export default async function AdminPage() {
 
               {/* Billing */}
               <div className="px-5 pb-5">
-                <form
-                  action={updateTenantBilling.bind(null, tenant.id)}
-                  className="rounded-[24px] border p-4"
-                  style={{
-                    borderColor: "var(--border)",
-                    background: "var(--input-bg)",
-                  }}
-                >
-                  <div className="mb-4">
-                    <h3 className="font-black" style={{ color: "var(--text)" }}>
-                      إعدادات الاشتراك
-                    </h3>
-
-                    <p
-                      className="mt-1 text-xs"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      عدّل الخطة، حالة الاشتراك، وعدد المستخدمين المسموح لهذا
-                      المكتب.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-5">
-                    <label className="space-y-1 text-sm">
-                      <span className="font-bold">الخطة</span>
-
-                      <select
-                        name="plan"
-                        defaultValue={tenant.plan}
-                        className="input"
-                      >
-                        {planOptions.map((plan) => (
-                          <option key={plan} value={plan}>
-                            {PLAN_META[plan].nameAr} - {plan}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="space-y-1 text-sm">
-                      <span className="font-bold">الحالة</span>
-
-                      <select
-                        name="status"
-                        defaultValue={tenant.status}
-                        className="input"
-                        disabled={hasSystemAdmin}
-                      >
-                        {statusOptions.map((status) => (
-                          <option key={status} value={status}>
-                            {STATUS_LABELS[status]?.ar ?? status} - {status}
-                          </option>
-                        ))}
-                      </select>
-
-                      {hasSystemAdmin && (
-                        <input
-                          type="hidden"
-                          name="status"
-                          value={tenant.status}
-                        />
-                      )}
-                    </label>
-
-                    <label className="space-y-1 text-sm">
-                      <span className="font-bold">Max Users</span>
-
-                      <input
-                        name="maxUsers"
-                        type="number"
-                        min={1}
-                        max={10000}
-                        defaultValue={tenant.maxUsers}
-                        className="input"
-                      />
-                    </label>
-
-                    <label className="space-y-1 text-sm">
-                      <span className="font-bold">Trial Ends</span>
-
-                      <input
-                        name="trialEndsAt"
-                        type="date"
-                        defaultValue={trialValue}
-                        className="input"
-                      />
-                    </label>
-
-                    <div className="flex items-end">
-                      <button className="btn btn-primary w-full">
-                        حفظ الاشتراك
-                      </button>
-                    </div>
-                  </div>
-                </form>
+                <TenantSubscriptionControls
+                  tenantId={tenant.id}
+                  isProtectedTenant={hasSystemAdmin}
+                  plans={billingPlans}
+                  current={
+                    currentSubscription
+                      ? {
+                          id: currentSubscription.id,
+                          status: currentSubscription.status,
+                          effectiveStatus: effectiveSubscriptionStatus,
+                          interval: currentSubscription.interval,
+                          provider: currentSubscription.provider,
+                          currency: currentSubscription.currency,
+                          amount: currentSubscription.amount,
+                          trialEndsAt:
+                            currentSubscription.trialEndsAt?.toISOString() ??
+                            null,
+                          currentPeriodStart:
+                            currentSubscription.currentPeriodStart?.toISOString() ??
+                            null,
+                          currentPeriodEnd:
+                            currentSubscription.currentPeriodEnd?.toISOString() ??
+                            null,
+                          cancelAtPeriodEnd:
+                            currentSubscription.cancelAtPeriodEnd,
+                          cancelledAt:
+                            currentSubscription.cancelledAt?.toISOString() ??
+                            null,
+                          plan: {
+                            id: currentSubscription.plan.id,
+                            code: currentSubscription.plan.code,
+                            name: currentSubscription.plan.name,
+                            maxUsers: currentSubscription.plan.maxUsers,
+                          },
+                        }
+                      : null
+                  }
+                />
               </div>
 
               {/* Users */}
