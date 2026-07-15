@@ -669,7 +669,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                           status: currentSubscription.status,
                           effectiveStatus: effectiveSubscriptionStatus,
                           interval: currentSubscription.interval,
-                          provider: currentSubscription.provider,
                           currency: currentSubscription.currency,
                           amount: currentSubscription.amount,
                           trialEndsAt:

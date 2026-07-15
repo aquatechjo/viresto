@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { BillingProvider } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -41,7 +40,6 @@ export async function GET(req: NextRequest) {
     const status = normalizeStatus(url.searchParams.get("status"));
 
     const manualPaymentWhere = {
-      provider: BillingProvider.MANUAL,
       receiptUrl: {
         not: null,
       },

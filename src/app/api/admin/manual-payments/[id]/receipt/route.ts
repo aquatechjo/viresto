@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { BillingProvider } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -60,7 +59,6 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const payment = await prisma.subscriptionPayment.findFirst({
       where: {
         id,
-        provider: BillingProvider.MANUAL,
         receiptPublicId: {
           not: null,
         },

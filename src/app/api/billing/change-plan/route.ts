@@ -138,7 +138,6 @@ export async function POST(req: NextRequest) {
           data: {
             tenantId: auth.user.tenantId,
             planId: plan.id,
-            provider: "MANUAL",
             status: "ACTIVE",
             interval,
             currency: plan.currency || "JOD",
@@ -175,7 +174,6 @@ export async function POST(req: NextRequest) {
         },
         data: {
           planId: plan.id,
-          provider: "MANUAL",
           status: "ACTIVE",
           interval,
           currency: plan.currency || "JOD",

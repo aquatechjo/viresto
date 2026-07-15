@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import {
   BillingInterval,
-  BillingProvider,
   Plan,
   SubscriptionStatus,
 } from "@prisma/client";
@@ -221,7 +220,6 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           data: {
             tenantId,
             planId: requestedPlan.id,
-            provider: BillingProvider.MANUAL,
             status: SubscriptionStatus.ACTIVE,
             interval,
             currency: requestedPlan.currency,
@@ -279,7 +277,6 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             id: currentSubscription.id,
           },
           data: {
-            provider: BillingProvider.MANUAL,
             status: SubscriptionStatus.ACTIVE,
             amount,
             currency: currentSubscription.plan.currency,

@@ -97,11 +97,6 @@ model Subscription {
   tenantId String
   planId   String
 
-  provider               BillingProvider @default(MANUAL)
-  providerCustomerId     String?
-  providerSubscriptionId String?
-  providerAgreementId    String?
-
   status   SubscriptionStatus @default(TRIALING)
   interval BillingInterval    @default(MONTHLY)
 
@@ -125,7 +120,6 @@ model Subscription {
   @@index([tenantId])
   @@index([planId])
   @@index([status])
-  @@index([provider])
   @@index([currentPeriodEnd])
 }
 
@@ -135,10 +129,6 @@ model SubscriptionPayment {
   subscriptionId    String?
   requestedPlanId   String?
   requestedInterval BillingInterval?
-
-  provider          BillingProvider @default(MANUAL)
-  providerChargeId  String?
-  providerInvoiceId String?
 
   amount   Int    @default(0) // بالفلس
   currency String @default("JOD")
@@ -165,30 +155,8 @@ model SubscriptionPayment {
   @@index([tenantId])
   @@index([subscriptionId])
   @@index([requestedPlanId])
-  @@index([provider])
-  @@index([providerChargeId])
   @@index([status])
   @@index([reviewedAt])
-}
-
-model PaymentWebhookEvent {
-  id String @id @default(cuid())
-
-  provider        BillingProvider
-  providerEventId String?
-  eventType       String?
-  payload         Json
-
-  processed Boolean @default(false)
-  error     String?
-
-  createdAt   DateTime  @default(now())
-  processedAt DateTime?
-
-  @@unique([provider, providerEventId])
-  @@index([provider])
-  @@index([eventType])
-  @@index([processed])
 }
 
 model User {
@@ -553,13 +521,6 @@ enum Plan {
   FREE
   PRO
   ENTERPRISE
-}
-
-enum BillingProvider {
-  MANUAL
-  TAP
-  PAYTABS
-  HYPERPAY
 }
 
 enum SubscriptionStatus {

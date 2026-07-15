@@ -77,9 +77,6 @@ interface ManualPaymentSettings {
 
 interface SubscriptionPayment {
   id: string;
-  provider: string;
-  providerChargeId?: string | null;
-  providerInvoiceId?: string | null;
   amount: Money;
   currency: string;
   status: string;
@@ -119,7 +116,6 @@ interface BillingData {
     statusLabel: string;
     statusTone: StatusTone;
     interval: "MONTHLY" | "YEARLY";
-    provider: string;
     amount: Money;
     currency: string;
     trialEndsAt?: string | null;
@@ -497,7 +493,6 @@ export default function BillingPage() {
     monthly: isArabic ? "شهرياً" : "monthly",
     yearly: isArabic ? "سنوياً" : "yearly",
     subscriptionStatus: isArabic ? "حالة الاشتراك" : "Subscription status",
-    billingProvider: isArabic ? "مزود الدفع" : "Billing provider",
     currentPeriodEnd: isArabic ? "نهاية الفترة الحالية" : "Current period end",
     trialEndsAt: isArabic ? "نهاية التجربة" : "Trial ends at",
     noPayments: isArabic
@@ -506,9 +501,6 @@ export default function BillingPage() {
     paymentHistory: isArabic
       ? "سجل دفعات الاشتراك"
       : "Subscription payment history",
-    changeComingSoon: isArabic
-      ? "الدفع الإلكتروني وتغيير الخطة من داخل النظام غير متاحين حالياً. لتفعيل أو تجديد الاشتراك يرجى التواصل مع إدارة Viresto."
-      : "Online payments and in-app plan changes are currently disabled. Please contact Viresto management to activate or renew your subscription.",
     aiEnabled: isArabic ? "مفعل" : "Enabled",
     aiDisabled: isArabic ? "غير مفعل" : "Disabled",
     storage: isArabic ? "التخزين" : "Storage",
@@ -726,16 +718,6 @@ export default function BillingPage() {
     load();
   }, []);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const checkout = params.get("checkout");
-
-    if (!checkout) return;
-
-    toast.info(labels.changeComingSoon);
-    window.history.replaceState({}, "", "/dashboard/billing");
-  }, [labels.changeComingSoon]);
-
   const trialLabel = useMemo(() => {
     if (!data?.tenant.trialEndsAt && !data?.subscription?.trialEndsAt) {
       return billing.noTrial;
@@ -893,11 +875,6 @@ export default function BillingPage() {
             <div className="flex items-center justify-between gap-3">
               <span>{labels.subscriptionStatus}</span>
               <b>{getStatusLabel(currentStatus, isArabic)}</b>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <span>{labels.billingProvider}</span>
-              <b>{subscription?.provider ?? "MANUAL"}</b>
             </div>
 
             <div className="flex items-center justify-between gap-3">
@@ -1446,7 +1423,6 @@ export default function BillingPage() {
                   <th>{isArabic ? "المدة" : "Interval"}</th>
                   <th>{isArabic ? "الحالة" : "Status"}</th>
                   <th>{isArabic ? "طريقة الدفع" : "Method"}</th>
-                  <th>{isArabic ? "المزود" : "Provider"}</th>
                   <th>{isArabic ? "الإيصال" : "Receipt"}</th>
                 </tr>
               </thead>
@@ -1474,7 +1450,6 @@ export default function BillingPage() {
                     <td>
                       {getPaymentMethodLabel(payment.method, isArabic)}
                     </td>
-                    <td>{payment.provider}</td>
                     <td>
                       {payment.receiptUrl ? (
                         <button

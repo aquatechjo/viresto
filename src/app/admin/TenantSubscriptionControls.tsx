@@ -19,7 +19,6 @@ type CurrentSubscription = {
   status: string;
   effectiveStatus: string;
   interval: "MONTHLY" | "YEARLY";
-  provider: string;
   currency: string;
   amount: number;
   trialEndsAt: string | null;
@@ -61,13 +60,6 @@ const statusClasses: Record<string, string> = {
   CANCELLED: "badge badge-red",
   EXPIRED: "badge badge-red",
   MISSING: "badge badge-gray",
-};
-
-const providerLabels: Record<string, string> = {
-  MANUAL: "يدوي",
-  TAP: "دفع إلكتروني - Tap",
-  PAYTABS: "دفع إلكتروني - PayTabs",
-  HYPERPAY: "دفع إلكتروني - HyperPay",
 };
 
 function formatDate(value?: string | null) {
@@ -219,14 +211,13 @@ export default function TenantSubscriptionControls({
         )}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["الخطة", current ? `${current.plan.name} (${current.plan.code})` : "-"],
           ["المدة", current?.interval === "YEARLY" ? "سنوي" : current ? "شهري" : "-"],
           ["المبلغ المسجل", current ? formatMoney(current.amount, current.currency) : "-"],
           ["بداية المدة", formatDate(current?.currentPeriodStart)],
           ["نهاية المدة", formatDate(current?.currentPeriodEnd)],
-          ["طريقة التفعيل", current ? providerLabels[current.provider] ?? current.provider : "-"],
         ].map(([label, value]) => (
           <div
             key={label}

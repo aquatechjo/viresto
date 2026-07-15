@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import {
   BillingInterval,
-  BillingProvider,
   Plan,
   SubscriptionStatus,
 } from "@prisma/client";
@@ -78,7 +77,6 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const payment = await prisma.subscriptionPayment.findFirst({
       where: {
         id,
-        provider: BillingProvider.MANUAL,
         receiptUrl: {
           not: null,
         },
@@ -192,7 +190,6 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             id: currentSubscription.id,
           },
           data: {
-            provider: BillingProvider.MANUAL,
             status: SubscriptionStatus.ACTIVE,
             amount: payment.amount,
             currency: payment.currency,
@@ -234,7 +231,6 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           data: {
             tenantId: payment.tenantId,
             planId: requestedPlan.id,
-            provider: BillingProvider.MANUAL,
             status: SubscriptionStatus.ACTIVE,
             interval: requestedInterval,
             amount: payment.amount,

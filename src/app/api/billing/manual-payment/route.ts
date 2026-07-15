@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { BillingInterval, BillingProvider } from "@prisma/client";
+import { BillingInterval } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -169,7 +169,6 @@ export async function POST(req: NextRequest) {
     const pendingPayment = await prisma.subscriptionPayment.findFirst({
       where: {
         tenantId: auth.user.tenantId,
-        provider: BillingProvider.MANUAL,
         status: "PENDING",
         receiptUrl: {
           not: null,
@@ -199,7 +198,6 @@ export async function POST(req: NextRequest) {
         tenantId: auth.user.tenantId,
         requestedPlanId: plan.id,
         requestedInterval: interval,
-        provider: BillingProvider.MANUAL,
         amount,
         currency: plan.currency,
         status: "PENDING",
