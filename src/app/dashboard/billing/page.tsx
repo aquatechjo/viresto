@@ -1143,7 +1143,7 @@ export default function BillingPage() {
           aria-labelledby="manual-payment-title"
         >
           <div
-            className={`max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[28px] border p-5 shadow-2xl ${
+            className={`no-scrollbar max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[28px] border p-5 shadow-2xl ${
               isArabic ? "text-right" : "text-left"
             }`}
             dir={isArabic ? "rtl" : "ltr"}
