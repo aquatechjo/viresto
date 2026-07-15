@@ -21,7 +21,6 @@ export default function PricingSection() {
         <div className="grid gap-6 lg:grid-cols-3">
           {PLANS.map((plan) => {
             const displayPrice = getDisplayPrice(plan);
-            const hasLaunchPrice = Boolean(plan.launchPriceJod);
 
             return (
               <article
@@ -54,16 +53,9 @@ export default function PricingSection() {
                     </span>
                   </div>
 
-                  {hasLaunchPrice && (
-                    <div className="mt-2 flex items-center gap-2 text-sm">
-                      <span className="rounded-full bg-copper-500/10 px-3 py-1 text-copper-300">
-                        سعر الإطلاق
-                      </span>
-                      <span className="text-slate-400 line-through">
-                        {plan.priceJod} JOD
-                      </span>
-                    </div>
-                  )}
+                  <p className="mt-2 text-sm text-slate-400">
+                    {plan.priceYearlyJod} JOD / سنة — وفر قيمة شهر
+                  </p>
                 </div>
 
                 <p className="min-h-12 border-b border-white/10 pb-6 text-sm leading-7 text-slate-300">

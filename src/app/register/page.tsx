@@ -358,7 +358,7 @@ export default function RegisterPage() {
                 autoComplete="organization"
                 value={form.tenantName}
                 onChange={update("tenantName")}
-                className="input"
+                className="input auth-autofill"
                 style={{
                   textAlign: isRtl ? "right" : "left",
                   direction: isRtl ? "rtl" : "ltr",
@@ -373,7 +373,7 @@ export default function RegisterPage() {
                 autoComplete="name"
                 value={form.name}
                 onChange={update("name")}
-                className="input"
+                className="input auth-autofill"
                 style={{
                   textAlign: isRtl ? "right" : "left",
                   direction: isRtl ? "rtl" : "ltr",
@@ -390,7 +390,7 @@ export default function RegisterPage() {
                 autoComplete="email"
                 value={form.email}
                 onChange={update("email")}
-                className="input"
+                className="input auth-autofill"
                 style={{
                   textAlign: "left",
                   direction: "ltr",
@@ -408,7 +408,7 @@ export default function RegisterPage() {
                 inputMode="tel"
                 value={form.phone}
                 onChange={update("phone")}
-                className="input"
+                className="input auth-autofill"
                 style={{
                   textAlign: "left",
                   direction: "ltr",
@@ -426,7 +426,7 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={form.password}
                   onChange={update("password")}
-                  className={`input ${isRtl ? "!pl-11 !text-right" : "!pr-11 !text-left"}`}
+                  className={`input auth-autofill ${isRtl ? "!pl-11 !text-right" : "!pr-11 !text-left"}`}
                   style={{
                     direction: "ltr",
                     textAlign: isRtl ? "right" : "left",
@@ -440,15 +440,24 @@ export default function RegisterPage() {
                   aria-label={
                     showPassword ? copy.hidePassword : copy.showPassword
                   }
+                  aria-pressed={showPassword}
                   title={showPassword ? copy.hidePassword : copy.showPassword}
-                  className={`absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] ${
-                    isRtl ? "left-3" : "right-3"
+                  className={`absolute top-1/2 z-20 flex h-8 w-9 -translate-y-1/2 items-center justify-center rounded-lg bg-[#f4fbf9] text-[#0f5253] shadow-sm ring-1 ring-[#b9d8d3] transition-colors hover:bg-[#e5f5f1] hover:text-[#083b3c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 dark:bg-[#123f40] dark:text-emerald-100 dark:ring-teal-700/80 dark:hover:bg-[#185354] dark:hover:text-white ${
+                    isRtl ? "left-2.5" : "right-2.5"
                   }`}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    <EyeOff
+                      className="h-[18px] w-[18px]"
+                      strokeWidth={1.8}
+                      aria-hidden="true"
+                    />
                   ) : (
-                    <Eye className="h-4 w-4" aria-hidden="true" />
+                    <Eye
+                      className="h-[18px] w-[18px]"
+                      strokeWidth={1.8}
+                      aria-hidden="true"
+                    />
                   )}
                 </button>
               </div>
@@ -514,6 +523,19 @@ export default function RegisterPage() {
           </p>
         </div>
       </div>
+
+      <style jsx global>{`
+        .auth-autofill:-webkit-autofill,
+        .auth-autofill:-webkit-autofill:hover,
+        .auth-autofill:-webkit-autofill:focus,
+        .auth-autofill:-webkit-autofill:active {
+          -webkit-text-fill-color: var(--text, #ecfdf5) !important;
+          caret-color: var(--text, #ecfdf5) !important;
+          -webkit-box-shadow: 0 0 0 1000px var(--card, #0b3031) inset !important;
+          box-shadow: 0 0 0 1000px var(--card, #0b3031) inset !important;
+          transition: background-color 9999s ease-out 0s;
+        }
+      `}</style>
     </main>
   );
 }

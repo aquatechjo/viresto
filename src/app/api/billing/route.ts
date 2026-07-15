@@ -1,5 +1,11 @@
 import { NextRequest } from "next/server";
-import { PLANS, getDisplayPrice, type PlanCode, type PlanConfig } from "@/config/plans";
+import {
+  PLANS,
+  getDisplayPrice,
+  getYearlyPrice,
+  type PlanCode,
+  type PlanConfig,
+} from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -153,14 +159,9 @@ function buildPlanPayload(dbPlan: DbPlanLike, isCurrent: boolean) {
     ? getDisplayPrice(configuredPlan)
     : dbPlan.priceMonthly / 1000;
 
-  const officialMonthlyJod = configuredPlan
-    ? configuredPlan.priceJod
-    : dbPlan.priceMonthly / 1000;
-
-  const launchMonthlyJod = configuredPlan?.launchPriceJod ?? null;
-  const yearlyJod = displayMonthlyJod * 12;
-  const officialYearlyJod = officialMonthlyJod * 12;
-  const launchYearlyJod = launchMonthlyJod ? launchMonthlyJod * 12 : null;
+  const yearlyJod = configuredPlan
+    ? getYearlyPrice(configuredPlan)
+    : dbPlan.priceYearly / 1000;
   const limits = getPlanLimits(dbPlan, configuredPlan);
 
   return {
@@ -171,19 +172,8 @@ function buildPlanPayload(dbPlan: DbPlanLike, isCurrent: boolean) {
     description: configuredPlan?.description ?? dbPlan.description,
     currency,
 
-    // السعر المعروض حالياً. في فترة الإطلاق نعرض launchPrice.
     priceMonthly: formatAmount(jodToMinorUnits(displayMonthlyJod), currency),
     priceYearly: formatAmount(jodToMinorUnits(yearlyJod), currency),
-
-    // السعر الرسمي وسعر الإطلاق حتى تقدر الواجهة تعرض: 30 بدل 40.
-    officialPriceMonthly: formatAmount(jodToMinorUnits(officialMonthlyJod), currency),
-    officialPriceYearly: formatAmount(jodToMinorUnits(officialYearlyJod), currency),
-    launchPriceMonthly: launchMonthlyJod
-      ? formatAmount(jodToMinorUnits(launchMonthlyJod), currency)
-      : null,
-    launchPriceYearly: launchYearlyJod
-      ? formatAmount(jodToMinorUnits(launchYearlyJod), currency)
-      : null,
 
     limits,
     aiEnabled: limits.aiEnabled,
@@ -223,7 +213,7 @@ export async function GET(req: NextRequest) {
         },
         subscriptions: {
           orderBy: { createdAt: "desc" },
-          take: 1,
+          take: 20,
           select: {
             id: true,
             status: true,
@@ -278,6 +268,46 @@ export async function GET(req: NextRequest) {
                 reviewedAt: true,
                 paidAt: true,
                 createdAt: true,
+              },
+            },
+          },
+        },
+        subscriptionPayments: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            provider: true,
+            providerChargeId: true,
+            providerInvoiceId: true,
+            amount: true,
+            currency: true,
+            status: true,
+            method: true,
+            receiptUrl: true,
+            receiptPublicId: true,
+            adminNote: true,
+            reviewedAt: true,
+            paidAt: true,
+            createdAt: true,
+            requestedInterval: true,
+            requestedPlan: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+            subscription: {
+              select: {
+                interval: true,
+                plan: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -350,7 +380,16 @@ export async function GET(req: NextRequest) {
     >["subscriptions"][number];
 
     const subscription: TenantSubscription | null =
-      tenant.subscriptions.length > 0 ? tenant.subscriptions[0] : null;
+      tenant.subscriptions.find((item) =>
+        ["ACTIVE", "TRIALING"].includes(
+          getEffectiveSubscriptionStatus(item.status, item.currentPeriodEnd),
+        ),
+      ) ??
+      tenant.subscriptions.find((item) =>
+        ["ACTIVE", "TRIALING"].includes(item.status),
+      ) ??
+      tenant.subscriptions[0] ??
+      null;
 
     const defaultPlan =
       plans.find((plan) => plan.code === "PRO") ?? plans[0] ?? null;
@@ -495,6 +534,26 @@ export async function GET(req: NextRequest) {
             plan: currentPlanPayload,
           }
         : null,
+
+      paymentHistory: tenant.subscriptionPayments.map((payment) => ({
+        id: payment.id,
+        provider: payment.provider,
+        providerChargeId: payment.providerChargeId,
+        providerInvoiceId: payment.providerInvoiceId,
+        amount: formatAmount(payment.amount, payment.currency),
+        currency: payment.currency,
+        status: payment.status,
+        method: payment.method,
+        receiptUrl: payment.receiptUrl,
+        receiptPublicId: payment.receiptPublicId,
+        adminNote: payment.adminNote,
+        reviewedAt: payment.reviewedAt,
+        paidAt: payment.paidAt,
+        createdAt: payment.createdAt,
+        plan: payment.requestedPlan ?? payment.subscription?.plan ?? null,
+        interval:
+          payment.requestedInterval ?? payment.subscription?.interval ?? null,
+      })),
 
       currentPlan: currentPlanPayload,
       usage,

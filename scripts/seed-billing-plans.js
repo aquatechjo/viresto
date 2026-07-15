@@ -9,9 +9,10 @@ const plans = [
     description: "للمحامي الفردي الذي يحتاج الأساسيات لإدارة مكتبه.",
     currency: "JOD",
 
-    // الأسعار مخزنة بالفلس: 20000 = 20 JOD
-    priceMonthly: 20000,
-    priceYearly: 240000,
+    // الأسعار مخزنة بالفلس: 25000 = 25 JOD
+    // السنوي يساوي 11 شهرًا: 25 × 11 = 275 JOD
+    priceMonthly: 25000,
+    priceYearly: 275000,
 
     maxUsers: 1,
     maxClients: 100,
@@ -33,10 +34,9 @@ const plans = [
     description: "الخطة الأنسب للمكاتب الصغيرة التي تحتاج فريق وميزات AI.",
     currency: "JOD",
 
-    // سعر الإطلاق: 30 JOD
-    // السعر الرسمي 40 JOD موجود في src/config/plans.ts للعرض.
-    priceMonthly: 30000,
-    priceYearly: 360000,
+    // السنوي يساوي 11 شهرًا: 40 × 11 = 440 JOD
+    priceMonthly: 40000,
+    priceYearly: 440000,
 
     maxUsers: 5,
     maxClients: 500,
@@ -55,10 +55,9 @@ const plans = [
     description: "للمكاتب المتوسطة والكبيرة التي تحتاج حدود أعلى ودعم أقوى.",
     currency: "JOD",
 
-    // سعر الإطلاق: 60 JOD
-    // السعر الرسمي 80 JOD موجود في src/config/plans.ts للعرض.
-    priceMonthly: 60000,
-    priceYearly: 720000,
+    // السنوي يساوي 11 شهرًا: 80 × 11 = 880 JOD
+    priceMonthly: 80000,
+    priceYearly: 880000,
 
     maxUsers: 15,
     maxClients: 2000,

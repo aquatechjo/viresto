@@ -27,6 +27,12 @@ type ManualPayment = {
     status: string;
     plan: string;
   };
+  plan: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
+  interval: "MONTHLY" | "YEARLY" | null;
   subscription: {
     id: string;
     status: string;
@@ -36,7 +42,7 @@ type ManualPayment = {
       code: string;
       name: string;
     };
-  };
+  } | null;
 };
 
 type ManualPaymentsResponse = {
@@ -311,21 +317,21 @@ export default function ManualPaymentsPanel() {
                     </td>
 
                     <td>
-                      <div className="font-black">
-                        {payment.subscription.plan.name}
-                      </div>
+                      <div className="font-black">{payment.plan?.name || "-"}</div>
                       <div
                         className="text-xs"
                         style={{ color: "var(--text-3)" }}
                       >
-                        {payment.subscription.plan.code}
+                        {payment.plan?.code || "-"}
                       </div>
                     </td>
 
                     <td>
-                      {payment.subscription.interval === "YEARLY"
+                      {payment.interval === "YEARLY"
                         ? "سنوي"
-                        : "شهري"}
+                        : payment.interval === "MONTHLY"
+                          ? "شهري"
+                          : "-"}
                     </td>
 
                     <td className="font-black">{payment.amount.formatted}</td>

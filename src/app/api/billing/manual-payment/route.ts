@@ -1,9 +1,5 @@
 import { NextRequest } from "next/server";
-import {
-  BillingInterval,
-  BillingProvider,
-  SubscriptionStatus,
-} from "@prisma/client";
+import { BillingInterval, BillingProvider } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -178,66 +174,45 @@ export async function POST(req: NextRequest) {
 
     const upload = await uploadReceiptToCloudinary(receipt, auth.user.tenantId);
 
-    const result = await prisma.$transaction(async (tx) => {
-      const subscription = await tx.subscription.create({
-        data: {
-          tenantId: auth.user.tenantId,
-          planId: plan.id,
-          provider: BillingProvider.MANUAL,
-          status: SubscriptionStatus.UNPAID,
+    const result = await prisma.subscriptionPayment.create({
+      data: {
+        tenantId: auth.user.tenantId,
+        requestedPlanId: plan.id,
+        requestedInterval: interval,
+        provider: BillingProvider.MANUAL,
+        amount,
+        currency: plan.currency,
+        status: "PENDING",
+        method,
+        receiptUrl: upload.secureUrl,
+        receiptPublicId: upload.publicId,
+        raw: {
+          fileName: receipt.name,
+          fileType: receipt.type,
+          fileSize: receipt.size,
+          resourceType: upload.resourceType,
+          planCode: plan.code,
+          planName: plan.name,
           interval,
-          currency: plan.currency,
-          amount,
         },
-      });
-
-      const payment = await tx.subscriptionPayment.create({
-        data: {
-          tenantId: auth.user.tenantId,
-          subscriptionId: subscription.id,
-          provider: BillingProvider.MANUAL,
-          amount,
-          currency: plan.currency,
-          status: "PENDING",
-          method,
-          receiptUrl: upload.secureUrl,
-          receiptPublicId: upload.publicId,
-          raw: {
-            fileName: receipt.name,
-            fileType: receipt.type,
-            fileSize: receipt.size,
-            resourceType: upload.resourceType,
-            planCode: plan.code,
-            planName: plan.name,
-            interval,
+      },
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        status: true,
+        method: true,
+        receiptUrl: true,
+        createdAt: true,
+        requestedInterval: true,
+        requestedPlan: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
           },
         },
-        select: {
-          id: true,
-          amount: true,
-          currency: true,
-          status: true,
-          method: true,
-          receiptUrl: true,
-          createdAt: true,
-          subscription: {
-            select: {
-              id: true,
-              status: true,
-              interval: true,
-              plan: {
-                select: {
-                  id: true,
-                  code: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      return payment;
+      },
     });
 
     return ok(

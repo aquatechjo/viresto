@@ -66,7 +66,8 @@ model BillingPlan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  subscriptions Subscription[]
+  subscriptions         Subscription[]
+  manualPaymentRequests SubscriptionPayment[] @relation("RequestedBillingPlan")
 }
 
 model Subscription {
@@ -107,9 +108,11 @@ model Subscription {
 }
 
 model SubscriptionPayment {
-  id             String @id @default(cuid())
-  tenantId       String
-  subscriptionId String
+  id                String           @id @default(cuid())
+  tenantId          String
+  subscriptionId    String?
+  requestedPlanId   String?
+  requestedInterval BillingInterval?
 
   provider          BillingProvider @default(MANUAL)
   providerChargeId  String?
@@ -133,11 +136,13 @@ model SubscriptionPayment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription  Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  requestedPlan BillingPlan?  @relation("RequestedBillingPlan", fields: [requestedPlanId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
   @@index([subscriptionId])
+  @@index([requestedPlanId])
   @@index([provider])
   @@index([providerChargeId])
   @@index([status])

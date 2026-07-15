@@ -433,6 +433,7 @@ type PublicPlanView = {
   subtitle: string;
   description: string;
   priceLabel: string;
+  yearlyPriceLabel: string;
   originalPriceLabel?: string | null;
   badge?: string;
   highlighted?: boolean;
@@ -521,7 +522,7 @@ const PLAN_PUBLIC_COPY: Record<
         { label: "المساعد الذكي AI", included: true, value: "4M tokens / شهر" },
       ],
       details: [
-        { label: "حتى 10 مستخدم", included: true },
+        { label: "حتى 15 مستخدم", included: true },
         { label: "حتى 2,000 موكل", included: true },
         { label: "حتى 5,000 قضية", included: true },
         { label: "تخزين", included: true, value: "75GB" },
@@ -605,7 +606,7 @@ const PLAN_PUBLIC_COPY: Record<
         { label: "AI assistant", included: true, value: "4M tokens / month" },
       ],
       details: [
-        { label: "Up to 10 users", included: true },
+        { label: "Up to 15 users", included: true },
         { label: "Up to 2,000 clients", included: true },
         { label: "Up to 5,000 cases", included: true },
         { label: "Storage", included: true, value: "75GB" },
@@ -631,9 +632,6 @@ function getPublicPlans(locale: Locale): PublicPlanView[] {
   return PLANS.map((plan: PlanConfig) => {
     const content = PLAN_PUBLIC_COPY[locale][plan.code];
     const displayPrice = getDisplayPrice(plan);
-    const hasLaunchPrice =
-      typeof plan.launchPriceJod === "number" &&
-      plan.launchPriceJod < plan.priceJod;
 
     return {
       code: plan.code,
@@ -641,9 +639,8 @@ function getPublicPlans(locale: Locale): PublicPlanView[] {
       subtitle: content.subtitle,
       description: content.description,
       priceLabel: formatJodPrice(displayPrice, locale),
-      originalPriceLabel: hasLaunchPrice
-        ? formatJodPrice(plan.priceJod, locale)
-        : null,
+      yearlyPriceLabel: formatJodPrice(plan.priceYearlyJod, locale),
+      originalPriceLabel: null,
       badge: content.badge ?? plan.badge,
       highlighted: plan.highlighted,
       features: content.features,
@@ -1007,6 +1004,13 @@ export default function HomePage() {
                       {copy.pricing.perMonth}
                     </span>
                   </div>
+
+                  <p className="mt-3 text-sm font-bold text-slate-400">
+                    <span dir="ltr">{plan.yearlyPriceLabel}</span>{" "}
+                    {isArabic
+                      ? "/ سنويًا — وفر قيمة شهر"
+                      : "/ yearly — save one month"}
+                  </p>
                 </div>
 
                 <div className="mt-7 flex-1">

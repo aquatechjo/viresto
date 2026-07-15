@@ -114,9 +114,10 @@ function formatStorageMb(storageMb: number) {
 export async function getTenantBillingLimits(
   tenantId: string,
 ): Promise<TenantBillingLimits> {
-  const subscription = await prisma.subscription.findFirst({
+  const subscriptions = await prisma.subscription.findMany({
     where: { tenantId },
     orderBy: { createdAt: "desc" },
+    take: 20,
     select: {
       id: true,
       status: true,
@@ -136,6 +137,18 @@ export async function getTenantBillingLimits(
       },
     },
   });
+
+  const subscription =
+    subscriptions.find((item) =>
+      ["ACTIVE", "TRIALING"].includes(
+        getEffectiveSubscriptionStatus(item.status, item.currentPeriodEnd),
+      ),
+    ) ??
+    subscriptions.find((item) =>
+      ["ACTIVE", "TRIALING"].includes(item.status),
+    ) ??
+    subscriptions[0] ??
+    null;
 
   if (subscription?.plan) {
     const status = getEffectiveSubscriptionStatus(

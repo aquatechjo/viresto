@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { BillingProvider, SubscriptionStatus } from "@prisma/client";
+import { BillingProvider } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -51,7 +51,6 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       select: {
         id: true,
         tenantId: true,
-        subscriptionId: true,
         status: true,
       },
     });
@@ -67,6 +66,20 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const now = new Date();
 
     const result = await prisma.$transaction(async (tx) => {
+      const claim = await tx.subscriptionPayment.updateMany({
+        where: {
+          id: payment.id,
+          status: "PENDING",
+        },
+        data: {
+          status: "PROCESSING",
+        },
+      });
+
+      if (claim.count !== 1) {
+        return null;
+      }
+
       const updatedPayment = await tx.subscriptionPayment.update({
         where: {
           id: payment.id,
@@ -79,22 +92,26 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         },
       });
 
-      const updatedSubscription = await tx.subscription.update({
-        where: {
-          id: payment.subscriptionId,
-        },
+      await tx.activity.create({
         data: {
-          status: SubscriptionStatus.CANCELLED,
-          cancelledAt: now,
-          cancelAtPeriodEnd: false,
+          tenantId: payment.tenantId,
+          actorId: auth.user.userId,
+          type: "MANUAL_PAYMENT_REJECTED",
+          title: "تم رفض طلب الدفع اليدوي",
+          message: adminNote || "تم رفض الإيصال بعد المراجعة",
+          entityType: "SubscriptionPayment",
+          entityId: payment.id,
         },
       });
 
       return {
         payment: updatedPayment,
-        subscription: updatedSubscription,
       };
     });
+
+    if (!result) {
+      return err("تمت مراجعة الطلب مسبقًا أو تتم مراجعته الآن", 409);
+    }
 
     return ok({
       message: "تم رفض طلب الدفع",

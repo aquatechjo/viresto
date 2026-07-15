@@ -12,7 +12,7 @@ export type PlanConfig = {
   subtitle: string;
   description: string;
   priceJod: number;
-  launchPriceJod?: number | null;
+  priceYearlyJod: number;
   badge?: string;
   highlighted?: boolean;
 
@@ -35,8 +35,8 @@ export const PLANS: PlanConfig[] = [
     name: "Basic",
     subtitle: "للمحامي الفردي",
     description: "كل الأساسيات لتبدأ تنظيم عملك القانوني باحترافية.",
-    priceJod: 20,
-    launchPriceJod: null,
+    priceJod: 25,
+    priceYearlyJod: 275,
     highlighted: false,
     limits: {
       users: 1,
@@ -66,7 +66,7 @@ export const PLANS: PlanConfig[] = [
     subtitle: "للمكاتب الصغيرة",
     description: "الخطة الأنسب لإدارة مكتبك وفريقك بكفاءة.",
     priceJod: 40,
-    launchPriceJod: 30,
+    priceYearlyJod: 440,
     badge: "الأكثر طلبًا",
     highlighted: true,
     limits: {
@@ -97,7 +97,7 @@ export const PLANS: PlanConfig[] = [
     subtitle: "للمكاتب المتوسطة والكبيرة",
     description: "حل متكامل للمكاتب التي تحتاج حدودًا أعلى ودعمًا أقوى.",
     priceJod: 80,
-    launchPriceJod: 60,
+    priceYearlyJod: 880,
     highlighted: false,
     limits: {
       users: 15,
@@ -149,7 +149,11 @@ export function getPlanByCode(code: PlanCode) {
 }
 
 export function getDisplayPrice(plan: PlanConfig) {
-  return plan.launchPriceJod ?? plan.priceJod;
+  return plan.priceJod;
+}
+
+export function getYearlyPrice(plan: PlanConfig) {
+  return plan.priceYearlyJod;
 }
 
 export function formatTokens(tokens: number) {

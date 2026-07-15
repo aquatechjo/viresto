@@ -40,19 +40,24 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const status = normalizeStatus(url.searchParams.get("status"));
 
-    const payments = await prisma.subscriptionPayment.findMany({
-      where: {
-        provider: BillingProvider.MANUAL,
-        receiptUrl: {
-          not: null,
+    const manualPaymentWhere = {
+      provider: BillingProvider.MANUAL,
+      receiptUrl: {
+        not: null,
+      },
+    } as const;
+
+    const [payments, statusCounts] = await Promise.all([
+      prisma.subscriptionPayment.findMany({
+        where: {
+          ...manualPaymentWhere,
+          ...(status ? { status } : {}),
         },
-        ...(status ? { status } : {}),
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 100,
-      select: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 100,
+        select: {
         id: true,
         amount: true,
         currency: true,
@@ -67,6 +72,23 @@ export async function GET(req: NextRequest) {
         createdAt: true,
         updatedAt: true,
         raw: true,
+        requestedInterval: true,
+        requestedPlan: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            currency: true,
+            priceMonthly: true,
+            priceYearly: true,
+            maxUsers: true,
+            maxClients: true,
+            maxCases: true,
+            maxDocuments: true,
+            maxStorageMb: true,
+            aiEnabled: true,
+          },
+        },
         tenant: {
           select: {
             id: true,
@@ -104,16 +126,29 @@ export async function GET(req: NextRequest) {
             },
           },
         },
-      },
-    });
+        },
+      }),
+      prisma.subscriptionPayment.groupBy({
+        by: ["status"],
+        where: {
+          ...manualPaymentWhere,
+          status: {
+            in: ["PENDING", "APPROVED", "REJECTED"],
+          },
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+    ]);
 
-    const summary = payments.reduce(
-      (acc, payment) => {
-        const key = payment.status.toUpperCase();
+    const summary = statusCounts.reduce(
+      (acc, item) => {
+        const key = item.status.toUpperCase();
 
-        if (key === "PENDING") acc.pending += 1;
-        else if (key === "APPROVED") acc.approved += 1;
-        else if (key === "REJECTED") acc.rejected += 1;
+        if (key === "PENDING") acc.pending = item._count._all;
+        else if (key === "APPROVED") acc.approved = item._count._all;
+        else if (key === "REJECTED") acc.rejected = item._count._all;
 
         return acc;
       },
@@ -126,24 +161,32 @@ export async function GET(req: NextRequest) {
 
     return ok({
       summary,
-      payments: payments.map((payment) => ({
-        id: payment.id,
-        amount: formatMoney(payment.amount, payment.currency),
-        currency: payment.currency,
-        status: payment.status,
-        method: payment.method,
-        receiptUrl: payment.receiptUrl,
-        receiptPublicId: payment.receiptPublicId,
-        adminNote: payment.adminNote,
-        reviewedById: payment.reviewedById,
-        reviewedAt: payment.reviewedAt,
-        paidAt: payment.paidAt,
-        createdAt: payment.createdAt,
-        updatedAt: payment.updatedAt,
-        raw: payment.raw,
-        tenant: payment.tenant,
-        subscription: payment.subscription,
-      })),
+      payments: payments.map((payment) => {
+        const plan = payment.requestedPlan ?? payment.subscription?.plan ?? null;
+        const interval =
+          payment.requestedInterval ?? payment.subscription?.interval ?? null;
+
+        return {
+          id: payment.id,
+          amount: formatMoney(payment.amount, payment.currency),
+          currency: payment.currency,
+          status: payment.status,
+          method: payment.method,
+          receiptUrl: payment.receiptUrl,
+          receiptPublicId: payment.receiptPublicId,
+          adminNote: payment.adminNote,
+          reviewedById: payment.reviewedById,
+          reviewedAt: payment.reviewedAt,
+          paidAt: payment.paidAt,
+          createdAt: payment.createdAt,
+          updatedAt: payment.updatedAt,
+          raw: payment.raw,
+          tenant: payment.tenant,
+          plan,
+          interval,
+          subscription: payment.subscription,
+        };
+      }),
     });
   });
 }

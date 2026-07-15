@@ -65,6 +65,12 @@ interface SubscriptionPayment {
   reviewedAt?: string | null;
   paidAt?: string | null;
   createdAt: string;
+  plan?: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
+  interval?: "MONTHLY" | "YEARLY" | null;
 }
 
 interface BillingData {
@@ -103,6 +109,7 @@ interface BillingData {
     payments: SubscriptionPayment[];
     plan: BillingPlan;
   } | null;
+  paymentHistory: SubscriptionPayment[];
   currentPlan: BillingPlan;
   usage: {
     users: UsageItem;
@@ -235,17 +242,6 @@ function getStatusToneFromStatus(status: SubscriptionStatus): StatusTone {
 
 function getPlanCode(plan: BillingPlan) {
   return plan.code.toUpperCase();
-}
-
-function getOfficialMonthlyPriceJod(plan: BillingPlan) {
-  switch (getPlanCode(plan)) {
-    case "PRO":
-      return 40;
-    case "BUSINESS":
-      return 80;
-    default:
-      return null;
-  }
 }
 
 function moneyToJod(money: Money) {
@@ -914,11 +910,7 @@ export default function BillingPage() {
                 currentStatus,
               );
             const features = getPlanFeatures(plan, isArabic);
-            const officialMonthlyPrice = getOfficialMonthlyPriceJod(plan);
             const currentMonthlyPriceJod = moneyToJod(plan.priceMonthly);
-            const showLaunchPrice =
-              officialMonthlyPrice !== null &&
-              currentMonthlyPriceJod < officialMonthlyPrice;
             const code = getPlanCode(plan);
             const highlighted = code === "PRO";
 
@@ -970,21 +962,6 @@ export default function BillingPage() {
                   </div>
 
                   <div className="mt-6 rounded-[24px] border border-white/10 bg-black/20 p-5">
-                    {showLaunchPrice && (
-                      <div className="mb-1 flex items-center justify-end gap-2 text-sm font-black">
-                        <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-xs text-emerald-200">
-                          {isArabic ? "سعر الإطلاق" : "Launch price"}
-                        </span>
-
-                        <span
-                          dir="ltr"
-                          className="text-slate-400 line-through decoration-slate-400"
-                        >
-                          {officialMonthlyPrice} JOD
-                        </span>
-                      </div>
-                    )}
-
                     <div
                       dir="ltr"
                       className="flex items-end justify-end gap-2 text-right"
@@ -1293,7 +1270,7 @@ export default function BillingPage() {
       <div className="card p-5">
         <h2 className="mb-4 text-xl font-black">{labels.paymentHistory}</h2>
 
-        {!subscription?.payments?.length ? (
+        {!data.paymentHistory.length ? (
           <p className="text-sm" style={{ color: "var(--muted)" }}>
             {labels.noPayments}
           </p>
@@ -1304,6 +1281,8 @@ export default function BillingPage() {
                 <tr>
                   <th>{isArabic ? "التاريخ" : "Date"}</th>
                   <th>{isArabic ? "المبلغ" : "Amount"}</th>
+                  <th>{isArabic ? "الخطة" : "Plan"}</th>
+                  <th>{isArabic ? "المدة" : "Interval"}</th>
                   <th>{isArabic ? "الحالة" : "Status"}</th>
                   <th>{isArabic ? "طريقة الدفع" : "Method"}</th>
                   <th>{isArabic ? "المزود" : "Provider"}</th>
@@ -1312,12 +1291,24 @@ export default function BillingPage() {
               </thead>
 
               <tbody>
-                {subscription.payments.map((payment) => (
+                {data.paymentHistory.map((payment) => (
                   <tr key={payment.id}>
                     <td>
                       {formatDate(payment.paidAt || payment.createdAt, locale)}
                     </td>
                     <td>{payment.amount.formatted}</td>
+                    <td>{payment.plan?.name || "-"}</td>
+                    <td>
+                      {payment.interval === "YEARLY"
+                        ? isArabic
+                          ? "سنوي"
+                          : "Yearly"
+                        : payment.interval === "MONTHLY"
+                          ? isArabic
+                            ? "شهري"
+                            : "Monthly"
+                          : "-"}
+                    </td>
                     <td>{payment.status}</td>
                     <td>{payment.method || "-"}</td>
                     <td>{payment.provider}</td>

@@ -1,5 +1,10 @@
 import { NextRequest } from "next/server";
-import { PLANS, getDisplayPrice, type PlanCode } from "@/config/plans";
+import {
+  PLANS,
+  getDisplayPrice,
+  getYearlyPrice,
+  type PlanCode,
+} from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -37,14 +42,11 @@ function getPlanAmountFils(planCode: PlanCode, interval: BillingInterval) {
     return null;
   }
 
-  const monthlyAmountJod = getDisplayPrice(configuredPlan);
-  const monthlyAmountFils = monthlyAmountJod * 1000;
-
   if (interval === "YEARLY") {
-    return monthlyAmountFils * 12;
+    return getYearlyPrice(configuredPlan) * 1000;
   }
 
-  return monthlyAmountFils;
+  return getDisplayPrice(configuredPlan) * 1000;
 }
 
 function getBaseUrl(req: NextRequest) {
@@ -237,7 +239,7 @@ export async function POST(req: NextRequest) {
         amountJod: amount / 1000,
         interval,
         officialMonthlyPriceJod: configuredPlan.priceJod,
-        launchMonthlyPriceJod: configuredPlan.launchPriceJod ?? null,
+        yearlyPriceJod: configuredPlan.priceYearlyJod,
       },
     });
   });
