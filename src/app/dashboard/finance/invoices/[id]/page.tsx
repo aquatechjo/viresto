@@ -1595,20 +1595,22 @@ export default function InvoiceDetailsPage() {
                   </p>
 
                   <h2
-                    className="mt-1 text-4xl font-black text-white"
-                    style={{ color: "#ffffff" }}
+                    className="mt-2 pb-1 text-4xl font-black leading-[1.4] text-white"
+                    style={{ color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
                   >
                     {invoiceCopy.invoice}
                   </h2>
 
-                  <span
-                    dir="ltr"
-                    className="mt-3 inline-flex rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-black"
-                  >
-                    {formatInvoiceNumber(invoice.invoiceNumber)}
-                  </span>
+                  <div className="mt-3">
+                    <span
+                      dir="ltr"
+                      className="inline-flex rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-black leading-5"
+                    >
+                      {formatInvoiceNumber(invoice.invoiceNumber)}
+                    </span>
+                  </div>
 
-                  <p className="mt-3 text-xs font-black text-white/80">
+                  <p className="mt-4 text-xs font-black leading-5 text-white/80">
                     {invoiceCopy.status}: {invoiceCopy.statuses[invoice.status]}
                   </p>
                 </div>

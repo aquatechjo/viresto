@@ -601,15 +601,16 @@ export function buildInvoicePrintHtml(
     }
 
     .invoice-heading h2 {
-      margin: 4px 0 0;
+      margin: 6px 0 0;
+      padding-bottom: 3px;
       font-size: 38px;
-      line-height: 1.15;
+      line-height: 1.4;
       font-weight: 950;
     }
 
     .invoice-number {
       display: inline-flex;
-      margin-top: 13px;
+      margin-top: 12px;
       padding: 8px 14px;
       border-radius: 999px;
       background: rgba(255,255,255,.14);
@@ -622,7 +623,7 @@ export function buildInvoicePrintHtml(
 
     .status-chip {
       display: inline-flex;
-      margin-top: 10px;
+      margin-top: 0;
       padding: 7px 12px;
       border-radius: 999px;
       color: #fff;
@@ -749,6 +750,10 @@ export function buildInvoicePrintHtml(
       text-align: ${textAlign};
       border-bottom: 1px solid var(--line);
       font-weight: 900;
+    }
+
+    .status-row {
+      margin-top: 12px;
     }
 
     td {
@@ -932,8 +937,9 @@ export function buildInvoicePrintHtml(
         <div class="eyebrow">Viresto</div>
         <h2>${escapeHtml(copy.invoice)}</h2>
         <div class="invoice-number">${escapeHtml(invoiceNo)}</div>
-        <br />
-        <div class="status-chip">${escapeHtml(copy.statuses[invoice.status])}</div>
+        <div class="status-row">
+          <div class="status-chip">${escapeHtml(copy.statuses[invoice.status])}</div>
+        </div>
       </div>
     </section>
 
