@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
+import DateTimePicker from '@/components/ui/DateTimePicker'
 import EmptyState from '@/components/ui/EmptyState'
 import AppLoader from '@/components/ui/AppLoader'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
@@ -1263,7 +1264,7 @@ export default function PaymentsPage() {
         >
           <form
             onSubmit={createPayment}
-            className="card max-h-[92vh] w-full max-w-3xl overflow-y-auto p-0"
+            className="card hide-scrollbar max-h-[92vh] w-full max-w-3xl overflow-y-auto p-0"
             dir={isRtl ? 'rtl' : 'ltr'}
           >
             <div
@@ -1452,16 +1453,16 @@ export default function PaymentsPage() {
                   <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
                     {copy.form.paymentDate}
                   </label>
-                  <input
-                    type="datetime-local"
+                  <DateTimePicker
                     value={paymentForm.paidAt}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       setPaymentForm((current) => ({
                         ...current,
-                        paidAt: event.target.value,
+                        paidAt: value,
                       }))
                     }
-                    className="input min-h-12 w-full"
+                    locale={locale}
+                    ariaLabel={copy.form.paymentDate}
                   />
                 </div>
               </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import Modal from "@/components/ui/Modal";
+import DateTimePicker from "@/components/ui/DateTimePicker";
 import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
 import PageLoader from "@/components/ui/PageLoader";
@@ -355,12 +356,6 @@ export default function TasksPage() {
       direction: isRtl ? "rtl" : "ltr",
     } as React.CSSProperties,
   };
-  const dateFieldStyle = {
-    textAlign: "left",
-    direction: "ltr",
-    colorScheme: "dark",
-  } as React.CSSProperties;
-
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "done">("all");
@@ -1443,19 +1438,16 @@ export default function TasksPage() {
             </FormField>
 
             <FormField label={taskCopy.form.dueDate}>
-              <input
-                aria-label={taskCopy.form.dueDate}
-                type="datetime-local"
+              <DateTimePicker
                 value={form.dueDate}
-                onChange={(event) =>
+                onChange={(value) =>
                   setForm((previous) => ({
                     ...previous,
-                    dueDate: event.target.value,
+                    dueDate: value,
                   }))
                 }
-                className="input"
-                dir="ltr"
-                style={dateFieldStyle}
+                locale={locale}
+                ariaLabel={taskCopy.form.dueDate}
               />
             </FormField>
           </div>
@@ -1682,18 +1674,16 @@ export default function TasksPage() {
           </div>
 
           <FormField label={taskCopy.form.dueDate}>
-            <input
-              type="datetime-local"
+            <DateTimePicker
               value={editForm.dueDate}
-              onChange={(event) =>
+              onChange={(value) =>
                 setEditForm((previous) => ({
                   ...previous,
-                  dueDate: event.target.value,
+                  dueDate: value,
                 }))
               }
-              className="input"
-              dir="ltr"
-              style={dateFieldStyle}
+              locale={locale}
+              ariaLabel={taskCopy.form.dueDate}
             />
           </FormField>
 
