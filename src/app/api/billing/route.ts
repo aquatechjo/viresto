@@ -11,6 +11,10 @@ import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
+import {
+  buildPublicManualPaymentSettings,
+  MANUAL_PAYMENT_SETTINGS_ID,
+} from "@/lib/manual-payment-settings";
 
 type DbPlanLike = {
   id: string;
@@ -319,7 +323,8 @@ export async function GET(req: NextRequest) {
       return err("المكتب غير موجود", 404);
     }
 
-    const [plans, usageCounts, storageAggregate] = await Promise.all([
+    const [plans, usageCounts, storageAggregate, manualPaymentSettings] =
+      await Promise.all([
       prisma.billingPlan.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: "asc" },
@@ -371,6 +376,11 @@ export async function GET(req: NextRequest) {
         },
         _sum: {
           fileSize: true,
+        },
+      }),
+      prisma.manualPaymentSettings.findUnique({
+        where: {
+          id: MANUAL_PAYMENT_SETTINGS_ID,
         },
       }),
     ]);
@@ -559,6 +569,9 @@ export async function GET(req: NextRequest) {
       usage,
       warnings,
       availablePlans,
+      manualPaymentSettings: buildPublicManualPaymentSettings(
+        manualPaymentSettings,
+      ),
 
       period: {
         currentPeriodStart: subscription?.currentPeriodStart ?? null,

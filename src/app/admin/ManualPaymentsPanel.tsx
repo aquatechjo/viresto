@@ -72,6 +72,17 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+function formatPaymentMethod(value?: string | null) {
+  switch (value?.toUpperCase().replace(/[ -]+/g, "_")) {
+    case "CLIQ":
+      return "CliQ";
+    case "BANK_TRANSFER":
+      return "تحويل بنكي";
+    default:
+      return value || "-";
+  }
+}
+
 export default function ManualPaymentsPanel() {
   const [data, setData] = useState<ManualPaymentsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -336,7 +347,7 @@ export default function ManualPaymentsPanel() {
 
                     <td className="font-black">{payment.amount.formatted}</td>
 
-                    <td>{payment.method || "-"}</td>
+                    <td>{formatPaymentMethod(payment.method)}</td>
 
                     <td>
                       <span

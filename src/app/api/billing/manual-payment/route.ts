@@ -5,6 +5,11 @@ import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
+import {
+  buildPublicManualPaymentSettings,
+  MANUAL_PAYMENT_SETTINGS_ID,
+  normalizeManualPaymentMethod,
+} from "@/lib/manual-payment-settings";
 
 export const runtime = "nodejs";
 
@@ -19,14 +24,6 @@ const ALLOWED_RECEIPT_TYPES = new Set([
 
 function normalizeInterval(value: FormDataEntryValue | null): BillingInterval {
   return value === "YEARLY" ? "YEARLY" : "MONTHLY";
-}
-
-function normalizeMethod(value: FormDataEntryValue | null) {
-  const method = String(value || "").trim();
-
-  if (!method) return null;
-
-  return method.slice(0, 50);
 }
 
 async function uploadReceiptToCloudinary(file: File, tenantId: string) {
@@ -94,7 +91,7 @@ export async function POST(req: NextRequest) {
 
     const planId = String(formData.get("planId") || "").trim();
     const interval = normalizeInterval(formData.get("interval"));
-    const method = normalizeMethod(formData.get("method"));
+    const method = normalizeManualPaymentMethod(formData.get("method"));
     const receipt = formData.get("receipt");
 
     if (!planId) {
@@ -102,7 +99,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!method) {
-      return err("طريقة الدفع مطلوبة", 400);
+      return err("طريقة الدفع غير صالحة", 400);
     }
 
     if (!(receipt instanceof File)) {
@@ -119,6 +116,29 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_RECEIPT_TYPES.has(receipt.type)) {
       return err("نوع الملف غير مدعوم. ارفع صورة JPG/PNG/WebP أو PDF", 400);
+    }
+
+    const manualPaymentSettings =
+      await prisma.manualPaymentSettings.findUnique({
+        where: {
+          id: MANUAL_PAYMENT_SETTINGS_ID,
+        },
+      });
+
+    const publicPaymentSettings = buildPublicManualPaymentSettings(
+      manualPaymentSettings,
+    );
+
+    if (!publicPaymentSettings.enabled) {
+      return err("الدفع اليدوي غير متاح حاليًا", 409);
+    }
+
+    if (
+      !publicPaymentSettings.methods.some(
+        (configuredMethod) => configuredMethod.code === method,
+      )
+    ) {
+      return err("طريقة الدفع المختارة غير مفعّلة", 400);
     }
 
     const plan = await prisma.billingPlan.findFirst({
@@ -194,6 +214,7 @@ export async function POST(req: NextRequest) {
           planCode: plan.code,
           planName: plan.name,
           interval,
+          paymentMethod: method,
         },
       },
       select: {

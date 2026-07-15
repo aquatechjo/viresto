@@ -70,6 +70,28 @@ model BillingPlan {
   manualPaymentRequests SubscriptionPayment[] @relation("RequestedBillingPlan")
 }
 
+model ManualPaymentSettings {
+  id String @id
+
+  isEnabled Boolean @default(false)
+
+  accountHolderName String?
+
+  cliqEnabled Boolean @default(false)
+  cliqAlias   String?
+
+  bankTransferEnabled Boolean @default(false)
+  bankName            String?
+  iban                String?
+
+  instructionsAr String?
+  instructionsEn String?
+
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Subscription {
   id       String @id @default(cuid())
   tenantId String

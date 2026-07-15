@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import ManualPaymentsPanel from "./ManualPaymentsPanel";
+import ManualPaymentSettingsPanel from "./ManualPaymentSettingsPanel";
 import TenantDeletionControls from "./TenantDeletionControls";
 import TenantSubscriptionControls from "./TenantSubscriptionControls";
 import { requireSystemAdmin } from "@/lib/system-admin";
@@ -397,6 +398,10 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             </p>
           </div>
         ))}
+      </div>
+
+      <div id="payment-settings" className="scroll-mt-32">
+        <ManualPaymentSettingsPanel />
       </div>
 
       <div id="manual-payments" className="scroll-mt-32">
