@@ -868,6 +868,11 @@ export function buildInvoicePrintHtml(
       font-size: 10.5px;
     }
 
+    .closing {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
     @media (max-width: 720px) {
       body { padding: 10px; }
       .paper { border-radius: 20px; }
@@ -898,10 +903,16 @@ export function buildInvoicePrintHtml(
       }
       .hero { border-radius: 0; }
       .content { padding: 24px 28px 18px; }
-      .summary-card, .box, .table-wrap, .notes, .totals {
+      .hero, .summary, .details-grid, .summary-card, .box, .table-wrap,
+      .notes, .totals, .bottom, .payment-strip, .closing {
         break-inside: avoid;
+        page-break-inside: avoid;
       }
-      tr { break-inside: avoid; }
+      thead { display: table-header-group; }
+      tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
       @page { size: A4; margin: 8mm; }
     }
   </style>
@@ -1048,15 +1059,16 @@ ${
     : ""
 }
 
+      <div class="closing">
+        <div class="signatures">
+          <div class="signature">${escapeHtml(copy.officeSignature)}</div>
+          <div class="signature">${escapeHtml(copy.clientSignature)}</div>
+        </div>
 
-      <div class="signatures">
-        <div class="signature">${escapeHtml(copy.officeSignature)}</div>
-        <div class="signature">${escapeHtml(copy.clientSignature)}</div>
-      </div>
-
-      <div class="footer">
-        <span>${escapeHtml(copy.generatedBy)}</span>
-        <span class="numeric">${escapeHtml(invoiceNo)}</span>
+        <div class="footer">
+          <span>${escapeHtml(copy.generatedBy)}</span>
+          <span class="numeric">${escapeHtml(invoiceNo)}</span>
+        </div>
       </div>
     </section>
   </main>

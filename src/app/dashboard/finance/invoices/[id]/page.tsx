@@ -926,8 +926,6 @@ export default function InvoiceDetailsPage() {
         backgroundColor: "#ffffff",
       });
 
-      const imgData = canvas.toDataURL("image/png");
-
       const pdf = new jsPDF({
         orientation: "p",
         unit: "mm",
@@ -938,20 +936,100 @@ export default function InvoiceDetailsPage() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 10;
       const usableWidth = pageWidth - margin * 2;
-      const imgWidth = usableWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const usableHeight = pageHeight - margin * 2;
+      const mmPerPixel = usableWidth / canvas.width;
+      const pageHeightInPixels = Math.max(
+        1,
+        Math.floor(usableHeight / mmPerPixel),
+      );
 
-      let heightLeft = imgHeight;
-      let position = margin;
+      const invoiceRect = invoiceRef.current.getBoundingClientRect();
+      const canvasScale =
+        invoiceRect.width > 0 ? canvas.width / invoiceRect.width : 1;
+      const keepRanges = Array.from(
+        invoiceRef.current.querySelectorAll<HTMLElement>("[data-pdf-keep]"),
+      )
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            top: Math.max(
+              0,
+              Math.floor((rect.top - invoiceRect.top) * canvasScale),
+            ),
+            bottom: Math.min(
+              canvas.height,
+              Math.ceil((rect.bottom - invoiceRect.top) * canvasScale),
+            ),
+          };
+        })
+        .filter((range) => range.bottom > range.top)
+        .sort((first, second) => first.top - second.top);
 
-      pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight - margin * 2;
+      let sliceStart = 0;
+      let pageIndex = 0;
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + margin;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight - margin * 2;
+      while (sliceStart < canvas.height) {
+        let sliceEnd = Math.min(
+          sliceStart + pageHeightInPixels,
+          canvas.height,
+        );
+
+        if (sliceEnd < canvas.height) {
+          const protectedRange = keepRanges.find(
+            (range) =>
+              range.top > sliceStart &&
+              range.top < sliceEnd &&
+              range.bottom > sliceEnd &&
+              range.bottom - range.top <= pageHeightInPixels,
+          );
+
+          if (
+            protectedRange &&
+            protectedRange.top - sliceStart >= pageHeightInPixels * 0.2
+          ) {
+            sliceEnd = protectedRange.top;
+          }
+        }
+
+        const sliceHeight = Math.max(1, sliceEnd - sliceStart);
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeight;
+
+        const context = pageCanvas.getContext("2d");
+        if (!context) {
+          throw new Error("Could not prepare the invoice PDF page.");
+        }
+
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        context.drawImage(
+          canvas,
+          0,
+          sliceStart,
+          canvas.width,
+          sliceHeight,
+          0,
+          0,
+          canvas.width,
+          sliceHeight,
+        );
+
+        if (pageIndex > 0) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(
+          pageCanvas.toDataURL("image/png"),
+          "PNG",
+          margin,
+          margin,
+          usableWidth,
+          sliceHeight * mmPerPixel,
+        );
+
+        sliceStart = sliceEnd;
+        pageIndex += 1;
       }
 
       pdf.save(`${safeInvoiceFilename(invoice.invoiceNumber)}.pdf`);
@@ -1448,6 +1526,7 @@ export default function InvoiceDetailsPage() {
           >
             {/* Branded Header */}
             <div
+              data-pdf-keep
               className="relative overflow-hidden px-7 py-7 text-white sm:px-9"
               style={{
                 background:
@@ -1538,7 +1617,10 @@ export default function InvoiceDetailsPage() {
 
             <div className="p-6 sm:p-8">
               {/* Summary */}
-              <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div
+                data-pdf-keep
+                className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4"
+              >
                 {[
                   {
                     label: invoiceCopy.invoiceNumber,
@@ -1596,7 +1678,10 @@ export default function InvoiceDetailsPage() {
               </div>
 
               {/* Client and case */}
-              <div className="mb-6 grid gap-4 md:grid-cols-2">
+              <div
+                data-pdf-keep
+                className="mb-6 grid gap-4 md:grid-cols-2"
+              >
                 <div
                   dir={invoiceIsRtl ? "rtl" : "ltr"}
                   className={`rounded-3xl border p-5 ${
@@ -1729,7 +1814,10 @@ export default function InvoiceDetailsPage() {
               </div>
 
               {/* Notes and totals */}
-              <div className="mt-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_340px]">
+              <div
+                data-pdf-keep
+                className="mt-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_340px]"
+              >
                 <div
                   className="min-h-40 rounded-3xl border border-dashed p-5"
                   style={{
@@ -1808,6 +1896,7 @@ export default function InvoiceDetailsPage() {
                     {payments.map((payment) => (
                       <div
                         key={payment.id}
+                        data-pdf-keep
                         className="grid gap-3 rounded-xl border bg-white p-4 text-sm md:grid-cols-2 xl:grid-cols-5"
                         style={{ borderColor: "#dce9e7" }}
                       >
@@ -1882,23 +1971,25 @@ export default function InvoiceDetailsPage() {
                 </div>
               )}
 
-              <div className="mt-12 grid grid-cols-2 gap-10">
-                <div className="border-t pt-3 text-center text-xs font-semibold text-[#4d6767]">
-                  {invoiceCopy.officeSignature}
+              <div data-pdf-keep className="mt-12">
+                <div className="grid grid-cols-2 gap-10">
+                  <div className="border-t pt-3 text-center text-xs font-semibold text-[#4d6767]">
+                    {invoiceCopy.officeSignature}
+                  </div>
+                  <div className="border-t pt-3 text-center text-xs font-semibold text-[#4d6767]">
+                    {invoiceCopy.clientSignature}
+                  </div>
                 </div>
-                <div className="border-t pt-3 text-center text-xs font-semibold text-[#4d6767]">
-                  {invoiceCopy.clientSignature}
-                </div>
-              </div>
 
-              <div
-                className="mt-8 flex flex-col gap-3 border-t pt-4 text-[11px] text-[#4d6767] sm:flex-row sm:items-center sm:justify-between"
-                style={{ borderColor: "#edf4f3" }}
-              >
-                <span>{invoiceCopy.generatedBy}</span>
-                <span dir="ltr">
-                  {formatInvoiceNumber(invoice.invoiceNumber)}
-                </span>
+                <div
+                  className="mt-8 flex flex-col gap-3 border-t pt-4 text-[11px] text-[#4d6767] sm:flex-row sm:items-center sm:justify-between"
+                  style={{ borderColor: "#edf4f3" }}
+                >
+                  <span>{invoiceCopy.generatedBy}</span>
+                  <span dir="ltr">
+                    {formatInvoiceNumber(invoice.invoiceNumber)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
