@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import AppLoader from "@/components/ui/AppLoader";
 import EmptyState from "@/components/ui/EmptyState";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
@@ -476,6 +476,18 @@ function money(value: number, locale: Locale) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function localizedDate(value: string | Date, locale: Locale) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 }
 
 function getBlockFallback(locale: Locale) {
@@ -1526,7 +1538,11 @@ export default function InvoicesPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table
+              className={`data-table ${
+                isRtl ? "invoice-list-table-rtl" : "invoice-list-table-ltr"
+              }`}
+            >
               <thead>
                 <tr>
                   <th>{copy.table.invoiceNumber}</th>
@@ -1559,7 +1575,9 @@ export default function InvoicesPage() {
                           className="font-black"
                           style={{ color: "var(--text)" }}
                         >
-                          {formatInvoiceNumber(invoice.invoiceNumber)}
+                          <span dir="ltr">
+                            {formatInvoiceNumber(invoice.invoiceNumber)}
+                          </span>
                         </p>
 
                         <div className="mt-1 flex flex-wrap gap-1.5">
@@ -1601,7 +1619,7 @@ export default function InvoicesPage() {
                             className="font-bold"
                             style={{ color: "var(--text)" }}
                           >
-                            {invoice.client?.name || "-"}
+                            <span dir="auto">{invoice.client?.name || "-"}</span>
                           </p>
 
                           {invoice.client?.phone && (
@@ -1609,7 +1627,7 @@ export default function InvoicesPage() {
                               className="text-xs"
                               style={{ color: "var(--text-3)" }}
                             >
-                              {invoice.client.phone}
+                              <span dir="ltr">{invoice.client.phone}</span>
                             </p>
                           )}
 
@@ -1635,7 +1653,7 @@ export default function InvoicesPage() {
                               className="font-bold"
                               style={{ color: "var(--text)" }}
                             >
-                              {invoice.case.title}
+                              <span dir="auto">{invoice.case.title}</span>
                             </p>
 
                             {invoice.case.caseNumber && (
@@ -1643,7 +1661,7 @@ export default function InvoicesPage() {
                                 className="mt-1 font-mono text-xs"
                                 style={{ color: "var(--text-3)" }}
                               >
-                                {invoice.case.caseNumber}
+                                <span dir="ltr">{invoice.case.caseNumber}</span>
                               </p>
                             )}
                           </div>
@@ -1656,13 +1674,23 @@ export default function InvoicesPage() {
                         className="font-black"
                         style={{ color: "var(--sidebar)" }}
                       >
-                        {formatMoney(invoice.total)}
+                        <span dir={isRtl ? "rtl" : "ltr"}>
+                          {formatMoney(invoice.total)}
+                        </span>
                       </td>
 
-                      <td>{formatDate(invoice.issueDate)}</td>
+                      <td>
+                        <span dir={isRtl ? "rtl" : "ltr"}>
+                          {localizedDate(invoice.issueDate, locale)}
+                        </span>
+                      </td>
 
                       <td>
-                        {invoice.dueDate ? formatDate(invoice.dueDate) : "-"}
+                        <span dir={isRtl ? "rtl" : "ltr"}>
+                          {invoice.dueDate
+                            ? localizedDate(invoice.dueDate, locale)
+                            : "-"}
+                        </span>
                       </td>
 
                       <td

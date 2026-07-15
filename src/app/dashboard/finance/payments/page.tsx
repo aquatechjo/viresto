@@ -686,7 +686,11 @@ export default function PaymentsPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="data-table min-w-[1120px] table-fixed text-start">
+            <table
+              className={`data-table min-w-[1120px] table-fixed ${
+                isRtl ? 'payment-list-table-rtl' : 'payment-list-table-ltr'
+              }`}
+            >
               <colgroup>
                 <col className="w-[12%]" />
                 <col className="w-[14%]" />
@@ -734,7 +738,11 @@ export default function PaymentsPage() {
                       </td>
 
                       <td className="align-middle text-start">
-                        <p className="font-bold" style={{ color: 'var(--text)' }}>
+                        <p
+                          dir="auto"
+                          className="font-bold"
+                          style={{ color: 'var(--text)' }}
+                        >
                           {payment.client?.name || '-'}
                         </p>
                         {payment.client?.archivedAt ? (
@@ -786,7 +794,9 @@ export default function PaymentsPage() {
 
                       <td className="align-middle text-start">
                         <p className="whitespace-nowrap text-base font-black" style={{ color: 'var(--sidebar)' }}>
-                          {money(amountOf(payment), locale)}
+                          <bdi dir={isRtl ? 'rtl' : 'ltr'}>
+                            {money(amountOf(payment), locale)}
+                          </bdi>
                         </p>
                         <p className="mt-1 truncate text-xs font-bold" style={{ color: 'var(--text-3)' }}>
                           {methodLabel(payment.method, locale)}
@@ -794,10 +804,12 @@ export default function PaymentsPage() {
                       </td>
 
                       <td className="whitespace-nowrap align-middle text-start">
-                        {formatPaymentDate(
-                          payment.paidAt || payment.createdAt,
-                          locale,
-                        )}
+                        <bdi dir={isRtl ? 'rtl' : 'ltr'}>
+                          {formatPaymentDate(
+                            payment.paidAt || payment.createdAt,
+                            locale,
+                          )}
+                        </bdi>
                       </td>
 
                       <td

@@ -1077,6 +1077,27 @@ select.input {
   width: 1%;
 }
 
+/* Invoice list follows the selected interface language. */
+.invoice-list-table-ltr th,
+.invoice-list-table-ltr td {
+  text-align: left;
+}
+
+.invoice-list-table-rtl th,
+.invoice-list-table-rtl td {
+  text-align: right;
+}
+
+.payment-list-table-ltr th,
+.payment-list-table-ltr td {
+  text-align: left;
+}
+
+.payment-list-table-rtl th,
+.payment-list-table-rtl td {
+  text-align: right;
+}
+
 /* Table footer */
 .table-footer {
   display: flex;
