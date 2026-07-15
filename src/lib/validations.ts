@@ -158,22 +158,6 @@ export const appointmentSchema = z.object({
   status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED"]).optional(),
 });
 
-export const documentSchema = z.object({
-  fileName: z.string().min(1),
-  fileUrl: z.string().url(),
-  fileSize: z.number().optional(),
-  publicId: z.string().optional(),
-  clientId: z.string().optional(),
-  caseId: z.string().optional(),
-  notes: z.string().optional(),
-  fileType: z.enum([
-    "application/pdf",
-    "image/png",
-    "image/jpeg",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ]),
-});
-
 export const taskSchema = z.object({
   title: z
     .string()

@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest } from "next/server";
 import { ok, err } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
+import cloudinary from "@/lib/cloudinary";
 import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -31,8 +32,47 @@ const allowedTypes = [
 
 const compressibleImageTypes = ["image/png", "image/jpeg", "image/webp"];
 
+type CloudinaryResourceType = "image" | "raw" | "video";
+
 function isCompressibleImageType(type: string) {
   return compressibleImageTypes.includes(type);
+}
+
+function getCloudinaryResourceType(
+  value: unknown,
+): CloudinaryResourceType | null {
+  return value === "image" || value === "raw" || value === "video"
+    ? value
+    : null;
+}
+
+function isTrustedCloudinaryUrl(value: unknown, cloudName: string) {
+  if (typeof value !== "string") return false;
+
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "res.cloudinary.com" &&
+      url.pathname.startsWith(`/${cloudName}/`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function cleanupUploadedAsset(
+  publicId: string,
+  resourceType: CloudinaryResourceType,
+) {
+  try {
+    await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+      type: "authenticated",
+    });
+  } catch (error) {
+    console.error("Cloudinary cleanup failed after document upload:", error);
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -67,6 +107,10 @@ export async function POST(req: NextRequest) {
     const tagsValue = typeof tagsRaw === "string" ? tagsRaw : null;
 
     if (!file) return err("لم يتم إرسال ملف", 400);
+
+    if (file.size <= 0) {
+      return err("لا يمكن رفع ملف فارغ", 400);
+    }
 
     if (!caseId) {
       return err("يجب اختيار قضية قبل رفع المستند", 400);
@@ -226,42 +270,77 @@ export async function POST(req: NextRequest) {
       return err(d.error?.message ?? "فشل رفع الملف", 500);
     }
 
-    const doc = await prisma.document.create({
-      data: {
-        tenantId: auth.user.tenantId,
-        clientId: caseRecord.clientId,
-        caseId: caseRecord.id,
-        fileName: preparedFile.fileName,
-        fileType: preparedFile.mimeType,
-        fileUrl: d.secure_url,
-        fileSize: preparedFile.size,
-        publicId: d.public_id,
-        notes: notes?.trim().slice(0, 1000) || null,
-        tags,
-      },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            archivedAt: true,
-          },
+    const publicId =
+      typeof d.public_id === "string" ? d.public_id.trim() : null;
+    const secureUrl =
+      typeof d.secure_url === "string" ? d.secure_url.trim() : null;
+    const resourceType = getCloudinaryResourceType(d.resource_type);
+    const storedSize = Number.isSafeInteger(d.bytes) ? Number(d.bytes) : null;
+    const expectedPublicIdPrefix = `${folder}/`;
+
+    const isValidUpload =
+      publicId?.startsWith(expectedPublicIdPrefix) === true &&
+      isTrustedCloudinaryUrl(secureUrl, CLOUD) &&
+      resourceType !== null &&
+      storedSize !== null &&
+      storedSize > 0 &&
+      storedSize <= MAX_UPLOAD_SIZE_BYTES;
+
+    if (
+      !isValidUpload ||
+      !publicId ||
+      !secureUrl ||
+      !resourceType ||
+      !storedSize
+    ) {
+      if (publicId?.startsWith(expectedPublicIdPrefix) && resourceType) {
+        await cleanupUploadedAsset(publicId, resourceType);
+      }
+
+      return err("استجابة تخزين الملف غير صالحة", 502);
+    }
+
+    const doc = await prisma.document
+      .create({
+        data: {
+          tenantId: auth.user.tenantId,
+          clientId: caseRecord.clientId,
+          caseId: caseRecord.id,
+          fileName: preparedFile.fileName,
+          fileType: preparedFile.mimeType,
+          fileUrl: secureUrl,
+          fileSize: storedSize,
+          publicId,
+          notes: notes?.trim().slice(0, 1000) || null,
+          tags,
         },
-        case: {
-          select: {
-            id: true,
-            title: true,
-            client: {
-              select: {
-                id: true,
-                name: true,
-                archivedAt: true,
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+          case: {
+            select: {
+              id: true,
+              title: true,
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                  archivedAt: true,
+                },
               },
             },
           },
         },
-      },
-    });
+      })
+      .catch(async (error) => {
+        await cleanupUploadedAsset(publicId, resourceType);
+        throw error;
+      });
 
     await logActivity({
       actorId: auth.user.userId,
