@@ -22,8 +22,8 @@ const EXACT_TITLES: Record<string, LocalizedTitle> = {
   "/dashboard/activity": { ar: "سجل النشاط", en: "Activity log" },
   "/dashboard/appointments": { ar: "المواعيد", en: "Appointments" },
   "/dashboard/billing": {
-    ar: "الاشتراك والفوترة",
-    en: "Billing & subscription",
+    ar: "الاشتراك والخطة",
+    en: "Subscription & Plan",
   },
   "/dashboard/cases": { ar: "القضايا", en: "Cases" },
   "/dashboard/clients": { ar: "الموكلون", en: "Clients" },
