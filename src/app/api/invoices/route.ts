@@ -142,6 +142,7 @@ export async function GET(req: NextRequest) {
         client: {
           select: {
             id: true,
+            publicId: true,
             name: true,
             phone: true,
             email: true,
@@ -151,11 +152,13 @@ export async function GET(req: NextRequest) {
         case: {
           select: {
             id: true,
+            publicId: true,
             title: true,
             caseNumber: true,
             client: {
               select: {
                 id: true,
+                publicId: true,
                 name: true,
                 archivedAt: true,
               },
@@ -238,6 +241,7 @@ export async function POST(req: NextRequest) {
       },
       select: {
         id: true,
+        publicId: true,
         name: true,
         archivedAt: true,
       },
@@ -256,10 +260,12 @@ export async function POST(req: NextRequest) {
         },
         select: {
           id: true,
+          publicId: true,
           feeAgreed: true,
           client: {
             select: {
               id: true,
+              publicId: true,
               archivedAt: true,
             },
           },
@@ -342,6 +348,7 @@ export async function POST(req: NextRequest) {
               client: {
                 select: {
                   id: true,
+                  publicId: true,
                   name: true,
                   phone: true,
                   email: true,
@@ -351,11 +358,13 @@ export async function POST(req: NextRequest) {
               case: {
                 select: {
                   id: true,
+                  publicId: true,
                   title: true,
                   caseNumber: true,
                   client: {
                     select: {
                       id: true,
+                      publicId: true,
                       name: true,
                       archivedAt: true,
                     },

@@ -198,6 +198,7 @@ model User {
 
 model Client {
   id             String        @id @default(cuid())
+  publicId       Int           @unique @default(autoincrement())
   tenantId       String
   name           String
   email          String?
@@ -224,6 +225,7 @@ model Client {
 
 model Case {
   id            String     @id @default(cuid())
+  publicId      Int        @unique @default(autoincrement())
   tenantId      String
   clientId      String
   leadLawyerId  String?
@@ -479,6 +481,7 @@ model Session {
 
 model Invoice {
   id            String        @id @default(cuid())
+  publicId      Int           @unique @default(autoincrement())
   tenantId      String
   clientId      String
   caseId        String?

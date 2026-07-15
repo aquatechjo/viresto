@@ -160,16 +160,18 @@ function formatShortDateInZone(
 
 function formatTimeInZone(
   value: string,
-  locale: Locale,
+  _locale: Locale,
   timeZone = TENANT_TIME_ZONE,
 ) {
   const date = DateTime.fromISO(value, { setZone: true }).setZone(timeZone);
 
   if (!date.isValid) return "-";
 
-  return date
-    .setLocale(locale === "ar" ? "ar-JO" : "en-US")
-    .toLocaleString(DateTime.TIME_SIMPLE);
+  return date.setLocale("en-US").toLocaleString({
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function toTenantDateKey(value: string, timeZone = TENANT_TIME_ZONE) {
@@ -193,7 +195,6 @@ function getCreateStartValue(startTime?: string, timeZone = TENANT_TIME_ZONE) {
 
   return date.toFormat("yyyy-MM-dd'T'HH:mm");
 }
-
 
 interface DateTimePickerProps {
   value: string;
@@ -245,6 +246,7 @@ function DateTimePicker({
           done: "تم",
           hour: "الساعة",
           minute: "الدقيقة",
+          period: "الفترة",
           weekdays: ["أح", "إث", "ث", "أر", "خ", "ج", "س"],
         }
       : {
@@ -256,6 +258,7 @@ function DateTimePicker({
           done: "Done",
           hour: "Hour",
           minute: "Minute",
+          period: "Period",
           weekdays: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
         };
 
@@ -278,7 +281,10 @@ function DateTimePicker({
     const viewportPadding = 12;
     const gap = 8;
     const width = Math.min(360, window.innerWidth - viewportPadding * 2);
-    const estimatedHeight = Math.min(430, window.innerHeight - viewportPadding * 2);
+    const estimatedHeight = Math.min(
+      430,
+      window.innerHeight - viewportPadding * 2,
+    );
     const availableAbove = rect.top - viewportPadding;
     const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
     const shouldOpenAbove =
@@ -351,16 +357,17 @@ function DateTimePicker({
   }, [viewMonth]);
 
   const displayValue = selectedDate
-    ? selectedDate
+    ? `${selectedDate
         .setLocale(locale === "ar" ? "ar-JO" : "en-US")
         .toLocaleString({
           year: "numeric",
           month: "short",
           day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hourCycle: "h23",
-        })
+        })} — ${selectedDate.setLocale("en-US").toLocaleString({
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })}`
     : copy.placeholder;
 
   const setSelectedDate = (date: DateTime) => {
@@ -375,7 +382,11 @@ function DateTimePicker({
     onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
   };
 
-  const updateTime = (part: "hour" | "minute", rawValue: string) => {
+  const selectedHour24 = selectedDate?.hour ?? 9;
+  const selectedHour12 = selectedHour24 % 12 || 12;
+  const selectedPeriod = selectedHour24 >= 12 ? "PM" : "AM";
+
+  const updateTime = (part: "hour" | "minute" | "period", rawValue: string) => {
     const base =
       selectedDate ??
       DateTime.now().setZone(timeZone).set({
@@ -383,10 +394,21 @@ function DateTimePicker({
         millisecond: 0,
       });
 
-    const next =
-      part === "hour"
-        ? base.set({ hour: Number(rawValue) })
-        : base.set({ minute: Number(rawValue) });
+    const currentPeriod = base.hour >= 12 ? "PM" : "AM";
+    const next = (() => {
+      if (part === "minute") {
+        return base.set({ minute: Number(rawValue) });
+      }
+
+      if (part === "period") {
+        const hour = (base.hour % 12) + (rawValue === "PM" ? 12 : 0);
+        return base.set({ hour });
+      }
+
+      const hour12 = Number(rawValue);
+      const hour = (hour12 % 12) + (currentPeriod === "PM" ? 12 : 0);
+      return base.set({ hour });
+    })();
 
     onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
     setViewMonth(next.startOf("month"));
@@ -413,7 +435,7 @@ function DateTimePicker({
             role="dialog"
             aria-label={ariaLabel}
             dir={isRtl ? "rtl" : "ltr"}
-            className="overflow-auto rounded-3xl border p-4 shadow-2xl"
+            className="date-time-picker-popover overflow-auto rounded-3xl border p-4 shadow-2xl"
             style={{
               ...popoverStyle,
               background: "var(--card)",
@@ -509,7 +531,7 @@ function DateTimePicker({
             </div>
 
             <div
-              className="mt-4 grid grid-cols-2 gap-3 rounded-2xl border p-3"
+              className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border p-3"
               style={{
                 borderColor: "var(--border)",
                 background: "var(--card)",
@@ -518,18 +540,19 @@ function DateTimePicker({
               <label className="space-y-1 text-xs font-black">
                 <span style={{ color: "var(--text-3)" }}>{copy.hour}</span>
                 <select
-                  value={String(selectedDate?.hour ?? 9).padStart(2, "0")}
+                  value={String(selectedHour12)}
                   onChange={(event) => updateTime("hour", event.target.value)}
                   className="input h-11"
                   dir="ltr"
                   aria-label={copy.hour}
                 >
-                  {Array.from({ length: 24 }, (_, hour) => {
-                    const value = String(hour).padStart(2, "0");
+                  {Array.from({ length: 12 }, (_, index) => {
+                    const hour = index + 1;
+                    const value = String(hour);
 
                     return (
                       <option key={value} value={value}>
-                        {value}
+                        {String(hour).padStart(2, "0")}
                       </option>
                     );
                   })}
@@ -556,6 +579,20 @@ function DateTimePicker({
                       </option>
                     );
                   })}
+                </select>
+              </label>
+
+              <label className="space-y-1 text-xs font-black">
+                <span style={{ color: "var(--text-3)" }}>{copy.period}</span>
+                <select
+                  value={selectedPeriod}
+                  onChange={(event) => updateTime("period", event.target.value)}
+                  className="input h-11"
+                  dir="ltr"
+                  aria-label={copy.period}
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
                 </select>
               </label>
             </div>
@@ -625,6 +662,19 @@ function DateTimePicker({
       </button>
 
       {popover}
+
+      <style jsx global>{`
+        .date-time-picker-popover {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+
+        .date-time-picker-popover::-webkit-scrollbar {
+          display: none;
+          width: 0;
+          height: 0;
+        }
+      `}</style>
     </>
   );
 }
@@ -820,7 +870,9 @@ export default function AppointmentsPage() {
         const payload = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          throw new Error(payload?.message || appointmentFormCopy.caseLoadError);
+          throw new Error(
+            payload?.message || appointmentFormCopy.caseLoadError,
+          );
         }
 
         const caseItems = Array.isArray(payload?.data?.data)
@@ -836,8 +888,7 @@ export default function AppointmentsPage() {
         if (!cancelled) {
           setCases(
             caseItems.filter(
-              (item: CaseItem) =>
-                !item.clientId || item.clientId === clientId,
+              (item: CaseItem) => !item.clientId || item.clientId === clientId,
             ),
           );
         }
@@ -944,9 +995,7 @@ export default function AppointmentsPage() {
   }, [appointmentLog, locale, tenantTimeZone]);
 
   const hasActiveFilters =
-    Boolean(search.trim()) ||
-    typeFilter !== "all" ||
-    assigneeFilter !== "all";
+    Boolean(search.trim()) || typeFilter !== "all" || assigneeFilter !== "all";
 
   const calendarEvents = useMemo(
     () =>
@@ -1232,10 +1281,7 @@ export default function AppointmentsPage() {
       return;
     }
 
-    if (
-      currentRole === "STAFF" &&
-      appt.assignedTo?.id !== currentUserId
-    ) {
+    if (currentRole === "STAFF" && appt.assignedTo?.id !== currentUserId) {
       toast.warning(
         locale === "ar"
           ? "يمكنك تعديل المواعيد المسندة إليك فقط"
@@ -1719,7 +1765,8 @@ export default function AppointmentsPage() {
                               className="truncate"
                               style={{ color: "var(--text-2)" }}
                             >
-                              👤 {appointmentLogCopy.assignee}: {appt.assignedTo?.name || "-"}
+                              👤 {appointmentLogCopy.assignee}:{" "}
+                              {appt.assignedTo?.name || "-"}
                             </span>
                           </div>
                         </div>

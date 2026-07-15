@@ -99,7 +99,6 @@ export async function PATCH(
           },
           role: "ADMIN",
           isActive: true,
-          isSystemAdmin: false,
         },
       });
 
@@ -200,7 +199,6 @@ export async function DELETE(
           },
           role: "ADMIN",
           isActive: true,
-          isSystemAdmin: false,
         },
       });
 

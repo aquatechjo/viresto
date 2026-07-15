@@ -148,32 +148,32 @@ function statusBadgeStyle(status: TaskStatus) {
   switch (status) {
     case "COMPLETED":
       return {
-        background: "#ecfdf5",
-        color: "#047857",
-        borderColor: "rgba(4, 120, 87, 0.2)",
+        background: "var(--green-soft)",
+        color: "var(--text)",
+        borderColor: "var(--border)",
       };
     case "IN_PROGRESS":
       return {
-        background: "#eff6ff",
-        color: "#1d4ed8",
+        background: "rgba(59, 130, 246, 0.14)",
+        color: "var(--text)",
         borderColor: "rgba(29, 78, 216, 0.2)",
       };
     case "BLOCKED":
       return {
-        background: "#fff7ed",
-        color: "#c2410c",
+        background: "var(--amber-soft, rgba(245, 158, 11, 0.14))",
+        color: "var(--text)",
         borderColor: "rgba(194, 65, 12, 0.2)",
       };
     case "CANCELLED":
       return {
         background: "var(--red-soft)",
-        color: "#dc2626",
+        color: "var(--text)",
         borderColor: "rgba(220, 38, 38, 0.2)",
       };
     default:
       return {
-        background: "var(--green-soft)",
-        color: "var(--sidebar)",
+        background: "var(--card-2)",
+        color: "var(--text)",
         borderColor: "var(--border)",
       };
   }
@@ -241,6 +241,7 @@ const TASK_TRANSLATIONS = {
       updateUnexpectedError: "حدث خطأ أثناء تحديث المهمة",
       completedSuccess: "تم إنجاز المهمة",
       reopenedSuccess: "تم إعادة المهمة",
+      completedLocked: "المهمة مكتملة ولا يمكن تغيير حالتها بعد الآن",
       deleteError: "فشل حذف المهمة",
       deleteSuccess: "تم حذف المهمة",
       deleteUnexpectedError: "حدث خطأ أثناء حذف المهمة",
@@ -315,6 +316,7 @@ const TASK_TRANSLATIONS = {
       updateUnexpectedError: "An error occurred while updating the task",
       completedSuccess: "Task completed",
       reopenedSuccess: "Task reopened",
+      completedLocked: "This task is completed and its status is now locked",
       deleteError: "Failed to delete task",
       deleteSuccess: "Task deleted",
       deleteUnexpectedError: "An error occurred while deleting the task",
@@ -466,10 +468,16 @@ export default function TasksPage() {
 
   const isSoon = useCallback(
     (task: Task) => {
+      const status = getTaskStatus(task);
+
+      if (status === "COMPLETED" || status === "CANCELLED") {
+        return false;
+      }
+
       if (isOverdue(task) || !task.dueDate) return false;
       return new Date(task.dueDate).getTime() - now.getTime() < 3 * 86400000;
     },
-    [isOverdue, now],
+    [getTaskStatus, isOverdue, now],
   );
 
   const total = tasks.length;
@@ -530,6 +538,17 @@ export default function TasksPage() {
       return;
     }
 
+    const currentTask = tasks.find((task) => task.id === id);
+
+    if (
+      currentTask &&
+      getTaskStatus(currentTask) === "COMPLETED" &&
+      status !== "COMPLETED"
+    ) {
+      toast.warning(taskCopy.messages.completedLocked);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
@@ -561,10 +580,12 @@ export default function TasksPage() {
   }
 
   async function toggle(task: Task) {
-    const nextStatus =
-      getTaskStatus(task) === "COMPLETED" ? "TODO" : "COMPLETED";
+    if (getTaskStatus(task) === "COMPLETED") {
+      toast.warning(taskCopy.messages.completedLocked);
+      return;
+    }
 
-    await updateStatus(task.id, nextStatus);
+    await updateStatus(task.id, "COMPLETED");
   }
 
   function del(id: string) {
@@ -765,7 +786,10 @@ export default function TasksPage() {
           title: editForm.title.trim(),
           description: editForm.description.trim(),
           priority: editForm.priority,
-          status: editForm.status,
+          status:
+            getTaskStatus(editingTask) === "COMPLETED"
+              ? "COMPLETED"
+              : editForm.status,
           dueDate: editForm.dueDate
             ? new Date(editForm.dueDate).toISOString()
             : null,
@@ -883,13 +907,13 @@ export default function TasksPage() {
           {
             label: taskCopy.stats.pending,
             value: pending,
-            color: "var(--sidebar)",
+            color: "var(--text)",
             bg: "var(--green-soft)",
           },
           {
             label: taskCopy.stats.done,
             value: done,
-            color: "#6b7280",
+            color: "var(--text-2)",
             bg: "var(--card)",
           },
           {
@@ -1020,8 +1044,14 @@ export default function TasksPage() {
           </select>
 
           <button
+            type="button"
             onClick={clearFilters}
-            className="btn btn-ghost whitespace-nowrap"
+            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31]"
+            style={{
+              background: "var(--card-2)",
+              borderColor: "var(--border)",
+              color: "var(--text)",
+            }}
           >
             {taskCopy.filters.apply}
           </button>
@@ -1097,11 +1127,10 @@ export default function TasksPage() {
           {filtered.map((task) => {
             const archivedTask = isArchivedTask(task);
             const taskStatus = getTaskStatus(task);
-            const isTerminal =
-              taskStatus === "COMPLETED" || taskStatus === "CANCELLED";
             const statusStyle = statusBadgeStyle(taskStatus);
             const canUpdateStatus =
               writeAccess.canWrite &&
+              taskStatus !== "COMPLETED" &&
               (currentRole !== "STAFF" ||
                 task.assignedTo?.id === currentUserId);
             const canManageTask =
@@ -1111,7 +1140,7 @@ export default function TasksPage() {
               <article
                 key={task.id}
                 className={`card group overflow-hidden p-0 text-start transition-all duration-200 hover:-translate-y-0.5 ${
-                  isTerminal ? "opacity-75" : ""
+                  taskStatus === "CANCELLED" ? "opacity-70" : ""
                 }`}
               >
                 <div className="p-5">
@@ -1122,30 +1151,36 @@ export default function TasksPage() {
                       onClick={() => toggle(task)}
                       disabled={!canUpdateStatus}
                       title={
-                        !writeAccess.canWrite
+                        taskStatus === "COMPLETED"
+                          ? taskCopy.messages.completedLocked
+                          : !writeAccess.canWrite
                           ? writeAccess.message || taskCopy.messages.updateError
                           : taskCopy.card.toggleAria
                       }
-                      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black transition-all disabled:cursor-not-allowed ${
+                        taskStatus === "COMPLETED"
+                          ? ""
+                          : "disabled:opacity-40"
+                      }`}
                       style={{
-                        borderColor: "var(--sidebar)",
+                        borderColor:
+                          taskStatus === "COMPLETED"
+                            ? "var(--sidebar-hover)"
+                            : "var(--text-3)",
                         background:
                           taskStatus === "COMPLETED"
                             ? "var(--sidebar)"
                             : "transparent",
-                        color:
-                          taskStatus === "COMPLETED" ? "#fff" : "transparent",
+                        color: "var(--sidebar-text)",
                       }}
                     >
-                      ✓
+                      {taskStatus === "COMPLETED" ? "✓" : null}
                     </button>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2
-                          className={`min-w-0 flex-1 text-base font-black leading-7 ${
-                            taskStatus === "COMPLETED" ? "line-through" : ""
-                          }`}
+                          className="min-w-0 flex-1 text-base font-black leading-7"
                           style={{ color: "var(--text)" }}
                         >
                           {task.title}
@@ -1226,8 +1261,9 @@ export default function TasksPage() {
                     <div
                       className="mt-3 rounded-2xl border px-3 py-2 text-xs font-black"
                       style={{
-                        background: "var(--amber-soft, #fff7ed)",
-                        color: "#b45309",
+                        background:
+                          "var(--amber-soft, rgba(245, 158, 11, 0.14))",
+                        color: "var(--text)",
                         borderColor: "rgba(180, 83, 9, 0.18)",
                       }}
                     >
@@ -1288,30 +1324,47 @@ export default function TasksPage() {
                     >
                       {locale === "ar" ? "الحالة" : "Status"}
                     </span>
-                    <select
-                      aria-label={
-                        locale === "ar" ? "حالة المهمة" : "Task status"
-                      }
-                      value={taskStatus}
-                      onChange={(event) =>
-                        updateStatus(task.id, event.target.value as TaskStatus)
-                      }
-                      disabled={!canUpdateStatus}
-                      className="min-w-[130px] rounded-xl border px-3 py-2 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{
-                        background: statusStyle.background,
-                        color: statusStyle.color,
-                        borderColor: statusStyle.borderColor,
-                      }}
-                    >
-                      {(Object.keys(statusLabels) as TaskStatus[]).map(
-                        (status) => (
-                          <option key={status} value={status}>
-                            {statusLabels[status]}
-                          </option>
-                        ),
-                      )}
-                    </select>
+                    {taskStatus === "COMPLETED" ? (
+                      <span
+                        className="inline-flex min-h-9 min-w-[130px] items-center justify-center rounded-xl border px-3 py-2 text-xs font-black"
+                        style={{
+                          background: statusStyle.background,
+                          color: statusStyle.color,
+                          borderColor: statusStyle.borderColor,
+                        }}
+                        title={taskCopy.messages.completedLocked}
+                      >
+                        {statusLabels.COMPLETED}
+                      </span>
+                    ) : (
+                      <select
+                        aria-label={
+                          locale === "ar" ? "حالة المهمة" : "Task status"
+                        }
+                        value={taskStatus}
+                        onChange={(event) =>
+                          updateStatus(
+                            task.id,
+                            event.target.value as TaskStatus,
+                          )
+                        }
+                        disabled={!canUpdateStatus}
+                        className="min-w-[130px] rounded-xl border px-3 py-2 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{
+                          background: statusStyle.background,
+                          color: statusStyle.color,
+                          borderColor: statusStyle.borderColor,
+                        }}
+                      >
+                        {(Object.keys(statusLabels) as TaskStatus[]).map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {statusLabels[status]}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    )}
                   </div>
                 </div>
               </article>
@@ -1594,23 +1647,37 @@ export default function TasksPage() {
             </FormField>
 
             <FormField label={locale === "ar" ? "الحالة" : "Status"}>
-              <select
-                value={editForm.status}
-                onChange={(event) =>
-                  setEditForm((previous) => ({
-                    ...previous,
-                    status: event.target.value as TaskStatus,
-                  }))
-                }
-                className="input"
-                {...fieldProps}
-              >
-                {(Object.keys(statusLabels) as TaskStatus[]).map((status) => (
-                  <option key={status} value={status}>
-                    {statusLabels[status]}
-                  </option>
-                ))}
-              </select>
+              {editingTask &&
+              getTaskStatus(editingTask) === "COMPLETED" ? (
+                <div
+                  className="input flex items-center font-black"
+                  style={{
+                    ...fieldProps.style,
+                    color: "var(--text)",
+                  }}
+                  title={taskCopy.messages.completedLocked}
+                >
+                  {statusLabels.COMPLETED}
+                </div>
+              ) : (
+                <select
+                  value={editForm.status}
+                  onChange={(event) =>
+                    setEditForm((previous) => ({
+                      ...previous,
+                      status: event.target.value as TaskStatus,
+                    }))
+                  }
+                  className="input"
+                  {...fieldProps}
+                >
+                  {(Object.keys(statusLabels) as TaskStatus[]).map((status) => (
+                    <option key={status} value={status}>
+                      {statusLabels[status]}
+                    </option>
+                  ))}
+                </select>
+              )}
             </FormField>
           </div>
 
@@ -1795,7 +1862,7 @@ function TaskMeta({
         background: danger
           ? "var(--red-soft)"
           : warning
-            ? "#fff7ed"
+            ? "var(--amber-soft, rgba(245, 158, 11, 0.14))"
             : "var(--card-2)",
         borderColor: danger
           ? "rgba(220, 38, 38, 0.18)"
@@ -1807,7 +1874,8 @@ function TaskMeta({
       <p
         className="text-[10px] font-black"
         style={{
-          color: danger ? "#dc2626" : warning ? "#d97706" : "var(--text-3)",
+          color:
+            danger || warning ? "var(--text-2)" : "var(--text-3)",
         }}
       >
         {label}
@@ -1815,7 +1883,7 @@ function TaskMeta({
       <p
         className="mt-1 truncate text-xs font-black"
         style={{
-          color: danger ? "#dc2626" : warning ? "#d97706" : "var(--text)",
+          color: "var(--text)",
         }}
         title={value}
       >

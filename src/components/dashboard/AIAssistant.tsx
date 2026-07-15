@@ -274,10 +274,10 @@ export default function AIAssistant() {
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
                 style={{
                   background: "var(--green-soft)",
-                  color: "var(--sidebar)",
+                  color: "var(--text)",
                 }}
               >
-                <Sparkles className="h-5 w-5" />
+                <Sparkles className="h-5 w-5" aria-hidden="true" />
               </span>
 
               <div className="min-w-0 text-start">
@@ -342,10 +342,10 @@ export default function AIAssistant() {
                   className="flex h-14 w-14 items-center justify-center rounded-3xl"
                   style={{
                     background: "var(--green-soft)",
-                    color: "var(--sidebar)",
+                    color: "var(--text)",
                   }}
                 >
-                  <Bot className="h-7 w-7" />
+                  <Bot className="h-7 w-7" aria-hidden="true" />
                 </span>
 
                 <h3

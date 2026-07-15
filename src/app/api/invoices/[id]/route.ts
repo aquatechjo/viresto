@@ -12,6 +12,19 @@ import { decryptText } from "@/lib/encryption";
 
 type Params = { params: Promise<{ id: string }> };
 
+function invoiceLookupWhere(
+  identifier: string,
+  tenantId: string,
+): Prisma.InvoiceWhereInput {
+  const publicId = Number(identifier);
+  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
+
+  return {
+    tenantId,
+    OR: hasPublicId ? [{ id: identifier }, { publicId }] : [{ id: identifier }],
+  };
+}
+
 const allowedStatuses = [
   "DRAFT",
   "UNPAID",
@@ -119,20 +132,19 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const invoice = await prisma.invoice.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: invoiceLookupWhere(id, auth.user.tenantId),
       include: {
         client: true,
         case: {
           select: {
             id: true,
+            publicId: true,
             title: true,
             caseNumber: true,
             client: {
               select: {
                 id: true,
+                publicId: true,
                 name: true,
                 archivedAt: true,
               },
@@ -175,21 +187,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const invoice = await prisma.invoice.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: invoiceLookupWhere(id, auth.user.tenantId),
       include: {
         client: true,
         case: {
           select: {
             id: true,
+            publicId: true,
             title: true,
             caseNumber: true,
             clientId: true,
             client: {
               select: {
                 id: true,
+                publicId: true,
                 name: true,
                 archivedAt: true,
               },
@@ -543,10 +554,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const invoice = await prisma.invoice.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: invoiceLookupWhere(id, auth.user.tenantId),
       include: {
         payments: {
           select: {
@@ -558,15 +566,18 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         client: {
           select: {
             id: true,
+            publicId: true,
             archivedAt: true,
           },
         },
         case: {
           select: {
             id: true,
+            publicId: true,
             client: {
               select: {
                 id: true,
+                publicId: true,
                 archivedAt: true,
               },
             },

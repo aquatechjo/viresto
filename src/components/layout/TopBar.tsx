@@ -30,10 +30,7 @@ function useDebounce<T>(value: T, delay: number) {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
   useEffect(() => {
-    const timeout = window.setTimeout(
-      () => setDebouncedValue(value),
-      delay,
-    );
+    const timeout = window.setTimeout(() => setDebouncedValue(value), delay);
 
     return () => window.clearTimeout(timeout);
   }, [value, delay]);
@@ -67,11 +64,17 @@ function normalizeSearchResults(
 }
 
 const COMPACT_CONTROL =
-  "[&>button]:h-9 [&>button]:w-9 [&>button]:min-w-9 " +
-  "[&>button]:items-center [&>button]:justify-center " +
-  "[&>button]:rounded-xl [&>button]:px-0 " +
-  "sm:[&>button]:h-10 sm:[&>button]:w-10 sm:[&>button]:min-w-10 " +
-  "sm:[&>button]:rounded-2xl";
+  "[&_button]:!flex [&_button]:!h-10 [&_button]:!w-10 [&_button]:!min-w-10 " +
+  "[&_button]:!items-center [&_button]:!justify-center " +
+  "[&_button]:!rounded-2xl [&_button]:!border [&_button]:!border-emerald-100 " +
+  "[&_button]:!bg-white/80 [&_button]:!px-0 [&_button]:!text-slate-700 " +
+  "[&_button]:!shadow-[0_5px_16px_rgba(15,118,110,0.08)] " +
+  "[&_button]:!transition-all [&_button:hover]:!-translate-y-px " +
+  "[&_button:hover]:!border-teal-300 [&_button:hover]:!bg-white " +
+  "sm:[&_button]:!h-11 sm:[&_button]:!w-11 sm:[&_button]:!min-w-11 " +
+  "dark:[&_button]:!border-teal-700/60 dark:[&_button]:!bg-[#0d3435]/90 " +
+  "dark:[&_button]:!text-teal-100 dark:[&_button]:!shadow-none " +
+  "dark:[&_button:hover]:!border-teal-500/80 dark:[&_button:hover]:!bg-[#164849]";
 
 export default function TopBar() {
   const pathname = usePathname();
@@ -128,9 +131,7 @@ export default function TopBar() {
         if (cancelled) return;
 
         setResults(
-          data?.success
-            ? normalizeSearchResults(data.data)
-            : EMPTY_RESULTS,
+          data?.success ? normalizeSearchResults(data.data) : EMPTY_RESULTS,
         );
       })
       .catch(() => {
@@ -194,9 +195,10 @@ export default function TopBar() {
     <header
       dir={isRtl ? "rtl" : "ltr"}
       className={`
-        fixed top-0 z-40 min-w-0 overflow-visible border-b border-slate-200
-        bg-white/92 shadow-sm backdrop-blur-[18px] transition-colors
-        dark:border-[#0f3d3e] dark:bg-[#082526]/95
+        fixed top-0 z-40 min-w-0 overflow-visible border-b border-emerald-100/90
+        bg-[linear-gradient(180deg,rgba(236,253,245,0.97)_0%,rgba(240,253,250,0.92)_52%,rgba(255,255,255,0.95)_100%)]
+        shadow-[0_8px_28px_rgba(15,118,110,0.08)] backdrop-blur-[18px] transition-colors
+        dark:border-[#155354] dark:bg-[linear-gradient(180deg,rgba(11,55,56,0.98)_0%,rgba(8,37,38,0.97)_100%)]
         ${
           isRtl
             ? "right-0 left-0 pr-[62px] pl-2.5 sm:pr-[68px] sm:pl-4 xl:right-64 xl:px-6"
@@ -258,10 +260,11 @@ export default function TopBar() {
         <span
           className="
             hidden h-10 shrink-0 items-center gap-1.5 rounded-2xl
-            border border-slate-200 bg-slate-50/90 px-3 text-xs font-bold
-            text-slate-700 shadow-sm transition-all hover:border-emerald-200
+            border border-emerald-100 bg-white/80 px-3 text-xs font-bold
+            text-slate-700 shadow-[0_5px_16px_rgba(15,118,110,0.08)]
+            transition-all hover:-translate-y-px hover:border-teal-300
             hover:bg-white xl:col-start-2 xl:row-start-1 xl:flex
-            dark:border-emerald-700/60 dark:bg-[#082c2d] dark:text-white
+            dark:border-teal-700/60 dark:bg-[#0d3435]/90 dark:text-white
             dark:hover:border-emerald-500/80 dark:hover:bg-[#185354]
           "
         >
@@ -297,12 +300,12 @@ export default function TopBar() {
             onFocus={() => setOpen(true)}
             placeholder={t.topbar.searchPlaceholder}
             className={`
-              h-10 w-full rounded-2xl border border-slate-200 bg-white py-2
+              h-10 w-full rounded-2xl border border-emerald-100 bg-white/90 py-2
               text-[16px] font-semibold text-slate-800 placeholder:text-slate-400
-              shadow-sm outline-none transition-all hover:border-emerald-300
+              shadow-[0_5px_16px_rgba(15,118,110,0.08)] outline-none transition-all hover:border-emerald-300
               focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10
               sm:h-11 sm:text-sm
-              dark:border-emerald-700/60 dark:bg-[#082c2d] dark:text-white
+              dark:border-emerald-700/60 dark:bg-[#0d3435]/90 dark:text-white
               dark:placeholder:text-emerald-200/80 dark:hover:border-emerald-500/80
               ${isRtl ? "pr-10 pl-10 text-right" : "pl-10 pr-10 text-left"}
             `}
@@ -339,12 +342,14 @@ export default function TopBar() {
                   type="button"
                   key={client.id}
                   onClick={() => {
-                    router.push(`/dashboard/clients/${client.id}`);
+                    router.push(
+                      `/dashboard/clients/${client.publicId ?? client.id}`,
+                    );
                     closeSearch();
                   }}
                   className={`flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:hover:bg-[#123f40]`}
                 >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--green-soft)] text-xs font-bold text-[var(--sidebar)]">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-500/15 text-xs font-bold text-teal-700 dark:bg-teal-300/10 dark:text-teal-200">
                     {client.name?.[0] ?? "C"}
                   </span>
 
@@ -358,8 +363,7 @@ export default function TopBar() {
                     <p
                       className={`truncate text-xs text-slate-500 dark:text-emerald-200 ${alignClass}`}
                     >
-                      {client.phone ??
-                        (locale === "ar" ? "موكل" : "Client")}
+                      {client.phone ?? (locale === "ar" ? "موكل" : "Client")}
                     </p>
                   </div>
                 </button>
@@ -370,7 +374,9 @@ export default function TopBar() {
                   type="button"
                   key={caseItem.id}
                   onClick={() => {
-                    router.push(`/dashboard/cases/${caseItem.id}`);
+                    router.push(
+                      `/dashboard/cases/${caseItem.publicId ?? caseItem.id}`,
+                    );
                     closeSearch();
                   }}
                   className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}

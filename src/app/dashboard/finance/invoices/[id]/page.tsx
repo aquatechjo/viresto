@@ -42,6 +42,7 @@ interface InvoicePayment {
 
 interface Invoice {
   id: string;
+  publicId?: number;
   invoiceNumber: string;
   status: InvoiceStatus;
   issueDate: string;
@@ -53,6 +54,7 @@ interface Invoice {
   notes?: string | null;
   client: {
     id: string;
+    publicId?: number;
     name: string;
     phone?: string | null;
     whatsapp?: string | null;
@@ -63,10 +65,12 @@ interface Invoice {
   };
   case?: {
     id: string;
+    publicId?: number;
     title: string;
     caseNumber?: string | null;
     client?: {
       id?: string;
+      publicId?: number;
       name?: string;
       archivedAt?: string | null;
     } | null;
@@ -639,7 +643,17 @@ export default function InvoiceDetailsPage() {
         return;
       }
 
-      setInvoice(data.data?.invoice ?? data.data ?? data.invoice ?? null);
+      const loadedInvoice =
+        data.data?.invoice ?? data.data ?? data.invoice ?? null;
+
+      setInvoice(loadedInvoice);
+
+      if (
+        loadedInvoice?.publicId &&
+        String(loadedInvoice.publicId) !== String(id)
+      ) {
+        router.replace(`/dashboard/finance/invoices/${loadedInvoice.publicId}`);
+      }
     } catch (error) {
       console.error("Invoice load error:", error);
       setInvoice(null);

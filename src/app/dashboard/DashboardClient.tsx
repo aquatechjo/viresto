@@ -113,6 +113,7 @@ interface Stats {
 
 interface CaseItem {
   id: string;
+  publicId?: number;
   title: string;
   caseNumber?: string;
   status: string;
@@ -138,11 +139,17 @@ interface ActivityItem {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  OPEN: "badge badge-green",
-  IN_PROGRESS: "badge badge-blue",
-  CLOSED: "badge badge-gray",
-  ARCHIVED: "badge badge-gray",
+  OPEN: "inline-flex items-center rounded-full border border-emerald-500/25 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-black text-emerald-700 dark:text-emerald-200",
+  IN_PROGRESS:
+    "inline-flex items-center rounded-full border border-blue-500/25 bg-blue-500/15 px-2.5 py-1 text-[11px] font-black text-blue-700 dark:text-blue-200",
+  CLOSED:
+    "inline-flex items-center rounded-full border border-slate-500/25 bg-slate-500/15 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:text-slate-200",
+  ARCHIVED:
+    "inline-flex items-center rounded-full border border-slate-500/25 bg-slate-500/15 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:text-slate-200",
 };
+
+const DEFAULT_STATUS_BADGE =
+  "inline-flex items-center rounded-full border border-slate-500/25 bg-slate-500/15 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:text-slate-200";
 
 const STATUS_LABELS: Record<Locale, Record<string, string>> = {
   ar: {
@@ -805,7 +812,8 @@ function getActivityText(activity: ActivityItem, locale: Locale) {
 }
 
 function formatMoney(value: number, locale: Locale) {
-  const normalizedValue = Math.abs(Number(value) || 0) < 0.005 ? 0 : Number(value);
+  const normalizedValue =
+    Math.abs(Number(value) || 0) < 0.005 ? 0 : Number(value);
 
   if (locale === "en") {
     return new Intl.NumberFormat("en-US", {
@@ -863,11 +871,11 @@ function formatAppointmentDateTime(date: string, locale: Locale) {
   return new Intl.DateTimeFormat(
     locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
     {
-    timeZone: TENANT_TIME_ZONE,
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
+      timeZone: TENANT_TIME_ZONE,
+      day: "numeric",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
     },
   ).format(new Date(date));
 }
@@ -876,10 +884,10 @@ function formatAppointmentTime(date: string, locale: Locale) {
   return new Intl.DateTimeFormat(
     locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
     {
-    timeZone: TENANT_TIME_ZONE,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
+      timeZone: TENANT_TIME_ZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     },
   ).format(new Date(date));
 }
@@ -963,14 +971,14 @@ function EmptyState({ icon, title, actionLabel, href }: EmptyStateProps) {
       className="flex min-h-[122px] flex-col items-center justify-center rounded-2xl border border-dashed p-4 text-center"
       style={{ borderColor: "var(--border)" }}
     >
-      <div
-        className="flex h-10 w-10 items-center justify-center rounded-xl"
-        style={{ background: "var(--green-soft)", color: "var(--sidebar)" }}
-      >
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/15 text-teal-700 dark:bg-teal-300/10 dark:text-teal-200">
         {icon}
       </div>
 
-      <p className="mt-2.5 text-sm font-bold" style={{ color: "var(--text-2)" }}>
+      <p
+        className="mt-2.5 text-sm font-bold"
+        style={{ color: "var(--text-2)" }}
+      >
         {title}
       </p>
 
@@ -1011,11 +1019,11 @@ function MetricCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-          style={{
-            background: alert ? "var(--red-soft)" : "var(--green-soft)",
-            color: alert ? "#dc2626" : "var(--sidebar)",
-          }}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+            alert
+              ? "bg-red-500/15 text-red-600 dark:text-red-300"
+              : "bg-teal-500/15 text-teal-700 dark:bg-teal-300/10 dark:text-teal-200"
+          }`}
         >
           {icon}
         </div>
@@ -1516,14 +1524,12 @@ export default function DashboardPage() {
                 warning: {
                   background: "rgba(245,158,11,0.08)",
                   border: "rgba(245,158,11,0.22)",
-                  icon:
-                    "text-amber-700 dark:text-amber-300 bg-amber-500/15",
+                  icon: "text-amber-700 dark:text-amber-300 bg-amber-500/15",
                 },
                 info: {
                   background: "var(--green-soft)",
                   border: "var(--border)",
-                  icon:
-                    "text-emerald-700 dark:text-emerald-300 bg-emerald-500/15",
+                  icon: "text-emerald-700 dark:text-emerald-300 bg-emerald-500/15",
                 },
               }[item.tone];
 
@@ -1679,13 +1685,11 @@ export default function DashboardPage() {
                     style={{ borderColor: "var(--border)" }}
                   >
                     <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                      style={{
-                        background: overdue
-                          ? "var(--red-soft)"
-                          : "var(--green-soft)",
-                        color: overdue ? "#dc2626" : "var(--sidebar)",
-                      }}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                        overdue
+                          ? "bg-red-500/15 text-red-600 dark:text-red-300"
+                          : "bg-teal-500/15 text-teal-700 dark:bg-teal-300/10 dark:text-teal-200"
+                      }`}
                     >
                       {overdue ? (
                         <AlertTriangle className="h-5 w-5" />
@@ -1766,7 +1770,7 @@ export default function DashboardPage() {
                 {cases.map((caseItem) => (
                   <Link
                     key={caseItem.id}
-                    href={`/dashboard/cases/${caseItem.id}`}
+                    href={`/dashboard/cases/${caseItem.publicId ?? caseItem.id}`}
                     className="group min-w-0 rounded-2xl border p-3.5 transition hover:-translate-y-0.5 hover:shadow-md"
                     style={{
                       borderColor: "var(--border)",
@@ -1791,7 +1795,7 @@ export default function DashboardPage() {
 
                       <span
                         className={
-                          STATUS_BADGE[caseItem.status] ?? "badge badge-gray"
+                          STATUS_BADGE[caseItem.status] ?? DEFAULT_STATUS_BADGE
                         }
                       >
                         {statusLabels[caseItem.status] ?? caseItem.status}
@@ -1890,79 +1894,79 @@ export default function DashboardPage() {
             )}
           </div>
 
-        <section className="card min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title={t.recentActivities}
-            subtitle={t.recentActivitiesSub}
-            href="/dashboard/activity"
-            linkLabel={t.viewAllActivities}
-            isRtl={isRtl}
-          />
-
-          {activities.length === 0 ? (
-            <EmptyState
-              icon={<Activity className="h-5 w-5" />}
-              title={t.noActivities}
+          <section className="card min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title={t.recentActivities}
+              subtitle={t.recentActivitiesSub}
+              href="/dashboard/activity"
+              linkLabel={t.viewAllActivities}
+              isRtl={isRtl}
             />
-          ) : (
-            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-              {activities.slice(0, 4).map((activity) => {
-                const activityType = normalizeActivityType(activity);
-                const config = ACTIVITY_CONFIG[activityType] ?? {
-                  icon: "✨",
-                  color: "",
-                };
-                const activityText = getActivityText(activity, locale);
 
-                return (
-                  <Link
-                    key={activity.id}
-                    href="/dashboard/activity"
-                    className="group flex min-w-0 items-start gap-3 rounded-2xl border p-3 transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
-                    style={{ borderColor: "var(--border)" }}
-                  >
-                    <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-base ${config.color}`}
+            {activities.length === 0 ? (
+              <EmptyState
+                icon={<Activity className="h-5 w-5" />}
+                title={t.noActivities}
+              />
+            ) : (
+              <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                {activities.slice(0, 4).map((activity) => {
+                  const activityType = normalizeActivityType(activity);
+                  const config = ACTIVITY_CONFIG[activityType] ?? {
+                    icon: "✨",
+                    color: "",
+                  };
+                  const activityText = getActivityText(activity, locale);
+
+                  return (
+                    <Link
+                      key={activity.id}
+                      href="/dashboard/activity"
+                      className="group flex min-w-0 items-start gap-3 rounded-2xl border p-3 transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+                      style={{ borderColor: "var(--border)" }}
                     >
-                      {config.icon}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-start justify-between gap-3">
-                        <p
-                          className="line-clamp-2 text-sm font-bold"
-                          style={{ color: "var(--text)" }}
-                        >
-                          {activityText.title}
-                        </p>
-
-                        <span
-                          className="shrink-0 whitespace-nowrap text-[10px]"
-                          style={{ color: "var(--text-3)" }}
-                        >
-                          {formatDate(activity.createdAt, locale)}
-                        </span>
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-base ${config.color}`}
+                      >
+                        {config.icon}
                       </div>
 
-                      {activityText.message && (
-                        <p
-                          className="mt-1 line-clamp-2 text-xs leading-5"
-                          style={{ color: "var(--text-3)" }}
-                        >
-                          {activityText.message}
-                        </p>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <p
+                            className="line-clamp-2 text-sm font-bold"
+                            style={{ color: "var(--text)" }}
+                          >
+                            {activityText.title}
+                          </p>
+
+                          <span
+                            className="shrink-0 whitespace-nowrap text-[10px]"
+                            style={{ color: "var(--text-3)" }}
+                          >
+                            {formatDate(activity.createdAt, locale)}
+                          </span>
+                        </div>
+
+                        {activityText.message && (
+                          <p
+                            className="mt-1 line-clamp-2 text-xs leading-5"
+                            style={{ color: "var(--text-3)" }}
+                          >
+                            {activityText.message}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
 
         <aside className="min-w-0 space-y-4">
-<div className="card min-w-0 p-4 sm:p-5">
+          <div className="card min-w-0 p-4 sm:p-5">
             <SectionHeader
               title={t.officeSummary}
               subtitle={t.officeSummarySub}
@@ -1974,7 +1978,7 @@ export default function DashboardPage() {
                 className="rounded-2xl border p-3.5"
                 style={{ borderColor: "var(--border)" }}
               >
-                <Users className="h-4 w-4" style={{ color: "var(--sidebar)" }} />
+                <Users className="h-4 w-4 text-teal-700 dark:text-teal-200" />
                 <p
                   className="mt-3 text-xs font-bold"
                   style={{ color: "var(--text-3)" }}
@@ -1999,10 +2003,7 @@ export default function DashboardPage() {
                 className="rounded-2xl border p-3.5"
                 style={{ borderColor: "var(--border)" }}
               >
-                <BriefcaseBusiness
-                  className="h-4 w-4"
-                  style={{ color: "var(--sidebar)" }}
-                />
+                <BriefcaseBusiness className="h-4 w-4 text-teal-700 dark:text-teal-200" />
                 <p
                   className="mt-3 text-xs font-bold"
                   style={{ color: "var(--text-3)" }}
@@ -2021,10 +2022,7 @@ export default function DashboardPage() {
                 className="rounded-2xl border p-3.5"
                 style={{ borderColor: "var(--border)" }}
               >
-                <CheckCircle2
-                  className="h-4 w-4"
-                  style={{ color: "var(--sidebar)" }}
-                />
+                <CheckCircle2 className="h-4 w-4 text-teal-700 dark:text-teal-200" />
                 <p
                   className="mt-3 text-xs font-bold"
                   style={{ color: "var(--text-3)" }}
@@ -2051,10 +2049,7 @@ export default function DashboardPage() {
                 className="rounded-2xl border p-3.5"
                 style={{ borderColor: "var(--border)" }}
               >
-                <CircleDollarSign
-                  className="h-4 w-4"
-                  style={{ color: "var(--sidebar)" }}
-                />
+                <CircleDollarSign className="h-4 w-4 text-teal-700 dark:text-teal-200" />
                 <p
                   className="mt-3 text-xs font-bold"
                   style={{ color: "var(--text-3)" }}
@@ -2092,13 +2087,9 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <CircleDollarSign
-                className="h-6 w-6"
-                style={{ color: "var(--sidebar)" }}
-              />
+              <CircleDollarSign className="h-6 w-6 text-teal-700 dark:text-teal-200" />
             </div>
           </div>
-
         </aside>
       </section>
     </div>

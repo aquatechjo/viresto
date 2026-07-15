@@ -1,5 +1,5 @@
 "use client";
-import AppLoader from "@/components/ui/AppLoader"
+import AppLoader from "@/components/ui/AppLoader";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import {
 
 interface Client {
   id: string;
+  publicId?: number;
   name: string;
   email?: string;
   phone?: string;
@@ -707,8 +708,8 @@ export default function ClientsPage() {
   }).length;
 
   if (loading) {
-  return <AppLoader fullScreen={false} />
-};
+    return <AppLoader fullScreen={false} />;
+  }
 
   return (
     <>
@@ -763,7 +764,11 @@ export default function ClientsPage() {
               type="button"
               onClick={openCreateModal}
               disabled={!writeAccess.canWrite}
-              title={!writeAccess.canWrite ? writeAccess.message || text.validation.planLimit : text.newClient}
+              title={
+                !writeAccess.canWrite
+                  ? writeAccess.message || text.validation.planLimit
+                  : text.newClient
+              }
               className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl px-5 text-sm font-black transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: "#fff",
@@ -911,7 +916,11 @@ export default function ClientsPage() {
                     type="button"
                     onClick={openCreateModal}
                     disabled={!writeAccess.canWrite}
-                    title={!writeAccess.canWrite ? writeAccess.message || text.validation.planLimit : text.empty.addClient}
+                    title={
+                      !writeAccess.canWrite
+                        ? writeAccess.message || text.validation.planLimit
+                        : text.empty.addClient
+                    }
                     className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {text.empty.addClient}
@@ -933,7 +942,11 @@ export default function ClientsPage() {
             {filteredClients.map((client) => (
               <div
                 key={client.id}
-                onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+                onClick={() =>
+                  router.push(
+                    `/dashboard/clients/${client.publicId ?? client.id}`,
+                  )
+                }
                 className="card group cursor-pointer p-5 transition-all duration-200 hover:-translate-y-0.5"
               >
                 <div className="flex items-start justify-between gap-4">

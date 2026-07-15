@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
@@ -17,13 +18,28 @@ import {
 
 type Params = { params: Promise<{ id: string }> };
 
-function decryptClient<T extends {
-  email?: string | null;
-  phone?: string | null;
-  nationalId?: string | null;
-  address?: string | null;
-  notes?: string | null;
-}>(client: T) {
+function clientLookupWhere(
+  identifier: string,
+  tenantId: string,
+): Prisma.ClientWhereInput {
+  const publicId = Number(identifier);
+  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
+
+  return {
+    tenantId,
+    OR: hasPublicId ? [{ id: identifier }, { publicId }] : [{ id: identifier }],
+  };
+}
+
+function decryptClient<
+  T extends {
+    email?: string | null;
+    phone?: string | null;
+    nationalId?: string | null;
+    address?: string | null;
+    notes?: string | null;
+  },
+>(client: T) {
   return {
     ...client,
     email: decryptText(client.email),
@@ -42,10 +58,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const client = await prisma.client.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: clientLookupWhere(id, auth.user.tenantId),
       include: {
         cases: {
           include: {
@@ -104,10 +117,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.client.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: clientLookupWhere(id, auth.user.tenantId),
       select: {
         id: true,
         name: true,
@@ -295,10 +305,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.client.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: clientLookupWhere(id, auth.user.tenantId),
       select: {
         id: true,
         name: true,

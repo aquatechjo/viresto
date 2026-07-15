@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import AppLoader from "@/components/ui/AppLoader";
@@ -22,6 +22,7 @@ interface Payment {
   notes?: string | null;
   invoice?: {
     id: string;
+    publicId?: number;
     invoiceNumber: string;
     status: string;
     total: number;
@@ -81,6 +82,7 @@ interface InvoiceItem {
 
 interface Invoice {
   id: string;
+  publicId?: number;
   invoiceNumber: string;
   status: string;
   issueDate: string;
@@ -113,6 +115,7 @@ interface Activity {
 
 interface CaseDetail {
   id: string;
+  publicId?: number;
   title: string;
   caseNumber?: string | null;
   court?: string | null;
@@ -131,6 +134,7 @@ interface CaseDetail {
   updatedAt: string;
   client: {
     id: string;
+    publicId?: number;
     name: string;
     phone?: string | null;
     email?: string | null;
@@ -153,13 +157,6 @@ const STATUS_AR: Record<string, string> = {
   ARCHIVED: "مؤرشفة",
 };
 
-const STATUS_BADGE: Record<string, string> = {
-  OPEN: "badge badge-green",
-  IN_PROGRESS: "badge badge-blue",
-  CLOSED: "badge badge-gray",
-  ARCHIVED: "badge badge-gray",
-};
-
 const STATUSES = [
   ["OPEN", "نشطة"],
   ["IN_PROGRESS", "قيد المتابعة"],
@@ -172,13 +169,6 @@ const METHOD_AR: Record<string, string> = {
   BANK_TRANSFER: "تحويل بنكي",
   CHECK: "شيك",
   ONLINE: "إلكتروني",
-};
-
-const PMT_STATUS: Record<string, string> = {
-  PAID: "badge badge-green",
-  PENDING: "badge badge-amber",
-  OVERDUE: "badge badge-red",
-  CANCELLED: "badge badge-gray",
 };
 
 const PMT_AR: Record<string, string> = {
@@ -197,15 +187,6 @@ const INVOICE_STATUS_AR: Record<string, string> = {
   PARTIALLY_PAID: "مدفوعة جزئيًا",
 };
 
-const INVOICE_STATUS_BADGE: Record<string, string> = {
-  DRAFT: "badge badge-gray",
-  UNPAID: "badge badge-amber",
-  PAID: "badge badge-green",
-  OVERDUE: "badge badge-red",
-  CANCELLED: "badge badge-gray",
-  PARTIALLY_PAID: "badge badge-blue",
-};
-
 const TASK_PRIORITY_AR: Record<string, string> = {
   URGENT: "عاجلة",
   HIGH: "عالية",
@@ -213,12 +194,48 @@ const TASK_PRIORITY_AR: Record<string, string> = {
   LOW: "منخفضة",
 };
 
-const TASK_PRIORITY_BADGE: Record<string, string> = {
-  URGENT: "badge badge-red",
-  HIGH: "badge badge-red",
-  MEDIUM: "badge badge-amber",
-  LOW: "badge badge-gray",
-};
+const BADGE_CLASS =
+  "inline-flex items-center rounded-full border px-3 py-1 text-xs font-black";
+
+function badgeVisualStyle(value: string): CSSProperties {
+  if (value === "PAID" || value === "OPEN") {
+    return {
+      background: "var(--green-soft)",
+      color: "var(--text)",
+      borderColor: "var(--border)",
+    };
+  }
+
+  if (value === "IN_PROGRESS" || value === "PARTIALLY_PAID") {
+    return {
+      background: "rgba(59, 130, 246, 0.16)",
+      color: "var(--text)",
+      borderColor: "var(--border)",
+    };
+  }
+
+  if (value === "PENDING" || value === "UNPAID" || value === "MEDIUM") {
+    return {
+      background: "var(--amber-soft, rgba(245, 158, 11, 0.16))",
+      color: "var(--text)",
+      borderColor: "var(--border)",
+    };
+  }
+
+  if (value === "OVERDUE" || value === "URGENT" || value === "HIGH") {
+    return {
+      background: "var(--red-soft, rgba(220, 38, 38, 0.12))",
+      color: "#dc2626",
+      borderColor: "rgba(220, 38, 38, 0.24)",
+    };
+  }
+
+  return {
+    background: "var(--card-2)",
+    color: "var(--text-2)",
+    borderColor: "var(--border)",
+  };
+}
 
 const APPT_TYPE_AR: Record<string, string> = {
   MEETING: "اجتماع",
@@ -954,8 +971,7 @@ export default function CaseDetailPage() {
             ? new Date(appointmentForm.endTime).toISOString()
             : undefined,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          assignedToId:
-            appointmentForm.assignedToId || currentUserId,
+          assignedToId: appointmentForm.assignedToId || currentUserId,
           location: appointmentForm.location || undefined,
           description: appointmentForm.description || undefined,
           clientId: c?.client.id,
@@ -1053,18 +1069,26 @@ export default function CaseDetailPage() {
 
   async function toggleTask(task: TaskItem) {
     const isCompleted = task.status === "COMPLETED" || task.completed;
+
+    if (isCompleted) {
+      toast.warning(
+        isArabic
+          ? "المهمة مكتملة ولا يمكن تغيير حالتها بعد الآن"
+          : "This task is completed and its status is now locked",
+      );
+      return;
+    }
+
     const response = await fetch(`/api/tasks/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: isCompleted ? "TODO" : "COMPLETED" }),
+      body: JSON.stringify({ status: "COMPLETED" }),
     });
 
     const data = await response.json().catch(() => ({}));
 
     if (response.ok && data.success) {
-      toast.success(
-        isCompleted ? "تمت إعادة فتح المهمة" : "تم إكمال المهمة",
-      );
+      toast.success(isArabic ? "تم إكمال المهمة" : "Task completed");
       load();
     } else {
       toast.error(getApiMessage(data, "تعذر تحديث المهمة"));
@@ -1138,7 +1162,9 @@ export default function CaseDetailPage() {
         load();
 
         if (data.data?.id) {
-          router.push(`/dashboard/invoices/${data.data.id}`);
+          router.push(
+            `/dashboard/invoices/${data.data.publicId ?? data.data.id}`,
+          );
         }
       } else {
         toast.error(getApiMessage(data, "تعذر إنشاء الفاتورة"));
@@ -1326,8 +1352,9 @@ export default function CaseDetailPage() {
 
   return (
     <div
-      className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
+      className="case-detail-page min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
       dir={isRtl ? "rtl" : "ltr"}
+      style={{ "--text-3": "var(--text-2)" } as CSSProperties}
     >
       {/* Hero */}
       <div
@@ -1683,7 +1710,12 @@ export default function CaseDetailPage() {
             title={
               caseArchived ? pageText.archivedAppointmentBlocked : undefined
             }
-            className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+            className="case-quick-action btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              background: "var(--card-2)",
+              color: "var(--text)",
+              borderColor: "var(--border)",
+            }}
           >
             {pageText.appointment}
           </button>
@@ -1691,7 +1723,12 @@ export default function CaseDetailPage() {
             onClick={() => setTaskOpen(true)}
             disabled={caseArchived}
             title={caseArchived ? pageText.archivedTaskBlocked : undefined}
-            className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+            className="case-quick-action btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              background: "var(--card-2)",
+              color: "var(--text)",
+              borderColor: "var(--border)",
+            }}
           >
             {pageText.task}
           </button>
@@ -1699,19 +1736,34 @@ export default function CaseDetailPage() {
             onClick={() => setDocumentOpen(true)}
             disabled={caseArchived}
             title={caseArchived ? pageText.archivedDocumentBlocked : undefined}
-            className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+            className="case-quick-action btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              background: "var(--card-2)",
+              color: "var(--text)",
+              borderColor: "var(--border)",
+            }}
           >
             {pageText.document}
           </button>
           <button
             onClick={() => setPaymentOpen(true)}
-            className="btn btn-ghost"
+            className="case-quick-action btn btn-ghost"
+            style={{
+              background: "var(--card-2)",
+              color: "var(--text)",
+              borderColor: "var(--border)",
+            }}
           >
             {pageText.payment}
           </button>
           <button
             onClick={() => setInvoiceOpen(true)}
-            className="btn btn-ghost"
+            className="case-quick-action btn btn-ghost"
+            style={{
+              background: "var(--card-2)",
+              color: "var(--text)",
+              borderColor: "var(--border)",
+            }}
           >
             {pageText.invoice}
           </button>
@@ -1751,7 +1803,7 @@ export default function CaseDetailPage() {
             </div>
 
             <Link
-              href={`/dashboard/clients/${c.client.id}`}
+              href={`/dashboard/clients/${c.client.publicId ?? c.client.id}`}
               className="block rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
               style={{
                 borderColor: "var(--border)",
@@ -1979,7 +2031,10 @@ export default function CaseDetailPage() {
                     }}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <span className="badge badge-blue">
+                      <span
+                        className={BADGE_CLASS}
+                        style={badgeVisualStyle("IN_PROGRESS")}
+                      >
                         {appointmentTypeText[appointment.type] ||
                           appointment.type}
                       </span>
@@ -2066,25 +2121,41 @@ export default function CaseDetailPage() {
                 {c.tasks.slice(0, 8).map((task) => (
                   <div
                     key={task.id}
-                    className={`flex items-center gap-3 rounded-2xl border p-3 ${
-                      task.status === "COMPLETED" || task.completed ? "opacity-60" : ""
-                    }`}
+                    className="flex items-center gap-3 rounded-2xl border p-3"
                     style={{ borderColor: "var(--border)" }}
                   >
                     <button
                       type="button"
                       onClick={() => toggleTask(task)}
-                      disabled={currentRole === "STAFF" && task.assignedTo?.id !== currentUserId}
+                      disabled={
+                        task.status === "COMPLETED" ||
+                        task.completed ||
+                        (currentRole === "STAFF" &&
+                          task.assignedTo?.id !== currentUserId)
+                      }
+                      title={
+                        task.status === "COMPLETED" || task.completed
+                          ? isArabic
+                            ? "المهمة مكتملة ولا يمكن تغيير حالتها"
+                            : "Completed tasks are locked"
+                          : undefined
+                      }
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black"
                       style={{
                         borderColor: "var(--sidebar)",
-                        background: task.status === "COMPLETED" || task.completed
-                          ? "var(--sidebar)"
-                          : "transparent",
-                        color: task.status === "COMPLETED" || task.completed ? "#fff" : "transparent",
+                        background:
+                          task.status === "COMPLETED" || task.completed
+                            ? "var(--sidebar)"
+                            : "transparent",
+                        color:
+                          task.status === "COMPLETED" || task.completed
+                            ? "#fff"
+                            : "transparent",
                       }}
                     >
-                      ✓
+                      {task.status === "COMPLETED" || task.completed
+                        ? "✓"
+                        : null}
                     </button>
 
                     <div className="min-w-0 flex-1 text-right">
@@ -2095,22 +2166,27 @@ export default function CaseDetailPage() {
                         {task.title}
                       </p>
 
-                      <p className="text-xs" style={{ color: "var(--text-3)" }}>
+                      <p
+                        className="text-xs font-semibold"
+                        style={{ color: "var(--text-2)" }}
+                      >
                         {task.dueDate
                           ? `${pageText.dueDate}: ${formatDate(task.dueDate)}`
                           : pageText.noDate}
                       </p>
                       {task.assignedTo && (
-                        <p className="mt-1 text-xs font-bold" style={{ color: "var(--text-2)" }}>
+                        <p
+                          className="mt-1 text-xs font-bold"
+                          style={{ color: "var(--text-2)" }}
+                        >
                           {pageText.taskAssignee}: {task.assignedTo.name}
                         </p>
                       )}
                     </div>
 
                     <span
-                      className={
-                        TASK_PRIORITY_BADGE[task.priority] || "badge badge-gray"
-                      }
+                      className={BADGE_CLASS}
+                      style={badgeVisualStyle(task.priority)}
                     >
                       {taskPriorityText[task.priority] || task.priority}
                     </span>
@@ -2170,10 +2246,8 @@ export default function CaseDetailPage() {
 
                         <td>
                           <span
-                            className={
-                              INVOICE_STATUS_BADGE[invoice.status] ||
-                              "badge badge-gray"
-                            }
+                            className={BADGE_CLASS}
+                            style={badgeVisualStyle(invoice.status)}
                           >
                             {invoiceStatusText[invoice.status] ||
                               invoice.status}
@@ -2194,9 +2268,13 @@ export default function CaseDetailPage() {
                         <td>
                           <div className="flex items-center gap-2">
                             <Link
-                              href={`/dashboard/invoices/${invoice.id}`}
-                              className="text-xs font-bold hover:underline"
-                              style={{ color: "var(--sidebar)" }}
+                              href={`/dashboard/invoices/${invoice.publicId ?? invoice.id}`}
+                              className="inline-flex items-center rounded-lg border px-2 py-1 text-xs font-bold hover:underline"
+                              style={{
+                                background: "var(--green-soft)",
+                                color: "var(--text)",
+                                borderColor: "var(--border)",
+                              }}
                             >
                               {pageText.open}
                             </Link>
@@ -2282,9 +2360,8 @@ export default function CaseDetailPage() {
 
                         <td>
                           <span
-                            className={
-                              PMT_STATUS[payment.status] || "badge badge-gray"
-                            }
+                            className={BADGE_CLASS}
+                            style={badgeVisualStyle(payment.status)}
                           >
                             {paymentStatusText[payment.status] ||
                               payment.status}
@@ -2294,9 +2371,13 @@ export default function CaseDetailPage() {
                         <td>
                           {payment.invoice ? (
                             <Link
-                              href={`/dashboard/invoices/${payment.invoice.id}`}
-                              className="text-xs font-bold hover:underline"
-                              style={{ color: "var(--sidebar)" }}
+                              href={`/dashboard/invoices/${payment.invoice.publicId ?? payment.invoice.id}`}
+                              className="inline-flex items-center rounded-lg border px-2 py-1 text-xs font-bold hover:underline"
+                              style={{
+                                background: "var(--green-soft)",
+                                color: "var(--text)",
+                                borderColor: "var(--border)",
+                              }}
                             >
                               {payment.invoice.invoiceNumber}
                             </Link>
@@ -2416,7 +2497,11 @@ export default function CaseDetailPage() {
                     {!!doc.tags?.length && (
                       <div className="mt-3 flex flex-wrap justify-end gap-1">
                         {doc.tags.slice(0, 3).map((tag) => (
-                          <span key={tag} className="badge badge-gray">
+                          <span
+                            key={tag}
+                            className={BADGE_CLASS}
+                            style={badgeVisualStyle("DRAFT")}
+                          >
                             {tag}
                           </span>
                         ))}
@@ -3310,6 +3395,73 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </Modal>
+
+      <style jsx global>{`
+        .case-detail-page .btn-ghost {
+          color: var(--text) !important;
+          border-color: var(--border) !important;
+        }
+
+        .case-detail-page .case-quick-action {
+          background: var(--card-2) !important;
+          color: var(--text) !important;
+          border-color: var(--border) !important;
+        }
+
+        .case-detail-page .badge {
+          border: 1px solid var(--border) !important;
+          opacity: 1 !important;
+        }
+
+        .case-detail-page .badge-green {
+          background: var(--green-soft) !important;
+          color: var(--text) !important;
+        }
+
+        .case-detail-page .badge-blue {
+          background: rgba(59, 130, 246, 0.16) !important;
+          color: var(--text) !important;
+        }
+
+        .case-detail-page .badge-amber {
+          background: var(--amber-soft, rgba(245, 158, 11, 0.16)) !important;
+          color: var(--text) !important;
+        }
+
+        .case-detail-page .badge-red {
+          background: var(--red-soft) !important;
+          color: #dc2626 !important;
+        }
+
+        .case-detail-page .badge-gray {
+          background: var(--card-2) !important;
+          color: var(--text-2) !important;
+        }
+
+        .case-detail-page .data-table th {
+          background: var(--card-2) !important;
+          color: var(--text-2) !important;
+        }
+
+        .case-detail-page .data-table td {
+          color: var(--text) !important;
+        }
+
+        .case-detail-page .case-table-link {
+          display: inline-flex;
+          align-items: center;
+          border: 1px solid var(--border);
+          border-radius: 0.6rem;
+          padding: 0.25rem 0.5rem;
+          background: var(--green-soft);
+          color: var(--text) !important;
+          text-decoration: none;
+        }
+
+        .case-detail-page .case-table-link:hover {
+          text-decoration: underline;
+        }
+      `}</style>
     </div>
   );
 }
@@ -3421,12 +3573,13 @@ function CaseTeamEditor({
   const eligibleLeads = members.filter(
     (member) => member.role === "ADMIN" || member.role === "LAWYER",
   );
-  const participants = members.filter(
-    (member) => member.id !== leadLawyerId,
-  );
+  const participants = members.filter((member) => member.id !== leadLawyerId);
 
   return (
-    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
+    <div
+      className="rounded-2xl border p-4"
+      style={{ borderColor: "var(--border)", background: "var(--card-2)" }}
+    >
       <FormField label={leadLabel} required>
         <select
           className="input"
@@ -3444,7 +3597,10 @@ function CaseTeamEditor({
         </select>
       </FormField>
 
-      <p className="mb-2 mt-3 text-xs font-black" style={{ color: "var(--text-2)" }}>
+      <p
+        className="mb-2 mt-3 text-xs font-black"
+        style={{ color: "var(--text-2)" }}
+      >
         {membersLabel}
       </p>
       <div className="grid max-h-36 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">

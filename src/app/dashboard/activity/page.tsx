@@ -849,10 +849,11 @@ export default function ActivityPage() {
                   {stat.value}
                 </p>
               </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
                 <stat.icon
                   className="h-5 w-5"
-                  style={{ color: "var(--sidebar)" }}
+                  style={{ color: "var(--text)" }}
+                  aria-hidden="true"
                 />
               </div>
             </div>
@@ -972,10 +973,11 @@ export default function ActivityPage() {
                         style={{ textAlign: fieldTextAlign }}
                       >
                         <div className="flex items-start justify-start gap-3 text-start">
-                          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-black/5">
+                          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
                             <FileText
                               className="h-4 w-4"
-                              style={{ color: "var(--sidebar)" }}
+                              style={{ color: "var(--text)" }}
+                              aria-hidden="true"
                             />
                           </div>
                           <div className="min-w-0 text-start">

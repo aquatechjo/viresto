@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getApiMessage } from "@/lib/plan-ui";
@@ -15,6 +15,7 @@ import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
 interface ClientCase {
   id: string;
+  publicId?: number;
   title: string;
   caseNumber?: string | null;
   status: string;
@@ -27,6 +28,7 @@ interface ClientCase {
 
 interface Client {
   id: string;
+  publicId?: number;
   name: string;
   email?: string | null;
   phone?: string | null;
@@ -38,12 +40,32 @@ interface Client {
   archivedAt?: string | null;
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  OPEN: "badge badge-green",
-  IN_PROGRESS: "badge badge-blue",
-  CLOSED: "badge badge-gray",
-  ARCHIVED: "badge badge-gray",
-};
+const STATUS_BADGE_CLASS =
+  "inline-flex items-center rounded-full border px-3 py-1 text-xs font-black";
+
+function statusBadgeStyle(status: string): CSSProperties {
+  if (status === "OPEN") {
+    return {
+      background: "var(--green-soft)",
+      color: "var(--text)",
+      borderColor: "var(--border)",
+    };
+  }
+
+  if (status === "IN_PROGRESS") {
+    return {
+      background: "rgba(59, 130, 246, 0.16)",
+      color: "var(--text)",
+      borderColor: "rgba(59, 130, 246, 0.28)",
+    };
+  }
+
+  return {
+    background: "var(--card-2)",
+    color: "var(--text-2)",
+    borderColor: "var(--border)",
+  };
+}
 
 const STATUS_KEYS = [
   "all",
@@ -646,8 +668,9 @@ export default function ClientDetailPage() {
 
   return (
     <div
-      className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
+      className="client-detail-page min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
       dir={isRtl ? "rtl" : "ltr"}
+      style={{ "--text-3": "var(--text-2)" } as CSSProperties}
     >
       {/* Hero */}
       <div
@@ -900,7 +923,7 @@ export default function ClientDetailPage() {
           {
             label: text.stats.paid,
             value: formatMoney(totals.totalPaid, localeKey),
-            color: "var(--sidebar)",
+            color: "var(--text)",
             bg: "var(--green-soft)",
           },
           {
@@ -912,7 +935,7 @@ export default function ClientDetailPage() {
           {
             label: text.stats.collectionRate,
             value: `${Math.round(totals.collectionRate)}%`,
-            color: totals.collectionRate >= 80 ? "var(--sidebar)" : "#92400e",
+            color: totals.collectionRate >= 80 ? "var(--text)" : "#92400e",
             bg:
               totals.collectionRate >= 80
                 ? "var(--green-soft)"
@@ -1029,7 +1052,7 @@ export default function ClientDetailPage() {
               >
                 <p
                   className="mb-1 text-right text-xs font-black"
-                  style={{ color: "var(--sidebar)" }}
+                  style={{ color: "var(--text)" }}
                 >
                   {text.info.notes}
                 </p>
@@ -1067,7 +1090,7 @@ export default function ClientDetailPage() {
 
           <div className="card p-5">
             <div className="mb-3 flex justify-between gap-3 text-xs font-black">
-              <span style={{ color: "var(--sidebar)" }}>
+              <span style={{ color: "var(--text)" }}>
                 {Math.round(totals.collectionRate)}% {text.summary.collected}
               </span>
 
@@ -1086,7 +1109,7 @@ export default function ClientDetailPage() {
                   width: `${totals.collectionRate}%`,
                   background:
                     totals.collectionRate >= 100
-                      ? "var(--sidebar)"
+                      ? "#5bb8b3"
                       : totals.collectionRate >= 60
                         ? "#f59e0b"
                         : "#dc2626",
@@ -1176,7 +1199,15 @@ export default function ClientDetailPage() {
                 </p>
               </div>
 
-              <Link href="/dashboard/cases" className="btn btn-ghost">
+              <Link
+                href="/dashboard/cases"
+                className="btn"
+                style={{
+                  background: "var(--card-2)",
+                  color: "var(--text)",
+                  borderColor: "var(--border)",
+                }}
+              >
                 {text.cases.allCases}
               </Link>
             </div>
@@ -1196,7 +1227,12 @@ export default function ClientDetailPage() {
                       <button
                         type="button"
                         onClick={clearFilters}
-                        className="btn btn-ghost"
+                        className="btn"
+                        style={{
+                          background: "var(--card-2)",
+                          color: "var(--text)",
+                          borderColor: "var(--border)",
+                        }}
                       >
                         {text.filters.clear}
                       </button>
@@ -1228,7 +1264,9 @@ export default function ClientDetailPage() {
                         <tr
                           key={item.id}
                           onClick={() =>
-                            router.push(`/dashboard/cases/${item.id}`)
+                            router.push(
+                              `/dashboard/cases/${item.publicId ?? item.id}`,
+                            )
                           }
                           className="cursor-pointer"
                         >
@@ -1260,7 +1298,7 @@ export default function ClientDetailPage() {
                           <td
                             dir="ltr"
                             className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
-                            style={{ color: "var(--sidebar)" }}
+                            style={{ color: "var(--text)" }}
                           >
                             {formatMoney(paid, localeKey)}
                           </td>
@@ -1287,7 +1325,7 @@ export default function ClientDetailPage() {
                                     width: `${percent}%`,
                                     background:
                                       percent >= 100
-                                        ? "var(--sidebar)"
+                                        ? "#5bb8b3"
                                         : percent >= 60
                                           ? "#f59e0b"
                                           : "#dc2626",
@@ -1307,9 +1345,8 @@ export default function ClientDetailPage() {
 
                           <td>
                             <span
-                              className={
-                                STATUS_BADGE[item.status] ?? "badge badge-gray"
-                              }
+                              className={STATUS_BADGE_CLASS}
+                              style={statusBadgeStyle(item.status)}
                             >
                               {text.filters.statuses[
                                 item.status as keyof typeof text.filters.statuses
@@ -1491,7 +1528,12 @@ export default function ClientDetailPage() {
                   notes: client.notes ?? "",
                 });
               }}
-              className="btn btn-ghost flex-1"
+              className="btn flex-1"
+              style={{
+                background: "var(--card-2)",
+                color: "var(--text)",
+                borderColor: "var(--border)",
+              }}
             >
               {text.modal.cancel}
             </button>

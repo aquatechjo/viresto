@@ -160,30 +160,29 @@ export async function POST(req: NextRequest) {
         : null,
     };
 
-    
+    const duplicateConditions = [
+      ...(secureData.phoneHash ? [{ phoneHash: secureData.phoneHash }] : []),
+      ...(secureData.nationalIdHash
+        ? [{ nationalIdHash: secureData.nationalIdHash }]
+        : []),
+      ...(secureData.emailHash ? [{ emailHash: secureData.emailHash }] : []),
+    ];
 
-const duplicateConditions = [
-  ...(secureData.phoneHash ? [{ phoneHash: secureData.phoneHash }] : []),
-  ...(secureData.nationalIdHash
-    ? [{ nationalIdHash: secureData.nationalIdHash }]
-    : []),
-  ...(secureData.emailHash ? [{ emailHash: secureData.emailHash }] : []),
-];
-
-const duplicateClient =
-  duplicateConditions.length > 0
-    ? await prisma.client.findFirst({
-        where: {
-          tenantId: auth.user.tenantId,
-          OR: duplicateConditions,
-        },
-        select: {
-          id: true,
-          name: true,
-          archivedAt: true,
-        },
-      })
-    : null;
+    const duplicateClient =
+      duplicateConditions.length > 0
+        ? await prisma.client.findFirst({
+            where: {
+              tenantId: auth.user.tenantId,
+              OR: duplicateConditions,
+            },
+            select: {
+              id: true,
+              publicId: true,
+              name: true,
+              archivedAt: true,
+            },
+          })
+        : null;
 
     if (duplicateClient) {
       return err(
@@ -194,6 +193,7 @@ const duplicateClient =
         {
           code: "CLIENT_DUPLICATE",
           clientId: duplicateClient.id,
+          clientPublicId: duplicateClient.publicId,
           archived: !!duplicateClient.archivedAt,
         },
       );

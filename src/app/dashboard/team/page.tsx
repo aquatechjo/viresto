@@ -102,6 +102,7 @@ const TEAM_COPY = {
       createdAt: (date: string) => `تاريخ الإضافة: ${date}`,
       roleChangeAria: "تغيير صلاحية المستخدم",
       roleChangeTitle: "تغيير صلاحية المستخدم",
+      systemAdminFixed: "منصب مدير النظام ثابت",
       deactivate: "تعطيل",
       activate: "تفعيل",
       unknownInitial: "؟",
@@ -190,6 +191,7 @@ const TEAM_COPY = {
       createdAt: (date: string) => `Created at: ${date}`,
       roleChangeAria: "Change user role",
       roleChangeTitle: "Change user role",
+      systemAdminFixed: "The system admin role is fixed",
       deactivate: "Disable",
       activate: "Enable",
       unknownInitial: "?",
@@ -203,6 +205,7 @@ interface TeamUser {
   email: string;
   role: Role;
   isActive: boolean;
+  isSystemAdmin: boolean;
   createdAt: string;
 }
 
@@ -292,6 +295,7 @@ export default function TeamPage() {
   const [saving, setSaving] = useState(false);
   const [currentRole, setCurrentRole] = useState("");
   const [planLimit, setPlanLimit] = useState("");
+  const [credentialFieldsReady, setCredentialFieldsReady] = useState(false);
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
@@ -332,7 +336,7 @@ export default function TeamPage() {
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return users.filter((user) => {
+    const matches = users.filter((user) => {
       const matchesSearch =
         !query ||
         user.name.toLowerCase().includes(query) ||
@@ -346,6 +350,11 @@ export default function TeamPage() {
         (statusFilter === "inactive" && !user.isActive);
 
       return matchesSearch && matchesRole && matchesStatus;
+    });
+
+    return matches.sort((first, second) => {
+      if (first.isSystemAdmin === second.isSystemAdmin) return 0;
+      return first.isSystemAdmin ? -1 : 1;
     });
   }, [users, search, roleFilter, statusFilter]);
 
@@ -383,6 +392,7 @@ export default function TeamPage() {
       if (data.success) {
         toast.success(copy.messages.addSuccess);
         setForm(INIT_FORM);
+        setCredentialFieldsReady(false);
         loadUsers();
       } else if (isPlanLimitResponse(data)) {
         setPlanLimit(planLimitMessage(data, copy.plan.fallback));
@@ -635,7 +645,12 @@ export default function TeamPage() {
           <button
             type="button"
             onClick={clearFilters}
-            className="btn btn-ghost whitespace-nowrap"
+            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31]"
+            style={{
+              background: "var(--card-2)",
+              borderColor: "var(--border)",
+              color: "var(--text)",
+            }}
           >
             {copy.filters.filter}
           </button>
@@ -665,6 +680,7 @@ export default function TeamPage() {
         <form
           id="add-team-user"
           onSubmit={addUser}
+          autoComplete="off"
           className="card p-5 text-start"
         >
           <div className="mb-5">
@@ -679,6 +695,8 @@ export default function TeamPage() {
 
           <div className="space-y-3">
             <input
+              name="team-member-full-name"
+              autoComplete="off"
               className="input"
               style={fieldStyle}
               placeholder={copy.form.name}
@@ -692,6 +710,14 @@ export default function TeamPage() {
             />
 
             <input
+              name="team-member-email"
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              readOnly={!credentialFieldsReady}
+              onFocus={() => setCredentialFieldsReady(true)}
+              data-lpignore="true"
+              data-1p-ignore="true"
               className="input"
               style={ltrFieldStyle}
               type="email"
@@ -723,6 +749,12 @@ export default function TeamPage() {
             </select>
 
             <input
+              name="team-member-temporary-password"
+              autoComplete="new-password"
+              readOnly={!credentialFieldsReady}
+              onFocus={() => setCredentialFieldsReady(true)}
+              data-lpignore="true"
+              data-1p-ignore="true"
               className="input"
               style={ltrFieldStyle}
               type="password"
@@ -846,7 +878,7 @@ export default function TeamPage() {
                             user.isActive
                               ? {
                                   background: "var(--green-soft)",
-                                  color: "var(--sidebar)",
+                                  color: "var(--text)",
                                 }
                               : {
                                   background: "var(--red-soft)",
@@ -880,50 +912,74 @@ export default function TeamPage() {
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <select
-                      aria-label={copy.list.roleChangeAria}
-                      className="input min-w-[150px] disabled:cursor-not-allowed disabled:opacity-60"
-                      style={fieldStyle}
-                      value={user.role}
-                      disabled={!writeAccess.canWrite}
-                      title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : copy.list.roleChangeTitle}
-                      onChange={(event) =>
-                        updateUser(user.id, {
-                          role: event.target.value as Role,
-                        })
-                      }
-                    >
-                      <option value="ADMIN">{copy.roles.ADMIN}</option>
-                      <option value="LAWYER">{copy.roles.LAWYER}</option>
-                      <option value="STAFF">{copy.roles.STAFF}</option>
-                    </select>
+                    {user.isSystemAdmin ? (
+                      <span
+                        className="inline-flex min-h-12 min-w-[150px] items-center justify-center rounded-2xl border px-4 text-sm font-black"
+                        style={{
+                          background: "var(--card-2)",
+                          borderColor: "var(--border)",
+                          color: "var(--text)",
+                        }}
+                        title={copy.list.systemAdminFixed}
+                      >
+                        {copy.roles.ADMIN}
+                      </span>
+                    ) : (
+                      <>
+                        <select
+                          aria-label={copy.list.roleChangeAria}
+                          className="input min-w-[150px] disabled:cursor-not-allowed disabled:opacity-60"
+                          style={fieldStyle}
+                          value={user.role}
+                          disabled={!writeAccess.canWrite}
+                          title={
+                            !writeAccess.canWrite
+                              ? writeAccess.message || getBlockFallback(locale)
+                              : copy.list.roleChangeTitle
+                          }
+                          onChange={(event) =>
+                            updateUser(user.id, {
+                              role: event.target.value as Role,
+                            })
+                          }
+                        >
+                          <option value="ADMIN">{copy.roles.ADMIN}</option>
+                          <option value="LAWYER">{copy.roles.LAWYER}</option>
+                          <option value="STAFF">{copy.roles.STAFF}</option>
+                        </select>
 
-                    <button
-                      type="button"
-                      disabled={!writeAccess.canWrite}
-                      title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : undefined}
-                      onClick={() =>
-                        updateUser(user.id, {
-                          isActive: !user.isActive,
-                        })
-                      }
-                      className="btn whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
-                      style={
-                        user.isActive
-                          ? {
-                              background: "var(--red-soft)",
-                              color: "#dc2626",
-                            }
-                          : {
-                              background: "var(--green-soft)",
-                              color: "var(--sidebar)",
-                            }
-                      }
-                    >
-                      {user.isActive
-                        ? copy.list.deactivate
-                        : copy.list.activate}
-                    </button>
+                        <button
+                          type="button"
+                          disabled={!writeAccess.canWrite}
+                          title={
+                            !writeAccess.canWrite
+                              ? writeAccess.message || getBlockFallback(locale)
+                              : undefined
+                          }
+                          onClick={() =>
+                            updateUser(user.id, {
+                              isActive: !user.isActive,
+                            })
+                          }
+                          className="btn whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+                          style={
+                            user.isActive
+                              ? {
+                                  background: "var(--red-soft)",
+                                  color: "#dc2626",
+                                }
+                              : {
+                                  background: "var(--green-soft)",
+                                  color: "var(--text)",
+                                }
+                          }
+                        >
+                          {user.isActive
+                            ? copy.list.deactivate
+                            : copy.list.activate}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

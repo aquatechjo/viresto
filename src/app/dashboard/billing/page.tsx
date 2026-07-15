@@ -292,6 +292,25 @@ function getDocumentsLimitLabel(isArabic: boolean) {
   return isArabic ? "حسب مساحة التخزين" : "Based on storage";
 }
 
+function getPlanDescription(plan: BillingPlan, isArabic: boolean) {
+  switch (getPlanCode(plan)) {
+    case "BASIC":
+      return isArabic
+        ? "كل الأساسيات لتبدأ تنظيم عملك القانوني باحترافية."
+        : "All the essentials you need to organize your legal work professionally.";
+    case "PRO":
+      return isArabic
+        ? "الخطة الأنسب لإدارة مكتبك وفريقك بكفاءة."
+        : "The ideal plan for managing your office and team efficiently.";
+    case "BUSINESS":
+      return isArabic
+        ? "حل متكامل للمكاتب التي تحتاج حدودًا أعلى ودعمًا أقوى."
+        : "A complete solution for law firms that need higher limits and stronger support.";
+    default:
+      return plan.description || "—";
+  }
+}
+
 type PlanFeatureItem = {
   label: string;
   included: boolean;
@@ -738,7 +757,7 @@ export default function BillingPage() {
                 className="mt-2 text-sm leading-7"
                 style={{ color: "var(--muted)" }}
               >
-                {currentPlan.description || "—"}
+                {getPlanDescription(currentPlan, isArabic)}
               </p>
             </div>
 
@@ -946,7 +965,7 @@ export default function BillingPage() {
                     </h3>
 
                     <p className="mt-4 min-h-14 text-sm font-bold leading-7 text-emerald-50/78">
-                      {plan.description || "—"}
+                      {getPlanDescription(plan, isArabic)}
                     </p>
                   </div>
 
@@ -1028,7 +1047,7 @@ export default function BillingPage() {
                       className={[
                         "w-full rounded-2xl px-5 py-4 text-sm font-black transition",
                         canRequest
-                          ? "bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-950/20 hover:bg-emerald-300"
+                          ? "bg-[#c47a31] text-[#061b1c] shadow-lg shadow-black/20 hover:bg-[#d58a3d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e1a261] focus-visible:ring-offset-2 focus-visible:ring-offset-[#041718]"
                           : "border border-white/10 bg-white/5 text-emerald-100/60",
                       ].join(" ")}
                       onClick={() => openManualPayment(plan.id)}
@@ -1050,17 +1069,25 @@ export default function BillingPage() {
       </div>
 
       {manualPaymentOpen && selectedManualPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="manual-payment-title"
+        >
           <div
-            className="w-full max-w-2xl rounded-[28px] border p-5 shadow-2xl"
+            className={`max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[28px] border p-5 shadow-2xl ${
+              isArabic ? "text-right" : "text-left"
+            }`}
+            dir={isArabic ? "rtl" : "ltr"}
             style={{
               background: "var(--card)",
               borderColor: "var(--border)",
             }}
           >
             <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-black">
+              <div className="min-w-0 flex-1">
+                <h2 id="manual-payment-title" className="text-2xl font-black">
                   {isArabic ? "إرسال إيصال الدفع" : "Submit payment receipt"}
                 </h2>
 
@@ -1075,7 +1102,12 @@ export default function BillingPage() {
                 type="button"
                 onClick={closeManualPayment}
                 disabled={submittingManualPayment}
-                className="btn btn-ghost"
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border text-lg font-black transition hover:bg-[var(--input-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31] disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  borderColor: "var(--border)",
+                  color: "var(--text)",
+                }}
+                aria-label={isArabic ? "إغلاق" : "Close"}
               >
                 ×
               </button>
@@ -1117,7 +1149,11 @@ export default function BillingPage() {
                 </span>
 
                 <select
-                  className="input"
+                  className={`input w-full ${
+                    isArabic ? "!text-right" : "!text-left"
+                  }`}
+                  dir={isArabic ? "rtl" : "ltr"}
+                  style={{ textAlign: isArabic ? "right" : "left" }}
                   value={manualPaymentInterval}
                   onChange={(event) =>
                     setManualPaymentInterval(
@@ -1146,7 +1182,11 @@ export default function BillingPage() {
                 </span>
 
                 <select
-                  className="input"
+                  className={`input w-full ${
+                    isArabic ? "!text-right" : "!text-left"
+                  }`}
+                  dir={isArabic ? "rtl" : "ltr"}
+                  style={{ textAlign: isArabic ? "right" : "left" }}
                   value={manualPaymentMethod}
                   onChange={(event) =>
                     setManualPaymentMethod(event.target.value)
@@ -1192,7 +1232,11 @@ export default function BillingPage() {
 
                 <input
                   type="file"
-                  className="input"
+                  className={`input w-full ${
+                    isArabic ? "!text-right" : "!text-left"
+                  }`}
+                  dir={isArabic ? "rtl" : "ltr"}
+                  style={{ textAlign: isArabic ? "right" : "left" }}
                   accept="image/jpeg,image/png,image/webp,application/pdf"
                   disabled={submittingManualPayment}
                   onChange={(event) =>
@@ -1210,12 +1254,19 @@ export default function BillingPage() {
                 </span>
               </label>
 
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <div
+                className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"
+                dir="ltr"
+              >
                 <button
                   type="button"
                   onClick={closeManualPayment}
                   disabled={submittingManualPayment}
-                  className="btn btn-ghost"
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border px-5 py-3 text-sm font-black transition hover:bg-[var(--input-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31] disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--text)",
+                  }}
                 >
                   {isArabic ? "إلغاء" : "Cancel"}
                 </button>
@@ -1223,7 +1274,7 @@ export default function BillingPage() {
                 <button
                   type="submit"
                   disabled={submittingManualPayment}
-                  className="btn btn-primary"
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#c47a31] px-5 py-3 text-sm font-black text-[#061b1c] shadow-lg shadow-black/15 transition hover:bg-[#d58a3d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e1a261] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submittingManualPayment
                     ? isArabic

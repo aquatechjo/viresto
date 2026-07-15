@@ -50,6 +50,7 @@ interface InvoiceItem {
 
 interface Invoice {
   id: string;
+  publicId?: number;
   invoiceNumber: string;
   status: InvoiceStatus;
   issueDate: string;
@@ -61,6 +62,7 @@ interface Invoice {
   notes?: string | null;
   client: {
     id: string;
+    publicId?: number;
     name: string;
     phone?: string | null;
     whatsapp?: string | null;
@@ -71,10 +73,12 @@ interface Invoice {
   };
   case?: {
     id: string;
+    publicId?: number;
     title: string;
     caseNumber?: string | null;
     client?: {
       id?: string;
+      publicId?: number;
       name?: string;
       archivedAt?: string | null;
     } | null;
@@ -520,9 +524,9 @@ function toDateValue(date: Date) {
 function isSameCalendarDay(first: Date | null, second: Date) {
   return Boolean(
     first &&
-    first.getFullYear() === second.getFullYear() &&
-    first.getMonth() === second.getMonth() &&
-    first.getDate() === second.getDate(),
+      first.getFullYear() === second.getFullYear() &&
+      first.getMonth() === second.getMonth() &&
+      first.getDate() === second.getDate(),
   );
 }
 
@@ -1209,8 +1213,9 @@ export default function InvoicesPage() {
   }
 
   function openInvoice(invoice: Invoice) {
-    if (!invoice.id) return;
-    router.push(`/dashboard/finance/invoices/${invoice.id}`);
+    const invoiceId = invoice.publicId ?? invoice.id;
+    if (!invoiceId) return;
+    router.push(`/dashboard/finance/invoices/${invoiceId}`);
   }
 
   function clearFilters() {

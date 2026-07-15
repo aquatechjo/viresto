@@ -26,11 +26,16 @@ export async function GET(req: NextRequest) {
           tenantId: auth.user.tenantId,
           isActive: true,
         },
-        orderBy: [{ role: "asc" }, { name: "asc" }],
+        orderBy: [
+          { isSystemAdmin: "desc" },
+          { role: "asc" },
+          { name: "asc" },
+        ],
         select: {
           id: true,
           name: true,
           role: true,
+          isSystemAdmin: true,
         },
       });
 
@@ -45,9 +50,7 @@ export async function GET(req: NextRequest) {
       where: {
         tenantId: auth.user.tenantId,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: [{ isSystemAdmin: "desc" }, { createdAt: "desc" }],
       select: {
         id: true,
         name: true,

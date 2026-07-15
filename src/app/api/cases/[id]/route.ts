@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { caseSchema } from "@/lib/validations";
@@ -10,6 +11,19 @@ import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 
 type Params = { params: Promise<{ id: string }> };
+
+function caseLookupWhere(
+  identifier: string,
+  tenantId: string,
+): Prisma.CaseWhereInput {
+  const publicId = Number(identifier);
+  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
+
+  return {
+    tenantId,
+    OR: hasPublicId ? [{ id: identifier }, { publicId }] : [{ id: identifier }],
+  };
+}
 
 const caseUserSelect = {
   id: true,
@@ -37,14 +51,12 @@ export async function GET(req: NextRequest, { params }: Params) {
     const tenantId = auth.user.tenantId;
 
     const c = await prisma.case.findFirst({
-      where: {
-        id,
-        tenantId,
-      },
+      where: caseLookupWhere(id, tenantId),
       include: {
         client: {
           select: {
             id: true,
+            publicId: true,
             name: true,
             phone: true,
             email: true,
@@ -72,6 +84,7 @@ export async function GET(req: NextRequest, { params }: Params) {
             invoice: {
               select: {
                 id: true,
+                publicId: true,
                 invoiceNumber: true,
                 status: true,
                 total: true,
@@ -225,10 +238,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.case.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: caseLookupWhere(id, auth.user.tenantId),
       select: {
         id: true,
         title: true,
@@ -458,10 +468,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.case.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: caseLookupWhere(id, auth.user.tenantId),
       select: {
         id: true,
         title: true,
