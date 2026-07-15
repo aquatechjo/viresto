@@ -42,6 +42,50 @@ interface Payment {
   } | null
 }
 
+type PaymentLinkType = 'INVOICE' | 'CASE'
+
+interface PaymentInvoiceOption {
+  id: string
+  invoiceNumber: string
+  status: string
+  total: number | string
+  client?: {
+    id: string
+    name: string
+  } | null
+  case?: {
+    id: string
+    title: string
+    caseNumber?: string | null
+  } | null
+  payments?: Array<{
+    amount: number | string
+    status: PaymentStatus
+  }>
+}
+
+interface PaymentCaseOption {
+  id: string
+  title: string
+  caseNumber?: string | null
+  client?: {
+    id: string
+    name: string
+    archivedAt?: string | null
+  } | null
+}
+
+const INITIAL_PAYMENT_FORM = {
+  linkType: 'INVOICE' as PaymentLinkType,
+  targetId: '',
+  amount: '',
+  method: 'CASH',
+  status: 'PAID' as PaymentStatus,
+  paidAt: '',
+  reference: '',
+  notes: '',
+}
+
 const COPY = {
   ar: {
     hero: {
@@ -51,8 +95,14 @@ const COPY = {
         'تابع جميع الدفعات المسجلة على الفواتير والقضايا، وحالات التحصيل والروابط المالية من سجل واحد واضح.',
     },
     actions: {
+      addPayment: 'تسجيل دفعة',
       refresh: 'تحديث البيانات',
       clear: 'مسح الفلاتر',
+      cancel: 'إلغاء',
+      savePayment: 'حفظ الدفعة',
+      savingPayment: 'جارٍ حفظ الدفعة...',
+      paymentCreated: 'تم تسجيل الدفعة بنجاح',
+      paymentCreateError: 'تعذر تسجيل الدفعة',
       viewInvoice: 'عرض الفاتورة',
       viewCase: 'عرض القضية',
       retry: 'إعادة المحاولة',
@@ -74,6 +124,33 @@ const COPY = {
       search: 'ابحث بالموكل، القضية، الفاتورة أو رقم المرجع...',
       status: 'حالة الدفعة',
       all: 'جميع الحالات',
+    },
+    form: {
+      title: 'تسجيل دفعة جديدة',
+      subtitle:
+        'اربط الدفعة بفاتورة أو سجلها مباشرة على قضية. ستتم مزامنة حالة الفاتورة تلقائياً.',
+      linkType: 'نوع الارتباط',
+      invoice: 'فاتورة',
+      case: 'قضية مباشرة',
+      searchTarget: 'ابحث برقم الفاتورة أو اسم الموكل أو القضية...',
+      searchCase: 'ابحث برقم القضية أو اسم الموكل أو عنوان القضية...',
+      target: 'السجل المرتبط',
+      selectInvoice: 'اختر الفاتورة',
+      selectCase: 'اختر القضية',
+      noTargets: 'لا توجد نتائج مطابقة.',
+      loadingTargets: 'جارٍ تحميل السجلات...',
+      targetLoadError: 'تعذر تحميل الفواتير والقضايا',
+      targetRequired: 'اختر فاتورة أو قضية لربط الدفعة بها',
+      amount: 'المبلغ',
+      amountRequired: 'أدخل مبلغاً صحيحاً أكبر من صفر',
+      remaining: 'المتبقي',
+      method: 'طريقة الدفع',
+      status: 'الحالة',
+      paymentDate: 'تاريخ الدفع',
+      reference: 'رقم المرجع',
+      referencePlaceholder: 'اختياري؛ مثل رقم الحوالة أو الإيصال',
+      notes: 'ملاحظات',
+      notesPlaceholder: 'ملاحظات إضافية اختيارية',
     },
     table: {
       title: 'جميع الدفعات',
@@ -113,8 +190,14 @@ const COPY = {
         'Track payments recorded against invoices and cases, collection statuses, and financial links from one clear ledger.',
     },
     actions: {
+      addPayment: 'Record payment',
       refresh: 'Refresh data',
       clear: 'Clear filters',
+      cancel: 'Cancel',
+      savePayment: 'Save payment',
+      savingPayment: 'Saving payment...',
+      paymentCreated: 'Payment was recorded successfully',
+      paymentCreateError: 'Unable to record the payment',
       viewInvoice: 'View invoice',
       viewCase: 'View case',
       retry: 'Retry',
@@ -136,6 +219,33 @@ const COPY = {
       search: 'Search by client, case, invoice, or reference...',
       status: 'Payment status',
       all: 'All statuses',
+    },
+    form: {
+      title: 'Record a new payment',
+      subtitle:
+        'Link the payment to an invoice or record it directly against a case. The invoice status will be synchronized automatically.',
+      linkType: 'Link type',
+      invoice: 'Invoice',
+      case: 'Direct case payment',
+      searchTarget: 'Search by invoice number, client, or case...',
+      searchCase: 'Search by case number, client, or case title...',
+      target: 'Linked record',
+      selectInvoice: 'Select invoice',
+      selectCase: 'Select case',
+      noTargets: 'No matching records.',
+      loadingTargets: 'Loading records...',
+      targetLoadError: 'Unable to load invoices and cases',
+      targetRequired: 'Select an invoice or case for this payment',
+      amount: 'Amount',
+      amountRequired: 'Enter a valid amount greater than zero',
+      remaining: 'Remaining',
+      method: 'Payment method',
+      status: 'Status',
+      paymentDate: 'Payment date',
+      reference: 'Reference',
+      referencePlaceholder: 'Optional, such as a transfer or receipt number',
+      notes: 'Notes',
+      notesPlaceholder: 'Optional additional notes',
     },
     table: {
       title: 'All payments',
@@ -221,6 +331,40 @@ function unwrapPayment(payload: unknown): Payment | null {
   return null
 }
 
+function unwrapInvoiceOptions(payload: unknown): PaymentInvoiceOption[] {
+  const root = payload as { data?: unknown }
+  const candidates = [payload, root?.data]
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate as PaymentInvoiceOption[]
+  }
+
+  return []
+}
+
+function unwrapCaseOptions(payload: unknown): PaymentCaseOption[] {
+  const root = payload as { data?: unknown }
+  const nested = root?.data as { data?: unknown } | null
+  const candidates = [payload, root?.data, nested?.data]
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate as PaymentCaseOption[]
+  }
+
+  return []
+}
+
+function remainingOfInvoice(invoice: PaymentInvoiceOption) {
+  const total = Number(invoice.total || 0)
+  const paid = (invoice.payments || []).reduce((sum, payment) => {
+    if (payment.status !== 'PAID') return sum
+    const amount = Number(payment.amount || 0)
+    return sum + (Number.isFinite(amount) ? amount : 0)
+  }, 0)
+
+  return Math.max(0, (Number.isFinite(total) ? total : 0) - paid)
+}
+
 function amountOf(payment: Payment) {
   const amount = Number(payment.amount || 0)
   return Number.isFinite(amount) ? amount : 0
@@ -260,6 +404,7 @@ function methodLabel(method: string | null | undefined, locale: Locale) {
     CARD: { ar: 'بطاقة', en: 'Card' },
     CHEQUE: { ar: 'شيك', en: 'Cheque' },
     CHECK: { ar: 'شيك', en: 'Cheque' },
+    ONLINE: { ar: 'إلكتروني', en: 'Online' },
     OTHER: { ar: 'أخرى', en: 'Other' },
   }
 
@@ -315,6 +460,14 @@ export default function PaymentsPage() {
   const [draftStatuses, setDraftStatuses] = useState<
     Record<string, PaymentStatus>
   >({})
+  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [savingPayment, setSavingPayment] = useState(false)
+  const [paymentForm, setPaymentForm] = useState(INITIAL_PAYMENT_FORM)
+  const [targetSearch, setTargetSearch] = useState('')
+  const [targetLoading, setTargetLoading] = useState(false)
+  const [targetError, setTargetError] = useState('')
+  const [invoiceOptions, setInvoiceOptions] = useState<PaymentInvoiceOption[]>([])
+  const [caseOptions, setCaseOptions] = useState<PaymentCaseOption[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -358,6 +511,98 @@ export default function PaymentsPage() {
     load()
   }, [load])
 
+  const loadPaymentTargets = useCallback(
+    async (linkType: PaymentLinkType, query: string) => {
+      setTargetLoading(true)
+      setTargetError('')
+
+      try {
+        const params = new URLSearchParams()
+        const trimmedQuery = query.trim()
+
+        if (trimmedQuery) params.set('q', trimmedQuery)
+
+        if (linkType === 'INVOICE') {
+          params.set('limit', '100')
+
+          const response = await fetch(`/api/invoices?${params.toString()}`, {
+            cache: 'no-store',
+          })
+
+          if (response.status === 401) {
+            window.location.href = '/login'
+            return
+          }
+
+          const payload = await response.json().catch(() => ({}))
+
+          if (!response.ok) {
+            throw new Error(
+              (payload as { message?: string })?.message ||
+                copy.form.targetLoadError,
+            )
+          }
+
+          setInvoiceOptions(
+            unwrapInvoiceOptions(payload).filter(
+              (invoice) =>
+                invoice.status !== 'DRAFT' &&
+                invoice.status !== 'CANCELLED' &&
+                remainingOfInvoice(invoice) > 0,
+            ),
+          )
+        } else {
+          params.set('limit', '50')
+          params.set('includeArchivedClients', 'true')
+
+          const response = await fetch(`/api/cases?${params.toString()}`, {
+            cache: 'no-store',
+          })
+
+          if (response.status === 401) {
+            window.location.href = '/login'
+            return
+          }
+
+          const payload = await response.json().catch(() => ({}))
+
+          if (!response.ok) {
+            throw new Error(
+              (payload as { message?: string })?.message ||
+                copy.form.targetLoadError,
+            )
+          }
+
+          setCaseOptions(unwrapCaseOptions(payload))
+        }
+      } catch (targetLoadError) {
+        setTargetError(
+          targetLoadError instanceof Error
+            ? targetLoadError.message
+            : copy.form.targetLoadError,
+        )
+      } finally {
+        setTargetLoading(false)
+      }
+    },
+    [copy.form.targetLoadError],
+  )
+
+  useEffect(() => {
+    if (!paymentOpen) return
+
+    const timeout = window.setTimeout(() => {
+      loadPaymentTargets(paymentForm.linkType, targetSearch)
+    }, 250)
+
+    return () => window.clearTimeout(timeout)
+  }, [
+    loadPaymentTargets,
+    paymentForm.linkType,
+    paymentOpen,
+    targetSearch,
+  ])
+
   const filteredPayments = useMemo(() => {
     const query = search.trim().toLowerCase()
 
@@ -393,9 +638,94 @@ export default function PaymentsPage() {
     )
   }, [payments])
 
+  const selectedInvoice = useMemo(
+    () =>
+      invoiceOptions.find((invoice) => invoice.id === paymentForm.targetId) ||
+      null,
+    [invoiceOptions, paymentForm.targetId],
+  )
+
   function clearFilters() {
     setSearch('')
     setStatus('')
+  }
+
+  function closePaymentModal() {
+    if (savingPayment) return
+    setPaymentOpen(false)
+    setPaymentForm(INITIAL_PAYMENT_FORM)
+    setTargetSearch('')
+    setTargetError('')
+  }
+
+  async function createPayment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!paymentForm.targetId) {
+      toast.error(copy.form.targetRequired)
+      return
+    }
+
+    const amount = Number(paymentForm.amount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error(copy.form.amountRequired)
+      return
+    }
+
+    let paidAt: string | undefined
+    if (paymentForm.paidAt) {
+      const parsedDate = new Date(paymentForm.paidAt)
+      if (!Number.isNaN(parsedDate.getTime())) {
+        paidAt = parsedDate.toISOString()
+      }
+    }
+
+    setSavingPayment(true)
+
+    try {
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(paymentForm.linkType === 'INVOICE'
+            ? { invoiceId: paymentForm.targetId }
+            : { caseId: paymentForm.targetId }),
+          amount,
+          method: paymentForm.method,
+          status: paymentForm.status,
+          ...(paidAt ? { paidAt } : {}),
+          reference: paymentForm.reference.trim() || null,
+          notes: paymentForm.notes.trim() || null,
+        }),
+      })
+
+      if (response.status === 401) {
+        window.location.href = '/login'
+        return
+      }
+
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        toast.error(
+          (payload as { message?: string; error?: string })?.message ||
+            (payload as { message?: string; error?: string })?.error ||
+            copy.actions.paymentCreateError,
+        )
+        return
+      }
+
+      toast.success(copy.actions.paymentCreated)
+      setPaymentOpen(false)
+      setPaymentForm(INITIAL_PAYMENT_FORM)
+      setTargetSearch('')
+      setTargetError('')
+      await load()
+    } catch {
+      toast.error(copy.actions.paymentCreateError)
+    } finally {
+      setSavingPayment(false)
+    }
   }
 
   function openRelated(payment: Payment) {
@@ -526,18 +856,37 @@ export default function PaymentsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={load}
-            className="btn min-h-[46px] shrink-0 px-6"
-            style={{
-              background: '#fff',
-              color: 'var(--sidebar)',
-              borderColor: 'rgba(255,255,255,0.35)',
-            }}
-          >
-            {copy.actions.refresh}
-          </button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setPaymentOpen(true)}
+              disabled={!writeAccess.canWrite}
+              title={
+                !writeAccess.canWrite ? writeAccess.message || undefined : undefined
+              }
+              className="btn min-h-[46px] px-6 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                background: '#b87333',
+                color: '#041819',
+                borderColor: 'rgba(184,115,51,0.5)',
+              }}
+            >
+              + {copy.actions.addPayment}
+            </button>
+
+            <button
+              type="button"
+              onClick={load}
+              className="btn min-h-[46px] px-6"
+              style={{
+                background: '#fff',
+                color: 'var(--sidebar)',
+                borderColor: 'rgba(255,255,255,0.35)',
+              }}
+            >
+              {copy.actions.refresh}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -904,6 +1253,328 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+
+      {paymentOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closePaymentModal()
+          }}
+        >
+          <form
+            onSubmit={createPayment}
+            className="card max-h-[92vh] w-full max-w-3xl overflow-y-auto p-0"
+            dir={isRtl ? 'rtl' : 'ltr'}
+          >
+            <div
+              className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b p-5"
+              style={{
+                background: 'var(--card)',
+                borderColor: 'var(--border)',
+              }}
+            >
+              <div className="text-start">
+                <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>
+                  {copy.form.title}
+                </h2>
+                <p className="mt-1 text-xs leading-6" style={{ color: 'var(--text-3)' }}>
+                  {copy.form.subtitle}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closePaymentModal}
+                disabled={savingPayment}
+                aria-label={copy.actions.cancel}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-xl font-black disabled:opacity-50"
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div>
+                <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                  {copy.form.linkType}
+                </label>
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border p-1.5" style={{ borderColor: 'var(--border)', background: 'var(--card-2)' }}>
+                  {(['INVOICE', 'CASE'] as const).map((linkType) => {
+                    const active = paymentForm.linkType === linkType
+                    return (
+                      <button
+                        key={linkType}
+                        type="button"
+                        onClick={() => {
+                          setPaymentForm((current) => ({
+                            ...current,
+                            linkType,
+                            targetId: '',
+                            amount: '',
+                          }))
+                          setTargetSearch('')
+                        }}
+                        className="min-h-11 rounded-xl px-3 text-sm font-black transition"
+                        style={{
+                          background: active ? 'var(--sidebar)' : 'transparent',
+                          color: active ? '#fff' : 'var(--text-2)',
+                        }}
+                      >
+                        {linkType === 'INVOICE'
+                          ? copy.form.invoice
+                          : copy.form.case}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                    {paymentForm.linkType === 'INVOICE'
+                      ? copy.form.searchTarget
+                      : copy.form.searchCase}
+                  </label>
+                  <input
+                    value={targetSearch}
+                    onChange={(event) => setTargetSearch(event.target.value)}
+                    className="input min-h-12 w-full text-start"
+                    placeholder={
+                      paymentForm.linkType === 'INVOICE'
+                        ? copy.form.searchTarget
+                        : copy.form.searchCase
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                    {copy.form.target} <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={paymentForm.targetId}
+                    onChange={(event) => {
+                      const targetId = event.target.value
+                      setPaymentForm((current) => {
+                        const invoice = invoiceOptions.find(
+                          (option) => option.id === targetId,
+                        )
+                        return {
+                          ...current,
+                          targetId,
+                          amount:
+                            current.linkType === 'INVOICE' && invoice
+                              ? String(remainingOfInvoice(invoice))
+                              : current.amount,
+                        }
+                      })
+                    }}
+                    disabled={targetLoading}
+                    className="input min-h-12 w-full text-start disabled:opacity-60"
+                  >
+                    <option value="">
+                      {targetLoading
+                        ? copy.form.loadingTargets
+                        : paymentForm.linkType === 'INVOICE'
+                          ? copy.form.selectInvoice
+                          : copy.form.selectCase}
+                    </option>
+                    {paymentForm.linkType === 'INVOICE'
+                      ? invoiceOptions.map((invoice) => (
+                          <option key={invoice.id} value={invoice.id}>
+                            {`${formatInvoiceNumber(invoice.invoiceNumber)} — ${invoice.client?.name || '-'} — ${money(remainingOfInvoice(invoice), locale)} ${copy.form.remaining}`}
+                          </option>
+                        ))
+                      : caseOptions.map((caseOption) => (
+                          <option key={caseOption.id} value={caseOption.id}>
+                            {`${caseOption.caseNumber || '-'} — ${caseOption.title} — ${caseOption.client?.name || '-'}`}
+                          </option>
+                        ))}
+                  </select>
+                  {!targetLoading && !targetError &&
+                  (paymentForm.linkType === 'INVOICE'
+                    ? invoiceOptions.length === 0
+                    : caseOptions.length === 0) ? (
+                    <p className="mt-2 text-xs" style={{ color: 'var(--text-3)' }}>
+                      {copy.form.noTargets}
+                    </p>
+                  ) : null}
+                  {targetError ? (
+                    <p className="mt-2 text-xs font-bold text-red-600">{targetError}</p>
+                  ) : null}
+                </div>
+              </div>
+
+              {selectedInvoice && paymentForm.linkType === 'INVOICE' ? (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm"
+                  style={{
+                    background: 'var(--green-soft)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--sidebar)',
+                  }}
+                >
+                  <span className="font-bold">
+                    {selectedInvoice.case?.title || selectedInvoice.client?.name || '-'}
+                  </span>
+                  <strong>
+                    {copy.form.remaining}: {money(remainingOfInvoice(selectedInvoice), locale)}
+                  </strong>
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                    {copy.form.amount} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={paymentForm.amount}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({
+                        ...current,
+                        amount: event.target.value,
+                      }))
+                    }
+                    dir="ltr"
+                    className="input min-h-12 w-full text-start"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                    {copy.form.paymentDate}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={paymentForm.paidAt}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({
+                        ...current,
+                        paidAt: event.target.value,
+                      }))
+                    }
+                    className="input min-h-12 w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                    {copy.form.method}
+                  </label>
+                  <select
+                    value={paymentForm.method}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({
+                        ...current,
+                        method: event.target.value,
+                      }))
+                    }
+                    className="input min-h-12 w-full text-start"
+                  >
+                    {['CASH', 'BANK_TRANSFER', 'CHECK', 'ONLINE'].map((method) => (
+                      <option key={method} value={method}>
+                        {methodLabel(method, locale)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                    {copy.form.status}
+                  </label>
+                  <select
+                    value={paymentForm.status}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({
+                        ...current,
+                        status: event.target.value as PaymentStatus,
+                      }))
+                    }
+                    className="input min-h-12 w-full text-start"
+                  >
+                    <option value="PAID">{copy.statuses.PAID}</option>
+                    <option value="PENDING">{copy.statuses.PENDING}</option>
+                    <option value="OVERDUE">{copy.statuses.OVERDUE}</option>
+                    <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                  {copy.form.reference}
+                </label>
+                <input
+                  value={paymentForm.reference}
+                  onChange={(event) =>
+                    setPaymentForm((current) => ({
+                      ...current,
+                      reference: event.target.value,
+                    }))
+                  }
+                  maxLength={120}
+                  placeholder={copy.form.referencePlaceholder}
+                  className="input min-h-12 w-full text-start"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
+                  {copy.form.notes}
+                </label>
+                <textarea
+                  value={paymentForm.notes}
+                  onChange={(event) =>
+                    setPaymentForm((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                  maxLength={2000}
+                  rows={3}
+                  placeholder={copy.form.notesPlaceholder}
+                  className="input w-full resize-none text-start"
+                />
+              </div>
+            </div>
+
+            <div
+              className="sticky bottom-0 flex flex-col-reverse gap-2 border-t p-5 sm:flex-row sm:justify-end"
+              style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+            >
+              <button
+                type="button"
+                onClick={closePaymentModal}
+                disabled={savingPayment}
+                className="btn btn-ghost min-h-11 px-6 disabled:opacity-50"
+                style={{ color: 'var(--text)' }}
+              >
+                {copy.actions.cancel}
+              </button>
+              <button
+                type="submit"
+                disabled={savingPayment || targetLoading || !writeAccess.canWrite}
+                className="btn btn-primary min-h-11 px-7 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingPayment
+                  ? copy.actions.savingPayment
+                  : copy.actions.savePayment}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   )
 }
