@@ -101,6 +101,7 @@ const COPY = {
     aiUpdateUnexpectedError: "حدث خطأ أثناء تحديث إعدادات المساعد الذكي",
     qrCreated: "تم إنشاء QR Code",
     twoFASetupError: "فشل إعداد التحقق الثنائي",
+    twoFAPasswordRequired: "أدخل كلمة المرور الحالية لتفعيل الحماية الثنائية",
     verificationCodeRequired: "أدخل رمز التحقق",
     twoFAEnabledToast: "تم تفعيل التحقق الثنائي",
     twoFAVerifyError: "فشل تفعيل التحقق الثنائي",
@@ -225,6 +226,8 @@ const COPY = {
       "An error occurred while updating AI assistant settings",
     qrCreated: "QR code generated",
     twoFASetupError: "Failed to set up two-factor authentication",
+    twoFAPasswordRequired:
+      "Enter your current password to enable two-factor authentication",
     verificationCodeRequired: "Enter the verification code",
     twoFAEnabledToast: "Two-factor authentication enabled",
     twoFAVerifyError: "Failed to enable two-factor authentication",
@@ -506,6 +509,7 @@ export default function SettingsPage() {
 
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [qrCode, setQrCode] = useState("");
+  const [twoFAPassword, setTwoFAPassword] = useState("");
   const [twoFACode, setTwoFACode] = useState("");
   const [twoFALoading, setTwoFALoading] = useState(false);
 
@@ -915,11 +919,18 @@ export default function SettingsPage() {
   }
 
   async function setup2FA() {
+    if (!twoFAPassword) {
+      toast.error(copy.twoFAPasswordRequired);
+      return;
+    }
+
     try {
       setTwoFALoading(true);
 
       const response = await fetch("/api/auth/2fa/setup", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: twoFAPassword }),
         cache: "no-store",
       });
 
@@ -927,6 +938,7 @@ export default function SettingsPage() {
 
       if (response.ok && data.success) {
         setQrCode(data.data?.qrCode || "");
+        setTwoFAPassword("");
         toast.success(copy.qrCreated);
       } else {
         toast.error(getApiMessage(data, copy.twoFASetupError));
@@ -1545,14 +1557,34 @@ export default function SettingsPage() {
               </div>
 
               {!twoFAEnabled && !qrCode && (
-                <button
-                  type="button"
-                  onClick={setup2FA}
-                  disabled={twoFALoading}
-                  className="btn btn-primary mt-4"
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void setup2FA();
+                  }}
+                  className="mt-4 max-w-md space-y-3"
                 >
-                  {twoFALoading ? copy.creating : copy.enable2FA}
-                </button>
+                  <FormField label={copy.currentPassword}>
+                    <input
+                      dir="ltr"
+                      type="password"
+                      autoComplete="current-password"
+                      value={twoFAPassword}
+                      onChange={(event) => setTwoFAPassword(event.target.value)}
+                      className="input"
+                      style={passwordInputStyle}
+                      placeholder="••••••••"
+                    />
+                  </FormField>
+
+                  <button
+                    type="submit"
+                    disabled={twoFALoading || !twoFAPassword}
+                    className="btn btn-primary w-full"
+                  >
+                    {twoFALoading ? copy.creating : copy.enable2FA}
+                  </button>
+                </form>
               )}
 
               {qrCode && (
@@ -1567,7 +1599,14 @@ export default function SettingsPage() {
 
                   <input
                     value={twoFACode}
-                    onChange={(event) => setTwoFACode(event.target.value)}
+                    onChange={(event) =>
+                      setTwoFACode(
+                        event.target.value.replace(/\D/g, "").slice(0, 6)
+                      )
+                    }
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
                     placeholder={copy.enterVerificationCode}
                     className="input text-center"
                   />

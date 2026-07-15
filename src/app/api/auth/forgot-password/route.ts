@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { normalizeEmail } from "@/lib/encryption";
 import { createPasswordResetCode } from "@/lib/password-reset";
 import { sendPasswordResetEmail } from "@/lib/email";
+import {
+  checkRateLimit,
+  hashRateLimitIdentifier,
+} from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
 
@@ -32,6 +37,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const ip = getClientIp(request) || "unknown";
+    const ipLimit = await checkRateLimit(ip, {
+      keyPrefix: "forgot-password-ip",
+      max: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "تم تجاوز عدد المحاولات. حاول مرة أخرى لاحقًا.",
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const email = normalizeEmail(body.email);
 
@@ -39,6 +61,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, message: "البريد الإلكتروني مطلوب" },
         { status: 400 }
+      );
+    }
+
+    const accountLimit = await checkRateLimit(
+      hashRateLimitIdentifier(email),
+      {
+        keyPrefix: "forgot-password-account",
+        max: 3,
+        windowMs: 15 * 60 * 1000,
+      }
+    );
+
+    if (!accountLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "تم تجاوز عدد المحاولات. حاول مرة أخرى لاحقًا.",
+        },
+        { status: 429 }
       );
     }
 

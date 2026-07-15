@@ -7,6 +7,9 @@ import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { decryptText } from "@/lib/encryption";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/turnstile";
+
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
@@ -17,11 +20,22 @@ export async function POST(req: NextRequest) {
       return auth.error;
     }
 
+    const ip = getClientIp(req) || "unknown";
+    const rateLimit = await checkRateLimit(`${auth.user.userId}:${ip}`, {
+      keyPrefix: "two-factor-disable",
+      max: 5,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      return err("تم تجاوز عدد المحاولات. حاول مرة أخرى لاحقًا.", 429);
+    }
+
     const body = await req.json().catch(() => ({}));
     const password = String(body.password ?? "");
     const code = String(body.code ?? "").trim();
 
-    if (!password || !code) {
+    if (!password || !/^\d{6}$/.test(code)) {
       return err("كلمة المرور ورمز التحقق مطلوبان", 400);
     }
 

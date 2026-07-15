@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 
@@ -21,6 +22,10 @@ const redis =
 const localStore = new Map<string, { count: number; resetAt: number }>()
 
 const limiters = new Map<string, Ratelimit>()
+
+export function hashRateLimitIdentifier(value: string) {
+  return createHash('sha256').update(value.trim().toLowerCase()).digest('hex')
+}
 
 function windowToDuration(windowMs: number): `${number} s` | `${number} m` | `${number} h` {
   const seconds = Math.ceil(windowMs / 1000)
