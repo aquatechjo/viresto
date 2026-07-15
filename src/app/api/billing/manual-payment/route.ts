@@ -221,7 +221,6 @@ export async function POST(req: NextRequest) {
         currency: true,
         status: true,
         method: true,
-        receiptUrl: true,
         createdAt: true,
         requestedInterval: true,
         requestedPlan: {

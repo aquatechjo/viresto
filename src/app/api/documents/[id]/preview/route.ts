@@ -1,44 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { requireRole } from '@/lib/api-auth'
-import { apiHandler } from '@/lib/api-handler'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { apiHandler } from "@/lib/api-handler";
+import { logActivity } from "@/lib/activity";
 import {
-  generateSignedFileUrl,
-  generatePrivateDownloadUrl,
-} from '@/lib/cloudinary'
+  type CloudinaryResourceType,
+  fetchAuthenticatedCloudinaryAsset,
+  isTenantCloudinaryAsset,
+  streamPrivateAsset,
+} from "@/lib/cloudinary";
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ id: string }> };
 
-function getResourceTypes(fileType?: string | null): ('image' | 'raw' | 'video')[] {
-  if (fileType?.startsWith('video/')) return ['video']
-  if (fileType?.startsWith('image/')) return ['image']
-
-  if (fileType === 'application/pdf') return ['image']
-
-  return ['raw', 'image']
+function getResourceTypes(
+  fileType?: string | null,
+): CloudinaryResourceType[] {
+  if (fileType?.startsWith("video/")) return ["video"];
+  if (fileType?.startsWith("image/")) return ["image"];
+  if (fileType === "application/pdf") return ["image"];
+  return ["raw", "image"];
 }
 
-
-
-
-function getPublicIdCandidates(publicId: string, fileType?: string | null) {
-  if (fileType === 'application/pdf' && !publicId.toLowerCase().endsWith('.pdf')) {
-    return [publicId, `${publicId}.pdf`]
-  }
-
-  return [publicId]
+function canRenderInline(fileType?: string | null) {
+  return Boolean(
+    fileType === "application/pdf" || fileType?.startsWith("image/"),
+  );
 }
-
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
 
     if (auth.error || !auth.user) {
-      return auth.error
+      return auth.error;
     }
 
-    const { id } = await params
+    const { id } = await params;
 
     const doc = await prisma.document.findFirst({
       where: {
@@ -50,63 +47,69 @@ export async function GET(req: NextRequest, { params }: Params) {
         fileName: true,
         fileType: true,
         publicId: true,
+        caseId: true,
       },
-    })
+    });
 
-    if (!doc || !doc.publicId) {
+    if (!doc?.publicId) {
       return NextResponse.json(
-        { message: 'المستند غير موجود' },
-        { status: 404 }
-      )
+        { message: "المستند غير موجود" },
+        { status: 404 },
+      );
     }
 
-    let cloudinaryResponse: Response | null = null
+    if (!isTenantCloudinaryAsset(doc.publicId, auth.user.tenantId)) {
+      console.error("Rejected document with invalid Cloudinary tenant prefix", {
+        documentId: doc.id,
+        tenantId: auth.user.tenantId,
+      });
 
-for (const publicIdCandidate of getPublicIdCandidates(doc.publicId, doc.fileType)) {
-  for (const resourceType of getResourceTypes(doc.fileType)) {
-    const signedUrl =
-  doc.fileType === 'application/pdf'
-    ? generatePrivateDownloadUrl(publicIdCandidate, 'pdf', 'image')
-    : generateSignedFileUrl(publicIdCandidate, resourceType)
-
-    const res = await fetch(signedUrl, {
-      cache: 'no-store',
-    })
-
-    const contentType = res.headers.get('content-type') || ''
-
-    if (
-      res.ok &&
-      !contentType.includes('text/html') &&
-      !contentType.includes('application/json')
-    ) {
-      cloudinaryResponse = res
-      break
+      return NextResponse.json(
+        { message: "مسار تخزين المستند غير صالح" },
+        { status: 403 },
+      );
     }
-  }
 
-  if (cloudinaryResponse) break
-}
+    const range = req.headers.get("range");
+    const upstream = await fetchAuthenticatedCloudinaryAsset({
+      publicId: doc.publicId,
+      fileType: doc.fileType,
+      resourceTypes: getResourceTypes(doc.fileType),
+      range,
+    });
 
-if (!cloudinaryResponse) {
-  return NextResponse.json(
-    { message: 'تعذر تحميل المستند من التخزين' },
-    { status: 404 }
-  )
-}
+    if (!upstream) {
+      return NextResponse.json(
+        { message: "تعذر تحميل المستند من التخزين" },
+        { status: 404 },
+      );
+    }
 
-const finalResponse = cloudinaryResponse
+    if (!range || range.startsWith("bytes=0-")) {
+      const meta = getRequestMeta(req);
 
+      await logActivity({
+        tenantId: auth.user.tenantId,
+        actorId: auth.user.userId,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+        type: "DOCUMENT_VIEWED",
+        title: "تم فتح مستند",
+        message: doc.fileName,
+        entityType: doc.caseId ? "CASE" : "DOCUMENT",
+        entityId: doc.caseId || doc.id,
+      });
+    }
 
-    const arrayBuffer = await finalResponse.arrayBuffer()
+    const forceDownload = new URL(req.url).searchParams.get("download") === "1";
 
-    return new NextResponse(arrayBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': doc.fileType || 'application/octet-stream',
-        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(doc.fileName)}`,
-        'Cache-Control': 'private, no-store, max-age=0',
-      },
-    })
-  })
+    return streamPrivateAsset(upstream, {
+      fileName: doc.fileName,
+      fallbackContentType: doc.fileType,
+      disposition:
+        forceDownload || !canRenderInline(doc.fileType)
+          ? "attachment"
+          : "inline",
+    });
+  });
 }

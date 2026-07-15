@@ -1,17 +1,20 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ok, err } from "@/lib/api-response";
+import { err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
-import { generateSignedFileUrl } from "@/lib/cloudinary";
+import {
+  type CloudinaryResourceType,
+  fetchAuthenticatedCloudinaryAsset,
+  isTenantCloudinaryAsset,
+  streamPrivateAsset,
+} from "@/lib/cloudinary";
 
 type RouteContext = {
   params: Promise<{
     id: string;
   }>;
 };
-
-type CloudinaryResourceType = "image" | "raw" | "video";
 
 function getRawObject(raw: unknown) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -21,28 +24,25 @@ function getRawObject(raw: unknown) {
   return raw as Record<string, unknown>;
 }
 
-function getReceiptResourceType(raw: unknown): CloudinaryResourceType {
+function getReceiptMetadata(raw: unknown, paymentId: string) {
   const rawObject = getRawObject(raw);
+  const savedResourceType = String(rawObject.resourceType || "");
+  const fileType = String(rawObject.fileType || "application/octet-stream");
+  const fileName = String(rawObject.fileName || `receipt-${paymentId}`);
 
-  const savedResourceType =
-    typeof rawObject.resourceType === "string" ? rawObject.resourceType : "";
+  let resourceType: CloudinaryResourceType = "raw";
 
   if (
     savedResourceType === "image" ||
     savedResourceType === "raw" ||
     savedResourceType === "video"
   ) {
-    return savedResourceType;
+    resourceType = savedResourceType;
+  } else if (fileType.startsWith("image/") || fileType === "application/pdf") {
+    resourceType = "image";
   }
 
-  const fileType =
-    typeof rawObject.fileType === "string" ? rawObject.fileType : "";
-
-  if (fileType.startsWith("image/") || fileType === "application/pdf") {
-    return "image";
-  }
-
-  return "raw";
+  return { fileName, fileType, resourceType };
 }
 
 export async function GET(req: NextRequest, context: RouteContext) {
@@ -65,6 +65,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       },
       select: {
         id: true,
+        tenantId: true,
         receiptPublicId: true,
         raw: true,
       },
@@ -74,12 +75,44 @@ export async function GET(req: NextRequest, context: RouteContext) {
       return err("إيصال الدفع غير موجود", 404);
     }
 
-    const resourceType = getReceiptResourceType(payment.raw);
-    const signedUrl = generateSignedFileUrl(payment.receiptPublicId, resourceType);
+    if (
+      !isTenantCloudinaryAsset(
+        payment.receiptPublicId,
+        payment.tenantId,
+        "receipts",
+      )
+    ) {
+      console.error("Rejected receipt with invalid Cloudinary tenant prefix", {
+        paymentId: payment.id,
+        tenantId: payment.tenantId,
+      });
 
-    return ok({
-      signedUrl,
-      resourceType,
+      return err("مسار تخزين الإيصال غير صالح", 403);
+    }
+
+    const metadata = getReceiptMetadata(payment.raw, payment.id);
+    const upstream = await fetchAuthenticatedCloudinaryAsset({
+      publicId: payment.receiptPublicId,
+      fileType: metadata.fileType,
+      resourceTypes: [metadata.resourceType],
+      range: req.headers.get("range"),
+    });
+
+    if (!upstream) {
+      return NextResponse.json(
+        { success: false, message: "تعذر تحميل إيصال الدفع" },
+        { status: 404 },
+      );
+    }
+
+    return streamPrivateAsset(upstream, {
+      fileName: metadata.fileName,
+      fallbackContentType: metadata.fileType,
+      disposition:
+        metadata.fileType.startsWith("image/") ||
+        metadata.fileType === "application/pdf"
+          ? "inline"
+          : "attachment",
     });
   });
 }

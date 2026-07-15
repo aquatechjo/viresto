@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ok, err, notFound } from "@/lib/api-response";
-import cloudinary, { generateSignedFileUrl } from "@/lib/cloudinary";
+import cloudinary from "@/lib/cloudinary";
 import { logActivity } from "@/lib/activity";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
@@ -25,7 +25,6 @@ export async function GET(req: NextRequest, { params }: Params) {
       return auth.error;
     }
 
-    const meta = getRequestMeta(req);
     const { id } = await params;
 
     const doc = await prisma.document.findFirst({
@@ -38,7 +37,6 @@ export async function GET(req: NextRequest, { params }: Params) {
         fileName: true,
         fileType: true,
         publicId: true,
-        caseId: true,
       },
     });
 
@@ -50,26 +48,8 @@ export async function GET(req: NextRequest, { params }: Params) {
       return notFound("رابط المستند غير متاح");
     }
 
-    const url = generateSignedFileUrl(
-      doc.publicId,
-      getResourceType(doc.fileType),
-    );
-
-    await logActivity({
-      tenantId: auth.user.tenantId,
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      type: "DOCUMENT_VIEWED",
-      title: "تم فتح مستند",
-      message: doc.fileName,
-      entityType: "DOCUMENT",
-      entityId: doc.id,
-    });
-
     return ok({
-      url,
-      expiresIn: 300,
+      url: `/api/documents/${doc.id}/preview`,
       fileName: doc.fileName,
     });
   });

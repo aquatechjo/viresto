@@ -112,26 +112,12 @@ export default function ManualPaymentsPanel() {
     load();
   }, [status]);
 
-  async function openReceipt(paymentId: string) {
-    const res = await fetch(`/api/admin/manual-payments/${paymentId}/receipt`, {
-      cache: "no-store",
-    });
-
-    const json = await res.json().catch(() => ({}));
-
-    if (!res.ok || !json.success) {
-      toast.error(json.message || "تعذر فتح إيصال الدفع");
-      return;
-    }
-
-    const signedUrl = json.data?.signedUrl;
-
-    if (!signedUrl) {
-      toast.error("رابط الإيصال غير متاح");
-      return;
-    }
-
-    window.open(signedUrl, "_blank", "noopener,noreferrer");
+  function openReceipt(paymentId: string) {
+    window.open(
+      `/api/admin/manual-payments/${paymentId}/receipt`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   }
 
   async function reviewPayment(

@@ -583,41 +583,12 @@ export default function BillingPage() {
     }
   }
 
-  async function openReceipt(paymentId: string) {
-    const res = await fetch(
+  function openReceipt(paymentId: string) {
+    window.open(
       `/api/billing/manual-payment/${paymentId}/receipt`,
-      {
-        cache: "no-store",
-      },
+      "_blank",
+      "noopener,noreferrer",
     );
-
-    const json = await res.json().catch(() => ({}));
-
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-
-    if (!res.ok || !json.success) {
-      toast.error(
-        json.message ||
-          (isArabic
-            ? "تعذر فتح إيصال الدفع"
-            : "Failed to open payment receipt"),
-      );
-      return;
-    }
-
-    const signedUrl = json.data?.signedUrl;
-
-    if (!signedUrl) {
-      toast.error(
-        isArabic ? "رابط الإيصال غير متاح" : "Receipt link is unavailable",
-      );
-      return;
-    }
-
-    window.open(signedUrl, "_blank", "noopener,noreferrer");
   }
 
   async function submitManualPayment(event: FormEvent<HTMLFormElement>) {

@@ -129,7 +129,7 @@ export default function DocumentPreviewModal({
                   </a>
 
                   <a
-                    href={previewUrl}
+                    href={`${previewUrl}?download=1`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-slate-100"

@@ -259,7 +259,6 @@ export async function GET(req: NextRequest) {
                 currency: true,
                 status: true,
                 method: true,
-                receiptUrl: true,
                 receiptPublicId: true,
                 adminNote: true,
                 reviewedAt: true,
@@ -278,7 +277,6 @@ export async function GET(req: NextRequest) {
             currency: true,
             status: true,
             method: true,
-            receiptUrl: true,
             receiptPublicId: true,
             adminNote: true,
             reviewedAt: true,
@@ -523,10 +521,17 @@ export async function GET(req: NextRequest) {
             cancelledAt: subscription.cancelledAt,
             createdAt: subscription.createdAt,
             updatedAt: subscription.updatedAt,
-            payments: subscription.payments.map((payment) => ({
-              ...payment,
-              amount: formatAmount(payment.amount, payment.currency),
-            })),
+            payments: subscription.payments.map((payment) => {
+              const { receiptPublicId, ...safePayment } = payment;
+
+              return {
+                ...safePayment,
+                amount: formatAmount(payment.amount, payment.currency),
+                receiptUrl: receiptPublicId
+                  ? `/api/billing/manual-payment/${payment.id}/receipt`
+                  : null,
+              };
+            }),
             plan: currentPlanPayload,
           }
         : null,
@@ -537,8 +542,9 @@ export async function GET(req: NextRequest) {
         currency: payment.currency,
         status: payment.status,
         method: payment.method,
-        receiptUrl: payment.receiptUrl,
-        receiptPublicId: payment.receiptPublicId,
+        receiptUrl: payment.receiptPublicId
+          ? `/api/billing/manual-payment/${payment.id}/receipt`
+          : null,
         adminNote: payment.adminNote,
         reviewedAt: payment.reviewedAt,
         paidAt: payment.paidAt,

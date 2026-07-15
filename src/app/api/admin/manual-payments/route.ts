@@ -61,7 +61,6 @@ export async function GET(req: NextRequest) {
         currency: true,
         status: true,
         method: true,
-        receiptUrl: true,
         receiptPublicId: true,
         adminNote: true,
         reviewedById: true,
@@ -170,8 +169,9 @@ export async function GET(req: NextRequest) {
           currency: payment.currency,
           status: payment.status,
           method: payment.method,
-          receiptUrl: payment.receiptUrl,
-          receiptPublicId: payment.receiptPublicId,
+          receiptUrl: payment.receiptPublicId
+            ? `/api/admin/manual-payments/${payment.id}/receipt`
+            : null,
           adminNote: payment.adminNote,
           reviewedById: payment.reviewedById,
           reviewedAt: payment.reviewedAt,
