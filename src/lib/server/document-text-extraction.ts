@@ -191,6 +191,7 @@ async function extractImageText(
     ],
     max_completion_tokens: 5_000,
     temperature: 0,
+    store: false,
   });
 
   const text = completion.choices[0]?.message?.content?.trim() || "";

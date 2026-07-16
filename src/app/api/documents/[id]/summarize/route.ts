@@ -16,6 +16,11 @@ import {
   extractionSourceLabel,
   readResponseBodyWithLimit,
 } from "@/lib/server/document-text-extraction";
+import {
+  AI_CONSENT_REQUIRED_CODE,
+  hasCurrentAiConsent,
+} from "@/lib/ai-consent";
+import { logActivity } from "@/lib/log-activity";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -58,6 +63,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: {
         id: true,
         aiEnabled: true,
+        aiConsentAt: true,
+        aiConsentBy: true,
+        aiConsentPolicyVersion: true,
       },
     });
 
@@ -67,6 +75,14 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (!tenant.aiEnabled) {
       return err("المساعد الذكي غير مفعّل لهذا المكتب", 403);
+    }
+
+    if (!hasCurrentAiConsent(tenant)) {
+      return err(
+        "يجب على مدير المكتب مراجعة سياسة معالجة بيانات الذكاء الاصطناعي والموافقة عليها من الإعدادات",
+        403,
+        { code: AI_CONSENT_REQUIRED_CODE },
+      );
     }
 
     const { id } = await params;
@@ -189,6 +205,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       ],
       temperature: 0.2,
       max_completion_tokens: 1_800,
+      store: false,
     });
 
     const generatedSummary = completion.choices[0]?.message?.content?.trim();
@@ -224,6 +241,23 @@ export async function POST(req: NextRequest, { params }: Params) {
         aiAnalyzedAt: true,
         createdAt: true,
       },
+    });
+
+    await logActivity({
+      req,
+      tenantId: auth.user.tenantId,
+      actorId: auth.user.userId,
+      type: "AI_DOCUMENT_SUMMARY_USED",
+      title: "تم تلخيص مستند بالذكاء الاصطناعي",
+      message: [
+        extraction.source,
+        extraction.pageCount ? `${extraction.pageCount} pages` : null,
+        extraction.truncated ? "content-sampled" : "full-extracted-text",
+      ]
+        .filter(Boolean)
+        .join("; "),
+      entityType: "DOCUMENT",
+      entityId: doc.id,
     });
 
     return ok(updated);

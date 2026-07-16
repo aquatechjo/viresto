@@ -9,6 +9,10 @@ import { sanitizeAiInput, detectPromptInjection } from "@/lib/ai-security";
 import { logActivity } from "@/lib/log-activity";
 import { verifySameOrigin } from "@/lib/csrf";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
+import {
+  AI_CONSENT_REQUIRED_CODE,
+  hasCurrentAiConsent,
+} from "@/lib/ai-consent";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -25,6 +29,9 @@ export async function POST(req: NextRequest) {
       where: { id: auth.user.tenantId },
       select: {
         aiEnabled: true,
+        aiConsentAt: true,
+        aiConsentBy: true,
+        aiConsentPolicyVersion: true,
         isSuspended: true,
         status: true,
       },
@@ -51,6 +58,14 @@ export async function POST(req: NextRequest) {
     }
     if (!tenant.aiEnabled) {
       return err("ميزة الذكاء الاصطناعي غير مفعلة لهذا المكتب", 403);
+    }
+
+    if (!hasCurrentAiConsent(tenant)) {
+      return err(
+        "يجب على مدير المكتب مراجعة سياسة معالجة بيانات الذكاء الاصطناعي والموافقة عليها من الإعدادات",
+        403,
+        { code: AI_CONSENT_REQUIRED_CODE },
+      );
     }
 
     const rl = await checkRateLimit(
@@ -104,82 +119,24 @@ export async function POST(req: NextRequest) {
       return err("تم حظر الرسالة لأنها تحتوي على تعليمات غير آمنة", 400);
     }
 
-    const [
-      casesCount,
-      openCasesCount,
-      appointmentsCount,
-      clientsCount,
-      upcomingAppointments,
-    ] = await Promise.all([
-      prisma.case.count({
-        where: { tenantId: auth.user.tenantId },
-      }),
-
-      prisma.case.count({
-        where: {
-          tenantId: auth.user.tenantId,
-          status: {
-            in: ["OPEN", "IN_PROGRESS"],
-          },
-        },
-      }),
-
-      prisma.appointment.count({
-        where: { tenantId: auth.user.tenantId },
-      }),
-
-      prisma.client.count({
-        where: { tenantId: auth.user.tenantId },
-      }),
-
-      prisma.appointment.findMany({
-        where: {
-          tenantId: auth.user.tenantId,
-          startTime: {
-            gte: new Date(),
-          },
-        },
-        take: 5,
-        orderBy: { startTime: "asc" },
-        select: {
-          title: true,
-          type: true,
-          startTime: true,
-          endTime: true,
-          location: true,
-        },
-      }),
-    ]);
-
     const systemPrompt = `
 أنت مساعد ذكي داخل نظام Viresto لإدارة مكاتب المحاماة.
 
 القواعد:
 - أجب بالعربية فقط.
 - أجب باختصار وبشكل مهني.
-- اعتمد فقط على البيانات العامة الموجودة أدناه.
-- لا تخترع قضايا أو مواعيد أو موكلين غير موجودين.
-- لا تطلب أو تكشف بيانات حساسة عن الموكلين.
+- لم يتم تزويدك تلقائيًا بأي بيانات من المكتب أو القضايا أو المواعيد.
+- اعتمد فقط على سؤال المستخدم، ولا تدّع الوصول إلى سجلات النظام.
+- لا تطلب من المستخدم إدخال بيانات شخصية أو أسرار أو محتوى قانوني غير ضروري.
 - إذا لم تجد المعلومة، قل: لا توجد بيانات كافية داخل النظام.
 - لا تقدم استشارة قانونية نهائية، فقط ساعد في التنظيم والشرح والمتابعة.
-
-ملاحظة خصوصية:
-لا توجد أسماء موكلين أو تفاصيل حساسة ضمن السياق المرسل لك.
-
-ملخص المكتب:
-- عدد الموكلين: ${clientsCount}
-- عدد القضايا الكلي: ${casesCount}
-- عدد القضايا المفتوحة أو قيد التنفيذ: ${openCasesCount}
-- عدد المواعيد الكلي: ${appointmentsCount}
-
-المواعيد القادمة/الأقرب:
-${JSON.stringify(upcomingAppointments, null, 2)}
 `;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
       temperature: 0.2,
-      max_tokens: 500,
+      max_completion_tokens: 500,
+      store: false,
       messages: [
         {
           role: "system",

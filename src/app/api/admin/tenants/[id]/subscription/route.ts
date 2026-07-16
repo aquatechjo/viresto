@@ -245,7 +245,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             trialEndsAt: null,
             plan: legacyPlan,
             maxUsers: requestedPlan.maxUsers,
-            aiEnabled: requestedPlan.aiEnabled,
+            ...(requestedPlan.aiEnabled
+              ? {}
+              : {
+                  aiEnabled: false,
+                  aiConsentAt: null,
+                  aiConsentBy: null,
+                  aiConsentPolicyVersion: null,
+                }),
           },
         });
       } else if (action === "RENEW") {
@@ -304,7 +311,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             trialEndsAt: null,
             plan: legacyPlan,
             maxUsers: currentSubscription.plan.maxUsers,
-            aiEnabled: currentSubscription.plan.aiEnabled,
+            ...(currentSubscription.plan.aiEnabled
+              ? {}
+              : {
+                  aiEnabled: false,
+                  aiConsentAt: null,
+                  aiConsentBy: null,
+                  aiConsentPolicyVersion: null,
+                }),
           },
         });
       } else {
@@ -369,6 +383,10 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
               status: "EXPIRED",
               isSuspended: false,
               trialEndsAt: null,
+              aiEnabled: false,
+              aiConsentAt: null,
+              aiConsentBy: null,
+              aiConsentPolicyVersion: null,
             },
           });
         }

@@ -21,6 +21,7 @@ model Tenant {
   aiEnabled     Boolean        @default(false)
   aiConsentAt   DateTime?
   aiConsentBy   String?
+  aiConsentPolicyVersion String?
   trialEndsAt   DateTime?
   address       String?
   email         String?

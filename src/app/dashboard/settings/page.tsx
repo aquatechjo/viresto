@@ -9,6 +9,7 @@ import FormField from "@/components/ui/FormField";
 import { initials } from "@/lib/utils";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+import { AI_DATA_POLICY_VERSION } from "@/lib/ai-consent";
 
 type Locale = "ar" | "en";
 type EmailChangeStep = "OLD_CODE" | "NEW_EMAIL" | "NEW_CODE";
@@ -37,6 +38,7 @@ interface CompanySettings {
   logoUrl: string;
   aiEnabled: boolean;
   aiConsentAt: string | null;
+  aiConsentPolicyVersion: string | null;
 }
 
 const ROLE_LABELS: Record<Locale, Record<string, string>> = {
@@ -94,7 +96,11 @@ const COPY = {
     companySaveError: "تعذر حفظ بيانات المكتب",
     companySaveUnexpectedError: "حدث خطأ أثناء حفظ بيانات المكتب",
     aiConfirm:
-      "سيتم تفعيل المساعد الذكي لهذا المكتب. قد يتم إرسال السؤال وبيانات عامة محدودة إلى مزود ذكاء اصطناعي خارجي. هل تريد المتابعة؟",
+      "اقرأ نطاق معالجة البيانات التالي. لا يتم تفعيل المساعد قبل موافقة مدير المكتب الصريحة.",
+    aiConsentCheckbox:
+      "أوافق بصفتي مدير المكتب على إرسال أسئلة المستخدم، ومحتوى المستند فقط عند طلب تلخيصه، إلى مزود ذكاء اصطناعي خارجي للمعالجة. أفهم أن النتائج تحتاج مراجعة بشرية ويمكنني إلغاء الموافقة بتعطيل المساعد.",
+    aiPolicyVersion: "إصدار سياسة المعالجة",
+    aiAdminOnly: "يمكن لمدير المكتب فقط تغيير هذا الإعداد.",
     aiEnabledToast: "تم تفعيل المساعد الذكي",
     aiDisabledToast: "تم تعطيل المساعد الذكي",
     aiUpdateError: "تعذر تحديث إعدادات المساعد الذكي",
@@ -162,9 +168,9 @@ const COPY = {
     saveCompany: "حفظ بيانات المكتب",
     aiTitle: "المساعد الذكي",
     aiDescription:
-      "عند التفعيل، قد يتم إرسال السؤال وبيانات عامة محدودة عن المكتب إلى مزود ذكاء اصطناعي خارجي لمعالجة الطلب.",
+      "المحادثة ترسل سؤال المستخدم فقط. محتوى المستند يرسل فقط عندما يختار مستخدم مخوّل زر التلخيص.",
     aiWarning:
-      "لا يتم إرسال أسماء الموكلين أو تفاصيل القضايا الحساسة افتراضيًا. استخدم المساعد فقط للمهام التنظيمية والمتابعة.",
+      "لا تُرسل إحصاءات المكتب أو المواعيد تلقائيًا. لا تُدخل بيانات غير ضرورية، وراجع النتائج بشريًا قبل الاعتماد عليها.",
     savingAi: "جاري الحفظ...",
     disableAi: "تعطيل المساعد الذكي",
     enableAi: "تفعيل المساعد الذكي",
@@ -218,7 +224,11 @@ const COPY = {
     companySaveError: "Unable to save office details",
     companySaveUnexpectedError: "An error occurred while saving office details",
     aiConfirm:
-      "The AI assistant will be enabled for this office. The question and limited general office data may be sent to an external AI provider. Do you want to continue?",
+      "Review the following data-processing scope. The assistant is not enabled until an office administrator explicitly consents.",
+    aiConsentCheckbox:
+      "As an office administrator, I consent to sending user questions, and document content only when summarization is requested, to an external AI provider for processing. I understand that results require human review and that I can revoke consent by disabling the assistant.",
+    aiPolicyVersion: "Processing policy version",
+    aiAdminOnly: "Only an office administrator can change this setting.",
     aiEnabledToast: "AI assistant enabled",
     aiDisabledToast: "AI assistant disabled",
     aiUpdateError: "Unable to update AI assistant settings",
@@ -288,9 +298,9 @@ const COPY = {
     saveCompany: "Save office details",
     aiTitle: "AI assistant",
     aiDescription:
-      "When enabled, the question and limited general office data may be sent to an external AI provider to process the request.",
+      "Chat sends only the user's question. Document content is sent only when an authorized user requests summarization.",
     aiWarning:
-      "Client names or sensitive case details are not sent by default. Use the assistant only for organizational and follow-up tasks.",
+      "Office statistics and appointments are not sent automatically. Avoid unnecessary data and have a person review every result before relying on it.",
     savingAi: "Saving...",
     disableAi: "Disable AI assistant",
     enableAi: "Enable AI assistant",
@@ -331,6 +341,7 @@ const INIT_COMPANY: CompanySettings = {
   logoUrl: "",
   aiEnabled: false,
   aiConsentAt: null,
+  aiConsentPolicyVersion: null,
 };
 
 function getApiMessage(data: any, fallback: string) {
@@ -470,6 +481,7 @@ export default function SettingsPage() {
 
   const [pendingAiValue, setPendingAiValue] = useState<boolean | null>(null);
   const [showAiConfirm, setShowAiConfirm] = useState(false);
+  const [aiConsentAccepted, setAiConsentAccepted] = useState(false);
   const writeAccess = useTenantWriteAccess(locale);
 
   const [user, setUser] = useState<User | null>(null);
@@ -557,6 +569,8 @@ export default function SettingsPage() {
             logoUrl: settingsData.data?.logoUrl || "",
             aiEnabled: !!settingsData.data?.aiEnabled,
             aiConsentAt: settingsData.data?.aiConsentAt || null,
+            aiConsentPolicyVersion:
+              settingsData.data?.aiConsentPolicyVersion || null,
           });
         }
       } catch {
@@ -869,6 +883,8 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           enabled: nextValue,
+          consentAccepted: nextValue ? aiConsentAccepted : false,
+          policyVersion: nextValue ? AI_DATA_POLICY_VERSION : null,
         }),
       });
 
@@ -879,6 +895,8 @@ export default function SettingsPage() {
           ...previous,
           aiEnabled: !!data.data?.aiEnabled,
           aiConsentAt: data.data?.aiConsentAt || null,
+          aiConsentPolicyVersion:
+            data.data?.aiConsentPolicyVersion || null,
         }));
 
         toast.success(nextValue ? copy.aiEnabledToast : copy.aiDisabledToast);
@@ -893,9 +911,15 @@ export default function SettingsPage() {
   }
 
   async function toggleAi() {
+    if (user?.role !== "ADMIN") {
+      toast.error(copy.aiAdminOnly);
+      return;
+    }
+
     const nextValue = !company.aiEnabled;
 
     if (nextValue) {
+      setAiConsentAccepted(false);
       setPendingAiValue(nextValue);
       setShowAiConfirm(true);
       return;
@@ -905,17 +929,19 @@ export default function SettingsPage() {
   }
 
   function cancelAiEnable() {
+    setAiConsentAccepted(false);
     setShowAiConfirm(false);
     setPendingAiValue(null);
   }
 
   async function confirmAiEnable() {
-    if (pendingAiValue === null) return;
+    if (pendingAiValue === null || !aiConsentAccepted) return;
 
     const nextValue = pendingAiValue;
     setShowAiConfirm(false);
     setPendingAiValue(null);
     await applyAiValue(nextValue);
+    setAiConsentAccepted(false);
   }
 
   async function setup2FA() {
@@ -1111,7 +1137,11 @@ export default function SettingsPage() {
             {
               label: copy.statsAi,
               value: company.aiEnabled ? enabledText : disabledText,
-              hint: company.aiConsentAt ? copy.approved : copy.notApproved,
+              hint:
+                company.aiConsentAt &&
+                company.aiConsentPolicyVersion === AI_DATA_POLICY_VERSION
+                  ? copy.approved
+                  : copy.notApproved,
             },
             {
               label: copy.stats2fa,
@@ -1432,11 +1462,17 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={toggleAi}
-                disabled={savingAi || !writeAccess.canWrite}
+                disabled={
+                  savingAi ||
+                  !writeAccess.canWrite ||
+                  user?.role !== "ADMIN"
+                }
                 title={
                   !writeAccess.canWrite
                     ? writeAccess.message || getSettingsBlockFallback(locale)
-                    : undefined
+                    : user?.role !== "ADMIN"
+                      ? copy.aiAdminOnly
+                      : undefined
                 }
                 className="btn btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -1446,6 +1482,15 @@ export default function SettingsPage() {
                     ? copy.disableAi
                     : copy.enableAi}
               </button>
+
+              {user?.role !== "ADMIN" ? (
+                <p
+                  className="mt-3 text-xs font-bold"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {copy.aiAdminOnly}
+                </p>
+              ) : null}
             </div>
 
             {/* Password */}
@@ -1878,6 +1923,35 @@ export default function SettingsPage() {
               {copy.aiWarning}
             </div>
 
+            <label
+              className="mb-4 flex cursor-pointer items-start gap-3 rounded-2xl border p-4 text-sm font-semibold leading-7"
+              style={{
+                borderColor: aiConsentAccepted
+                  ? "var(--accent)"
+                  : "var(--border)",
+                background: "var(--input-bg)",
+                color: "var(--text-2)",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={aiConsentAccepted}
+                onChange={(event) =>
+                  setAiConsentAccepted(event.target.checked)
+                }
+                className="mt-1 h-5 w-5 shrink-0 accent-emerald-700"
+              />
+              <span>
+                {copy.aiConsentCheckbox}
+                <span
+                  className="mt-2 block text-xs font-black"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {copy.aiPolicyVersion}: {AI_DATA_POLICY_VERSION}
+                </span>
+              </span>
+            </label>
+
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
@@ -1891,7 +1965,9 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={confirmAiEnable}
-                disabled={savingAi || !writeAccess.canWrite}
+                disabled={
+                  savingAi || !writeAccess.canWrite || !aiConsentAccepted
+                }
                 title={
                   !writeAccess.canWrite
                     ? writeAccess.message || getSettingsBlockFallback(locale)

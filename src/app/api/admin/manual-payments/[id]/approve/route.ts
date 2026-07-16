@@ -273,7 +273,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           trialEndsAt: null,
           plan: tenantPlan,
           maxUsers: requestedPlan.maxUsers,
-          aiEnabled: requestedPlan.aiEnabled,
+          ...(requestedPlan.aiEnabled
+            ? {}
+            : {
+                aiEnabled: false,
+                aiConsentAt: null,
+                aiConsentBy: null,
+                aiConsentPolicyVersion: null,
+              }),
         },
         select: {
           id: true,

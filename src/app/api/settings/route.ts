@@ -5,6 +5,7 @@ import { apiHandler } from "@/lib/api-handler";
 import { requireRole } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
+import { hasCurrentAiConsent } from "@/lib/ai-consent";
 
 const tenantSelect = {
   id: true,
@@ -17,7 +18,21 @@ const tenantSelect = {
   plan: true,
   aiEnabled: true,
   aiConsentAt: true,
+  aiConsentBy: true,
+  aiConsentPolicyVersion: true,
 } as const;
+
+function settingsResponse<T extends {
+  aiEnabled: boolean;
+  aiConsentAt: Date | null;
+  aiConsentBy: string | null;
+  aiConsentPolicyVersion: string | null;
+}>(tenant: T) {
+  return {
+    ...tenant,
+    aiEnabled: hasCurrentAiConsent(tenant),
+  };
+}
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -31,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     if (!tenant) return err("الشركة غير موجودة", 404);
 
-    return ok(tenant);
+    return ok(settingsResponse(tenant));
   });
 }
 
@@ -108,6 +123,6 @@ export async function PATCH(req: NextRequest) {
       select: tenantSelect,
     });
 
-    return ok(tenant);
+    return ok(settingsResponse(tenant));
   });
 }
