@@ -44,8 +44,11 @@ function originalPreparedFile(
   };
 }
 
-export async function prepareUploadFile(file: File): Promise<PreparedUploadFile> {
-  const originalBuffer = Buffer.from(await file.arrayBuffer());
+export async function prepareUploadFile(
+  file: File,
+  sourceBuffer?: Buffer,
+): Promise<PreparedUploadFile> {
+  const originalBuffer = sourceBuffer ?? Buffer.from(await file.arrayBuffer());
   const originalFileName = file.name || "document";
   const originalMimeType = file.type || "application/octet-stream";
 

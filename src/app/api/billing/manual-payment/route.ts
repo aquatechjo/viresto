@@ -10,23 +10,27 @@ import {
   MANUAL_PAYMENT_SETTINGS_ID,
   normalizeManualPaymentMethod,
 } from "@/lib/manual-payment-settings";
+import {
+  type PreparedUploadFile,
+  prepareUploadFile,
+} from "@/lib/server/compress-upload-image";
+import {
+  RECEIPT_UPLOAD_MIME_TYPES,
+  validateUploadFileContent,
+} from "@/lib/server/upload-file-security";
 
 export const runtime = "nodejs";
 
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
 
-const ALLOWED_RECEIPT_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-]);
-
 function normalizeInterval(value: FormDataEntryValue | null): BillingInterval {
   return value === "YEARLY" ? "YEARLY" : "MONTHLY";
 }
 
-async function uploadReceiptToCloudinary(file: File, tenantId: string) {
+async function uploadReceiptToCloudinary(
+  file: PreparedUploadFile,
+  tenantId: string,
+) {
   const CLOUD = process.env.CLOUDINARY_CLOUD_NAME;
   const KEY = process.env.CLOUDINARY_API_KEY;
   const SECRET = process.env.CLOUDINARY_API_SECRET;
@@ -51,7 +55,11 @@ async function uploadReceiptToCloudinary(file: File, tenantId: string) {
     .join("");
 
   const fd = new FormData();
-  fd.append("file", file);
+  const uploadBlob = new Blob([new Uint8Array(file.buffer)], {
+    type: file.mimeType,
+  });
+
+  fd.append("file", uploadBlob, file.fileName);
   fd.append("api_key", KEY);
   fd.append("timestamp", String(ts));
   fd.append("signature", sig);
@@ -114,8 +122,37 @@ export async function POST(req: NextRequest) {
       return err("حجم الإيصال يجب ألا يتجاوز 5MB", 400);
     }
 
-    if (!ALLOWED_RECEIPT_TYPES.has(receipt.type)) {
+    if (!RECEIPT_UPLOAD_MIME_TYPES.has(receipt.type)) {
       return err("نوع الملف غير مدعوم. ارفع صورة JPG/PNG/WebP أو PDF", 400);
+    }
+
+    let receiptBuffer: Buffer;
+
+    try {
+      receiptBuffer = Buffer.from(await receipt.arrayBuffer());
+    } catch {
+      return err("تعذر قراءة ملف الإيصال", 400);
+    }
+
+    const receiptValidation = await validateUploadFileContent({
+      buffer: receiptBuffer,
+      fileName: receipt.name,
+      declaredMimeType: receipt.type,
+      allowedMimeTypes: RECEIPT_UPLOAD_MIME_TYPES,
+    });
+
+    if (!receiptValidation.ok) {
+      return err(receiptValidation.message, 400, {
+        code: receiptValidation.code,
+      });
+    }
+
+    let preparedReceipt: PreparedUploadFile;
+
+    try {
+      preparedReceipt = await prepareUploadFile(receipt, receiptBuffer);
+    } catch {
+      return err("تعذر تجهيز ملف الإيصال", 400);
     }
 
     const manualPaymentSettings =
@@ -191,7 +228,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const upload = await uploadReceiptToCloudinary(receipt, auth.user.tenantId);
+    const upload = await uploadReceiptToCloudinary(
+      preparedReceipt,
+      auth.user.tenantId,
+    );
 
     const result = await prisma.subscriptionPayment.create({
       data: {
@@ -205,9 +245,12 @@ export async function POST(req: NextRequest) {
         receiptUrl: upload.secureUrl,
         receiptPublicId: upload.publicId,
         raw: {
-          fileName: receipt.name,
-          fileType: receipt.type,
-          fileSize: receipt.size,
+          fileName: preparedReceipt.fileName,
+          originalFileName: receipt.name,
+          fileType: preparedReceipt.mimeType,
+          fileSize: preparedReceipt.size,
+          originalFileSize: receipt.size,
+          compressed: preparedReceipt.wasCompressed,
           resourceType: upload.resourceType,
           planCode: plan.code,
           planName: plan.name,

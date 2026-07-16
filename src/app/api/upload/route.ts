@@ -17,18 +17,13 @@ import {
   prepareUploadFile,
   validatePreparedUploadSize,
 } from "@/lib/server/compress-upload-image";
+import {
+  DOCUMENT_UPLOAD_MIME_TYPES,
+  validateUploadFileContent,
+} from "@/lib/server/upload-file-security";
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_INPUT_SIZE_BYTES = 25 * 1024 * 1024;
-
-const allowedTypes = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-] as const;
 
 const compressibleImageTypes = ["image/png", "image/jpeg", "image/webp"];
 
@@ -116,9 +111,9 @@ export async function POST(req: NextRequest) {
       return err("يجب اختيار قضية قبل رفع المستند", 400);
     }
 
-    if (!allowedTypes.includes(file.type as any)) {
+    if (!DOCUMENT_UPLOAD_MIME_TYPES.has(file.type)) {
       return err(
-        "نوع الملف غير مسموح. الرجاء رفع PDF أو صورة أو ملف Word فقط.",
+        "نوع الملف غير مسموح. الرجاء رفع PDF أو صورة أو ملف DOCX فقط.",
         400,
       );
     }
@@ -137,10 +132,31 @@ export async function POST(req: NextRequest) {
       return err("حجم الصورة كبير جدًا. الحد الأقصى للصور قبل الضغط هو 25 ميجابايت", 400);
     }
 
+    let originalBuffer: Buffer;
+
+    try {
+      originalBuffer = Buffer.from(await file.arrayBuffer());
+    } catch {
+      return err("تعذر قراءة الملف المرفوع", 400);
+    }
+
+    const contentValidation = await validateUploadFileContent({
+      buffer: originalBuffer,
+      fileName: file.name,
+      declaredMimeType: file.type,
+      allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
+    });
+
+    if (!contentValidation.ok) {
+      return err(contentValidation.message, 400, {
+        code: contentValidation.code,
+      });
+    }
+
     let preparedFile;
 
     try {
-      preparedFile = await prepareUploadFile(file);
+      preparedFile = await prepareUploadFile(file, originalBuffer);
     } catch {
       return err("فشل تجهيز الملف قبل الرفع", 400);
     }

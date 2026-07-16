@@ -3330,6 +3330,7 @@ export default function CaseDetailPage() {
           <input
             ref={documentInputRef}
             type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.docx"
             className="input disabled:cursor-not-allowed disabled:opacity-50"
             disabled={caseArchived}
             onChange={(event) => uploadCaseDocument(event.target.files?.[0])}

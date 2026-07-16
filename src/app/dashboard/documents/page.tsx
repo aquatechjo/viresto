@@ -1084,6 +1084,7 @@ export default function DocumentsPage() {
             aria-label={d.upload.fileAria}
             ref={fileInputRef}
             type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.docx"
             disabled={!writeAccess.canWrite || selectedArchivedContext}
             className="hidden"
             onChange={(event) => {
@@ -1692,6 +1693,7 @@ export default function DocumentsPage() {
                 <input
                   id="document-upload-file"
                   type="file"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.docx"
                   disabled={uploadBusy}
                   className="hidden"
                   onChange={(event) => {
