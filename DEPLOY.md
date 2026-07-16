@@ -37,7 +37,7 @@
    - `UPSTASH_REDIS_REST_URL`
    - `UPSTASH_REDIS_REST_TOKEN`
 
-> **ملاحظة:** إذا لم تضف هذه القيم، يعمل المشروع بـ in-memory rate limit تلقائياً (مناسب للتطوير فقط).
+> **مهم:** القيمتان إلزاميتان في الإنتاج. إذا كانت إحداهما مفقودة أو تعذر الوصول إلى Redis، تُغلق المسارات المحمية بشكل آمن وتعيد `503`. العداد المحلي متاح للتطوير فقط.
 
 ---
 
@@ -162,7 +162,7 @@ CLOUDINARY_CLOUD_NAME="your_cloud_name"
 CLOUDINARY_API_KEY="your_api_key"
 CLOUDINARY_API_SECRET="your_api_secret"
 
-# Upstash Redis (rate limiting — اختياري)
+# Upstash Redis (rate limiting — إلزامي في الإنتاج)
 UPSTASH_REDIS_REST_URL="https://xxx.upstash.io"
 UPSTASH_REDIS_REST_TOKEN="your_token"
 
@@ -183,4 +183,5 @@ ALLOWED_SERVER_ACTION_ORIGINS="your-domain.com,www.your-domain.com"
 | الصفحات لا تُحمَّل بعد النشر | شغّل `prisma migrate deploy` على Neon |
 | رسالة "غير مصرح" عند تسجيل الدخول | تحقق من JWT_SECRET وتأكد أنها نفسها في كل deploy |
 | الملفات لا ترفع | تحقق من قيم Cloudinary الثلاث |
-| Rate limit يطرد المستخدمين | تحقق من Upstash أو قلل الصرامة في `src/lib/rate-limit.ts` |
+| المسارات المحمية تعيد `503` | تحقق من وجود متغيري Upstash في بيئة Production ومن إمكانية الوصول إلى Redis |
+| Rate limit يطرد المستخدمين | راجع حدود المحاولات وحالة Upstash قبل تعديل القيم في `src/lib/rate-limit.ts` |

@@ -14,6 +14,13 @@ type RateLimitResult = {
   resetAt: number
 }
 
+export class RateLimitUnavailableError extends Error {
+  constructor() {
+    super('Distributed rate-limit storage is unavailable')
+    this.name = 'RateLimitUnavailableError'
+  }
+}
+
 const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
     ? Redis.fromEnv()
@@ -23,8 +30,18 @@ const localStore = new Map<string, { count: number; resetAt: number }>()
 
 const limiters = new Map<string, Ratelimit>()
 
+let warnedAboutLocalFallback = false
+let reportedProductionFailure = false
+
 export function hashRateLimitIdentifier(value: string) {
   return createHash('sha256').update(value.trim().toLowerCase()).digest('hex')
+}
+
+function reportProductionFailure(message: string) {
+  if (reportedProductionFailure) return
+
+  reportedProductionFailure = true
+  console.error(message)
 }
 
 function windowToDuration(windowMs: number): `${number} s` | `${number} m` | `${number} h` {
@@ -98,6 +115,9 @@ export async function checkRateLimit(
     keyPrefix: options.keyPrefix ?? 'rl',
   }
 
+  // Never send raw IP addresses, emails, user IDs, or compound identifiers to Redis.
+  const protectedKey = hashRateLimitIdentifier(key)
+
   const limiter = getLimiter(
     normalizedOptions.keyPrefix,
     normalizedOptions.max,
@@ -106,17 +126,46 @@ export async function checkRateLimit(
 
   if (!limiter) {
     if (process.env.NODE_ENV === 'production') {
-      console.warn('Upstash env vars are missing. Falling back to in-memory rate limit.')
+      reportProductionFailure(
+        '[RATE_LIMIT_UNAVAILABLE] UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required in production.'
+      )
+      throw new RateLimitUnavailableError()
     }
 
-    return checkLocalRateLimit(key, normalizedOptions)
+    if (!warnedAboutLocalFallback) {
+      warnedAboutLocalFallback = true
+      console.warn(
+        'Upstash env vars are missing. Using an in-memory rate limit outside production.'
+      )
+    }
+
+    return checkLocalRateLimit(protectedKey, normalizedOptions)
   }
 
-  const result = await limiter.limit(key)
+  try {
+    const result = await limiter.limit(protectedKey)
 
-  return {
-    allowed: result.success,
-    remaining: result.remaining,
-    resetAt: result.reset,
+    return {
+      allowed: result.success,
+      remaining: result.remaining,
+      resetAt: result.reset,
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'production') {
+      const errorName = error instanceof Error ? error.name : 'UnknownError'
+      reportProductionFailure(
+        `[RATE_LIMIT_UNAVAILABLE] Upstash request failed (${errorName}).`
+      )
+      throw new RateLimitUnavailableError()
+    }
+
+    if (!warnedAboutLocalFallback) {
+      warnedAboutLocalFallback = true
+      console.warn(
+        'Upstash request failed. Using an in-memory rate limit outside production.'
+      )
+    }
+
+    return checkLocalRateLimit(protectedKey, normalizedOptions)
   }
 }
