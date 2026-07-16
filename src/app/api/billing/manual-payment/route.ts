@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { BillingInterval } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import cloudinary from "@/lib/cloudinary";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
@@ -19,10 +21,14 @@ import {
   validateUploadFileContent,
 } from "@/lib/server/upload-file-security";
 import { getBillingPlanConfig } from "@/lib/subscription-consistency";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
+const STALE_UPLOAD_MINUTES = 15;
+const OPEN_PAYMENT_STATUSES = ["UPLOADING", "PENDING", "PROCESSING"];
 
 function normalizeInterval(value: FormDataEntryValue | null): BillingInterval {
   return value === "YEARLY" ? "YEARLY" : "MONTHLY";
@@ -31,6 +37,7 @@ function normalizeInterval(value: FormDataEntryValue | null): BillingInterval {
 async function uploadReceiptToCloudinary(
   file: PreparedUploadFile,
   tenantId: string,
+  reservationId: string,
 ) {
   const CLOUD = process.env.CLOUDINARY_CLOUD_NAME;
   const KEY = process.env.CLOUDINARY_API_KEY;
@@ -44,7 +51,7 @@ async function uploadReceiptToCloudinary(
   const folder = `Viresto/${tenantId}/receipts`;
   const uploadType = "authenticated";
 
-  const str = `folder=${folder}&timestamp=${ts}&type=${uploadType}${SECRET}`;
+  const str = `folder=${folder}&public_id=${reservationId}&timestamp=${ts}&type=${uploadType}${SECRET}`;
 
   const buf = await crypto.subtle.digest(
     "SHA-256",
@@ -65,6 +72,7 @@ async function uploadReceiptToCloudinary(
   fd.append("timestamp", String(ts));
   fd.append("signature", sig);
   fd.append("folder", folder);
+  fd.append("public_id", reservationId);
   fd.append("type", uploadType);
 
   const res = await fetch(
@@ -88,6 +96,55 @@ async function uploadReceiptToCloudinary(
   };
 }
 
+function expectedReceiptPublicId(tenantId: string, reservationId: string) {
+  return `Viresto/${tenantId}/receipts/${reservationId}`;
+}
+
+async function cleanupReceiptAsset(
+  publicId: string,
+  resourceTypes: Array<"image" | "raw"> = ["image", "raw"],
+) {
+  for (const resourceType of resourceTypes) {
+    try {
+      await cloudinary.uploader.destroy(publicId, {
+        resource_type: resourceType,
+        type: "authenticated",
+        invalidate: true,
+      });
+    } catch (error) {
+      console.error("Manual payment receipt cleanup failed:", error);
+    }
+  }
+}
+
+async function markReservationFailed(
+  reservationId: string,
+  metadata: Record<string, unknown>,
+  reason: string,
+) {
+  try {
+    await prisma.subscriptionPayment.updateMany({
+      where: {
+        id: reservationId,
+        status: "UPLOADING",
+      },
+      data: {
+        status: "UPLOAD_FAILED",
+        receiptUrl: null,
+        receiptPublicId: null,
+        raw: {
+          ...metadata,
+          uploadState: "FAILED",
+          failureReason: reason,
+          failedAt: new Date().toISOString(),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to mark manual payment reservation:", error);
+  }
+}
+
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
@@ -95,6 +152,19 @@ export async function POST(req: NextRequest) {
 
     const auth = await requireRole(req, ["ADMIN"]);
     if (auth.error || !auth.user) return auth.error;
+
+    const uploadLimit = await checkRateLimit(
+      `${auth.user.tenantId}:${auth.user.userId}`,
+      {
+        keyPrefix: "manual-payment-upload",
+        max: 5,
+        windowMs: 60 * 60 * 1000,
+      },
+    );
+
+    if (!uploadLimit.allowed) {
+      return err("تم تجاوز عدد محاولات إرسال الإيصال. حاول لاحقًا.", 429);
+    }
 
     const formData = await req.formData();
 
@@ -210,78 +280,200 @@ export async function POST(req: NextRequest) {
       return err("سعر الخطة غير صالح", 400);
     }
 
-    const pendingPayment = await prisma.subscriptionPayment.findFirst({
-      where: {
-        tenantId: auth.user.tenantId,
-        status: "PENDING",
-        receiptUrl: {
-          not: null,
+    const reservationId = randomUUID();
+    const reservationMetadata = {
+      fileName: preparedReceipt.fileName,
+      originalFileName: receipt.name,
+      fileType: preparedReceipt.mimeType,
+      fileSize: preparedReceipt.size,
+      originalFileSize: receipt.size,
+      compressed: preparedReceipt.wasCompressed,
+      planCode: plan.code,
+      planName: plan.name,
+      interval,
+      paymentMethod: method,
+    };
+    const staleBefore = new Date(
+      Date.now() - STALE_UPLOAD_MINUTES * 60 * 1000,
+    );
+
+    const reservation = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, auth.user.tenantId);
+
+      const staleReservations = await tx.subscriptionPayment.findMany({
+        where: {
+          tenantId: auth.user.tenantId,
+          status: "UPLOADING",
+          updatedAt: { lt: staleBefore },
         },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-      },
+        select: { id: true },
+      });
+
+      if (staleReservations.length > 0) {
+        await tx.subscriptionPayment.updateMany({
+          where: {
+            id: { in: staleReservations.map((item) => item.id) },
+            status: "UPLOADING",
+          },
+          data: {
+            status: "UPLOAD_FAILED",
+            receiptUrl: null,
+            receiptPublicId: null,
+            adminNote: "انتهت مهلة رفع الإيصال قبل اكتمال الطلب",
+          },
+        });
+      }
+
+      const existing = await tx.subscriptionPayment.findFirst({
+        where: {
+          tenantId: auth.user.tenantId,
+          status: { in: OPEN_PAYMENT_STATUSES },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, status: true, createdAt: true },
+      });
+
+      if (existing) {
+        return {
+          existing,
+          payment: null,
+          staleReservationIds: staleReservations.map((item) => item.id),
+        };
+      }
+
+      const payment = await tx.subscriptionPayment.create({
+        data: {
+          id: reservationId,
+          tenantId: auth.user.tenantId,
+          requestedPlanId: plan.id,
+          requestedInterval: interval,
+          amount,
+          currency: configuredPlan.currency,
+          status: "UPLOADING",
+          method,
+          raw: {
+            ...reservationMetadata,
+            uploadState: "RESERVED",
+            reservedAt: new Date().toISOString(),
+          },
+        },
+        select: { id: true },
+      });
+
+      return {
+        existing: null,
+        payment,
+        staleReservationIds: staleReservations.map((item) => item.id),
+      };
     });
 
-    if (pendingPayment) {
+    await Promise.all(
+      reservation.staleReservationIds.map((id) =>
+        cleanupReceiptAsset(expectedReceiptPublicId(auth.user.tenantId, id)),
+      ),
+    );
+
+    if (reservation.existing || !reservation.payment) {
       return err(
-        "لديك طلب دفع قيد المراجعة بالفعل. انتظر مراجعة الإدارة قبل إرسال إيصال جديد.",
+        "لديك طلب دفع مفتوح بالفعل. انتظر اكتمال الرفع أو مراجعة الإدارة قبل إرسال طلب جديد.",
         409,
         {
-          paymentId: pendingPayment.id,
-          createdAt: pendingPayment.createdAt,
+          paymentId: reservation.existing?.id,
+          status: reservation.existing?.status,
+          createdAt: reservation.existing?.createdAt,
         },
       );
     }
 
-    const upload = await uploadReceiptToCloudinary(
-      preparedReceipt,
-      auth.user.tenantId,
-    );
+    let upload: Awaited<ReturnType<typeof uploadReceiptToCloudinary>>;
 
-    const result = await prisma.subscriptionPayment.create({
-      data: {
-        tenantId: auth.user.tenantId,
-        requestedPlanId: plan.id,
-        requestedInterval: interval,
-        amount,
-        currency: configuredPlan.currency,
-        status: "PENDING",
-        method,
-        receiptUrl: upload.secureUrl,
-        receiptPublicId: upload.publicId,
-        raw: {
-          fileName: preparedReceipt.fileName,
-          originalFileName: receipt.name,
-          fileType: preparedReceipt.mimeType,
-          fileSize: preparedReceipt.size,
-          originalFileSize: receipt.size,
-          compressed: preparedReceipt.wasCompressed,
-          resourceType: upload.resourceType,
-          planCode: plan.code,
-          planName: plan.name,
-          interval,
-          paymentMethod: method,
-        },
-      },
-      select: {
-        id: true,
-        amount: true,
-        currency: true,
-        status: true,
-        method: true,
-        createdAt: true,
-        requestedInterval: true,
-        requestedPlan: {
+    try {
+      upload = await uploadReceiptToCloudinary(
+        preparedReceipt,
+        auth.user.tenantId,
+        reservation.payment.id,
+      );
+    } catch (error) {
+      console.error("Manual payment receipt upload failed:", error);
+      await markReservationFailed(
+        reservation.payment.id,
+        reservationMetadata,
+        "CLOUDINARY_UPLOAD_FAILED",
+      );
+      return err("تعذر رفع إيصال الدفع. حاول مرة أخرى.", 502);
+    }
+
+    const result = await prisma
+      .$transaction(async (tx) => {
+        const finalized = await tx.subscriptionPayment.updateMany({
+          where: {
+            id: reservation.payment!.id,
+            tenantId: auth.user.tenantId,
+            status: "UPLOADING",
+          },
+          data: {
+            status: "PENDING",
+            receiptUrl: upload.secureUrl,
+            receiptPublicId: upload.publicId,
+            raw: {
+              ...reservationMetadata,
+              uploadState: "PENDING_REVIEW",
+              resourceType: upload.resourceType,
+              uploadedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        if (finalized.count !== 1) return null;
+
+        await tx.activity.create({
+          data: {
+            tenantId: auth.user.tenantId,
+            actorId: auth.user.userId,
+            type: "MANUAL_PAYMENT_SUBMITTED",
+            title: "تم إرسال طلب دفع يدوي",
+            message: `${plan.name} (${interval})`,
+            entityType: "SubscriptionPayment",
+            entityId: reservation.payment!.id,
+          },
+        });
+
+        return tx.subscriptionPayment.findUnique({
+          where: { id: reservation.payment!.id },
           select: {
             id: true,
-            code: true,
-            name: true,
+            amount: true,
+            currency: true,
+            status: true,
+            method: true,
+            createdAt: true,
+            requestedInterval: true,
+            requestedPlan: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
           },
-        },
-      },
-    });
+        });
+      })
+      .catch((error) => {
+        console.error("Manual payment finalization failed:", error);
+        return null;
+      });
+
+    if (!result) {
+      await cleanupReceiptAsset(upload.publicId, [
+        upload.resourceType === "raw" ? "raw" : "image",
+      ]);
+      await markReservationFailed(
+        reservation.payment.id,
+        reservationMetadata,
+        "DATABASE_FINALIZATION_FAILED",
+      );
+      return err("تعذر تثبيت طلب الدفع. تم تنظيف الإيصال؛ حاول مرة أخرى.", 503);
+    }
 
     return ok(
       {

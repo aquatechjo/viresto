@@ -269,6 +269,10 @@ export async function GET(req: NextRequest) {
           },
         },
         subscriptionPayments: {
+          where: {
+            status: { in: ["PENDING", "APPROVED", "REJECTED"] },
+            receiptPublicId: { not: null },
+          },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: {
