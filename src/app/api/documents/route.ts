@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
+import {
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+  buildDocumentAccessWhere,
+} from "@/lib/access-control";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -21,10 +26,7 @@ export async function GET(req: NextRequest) {
 
     if (caseId) {
       const caseExists = await prisma.case.findFirst({
-        where: {
-          id: caseId,
-          tenantId: auth.user.tenantId,
-        },
+        where: buildCaseAccessWhere(auth.user, { id: caseId }),
         select: { id: true },
       });
 
@@ -35,10 +37,7 @@ export async function GET(req: NextRequest) {
 
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
-        where: {
-          id: clientId,
-          tenantId: auth.user.tenantId,
-        },
+        where: buildClientAccessWhere(auth.user, { id: clientId }),
         select: { id: true },
       });
 
@@ -48,11 +47,10 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await prisma.document.findMany({
-      where: {
-        tenantId: auth.user.tenantId,
+      where: buildDocumentAccessWhere(auth.user, {
         ...(caseId ? { caseId } : {}),
         ...(clientId ? { clientId } : {}),
-      },
+      }),
       take: limit,
       select: {
         id: true,

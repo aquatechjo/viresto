@@ -1,25 +1,16 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decryptText } from "@/lib/encryption";
 import { requireRole } from "@/lib/api-auth";
 import { ok, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
+import {
+  buildAppointmentAccessWhere,
+  buildCaseAccessWhere,
+  buildClientIdentifierAccessWhere,
+} from "@/lib/access-control";
 
 type Params = { params: Promise<{ id: string }> };
-
-function clientLookupWhere(
-  identifier: string,
-  tenantId: string,
-): Prisma.ClientWhereInput {
-  const publicId = Number(identifier);
-  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
-
-  return {
-    tenantId,
-    OR: hasPublicId ? [{ id: identifier }, { publicId }] : [{ id: identifier }],
-  };
-}
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
@@ -29,10 +20,14 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const client = await prisma.client.findFirst({
-      where: clientLookupWhere(id, auth.user.tenantId),
+      where: buildClientIdentifierAccessWhere(id, auth.user),
       include: {
-        cases: true,
-        appointments: true,
+        cases: {
+          where: buildCaseAccessWhere(auth.user),
+        },
+        appointments: {
+          where: buildAppointmentAccessWhere(auth.user),
+        },
       },
     });
 
@@ -40,13 +35,21 @@ export async function GET(req: NextRequest, { params }: Params) {
       return notFound("الموكل غير موجود");
     }
 
+    const {
+      emailHash: _emailHash,
+      phoneHash: _phoneHash,
+      nationalIdHash: _nationalIdHash,
+      ...safeClient
+    } = client;
+    const revealSensitive = auth.user.role !== "STAFF";
+
     return ok({
-      ...client,
-      email: decryptText(client.email),
-      phone: decryptText(client.phone),
-      nationalId: decryptText(client.nationalId),
-      address: decryptText(client.address),
-      notes: decryptText(client.notes),
+      ...safeClient,
+      email: revealSensitive ? decryptText(client.email) : null,
+      phone: revealSensitive ? decryptText(client.phone) : null,
+      nationalId: revealSensitive ? decryptText(client.nationalId) : null,
+      address: revealSensitive ? decryptText(client.address) : null,
+      notes: revealSensitive ? decryptText(client.notes) : null,
     });
   });
 }

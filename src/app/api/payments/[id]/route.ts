@@ -8,6 +8,10 @@ import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { roundMoney, syncInvoiceStatus } from "@/lib/finance";
+import {
+  buildInvoiceAccessWhere,
+  buildPaymentAccessWhere,
+} from "@/lib/access-control";
 
 type Params = {
   params: Promise<{
@@ -71,10 +75,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       const existing = await tx.payment.findFirst({
-        where: {
-          id,
-          tenantId,
-        },
+        where: buildPaymentAccessWhere(auth.user!, { id }),
         select: {
           id: true,
           tenantId: true,
@@ -229,10 +230,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
 
         const invoice = await tx.invoice.findFirst({
-          where: {
+          where: buildInvoiceAccessWhere(auth.user!, {
             id: existing.invoiceId,
-            tenantId,
-          },
+          }),
           select: {
             id: true,
             invoiceNumber: true,
@@ -456,10 +456,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       }
 
       const existing = await tx.payment.findFirst({
-        where: {
-          id,
-          tenantId,
-        },
+        where: buildPaymentAccessWhere(auth.user!, { id }),
         select: {
           id: true,
           clientId: true,

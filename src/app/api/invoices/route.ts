@@ -9,6 +9,11 @@ import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { invoiceCreateSchema } from "@/lib/validations";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
+import {
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+  buildInvoiceAccessWhere,
+} from "@/lib/access-control";
 
 const allowedStatuses = [
   "DRAFT",
@@ -125,8 +130,7 @@ export async function GET(req: NextRequest) {
     }
 
     const invoices = await prisma.invoice.findMany({
-      where: {
-        tenantId: auth.user.tenantId,
+      where: buildInvoiceAccessWhere(auth.user, {
         ...(status ? { status: status as any } : {}),
         ...(q
           ? {
@@ -137,7 +141,7 @@ export async function GET(req: NextRequest) {
               ],
             }
           : {}),
-      },
+      }),
       include: {
         client: {
           select: {
@@ -235,10 +239,7 @@ export async function POST(req: NextRequest) {
     }
 
     const client = await prisma.client.findFirst({
-      where: {
-        id: data.clientId,
-        tenantId: auth.user.tenantId,
-      },
+      where: buildClientAccessWhere(auth.user, { id: data.clientId }),
       select: {
         id: true,
         publicId: true,
@@ -253,11 +254,10 @@ export async function POST(req: NextRequest) {
 
     if (caseId) {
       const selectedCase = await prisma.case.findFirst({
-        where: {
+        where: buildCaseAccessWhere(auth.user, {
           id: caseId,
-          tenantId: auth.user.tenantId,
           clientId: data.clientId,
-        },
+        }),
         select: {
           id: true,
           publicId: true,
@@ -286,13 +286,12 @@ export async function POST(req: NextRequest) {
       }
 
       const previousInvoices = await prisma.invoice.aggregate({
-        where: {
-          tenantId: auth.user.tenantId,
+        where: buildInvoiceAccessWhere(auth.user, {
           caseId,
           status: {
             not: "CANCELLED",
           },
-        },
+        }),
         _sum: {
           total: true,
         },

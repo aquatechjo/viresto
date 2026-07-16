@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clientSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
@@ -14,6 +15,11 @@ import {
   normalizePhone,
   hashSearchValue,
 } from "@/lib/encryption";
+import {
+  buildAppointmentAccessWhere,
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+} from "@/lib/access-control";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -45,9 +51,7 @@ export async function GET(req: NextRequest) {
       archiveParam === "archived" || archiveParam === "all"
         ? archiveParam
         : "active";
-    const where = {
-      tenantId: auth.user.tenantId,
-
+    const requestedWhere: Prisma.ClientWhereInput = {
       ...(archive === "active"
         ? { archivedAt: null }
         : archive === "archived"
@@ -70,12 +74,22 @@ export async function GET(req: NextRequest) {
           }
         : {}),
     };
+    const where = buildClientAccessWhere(auth.user, requestedWhere);
 
     const [data, total] = await Promise.all([
       prisma.client.findMany({
         where,
         include: {
-          _count: { select: { cases: true, appointments: true } },
+          _count: {
+            select: {
+              cases: {
+                where: buildCaseAccessWhere(auth.user),
+              },
+              appointments: {
+                where: buildAppointmentAccessWhere(auth.user),
+              },
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
         skip,
@@ -85,14 +99,24 @@ export async function GET(req: NextRequest) {
       prisma.client.count({ where }),
     ]);
 
-    const decryptedData = data.map((client) => ({
-      ...client,
-      email: decryptText(client.email),
-      phone: decryptText(client.phone),
-      nationalId: decryptText(client.nationalId),
-      address: decryptText(client.address),
-      notes: decryptText(client.notes),
-    }));
+    const decryptedData = data.map((client) => {
+      const {
+        emailHash: _emailHash,
+        phoneHash: _phoneHash,
+        nationalIdHash: _nationalIdHash,
+        ...safeClient
+      } = client;
+      const revealSensitive = auth.user.role !== "STAFF";
+
+      return {
+        ...safeClient,
+        email: revealSensitive ? decryptText(client.email) : null,
+        phone: revealSensitive ? decryptText(client.phone) : null,
+        nationalId: revealSensitive ? decryptText(client.nationalId) : null,
+        address: revealSensitive ? decryptText(client.address) : null,
+        notes: revealSensitive ? decryptText(client.notes) : null,
+      };
+    });
 
     return ok({
       data: decryptedData,
@@ -185,16 +209,29 @@ export async function POST(req: NextRequest) {
         : null;
 
     if (duplicateClient) {
+      const duplicateIsVisible =
+        (await prisma.client.count({
+          where: buildClientAccessWhere(auth.user, {
+            id: duplicateClient.id,
+          }),
+        })) > 0;
+
       return err(
-        duplicateClient.archivedAt
-          ? "يوجد موكل مؤرشف بنفس البيانات. يمكنك استعادته بدل إنشاء موكل جديد."
-          : "يوجد موكل بنفس البيانات داخل المكتب.",
+        duplicateIsVisible
+          ? duplicateClient.archivedAt
+            ? "يوجد موكل مؤرشف بنفس البيانات. يمكنك استعادته بدل إنشاء موكل جديد."
+            : "يوجد موكل بنفس البيانات داخل المكتب."
+          : "هذه البيانات مستخدمة داخل المكتب. تواصل مع مدير المكتب إذا احتجت الوصول للسجل.",
         409,
         {
           code: "CLIENT_DUPLICATE",
-          clientId: duplicateClient.id,
-          clientPublicId: duplicateClient.publicId,
-          archived: !!duplicateClient.archivedAt,
+          ...(duplicateIsVisible
+            ? {
+                clientId: duplicateClient.id,
+                clientPublicId: duplicateClient.publicId,
+                archived: !!duplicateClient.archivedAt,
+              }
+            : {}),
         },
       );
     }
@@ -218,9 +255,16 @@ export async function POST(req: NextRequest) {
       entityId: client.id,
     });
 
+    const {
+      emailHash: _emailHash,
+      phoneHash: _phoneHash,
+      nationalIdHash: _nationalIdHash,
+      ...safeClient
+    } = client;
+
     return ok(
       {
-        ...client,
+        ...safeClient,
         email: decryptText(client.email),
         phone: decryptText(client.phone),
         nationalId: decryptText(client.nationalId),

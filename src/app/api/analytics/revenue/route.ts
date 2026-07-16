@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { ok } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
 import { requireRole } from '@/lib/api-auth'
+import { buildPaymentAccessWhere } from '@/lib/access-control'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -15,11 +16,10 @@ export async function GET(req: NextRequest) {
     from.setHours(0, 0, 0, 0)
 
     const payments = await prisma.payment.findMany({
-      where: {
-        tenantId: auth.user.tenantId,
+      where: buildPaymentAccessWhere(auth.user, {
         status: 'PAID',
         paidAt: { gte: from },
-      },
+      }),
       select: {
         amount: true,
         paidAt: true,

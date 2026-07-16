@@ -9,6 +9,7 @@ export type AccessControlUser = {
 
 function assignedCaseScope(user: AccessControlUser): Prisma.CaseWhereInput {
   return {
+    tenantId: user.tenantId,
     OR: [
       { leadLawyerId: user.userId },
       {
@@ -36,6 +37,29 @@ function assignedCaseScope(user: AccessControlUser): Prisma.CaseWhereInput {
         },
       },
     ],
+  };
+}
+
+function accessibleClientScope(
+  user: AccessControlUser,
+): Prisma.ClientWhereInput {
+  const assignedCase = assignedCaseScope(user);
+
+  if (user.role === "LAWYER") {
+    return {
+      OR: [
+        { cases: { some: assignedCase } },
+        // A newly created client has no case yet. Lawyers must be able to
+        // complete the intake flow and create the first case.
+        { cases: { none: {} } },
+      ],
+    };
+  }
+
+  return {
+    cases: {
+      some: assignedCase,
+    },
   };
 }
 
@@ -67,6 +91,128 @@ export function buildCaseIdentifierAccessWhere(
       ? [{ id: identifier }, { publicId }]
       : [{ id: identifier }],
   });
+}
+
+export function buildClientAccessWhere(
+  user: AccessControlUser,
+  requestedWhere: Prisma.ClientWhereInput = {},
+): Prisma.ClientWhereInput {
+  const accessWhere =
+    user.role === "ADMIN" ? {} : accessibleClientScope(user);
+
+  return {
+    AND: [
+      { tenantId: user.tenantId },
+      accessWhere,
+      requestedWhere,
+    ],
+  };
+}
+
+export function buildClientIdentifierAccessWhere(
+  identifier: string,
+  user: AccessControlUser,
+): Prisma.ClientWhereInput {
+  const publicId = Number(identifier);
+  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
+
+  return buildClientAccessWhere(user, {
+    OR: hasPublicId
+      ? [{ id: identifier }, { publicId }]
+      : [{ id: identifier }],
+  });
+}
+
+export function buildDocumentAccessWhere(
+  user: AccessControlUser,
+  requestedWhere: Prisma.DocumentWhereInput = {},
+): Prisma.DocumentWhereInput {
+  const accessWhere: Prisma.DocumentWhereInput =
+    user.role === "ADMIN"
+      ? {}
+      : {
+          case: {
+            is: buildCaseAccessWhere(user),
+          },
+        };
+
+  return {
+    AND: [
+      { tenantId: user.tenantId },
+      accessWhere,
+      requestedWhere,
+    ],
+  };
+}
+
+export function buildInvoiceAccessWhere(
+  user: AccessControlUser,
+  requestedWhere: Prisma.InvoiceWhereInput = {},
+): Prisma.InvoiceWhereInput {
+  const accessWhere: Prisma.InvoiceWhereInput =
+    user.role === "ADMIN"
+      ? {}
+      : user.role === "STAFF"
+        ? { id: { in: [] } }
+        : {
+            OR: [
+              { case: { is: buildCaseAccessWhere(user) } },
+              {
+                caseId: null,
+                client: { is: buildClientAccessWhere(user) },
+              },
+            ],
+          };
+
+  return {
+    AND: [
+      { tenantId: user.tenantId },
+      accessWhere,
+      requestedWhere,
+    ],
+  };
+}
+
+export function buildInvoiceIdentifierAccessWhere(
+  identifier: string,
+  user: AccessControlUser,
+): Prisma.InvoiceWhereInput {
+  const publicId = Number(identifier);
+  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
+
+  return buildInvoiceAccessWhere(user, {
+    OR: hasPublicId
+      ? [{ id: identifier }, { publicId }]
+      : [{ id: identifier }],
+  });
+}
+
+export function buildPaymentAccessWhere(
+  user: AccessControlUser,
+  requestedWhere: Prisma.PaymentWhereInput = {},
+): Prisma.PaymentWhereInput {
+  const accessWhere: Prisma.PaymentWhereInput =
+    user.role === "ADMIN"
+      ? {}
+      : user.role === "STAFF"
+        ? { id: { in: [] } }
+        : {
+            OR: [
+              { case: { is: buildCaseAccessWhere(user) } },
+              {
+                caseId: null,
+                client: { is: buildClientAccessWhere(user) },
+              },
+            ],
+          };
+
+  return {
+    AND: [
+      { tenantId: user.tenantId },
+      accessWhere,
+      requestedWhere,
+    ],
+  };
 }
 
 export function buildTaskAccessWhere(

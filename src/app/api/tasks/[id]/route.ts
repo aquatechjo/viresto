@@ -7,6 +7,11 @@ import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { logActivity } from "@/lib/activity";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
+import {
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+  buildTaskAccessWhere,
+} from "@/lib/access-control";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -47,10 +52,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.task.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: buildTaskAccessWhere(auth.user, { id }),
       select: {
         id: true,
         title: true,
@@ -218,10 +220,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       if (nextClientId) {
         const client = await prisma.client.findFirst({
-          where: {
-            id: nextClientId,
-            tenantId: auth.user.tenantId,
-          },
+          where: buildClientAccessWhere(auth.user, { id: nextClientId }),
           select: {
             id: true,
             archivedAt: true,
@@ -239,10 +238,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       if (nextCaseId) {
         const relatedCase = await prisma.case.findFirst({
-          where: {
-            id: nextCaseId,
-            tenantId: auth.user.tenantId,
-          },
+          where: buildCaseAccessWhere(auth.user, { id: nextCaseId }),
           select: {
             id: true,
             clientId: true,
@@ -397,10 +393,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.task.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: buildTaskAccessWhere(auth.user, { id }),
       select: {
         id: true,
         title: true,

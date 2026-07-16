@@ -8,6 +8,11 @@ import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { roundMoney, syncInvoiceStatus } from "@/lib/finance";
+import {
+  buildCaseAccessWhere,
+  buildInvoiceAccessWhere,
+  buildPaymentAccessWhere,
+} from "@/lib/access-control";
 
 const allowedStatuses = [
   "PENDING",
@@ -41,13 +46,12 @@ export async function GET(req: NextRequest) {
     }
 
     const payments = await prisma.payment.findMany({
-      where: {
-        tenantId: auth.user.tenantId,
+      where: buildPaymentAccessWhere(auth.user, {
         ...(caseId ? { caseId } : {}),
         ...(clientId ? { clientId } : {}),
         ...(invoiceId ? { invoiceId } : {}),
         ...(status ? { status: status as any } : {}),
-      },
+      }),
       include: {
         client: {
           select: {
@@ -185,10 +189,7 @@ export async function POST(req: NextRequest) {
         }
 
         const invoice = await tx.invoice.findFirst({
-          where: {
-            id: invoiceId,
-            tenantId,
-          },
+          where: buildInvoiceAccessWhere(auth.user!, { id: invoiceId }),
           select: {
             id: true,
             invoiceNumber: true,
@@ -264,11 +265,10 @@ export async function POST(req: NextRequest) {
           caseTitle = invoice.case?.title ?? null;
         } else if (requestedCaseId) {
           const selectedCase = await tx.case.findFirst({
-            where: {
+            where: buildCaseAccessWhere(auth.user!, {
               id: requestedCaseId,
-              tenantId,
               clientId: invoice.clientId,
-            },
+            }),
             select: {
               id: true,
               title: true,
@@ -329,10 +329,9 @@ export async function POST(req: NextRequest) {
         }
       } else {
         const selectedCase = await tx.case.findFirst({
-          where: {
+          where: buildCaseAccessWhere(auth.user!, {
             id: requestedCaseId!,
-            tenantId,
-          },
+          }),
           select: {
             id: true,
             title: true,

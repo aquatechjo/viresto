@@ -9,6 +9,7 @@ import {
   isTenantCloudinaryAsset,
   streamPrivateAsset,
 } from "@/lib/cloudinary";
+import { buildDocumentAccessWhere } from "@/lib/access-control";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -38,10 +39,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const doc = await prisma.document.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: buildDocumentAccessWhere(auth.user, { id }),
       select: {
         id: true,
         fileName: true,

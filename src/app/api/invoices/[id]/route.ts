@@ -9,21 +9,14 @@ import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { invoiceCreateSchema } from "@/lib/validations";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
+import {
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+  buildInvoiceAccessWhere,
+  buildInvoiceIdentifierAccessWhere,
+} from "@/lib/access-control";
 
 type Params = { params: Promise<{ id: string }> };
-
-function invoiceLookupWhere(
-  identifier: string,
-  tenantId: string,
-): Prisma.InvoiceWhereInput {
-  const publicId = Number(identifier);
-  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
-
-  return {
-    tenantId,
-    OR: hasPublicId ? [{ id: identifier }, { publicId }] : [{ id: identifier }],
-  };
-}
 
 const allowedStatuses = [
   "DRAFT",
@@ -132,7 +125,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const invoice = await prisma.invoice.findFirst({
-      where: invoiceLookupWhere(id, auth.user.tenantId),
+      where: buildInvoiceIdentifierAccessWhere(id, auth.user),
       include: {
         client: true,
         case: {
@@ -187,7 +180,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const invoice = await prisma.invoice.findFirst({
-      where: invoiceLookupWhere(id, auth.user.tenantId),
+      where: buildInvoiceIdentifierAccessWhere(id, auth.user),
       include: {
         client: true,
         case: {
@@ -313,10 +306,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (data.clientId) {
       const client = await prisma.client.findFirst({
-        where: {
-          id: data.clientId,
-          tenantId: auth.user.tenantId,
-        },
+        where: buildClientAccessWhere(auth.user, { id: data.clientId }),
         select: {
           id: true,
           name: true,
@@ -331,11 +321,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (nextCaseId) {
       const selectedCase = await prisma.case.findFirst({
-        where: {
+        where: buildCaseAccessWhere(auth.user, {
           id: nextCaseId,
-          tenantId: auth.user.tenantId,
           ...(data.clientId ? { clientId: nextClientId } : {}),
-        },
+        }),
         select: {
           id: true,
           clientId: true,
@@ -401,8 +390,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       const otherInvoices = await prisma.invoice.aggregate({
-        where: {
-          tenantId: auth.user.tenantId,
+        where: buildInvoiceAccessWhere(auth.user, {
           caseId: nextCaseId,
           id: {
             not: invoice.id,
@@ -410,7 +398,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           status: {
             not: "CANCELLED",
           },
-        },
+        }),
         _sum: {
           total: true,
         },
@@ -554,7 +542,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const invoice = await prisma.invoice.findFirst({
-      where: invoiceLookupWhere(id, auth.user.tenantId),
+      where: buildInvoiceIdentifierAccessWhere(id, auth.user),
       include: {
         payments: {
           select: {

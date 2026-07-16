@@ -21,6 +21,7 @@ import {
   DOCUMENT_UPLOAD_MIME_TYPES,
   validateUploadFileContent,
 } from "@/lib/server/upload-file-security";
+import { buildCaseAccessWhere } from "@/lib/access-control";
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_INPUT_SIZE_BYTES = 25 * 1024 * 1024;
@@ -184,10 +185,7 @@ export async function POST(req: NextRequest) {
     }
 
     const caseRecord = await prisma.case.findFirst({
-      where: {
-        id: caseId,
-        tenantId: auth.user.tenantId,
-      },
+      where: buildCaseAccessWhere(auth.user, { id: caseId }),
       select: {
         id: true,
         title: true,

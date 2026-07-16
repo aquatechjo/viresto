@@ -3,6 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/api-auth'
 import { ok, err } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
+import {
+  buildAppointmentAccessWhere,
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+  buildInvoiceAccessWhere,
+  buildPaymentAccessWhere,
+  buildTaskAccessWhere,
+} from '@/lib/access-control'
 
 type ReportType = 'monthly' | 'yearly'
 type CaseStatus = 'OPEN' | 'IN_PROGRESS' | 'CLOSED' | 'ARCHIVED'
@@ -87,11 +95,10 @@ export async function GET(req: NextRequest) {
     const params = parseReportParams(req)
     if ('error' in params) return err(params.error || 'بيانات التقرير غير صالحة', 400)
 
-    const tenantId = auth.user.tenantId
     const now = new Date()
 
     const clients = await prisma.client.findMany({
-      where: { tenantId },
+      where: buildClientAccessWhere(auth.user),
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     })
@@ -104,11 +111,10 @@ export async function GET(req: NextRequest) {
     }
 
     const cases = await prisma.case.findMany({
-      where: {
-        tenantId,
+      where: buildCaseAccessWhere(auth.user, {
         ...(params.clientId ? { clientId: params.clientId } : {}),
         ...(params.caseStatus ? { status: params.caseStatus as CaseStatus } : {}),
-      },
+      }),
       select: {
         id: true,
         title: true,
@@ -133,12 +139,10 @@ export async function GET(req: NextRequest) {
       : {}
 
     const paymentBaseWhere = {
-      tenantId,
       ...(emptyScope ? { id: { in: [] as string[] } } : caseScopeWhere),
     }
 
     const invoiceBaseWhere = {
-      tenantId,
       ...(params.clientId ? { clientId: params.clientId } : {}),
       ...(params.caseStatus
         ? { caseId: { in: caseIds } }
@@ -148,11 +152,11 @@ export async function GET(req: NextRequest) {
 
     const [periodPayments, allPaidPayments, pendingPayments, periodInvoices, allInvoices, upcomingAppointments, overdueTasks] = await Promise.all([
       prisma.payment.findMany({
-        where: {
+        where: buildPaymentAccessWhere(auth.user, {
           ...paymentBaseWhere,
           paidAt: { gte: params.start, lt: params.end },
           ...(params.paymentStatus ? { status: params.paymentStatus as PaymentStatus } : {}),
-        },
+        }),
         include: {
           case: {
             select: {
@@ -167,27 +171,27 @@ export async function GET(req: NextRequest) {
       }),
 
       prisma.payment.findMany({
-        where: {
+        where: buildPaymentAccessWhere(auth.user, {
           ...paymentBaseWhere,
           status: 'PAID',
-        },
+        }),
         select: { amount: true },
       }),
 
       prisma.payment.findMany({
-        where: {
+        where: buildPaymentAccessWhere(auth.user, {
           ...paymentBaseWhere,
           status: { in: ['PENDING', 'OVERDUE'] },
-        },
+        }),
         select: { amount: true, status: true },
       }),
 
       prisma.invoice.findMany({
-        where: {
+        where: buildInvoiceAccessWhere(auth.user, {
           ...invoiceBaseWhere,
           issueDate: { gte: params.start, lt: params.end },
           ...(params.invoiceStatus ? { status: params.invoiceStatus as InvoiceStatus } : {}),
-        },
+        }),
         include: {
           client: { select: { id: true, name: true } },
           case: { select: { id: true, title: true } },
@@ -197,7 +201,7 @@ export async function GET(req: NextRequest) {
       }),
 
       prisma.invoice.findMany({
-        where: invoiceBaseWhere,
+        where: buildInvoiceAccessWhere(auth.user, invoiceBaseWhere),
         select: {
           total: true,
           status: true,
@@ -206,12 +210,11 @@ export async function GET(req: NextRequest) {
       }),
 
       prisma.appointment.findMany({
-        where: {
-          tenantId,
+        where: buildAppointmentAccessWhere(auth.user, {
           startTime: { gte: now },
           status: { not: 'CANCELLED' },
           ...(emptyScope ? { id: { in: [] as string[] } } : caseScopeWhere),
-        },
+        }),
         select: {
           id: true,
           title: true,
@@ -224,12 +227,11 @@ export async function GET(req: NextRequest) {
       }),
 
       prisma.task.findMany({
-        where: {
-          tenantId,
+        where: buildTaskAccessWhere(auth.user, {
           completed: false,
           dueDate: { lt: now },
           ...(emptyScope ? { id: { in: [] as string[] } } : caseScopeWhere),
-        },
+        }),
         select: {
           id: true,
           title: true,
@@ -248,11 +250,11 @@ export async function GET(req: NextRequest) {
         const end = new Date(params.year, i + 1, 1, 0, 0, 0, 0)
 
         const payments = await prisma.payment.findMany({
-          where: {
+          where: buildPaymentAccessWhere(auth.user, {
             ...paymentBaseWhere,
             status: 'PAID',
             paidAt: { gte: start, lt: end },
-          },
+          }),
           select: { amount: true },
         })
 

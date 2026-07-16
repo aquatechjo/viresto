@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
@@ -15,21 +14,15 @@ import {
   normalizePhone,
   hashSearchValue,
 } from "@/lib/encryption";
+import {
+  buildAppointmentAccessWhere,
+  buildCaseAccessWhere,
+  buildClientIdentifierAccessWhere,
+  buildTaskAccessWhere,
+} from "@/lib/access-control";
+import { canReadFinance } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
-
-function clientLookupWhere(
-  identifier: string,
-  tenantId: string,
-): Prisma.ClientWhereInput {
-  const publicId = Number(identifier);
-  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
-
-  return {
-    tenantId,
-    OR: hasPublicId ? [{ id: identifier }, { publicId }] : [{ id: identifier }],
-  };
-}
 
 function decryptClient<
   T extends {
@@ -38,15 +31,25 @@ function decryptClient<
     nationalId?: string | null;
     address?: string | null;
     notes?: string | null;
+    emailHash?: string | null;
+    phoneHash?: string | null;
+    nationalIdHash?: string | null;
   },
->(client: T) {
+>(client: T, revealSensitive = true) {
+  const {
+    emailHash: _emailHash,
+    phoneHash: _phoneHash,
+    nationalIdHash: _nationalIdHash,
+    ...safeClient
+  } = client;
+
   return {
-    ...client,
-    email: decryptText(client.email),
-    phone: decryptText(client.phone),
-    nationalId: decryptText(client.nationalId),
-    address: decryptText(client.address),
-    notes: decryptText(client.notes),
+    ...safeClient,
+    email: revealSensitive ? decryptText(client.email) : null,
+    phone: revealSensitive ? decryptText(client.phone) : null,
+    nationalId: revealSensitive ? decryptText(client.nationalId) : null,
+    address: revealSensitive ? decryptText(client.address) : null,
+    notes: revealSensitive ? decryptText(client.notes) : null,
   };
 }
 
@@ -58,9 +61,10 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const client = await prisma.client.findFirst({
-      where: clientLookupWhere(id, auth.user.tenantId),
+      where: buildClientIdentifierAccessWhere(id, auth.user),
       include: {
         cases: {
+          where: buildCaseAccessWhere(auth.user),
           include: {
             payments: true,
             _count: {
@@ -74,12 +78,14 @@ export async function GET(req: NextRequest, { params }: Params) {
           },
         },
         appointments: {
+          where: buildAppointmentAccessWhere(auth.user),
           orderBy: {
             startTime: "desc",
           },
           take: 5,
         },
         tasks: {
+          where: buildTaskAccessWhere(auth.user),
           orderBy: {
             createdAt: "desc",
           },
@@ -92,7 +98,16 @@ export async function GET(req: NextRequest, { params }: Params) {
       return notFound("الموكل غير موجود");
     }
 
-    return ok(decryptClient(client));
+    const revealSensitive = auth.user.role !== "STAFF";
+    const canViewFinance = canReadFinance(auth.user.role);
+
+    return ok({
+      ...decryptClient(client, revealSensitive),
+      cases: client.cases.map((caseItem) => ({
+        ...caseItem,
+        payments: canViewFinance ? caseItem.payments : [],
+      })),
+    });
   });
 }
 
@@ -117,7 +132,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.client.findFirst({
-      where: clientLookupWhere(id, auth.user.tenantId),
+      where: buildClientIdentifierAccessWhere(id, auth.user),
       select: {
         id: true,
         name: true,
@@ -236,15 +251,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         : null;
 
     if (duplicateClient) {
+      const duplicateIsVisible =
+        (await prisma.client.count({
+          where: buildClientIdentifierAccessWhere(
+            duplicateClient.id,
+            auth.user,
+          ),
+        })) > 0;
+
       return err(
-        duplicateClient.archivedAt
-          ? "يوجد موكل مؤرشف بنفس البيانات. يمكنك استعادته بدل استخدام نفس البيانات."
-          : "يوجد موكل آخر بنفس البيانات داخل المكتب.",
+        duplicateIsVisible
+          ? duplicateClient.archivedAt
+            ? "يوجد موكل مؤرشف بنفس البيانات. يمكنك استعادته بدل استخدام نفس البيانات."
+            : "يوجد موكل آخر بنفس البيانات داخل المكتب."
+          : "هذه البيانات مستخدمة داخل المكتب. تواصل مع مدير المكتب إذا احتجت الوصول للسجل.",
         409,
         {
           code: "CLIENT_DUPLICATE",
-          clientId: duplicateClient.id,
-          archived: !!duplicateClient.archivedAt,
+          ...(duplicateIsVisible
+            ? {
+                clientId: duplicateClient.id,
+                archived: !!duplicateClient.archivedAt,
+              }
+            : {}),
         },
       );
     }
@@ -305,7 +334,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.client.findFirst({
-      where: clientLookupWhere(id, auth.user.tenantId),
+      where: buildClientIdentifierAccessWhere(id, auth.user),
       select: {
         id: true,
         name: true,

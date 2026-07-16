@@ -7,6 +7,8 @@ import { ok } from "@/lib/api-response";
 import {
   buildAppointmentAccessWhere,
   buildCaseAccessWhere,
+  buildInvoiceAccessWhere,
+  buildPaymentAccessWhere,
   buildTaskAccessWhere,
 } from "@/lib/access-control";
 import { canReadFinance } from "@/lib/permissions";
@@ -190,10 +192,9 @@ export async function GET(req: NextRequest) {
        * إجمالي الدفعات المحصلة.
        */
       prisma.payment.aggregate({
-        where: {
-          tenantId,
+        where: buildPaymentAccessWhere(auth.user, {
           status: "PAID",
-        },
+        }),
         _sum: {
           amount: true,
         },
@@ -203,14 +204,13 @@ export async function GET(req: NextRequest) {
        * الدفعات المحصلة خلال الشهر الحالي.
        */
       prisma.payment.aggregate({
-        where: {
-          tenantId,
+        where: buildPaymentAccessWhere(auth.user, {
           status: "PAID",
           paidAt: {
             gte: monthStart,
             lt: nextMonthStart,
           },
-        },
+        }),
         _sum: {
           amount: true,
         },
@@ -303,12 +303,11 @@ export async function GET(req: NextRequest) {
        * نقرأ دفعاتها المدفوعة لحساب الرصيد الحقيقي المتبقي.
        */
       prisma.invoice.findMany({
-        where: {
-          tenantId,
+        where: buildInvoiceAccessWhere(auth.user, {
           status: {
             in: [...OPEN_INVOICE_STATUSES],
           },
-        },
+        }),
         orderBy: [
           {
             dueDate: "asc",

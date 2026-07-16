@@ -9,6 +9,7 @@ import {
   normalizePhone,
   hashSearchValue,
 } from '@/lib/encryption'
+import { buildClientAccessWhere } from '@/lib/access-control'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -30,8 +31,7 @@ export async function GET(req: NextRequest) {
     const nationalIdHash = q ? hashSearchValue(q.trim()) : null
 
     const clients = await prisma.client.findMany({
-      where: {
-        tenantId: auth.user.tenantId,
+      where: buildClientAccessWhere(auth.user, {
         OR: [
           {
             name: {
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
           ...(phoneHash ? [{ phoneHash }] : []),
           ...(nationalIdHash ? [{ nationalIdHash }] : []),
         ],
-      },
+      }),
       select: {
         id: true,
         name: true,
@@ -65,9 +65,10 @@ export async function GET(req: NextRequest) {
 
     const safeClients = clients.map((client) => ({
       ...client,
-      email: decryptText(client.email),
-      phone: decryptText(client.phone),
-      nationalId: decryptText(client.nationalId),
+      email: auth.user.role === 'STAFF' ? null : decryptText(client.email),
+      phone: auth.user.role === 'STAFF' ? null : decryptText(client.phone),
+      nationalId:
+        auth.user.role === 'STAFF' ? null : decryptText(client.nationalId),
     }))
 
     return ok({ clients: safeClients })

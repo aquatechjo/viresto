@@ -7,6 +7,11 @@ import { apiHandler } from "@/lib/api-handler";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
+import {
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+  buildTaskAccessWhere,
+} from "@/lib/access-control";
 
 const allowedStatuses = [
   "TODO",
@@ -42,8 +47,7 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await prisma.task.findMany({
-      where: {
-        tenantId: auth.user.tenantId,
+      where: buildTaskAccessWhere(auth.user, {
         ...(status ? { status: status as any } : {}),
         ...(assignedToId === "me"
           ? { assignedToId: auth.user.userId }
@@ -55,7 +59,7 @@ export async function GET(req: NextRequest) {
               completed: completed === "true",
             }
           : {}),
-      },
+      }),
       include: {
         client: {
           select: {
@@ -146,10 +150,7 @@ export async function POST(req: NextRequest) {
 
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
-        where: {
-          id: clientId,
-          tenantId: auth.user.tenantId,
-        },
+        where: buildClientAccessWhere(auth.user, { id: clientId }),
         select: {
           id: true,
           archivedAt: true,
@@ -169,11 +170,10 @@ export async function POST(req: NextRequest) {
 
     if (caseId) {
       const caseExists = await prisma.case.findFirst({
-        where: {
+        where: buildCaseAccessWhere(auth.user, {
           id: caseId,
-          tenantId: auth.user.tenantId,
           ...(clientId ? { clientId } : {}),
-        },
+        }),
         select: {
           id: true,
           clientId: true,

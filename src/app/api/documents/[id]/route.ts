@@ -7,6 +7,7 @@ import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
+import { buildDocumentAccessWhere } from "@/lib/access-control";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -28,10 +29,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const doc = await prisma.document.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: buildDocumentAccessWhere(auth.user, { id }),
       select: {
         id: true,
         fileName: true,
@@ -79,10 +77,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.document.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
+      where: buildDocumentAccessWhere(auth.user, { id }),
       select: {
         id: true,
         fileName: true,
