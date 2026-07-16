@@ -16,8 +16,8 @@ export async function PATCH(req: NextRequest) {
     const result = await prisma.notification.updateMany({
       where: {
         tenantId: auth.user.tenantId,
+        userId: auth.user.userId,
         readAt: null,
-        OR: [{ userId: null }, { userId: auth.user.userId }],
       },
       data: {
         readAt: new Date(),

@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
     const clientId = sp.get("clientId");
     const q = sp.get("q")?.trim();
     const includeArchivedClients = sp.get("includeArchivedClients") === "true";
+    const sort = sp.get("sort") === "updated" ? "updated" : "created";
 
     const pageRaw = Number(sp.get("page") || 1);
     const limitRaw = Number(sp.get("limit") || 10);
@@ -173,9 +174,10 @@ export async function GET(req: NextRequest) {
             },
           },
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy:
+          sort === "updated"
+            ? [{ updatedAt: "desc" }, { createdAt: "desc" }]
+            : [{ createdAt: "desc" }],
         skip,
         take: limit,
       }),

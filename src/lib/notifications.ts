@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 type NotificationBaseInput = {
   tenantId: string;
   userId?: string | null;
+  dedupeKey?: string | null;
   type?: NotificationType;
   titleAr: string;
   titleEn: string;
@@ -33,12 +34,14 @@ type NotificationOptions = {
 
 type CreateNotificationInput = NotificationBaseInput & NotificationOptions;
 
-type CreateTenantNotificationInput = Omit<NotificationBaseInput, "userId"> &
-  NotificationOptions;
-
 type CreateUserNotificationInput = Omit<NotificationBaseInput, "userId"> & {
   userId: string;
 } & NotificationOptions;
+
+export type BatchNotificationInput = NotificationBaseInput & {
+  userId: string;
+  dedupeKey: string;
+};
 
 function normalizeNullable(value?: string | null) {
   const trimmed = value?.trim();
@@ -48,6 +51,7 @@ function normalizeNullable(value?: string | null) {
 export async function createNotification({
   tenantId,
   userId = null,
+  dedupeKey = null,
   type = NotificationType.INFO,
   titleAr,
   titleEn,
@@ -62,6 +66,7 @@ export async function createNotification({
 
   const normalizedUserId = normalizeNullable(userId);
   const normalizedHref = normalizeNullable(href);
+  const normalizedDedupeKey = normalizeNullable(dedupeKey);
   const baseDedupeWhere = {
     tenantId,
     userId: normalizedUserId,
@@ -73,6 +78,29 @@ export async function createNotification({
     href: normalizedHref,
   };
   try {
+    if (normalizedDedupeKey) {
+      return await prisma.notification.upsert({
+        where: {
+          tenantId_dedupeKey: {
+            tenantId,
+            dedupeKey: normalizedDedupeKey,
+          },
+        },
+        update: {},
+        create: {
+          tenantId,
+          userId: normalizedUserId,
+          dedupeKey: normalizedDedupeKey,
+          type,
+          titleAr,
+          titleEn,
+          messageAr,
+          messageEn,
+          href: normalizedHref,
+        },
+      });
+    }
+
     if (dedupeForever) {
       const existing = await prisma.notification.findFirst({
         where: baseDedupeWhere,
@@ -105,6 +133,7 @@ export async function createNotification({
       data: {
         tenantId,
         userId: normalizedUserId,
+        dedupeKey: normalizedDedupeKey,
         type,
         titleAr,
         titleEn,
@@ -120,21 +149,32 @@ export async function createNotification({
 }
 
 /**
- * Tenant-wide notification: visible to all users in the same office/tenant.
- * Use this for billing, system, office-level reminders, and shared alerts.
+ * Inserts rule-generated notifications in one query. The database uniqueness
+ * constraint makes this operation safe when two cron invocations overlap.
  */
-export async function createTenantNotification(
-  input: CreateTenantNotificationInput,
+export async function createNotificationsBatch(
+  items: BatchNotificationInput[],
 ) {
-  return createNotification({
-    ...input,
-    userId: null,
+  if (items.length === 0) return { count: 0 };
+
+  return prisma.notification.createMany({
+    data: items.map((item) => ({
+      tenantId: item.tenantId,
+      userId: item.userId.trim(),
+      dedupeKey: item.dedupeKey.trim(),
+      type: item.type ?? NotificationType.INFO,
+      titleAr: item.titleAr,
+      titleEn: item.titleEn,
+      messageAr: item.messageAr,
+      messageEn: item.messageEn,
+      href: normalizeNullable(item.href),
+    })),
+    skipDuplicates: true,
   });
 }
 
 /**
- * User-specific notification: visible to one user plus tenant admins only if your API permits it.
- * Use this later for assigned tasks, personal reminders, or security alerts.
+ * User-specific notification: visible only to the intended user.
  */
 export async function createUserNotification(
   input: CreateUserNotificationInput,

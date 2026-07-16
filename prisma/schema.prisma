@@ -436,10 +436,11 @@ enum NotificationType {
 }
 
 model Notification {
-  id       String           @id @default(cuid())
-  tenantId String
-  userId   String?
-  type     NotificationType @default(INFO)
+  id        String           @id @default(cuid())
+  tenantId  String
+  userId    String?
+  dedupeKey String?
+  type      NotificationType @default(INFO)
 
   titleAr   String
   titleEn   String
@@ -452,8 +453,10 @@ model Notification {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, dedupeKey])
   @@index([tenantId, createdAt])
   @@index([tenantId, readAt])
+  @@index([tenantId, userId, readAt, createdAt])
   @@index([userId])
 }
 

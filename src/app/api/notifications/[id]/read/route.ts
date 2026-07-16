@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       where: {
         id,
         tenantId: auth.user.tenantId,
-        OR: [{ userId: null }, { userId: auth.user.userId }],
+        userId: auth.user.userId,
       },
       data: {
         readAt: new Date(),

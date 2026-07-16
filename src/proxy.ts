@@ -24,6 +24,7 @@ const exactPublicPaths = new Set(["/api/perf/ping"]);
 // Keep this list exact so no sibling API route bypasses the user session check.
 const machineAuthenticatedPaths = new Set([
   "/api/cron/prune-activity",
+  "/api/cron/generate-notifications",
 ]);
 
 function isPublicPath(pathname: string) {

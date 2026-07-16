@@ -7,6 +7,7 @@ import { ok } from "@/lib/api-response";
 import {
   buildAppointmentAccessWhere,
   buildCaseAccessWhere,
+  buildClientAccessWhere,
   buildInvoiceAccessWhere,
   buildPaymentAccessWhere,
   buildTaskAccessWhere,
@@ -71,6 +72,8 @@ export async function GET(req: NextRequest) {
       activeCaseCount,
       totalCasesCount,
       closedCasesCount,
+      archivedCasesCount,
+      resolvedCasesCount,
       todayAppts,
       upcomingAppointments,
       totalRevenueAggregate,
@@ -85,16 +88,18 @@ export async function GET(req: NextRequest) {
        * الموكلون غير المؤرشفين فقط.
        */
       prisma.client.count({
-        where: {
-          tenantId,
+        where: buildClientAccessWhere(auth.user, {
           archivedAt: null,
-        },
+        }),
       }),
 
       prisma.case.count({
         where: buildCaseAccessWhere(auth.user, {
           status: {
             in: ["OPEN", "IN_PROGRESS"],
+          },
+          client: {
+            archivedAt: null,
           },
         }),
       }),
@@ -106,6 +111,26 @@ export async function GET(req: NextRequest) {
       prisma.case.count({
         where: buildCaseAccessWhere(auth.user, {
           status: "CLOSED",
+          client: {
+            archivedAt: null,
+          },
+        }),
+      }),
+
+      prisma.case.count({
+        where: buildCaseAccessWhere(auth.user, {
+          OR: [
+            { status: "ARCHIVED" },
+            { client: { archivedAt: { not: null } } },
+          ],
+        }),
+      }),
+
+      prisma.case.count({
+        where: buildCaseAccessWhere(auth.user, {
+          status: {
+            in: ["CLOSED", "ARCHIVED"],
+          },
         }),
       }),
 
@@ -191,40 +216,43 @@ export async function GET(req: NextRequest) {
       /*
        * إجمالي الدفعات المحصلة.
        */
-      prisma.payment.aggregate({
-        where: buildPaymentAccessWhere(auth.user, {
-          status: "PAID",
-        }),
-        _sum: {
-          amount: true,
-        },
-      }),
+      canViewFinance
+        ? prisma.payment.aggregate({
+            where: buildPaymentAccessWhere(auth.user, {
+              status: "PAID",
+            }),
+            _sum: {
+              amount: true,
+            },
+          })
+        : Promise.resolve({ _sum: { amount: null } }),
 
       /*
        * الدفعات المحصلة خلال الشهر الحالي.
        */
-      prisma.payment.aggregate({
-        where: buildPaymentAccessWhere(auth.user, {
-          status: "PAID",
-          paidAt: {
-            gte: monthStart,
-            lt: nextMonthStart,
-          },
-        }),
-        _sum: {
-          amount: true,
-        },
-      }),
+      canViewFinance
+        ? prisma.payment.aggregate({
+            where: buildPaymentAccessWhere(auth.user, {
+              status: "PAID",
+              paidAt: {
+                gte: monthStart,
+                lt: nextMonthStart,
+              },
+            }),
+            _sum: {
+              amount: true,
+            },
+          })
+        : Promise.resolve({ _sum: { amount: null } }),
 
       prisma.client.count({
-        where: {
-          tenantId,
+        where: buildClientAccessWhere(auth.user, {
           archivedAt: null,
           createdAt: {
             gte: monthStart,
             lt: nextMonthStart,
           },
-        },
+        }),
       }),
 
       /*
@@ -302,50 +330,52 @@ export async function GET(req: NextRequest) {
        * الفواتير التي لا تزال قابلة للتحصيل.
        * نقرأ دفعاتها المدفوعة لحساب الرصيد الحقيقي المتبقي.
        */
-      prisma.invoice.findMany({
-        where: buildInvoiceAccessWhere(auth.user, {
-          status: {
-            in: [...OPEN_INVOICE_STATUSES],
-          },
-        }),
-        orderBy: [
-          {
-            dueDate: "asc",
-          },
-          {
-            createdAt: "desc",
-          },
-        ],
-        select: {
-          id: true,
-          invoiceNumber: true,
-          status: true,
-          issueDate: true,
-          dueDate: true,
-          total: true,
-          client: {
+      canViewFinance
+        ? prisma.invoice.findMany({
+            where: buildInvoiceAccessWhere(auth.user, {
+              status: {
+                in: [...OPEN_INVOICE_STATUSES],
+              },
+            }),
+            orderBy: [
+              {
+                dueDate: "asc",
+              },
+              {
+                createdAt: "desc",
+              },
+            ],
             select: {
               id: true,
-              name: true,
+              invoiceNumber: true,
+              status: true,
+              issueDate: true,
+              dueDate: true,
+              total: true,
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              case: {
+                select: {
+                  id: true,
+                  title: true,
+                  caseNumber: true,
+                },
+              },
+              payments: {
+                where: {
+                  status: "PAID",
+                },
+                select: {
+                  amount: true,
+                },
+              },
             },
-          },
-          case: {
-            select: {
-              id: true,
-              title: true,
-              caseNumber: true,
-            },
-          },
-          payments: {
-            where: {
-              status: "PAID",
-            },
-            select: {
-              amount: true,
-            },
-          },
-        },
-      }),
+          })
+        : Promise.resolve([]),
     ]);
 
     /*
@@ -421,6 +451,11 @@ export async function GET(req: NextRequest) {
         ? Math.round((closedCasesCount / totalCasesCount) * 100)
         : 0;
 
+    const resolvedCaseRate =
+      totalCasesCount > 0
+        ? Math.round((resolvedCasesCount / totalCasesCount) * 100)
+        : 0;
+
     const dueTasksCount =
       overdueTasksCount + dueTodayTasksCount;
 
@@ -436,6 +471,9 @@ export async function GET(req: NextRequest) {
       totalCasesCount,
       closedCasesCount,
       closedCaseRate,
+      archivedCasesCount,
+      resolvedCasesCount,
+      resolvedCaseRate,
       newClientsThisMonth,
 
       todayApptCount: todayAppts.length,

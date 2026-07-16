@@ -17,7 +17,11 @@ export async function GET(req: NextRequest) {
     return ok({
       canWrite: writeCheck.ok,
       message: writeCheck.ok ? null : writeCheck.message,
-      billing: writeCheck.billing ?? null,
+      // Plan, limits, and subscription details are administrative data.
+      billing:
+        auth.user.role === "ADMIN"
+          ? writeCheck.billing ?? null
+          : null,
     });
   });
 }

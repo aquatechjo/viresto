@@ -98,6 +98,9 @@ interface Stats {
   totalCasesCount: number;
   closedCasesCount: number;
   closedCaseRate: number;
+  archivedCasesCount: number;
+  resolvedCasesCount: number;
+  resolvedCaseRate: number;
   monthlyRevenue: number;
   todayApptCount: number;
   totalRevenue: number;
@@ -113,6 +116,17 @@ interface Stats {
   upcomingAppointments: AppointmentItem[];
   upcomingTasks: TaskItem[];
   overdueInvoices: InvoiceAlertItem[];
+}
+
+interface AccountAccess {
+  canWrite: boolean;
+  message?: string | null;
+  billing?: {
+    subscriptionStatus: string;
+    plan: {
+      name: string;
+    };
+  } | null;
 }
 
 interface CaseItem {
@@ -167,6 +181,27 @@ const STATUS_LABELS: Record<Locale, Record<string, string>> = {
     IN_PROGRESS: "In progress",
     CLOSED: "Closed",
     ARCHIVED: "Archived",
+  },
+};
+
+const SUBSCRIPTION_STATUS_LABELS: Record<Locale, Record<string, string>> = {
+  ar: {
+    ACTIVE: "نشط",
+    TRIALING: "فترة تجريبية",
+    PAST_DUE: "متأخر الدفع",
+    CANCELLED: "ملغي",
+    EXPIRED: "منتهي",
+    UNPAID: "غير مدفوع",
+    MISSING: "لا يوجد اشتراك",
+  },
+  en: {
+    ACTIVE: "Active",
+    TRIALING: "Trial",
+    PAST_DUE: "Past due",
+    CANCELLED: "Cancelled",
+    EXPIRED: "Expired",
+    UNPAID: "Unpaid",
+    MISSING: "No subscription",
   },
 };
 
@@ -313,8 +348,13 @@ const TEXT = {
     thisMonth: "هذا الشهر",
     totalCases: "إجمالي القضايا",
     closedCases: "القضايا المغلقة",
+    resolvedCases: "القضايا المحسومة",
     monthlyRevenue: "تحصيل الشهر",
     totalRevenue: "إجمالي التحصيل",
+
+    accountHealthy: "حالة الحساب سليمة",
+    accountNeedsAttention: "حالة الحساب تحتاج متابعة",
+    manageSubscription: "إدارة الاشتراك",
 
     recentDocuments: "آخر المستندات",
     recentDocumentsSub: "أحدث الملفات التي رُفعت إلى النظام",
@@ -393,8 +433,13 @@ const TEXT = {
     thisMonth: "this month",
     totalCases: "Total cases",
     closedCases: "Closed cases",
+    resolvedCases: "Resolved cases",
     monthlyRevenue: "Monthly collections",
     totalRevenue: "Total collections",
+
+    accountHealthy: "Account is in good standing",
+    accountNeedsAttention: "Account needs attention",
+    manageSubscription: "Manage subscription",
 
     recentDocuments: "Recent documents",
     recentDocumentsSub: "Latest files uploaded to the system",
@@ -1070,6 +1115,7 @@ export default function DashboardPage() {
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [accountAccess, setAccountAccess] = useState<AccountAccess | null>(null);
   const [userName, setUserName] = useState("");
   const [officeName, setOfficeName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1145,7 +1191,7 @@ export default function DashboardPage() {
               credentials: "include",
             },
           ),
-          fetch("/api/cases?limit=4", {
+          fetch("/api/cases?limit=4&sort=updated", {
             cache: "no-store",
             credentials: "include",
           }),
@@ -1216,6 +1262,37 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (stats?.role !== "ADMIN") {
+      setAccountAccess(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadAccountAccess() {
+      try {
+        const response = await fetch("/api/billing/access", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const body = await response.json().catch(() => ({}));
+
+        if (!cancelled && response.ok && body?.success) {
+          setAccountAccess(body.data as AccountAccess);
+        }
+      } catch {
+        if (!cancelled) setAccountAccess(null);
+      }
+    }
+
+    loadAccountAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stats?.role]);
 
   const recentDocuments = useMemo(() => documents.slice(0, 5), [documents]);
 
@@ -1339,6 +1416,46 @@ export default function DashboardPage() {
         >
           {t.loadingFailed}
         </div>
+      )}
+
+      {stats?.role === "ADMIN" && accountAccess && (
+        <Link
+          href="/dashboard/billing"
+          className={`flex min-w-0 items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition hover:brightness-105 ${
+            accountAccess.canWrite
+              ? "border-emerald-500/30 bg-emerald-500/10"
+              : "border-amber-500/35 bg-amber-500/10"
+          }`}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            {accountAccess.canWrite ? (
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-black" style={{ color: "var(--text)" }}>
+                {accountAccess.canWrite
+                  ? t.accountHealthy
+                  : t.accountNeedsAttention}
+              </p>
+              <p
+                className="mt-0.5 truncate text-xs font-semibold"
+                style={{ color: "var(--text-3)" }}
+              >
+                {accountAccess.message ||
+                  `${accountAccess.billing?.plan.name ?? "—"} · ${
+                    SUBSCRIPTION_STATUS_LABELS[locale][
+                      accountAccess.billing?.subscriptionStatus ?? ""
+                    ] ?? accountAccess.billing?.subscriptionStatus ?? "—"
+                  }`}
+              </p>
+            </div>
+          </div>
+          <span className="shrink-0 text-xs font-black text-teal-700 dark:text-teal-200">
+            {t.manageSubscription}
+          </span>
+        </Link>
       )}
 
       {/* Compact daily header */}
@@ -2046,20 +2163,20 @@ export default function DashboardPage() {
                   className="mt-3 text-xs font-bold"
                   style={{ color: "var(--text-3)" }}
                 >
-                  {t.closedCases}
+                  {t.resolvedCases}
                 </p>
                 <div className="mt-1 flex items-end justify-between gap-2">
                   <p
                     className="text-xl font-black"
                     style={{ color: "var(--text)" }}
                   >
-                    {stats?.closedCasesCount ?? 0}
+                    {stats?.resolvedCasesCount ?? 0}
                   </p>
                   <span
                     className="text-[10px] font-bold"
                     style={{ color: "var(--text-3)" }}
                   >
-                    {stats?.closedCaseRate ?? 0}%
+                    {stats?.resolvedCaseRate ?? 0}%
                   </span>
                 </div>
               </div>
