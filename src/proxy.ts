@@ -16,6 +16,8 @@ const publicPaths = [
   "/reset-password",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
+  "/join-team",
+  "/api/auth/team-invitation",
 ];
 
 const exactPublicPaths = new Set(["/api/perf/ping"]);
@@ -191,7 +193,8 @@ export async function proxy(req: NextRequest) {
         pathname === "/register" ||
         pathname === "/verify-email" ||
         pathname === "/forgot-password" ||
-        pathname === "/reset-password"
+        pathname === "/reset-password" ||
+        pathname === "/join-team"
       ) {
         return finalizeResponse(
           NextResponse.redirect(new URL("/dashboard", req.url)),

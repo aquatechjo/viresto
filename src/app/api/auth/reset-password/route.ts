@@ -7,6 +7,7 @@ import {
   checkRateLimit,
   hashRateLimitIdentifier,
 } from "@/lib/rate-limit";
+import { strongPasswordSchema } from "@/lib/validations";
 import { getClientIp } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
@@ -90,9 +91,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (password.length < 8) {
+    const passwordResult = strongPasswordSchema.safeParse(password);
+
+    if (!passwordResult.success) {
       return NextResponse.json(
-        { success: false, message: "كلمة المرور يجب أن تكون 8 أحرف على الأقل" },
+        {
+          success: false,
+          message:
+            passwordResult.error.issues[0]?.message ||
+            "كلمة المرور غير صالحة",
+        },
         { status: 400 }
       );
     }
@@ -126,7 +134,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(passwordResult.data, 12);
 
     await prisma.$transaction(async (tx) => {
       const consumed = await tx.passwordResetCode.updateMany({

@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export const strongPasswordSchema = z
+  .string()
+  .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
+  .max(128, "كلمة المرور طويلة جدًا")
+  .regex(/[a-z]/, "كلمة المرور يجب أن تحتوي على حرف صغير")
+  .regex(/[A-Z]/, "كلمة المرور يجب أن تحتوي على حرف كبير")
+  .regex(/\d/, "كلمة المرور يجب أن تحتوي على رقم")
+  .regex(/[^A-Za-z0-9]/, "كلمة المرور يجب أن تحتوي على رمز خاص");
+
 export const loginSchema = z.object({
   email: z.string().email("بريد إلكتروني غير صالح"),
   password: z.string().min(6, "كلمة المرور 6 أحرف على الأقل"),
@@ -32,14 +41,7 @@ export const registerSchema = z.object({
       "أدخل رقم هاتف أردني صحيح مثل 07XXXXXXXX",
     ),
 
-  password: z
-    .string()
-    .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
-    .max(128, "كلمة المرور طويلة جدًا")
-    .regex(/[a-z]/, "كلمة المرور يجب أن تحتوي على حرف صغير")
-    .regex(/[A-Z]/, "كلمة المرور يجب أن تحتوي على حرف كبير")
-    .regex(/\d/, "كلمة المرور يجب أن تحتوي على رقم")
-    .regex(/[^A-Za-z0-9]/, "كلمة المرور يجب أن تحتوي على رمز خاص"),
+  password: strongPasswordSchema,
 });
 
 export const clientSchema = z.object({
@@ -184,15 +186,7 @@ export const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional(),
   currentPassword: z.string().optional(),
-  newPassword: z
-    .string()
-    .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
-    .max(128, "كلمة المرور طويلة جدًا")
-    .regex(/[a-z]/, "كلمة المرور يجب أن تحتوي على حرف صغير")
-    .regex(/[A-Z]/, "كلمة المرور يجب أن تحتوي على حرف كبير")
-    .regex(/\d/, "كلمة المرور يجب أن تحتوي على رقم")
-    .regex(/[^A-Za-z0-9]/, "كلمة المرور يجب أن تحتوي على رمز خاص")
-    .optional(),
+  newPassword: strongPasswordSchema.optional(),
 });
 const money = z.coerce
   .number({ invalid_type_error: "القيمة يجب أن تكون رقمًا" })

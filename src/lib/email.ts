@@ -257,3 +257,76 @@ export async function sendEmailChangeCompletedEmail({
 
   return response.json().catch(() => ({ ok: true }));
 }
+
+type SendTeamInvitationEmailInput = {
+  to: string;
+  inviteeName: string;
+  tenantName: string;
+  inviterName: string;
+  token: string;
+};
+
+function getAppUrl() {
+  return (
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://www.virestojo.com"
+  ).replace(/\/$/, "");
+}
+
+export async function sendTeamInvitationEmail({
+  to,
+  inviteeName,
+  tenantName,
+  inviterName,
+  token,
+}: SendTeamInvitationEmailInput) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const invitationUrl = `${getAppUrl()}/join-team?token=${encodeURIComponent(token)}`;
+  const safeInviteeName = escapeHtml(inviteeName);
+  const safeTenantName = escapeHtml(tenantName);
+  const safeInviterName = escapeHtml(inviterName);
+  const safeInvitationUrl = escapeHtml(invitationUrl);
+
+  if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV TEAM INVITATION] to=${to} url=${invitationUrl}`);
+      return { skipped: true };
+    }
+
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: getEmailFrom(),
+      to,
+      subject: `دعوة للانضمام إلى ${tenantName} - ${getAppName()}`,
+      text: `${inviterName} دعاك للانضمام إلى ${tenantName} في ${getAppName()}. افتح الرابط التالي واختر كلمة مرورك خلال 72 ساعة: ${invitationUrl}`,
+      html: `
+        <div dir="rtl" style="font-family:Arial,sans-serif;background:#f3f7f6;padding:32px;color:#123f40;">
+          <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #dbe8e5;border-radius:20px;padding:28px;">
+            <h1 style="margin:0 0 12px;font-size:22px;color:#082c2d;">دعوة للانضمام إلى فريق المكتب</h1>
+            <p style="margin:0 0 12px;font-size:15px;line-height:1.8;color:#617e7c;">مرحبًا ${safeInviteeName}، دعاك ${safeInviterName} للانضمام إلى <b>${safeTenantName}</b> في ${getAppName()}.</p>
+            <p style="margin:0 0 22px;font-size:14px;line-height:1.8;color:#617e7c;">اضغط الزر التالي واختر كلمة مرورك بنفسك. تنتهي صلاحية الدعوة خلال 72 ساعة.</p>
+            <a href="${safeInvitationUrl}" style="display:inline-block;background:#b87333;color:#071f20;text-decoration:none;font-weight:800;border-radius:14px;padding:13px 22px;">قبول الدعوة</a>
+            <p style="margin:22px 0 0;font-size:12px;line-height:1.8;color:#789c99;">إذا لم تكن تتوقع هذه الدعوة، تجاهل الرسالة.</p>
+          </div>
+        </div>`,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Failed to send team invitation: ${response.status} ${errorText}`,
+    );
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}

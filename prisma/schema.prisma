@@ -38,10 +38,31 @@ model Tenant {
   payments      Payment[]
   sessions      Session[]
   tasks         Task[]
+  teamInvitations TeamInvitation[]
   users         User[]
 
   subscriptions        Subscription[]
   subscriptionPayments SubscriptionPayment[]
+}
+
+model TeamInvitation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  email       String   @unique
+  name        String
+  role        UserRole
+  tokenHash   String   @unique
+  invitedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, acceptedAt, revokedAt, expiresAt])
+  @@index([invitedById])
 }
 
 model BillingPlan {

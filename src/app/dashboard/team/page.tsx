@@ -41,9 +41,11 @@ const TEAM_COPY = {
     messages: {
       loadError: "تعذر تحميل الفريق",
       loadUnexpected: "حدث خطأ أثناء تحميل الفريق",
-      required: "الاسم والبريد وكلمة المرور مطلوبة",
-      addSuccess: "تمت إضافة المستخدم",
-      addError: "حدث خطأ أثناء إضافة المستخدم",
+      required: "الاسم والبريد والصلاحية مطلوبة",
+      addSuccess: "تم إرسال دعوة الانضمام",
+      addError: "تعذر إرسال دعوة الانضمام",
+      revokeSuccess: "تم إلغاء الدعوة",
+      revokeError: "تعذر إلغاء الدعوة",
       updateSuccess: "تم تحديث المستخدم",
       updateError: "تعذر تحديث المستخدم",
       updateUnexpected: "حدث خطأ أثناء تحديث المستخدم",
@@ -81,15 +83,20 @@ const TEAM_COPY = {
       staff: "الموظفون",
     },
     form: {
-      title: "إضافة مستخدم",
-      subtitle: "المستخدم الجديد سيدخل باستخدام البريد وكلمة المرور المؤقتة.",
+      title: "دعوة عضو جديد",
+      subtitle: "سنرسل رابطًا آمنًا ليختار العضو كلمة مروره بنفسه.",
       name: "الاسم الكامل",
       email: "البريد الإلكتروني",
       roleAria: "صلاحية المستخدم الجديد",
-      password: "كلمة المرور المؤقتة",
-      saving: "جاري الإضافة...",
-      submit: "إضافة المستخدم",
-      hint: "الأفضل استخدام كلمة مرور مؤقتة قوية، ثم مطالبة المستخدم بتغييرها بعد أول دخول.",
+      saving: "جاري إرسال الدعوة...",
+      submit: "إرسال الدعوة",
+      hint: "تنتهي صلاحية رابط الدعوة خلال 72 ساعة، وتحجز الدعوة مقعدًا من الخطة حتى قبولها أو إلغائها.",
+      pendingTitle: "الدعوات المعلقة",
+      pendingEmpty: "لا توجد دعوات معلقة.",
+      expires: (date: string) => `تنتهي: ${date}`,
+      revoke: "إلغاء الدعوة",
+      seats: (used: number, pending: number, limit: number | null) =>
+        `المقاعد: ${used} مستخدم + ${pending} دعوة / ${limit ?? "∞"}`,
     },
     list: {
       title: "أعضاء الفريق",
@@ -128,9 +135,11 @@ const TEAM_COPY = {
     messages: {
       loadError: "Unable to load team",
       loadUnexpected: "An error occurred while loading the team",
-      required: "Name, email, and password are required",
-      addSuccess: "User added successfully",
-      addError: "An error occurred while adding the user",
+      required: "Name, email, and role are required",
+      addSuccess: "Invitation sent successfully",
+      addError: "Unable to send the invitation",
+      revokeSuccess: "Invitation revoked",
+      revokeError: "Unable to revoke the invitation",
       updateSuccess: "User updated successfully",
       updateError: "Unable to update user",
       updateUnexpected: "An error occurred while updating the user",
@@ -168,16 +177,20 @@ const TEAM_COPY = {
       staff: "Staff",
     },
     form: {
-      title: "Add user",
-      subtitle:
-        "The new user will sign in using the email and temporary password.",
+      title: "Invite a new member",
+      subtitle: "We will send a secure link so the member chooses their own password.",
       name: "Full name",
       email: "Email address",
       roleAria: "New user role",
-      password: "Temporary password",
-      saving: "Adding...",
-      submit: "Add user",
-      hint: "Use a strong temporary password, then ask the user to change it after their first sign-in.",
+      saving: "Sending invitation...",
+      submit: "Send invitation",
+      hint: "The invitation expires after 72 hours and reserves a plan seat until it is accepted or revoked.",
+      pendingTitle: "Pending invitations",
+      pendingEmpty: "No pending invitations.",
+      expires: (date: string) => `Expires: ${date}`,
+      revoke: "Revoke",
+      seats: (used: number, pending: number, limit: number | null) =>
+        `Seats: ${used} users + ${pending} invites / ${limit ?? "∞"}`,
     },
     list: {
       title: "Team members",
@@ -209,6 +222,21 @@ interface TeamUser {
   createdAt: string;
 }
 
+interface TeamInvitation {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  expiresAt: string;
+  createdAt: string;
+}
+
+interface SeatUsage {
+  used: number;
+  pending: number;
+  limit: number | null;
+}
+
 const ROLE_BADGE: Record<Role, string> = {
   ADMIN:
     "rounded-full border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-bold text-[var(--text-2)]",
@@ -222,7 +250,6 @@ const INIT_FORM = {
   name: "",
   email: "",
   role: "LAWYER" as Role,
-  password: "",
 };
 
 function formatDate(value: string, locale: Locale) {
@@ -291,6 +318,8 @@ export default function TeamPage() {
   } satisfies CSSProperties;
 
   const [users, setUsers] = useState<TeamUser[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<TeamInvitation[]>([]);
+  const [seats, setSeats] = useState<SeatUsage>({ used: 0, pending: 0, limit: null });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentRole, setCurrentRole] = useState("");
@@ -312,6 +341,12 @@ export default function TeamPage() {
 
       if (data.success) {
         setUsers(Array.isArray(data.data?.users) ? data.data.users : []);
+        setPendingInvitations(
+          Array.isArray(data.data?.pendingInvitations)
+            ? data.data.pendingInvitations
+            : [],
+        );
+        if (data.data?.seats) setSeats(data.data.seats);
         setCurrentRole(data.data?.currentRole || "");
       } else {
         toast.error(getApiMessage(data, copy.messages.loadError));
@@ -372,7 +407,7 @@ export default function TeamPage() {
       return;
     }
 
-    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
+    if (!form.name.trim() || !form.email.trim()) {
       toast.error(copy.messages.required);
       return;
     }
@@ -403,6 +438,27 @@ export default function TeamPage() {
       toast.error(copy.messages.addError);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function revokeInvitation(id: string) {
+    if (!writeAccess.canWrite) return;
+
+    try {
+      const response = await fetch(`/api/team/invitations/${id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        toast.error(getApiMessage(data, copy.messages.revokeError));
+        return;
+      }
+
+      toast.success(copy.messages.revokeSuccess);
+      loadUsers();
+    } catch {
+      toast.error(copy.messages.revokeError);
     }
   }
 
@@ -748,26 +804,6 @@ export default function TeamPage() {
               <option value="STAFF">{copy.roles.STAFF}</option>
             </select>
 
-            <input
-              name="team-member-temporary-password"
-              autoComplete="new-password"
-              readOnly={!credentialFieldsReady}
-              onFocus={() => setCredentialFieldsReady(true)}
-              data-lpignore="true"
-              data-1p-ignore="true"
-              className="input"
-              style={ltrFieldStyle}
-              type="password"
-              placeholder={copy.form.password}
-              value={form.password}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  password: event.target.value,
-                }))
-              }
-            />
-
             <button
               type="submit"
               disabled={saving || !writeAccess.canWrite}
@@ -787,6 +823,45 @@ export default function TeamPage() {
             }}
           >
             {copy.form.hint}
+          </div>
+
+          <div className="mt-4 rounded-2xl border p-3" style={{ borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-black" style={{ color: "var(--text)" }}>
+                {copy.form.pendingTitle}
+              </h3>
+              <span className="text-xs font-bold" style={{ color: "var(--text-3)" }}>
+                {copy.form.seats(seats.used, seats.pending, seats.limit)}
+              </span>
+            </div>
+
+            {pendingInvitations.length === 0 ? (
+              <p className="mt-3 text-xs" style={{ color: "var(--text-3)" }}>
+                {copy.form.pendingEmpty}
+              </p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {pendingInvitations.map((invitation) => (
+                  <div key={invitation.id} className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
+                    <p className="truncate text-sm font-black" style={{ color: "var(--text)" }}>{invitation.name}</p>
+                    <p dir="ltr" className="truncate text-start text-xs" style={{ color: "var(--text-3)" }}>{invitation.email}</p>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[11px]" style={{ color: "var(--text-3)" }}>
+                        {copy.form.expires(formatDate(invitation.expiresAt, locale))}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => revokeInvitation(invitation.id)}
+                        disabled={!writeAccess.canWrite}
+                        className="text-xs font-black text-red-500 disabled:opacity-50"
+                      >
+                        {copy.form.revoke}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </form>
 

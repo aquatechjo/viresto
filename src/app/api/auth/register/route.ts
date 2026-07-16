@@ -10,6 +10,7 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { createVerificationCode } from "@/lib/verification";
 import { sendVerificationEmail } from "@/lib/email";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
+import { getPlanByCode } from "@/config/plans";
 
 const TRIAL_DAYS = 7;
 const TRIAL_PLAN_CODE = "PRO";
@@ -121,6 +122,11 @@ export async function POST(req: NextRequest) {
       return err("خطة التجربة غير موجودة. تأكد من تشغيل seed للخطط.", 500);
     }
 
+    const configuredTrialPlan = getPlanByCode(TRIAL_PLAN_CODE);
+    if (!configuredTrialPlan) {
+      return err("إعدادات خطة التجربة غير مكتملة.", 500);
+    }
+
     const baseSlug = slugify(tenantName) || `office-${Date.now().toString(36)}`;
     let slug = baseSlug;
     let i = 1;
@@ -139,7 +145,10 @@ export async function POST(req: NextRequest) {
         data: {
           name: tenantName,
           slug,
-          status: "ACTIVE",
+          status: "TRIAL",
+          plan: "PRO",
+          maxUsers: configuredTrialPlan.limits.users,
+          trialEndsAt,
           users: {
             create: {
               name,

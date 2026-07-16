@@ -1,50 +1,22 @@
 import { NextRequest } from "next/server";
-import {
-  BillingInterval,
-  Plan,
-  SubscriptionStatus,
-} from "@prisma/client";
+import { SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import {
+  addBillingPeriod,
+  getBillingPlanConfig,
+  syncTenantSubscriptionMirror,
+} from "@/lib/subscription-consistency";
 
 type RouteContext = {
   params: Promise<{
     id: string;
   }>;
 };
-
-function tenantPlanForBillingCode(code: string): Plan | null {
-  switch (code.toUpperCase()) {
-    case "BASIC":
-      return Plan.FREE;
-    case "PRO":
-      return Plan.PRO;
-    case "BUSINESS":
-      return Plan.ENTERPRISE;
-    default:
-      return null;
-  }
-}
-
-function addBillingPeriod(start: Date, interval: BillingInterval) {
-  const end = new Date(start);
-  const originalDay = end.getUTCDate();
-  const months = interval === BillingInterval.YEARLY ? 12 : 1;
-
-  end.setUTCDate(1);
-  end.setUTCMonth(end.getUTCMonth() + months);
-
-  const lastDayOfTargetMonth = new Date(
-    Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-
-  end.setUTCDate(Math.min(originalDay, lastDayOfTargetMonth));
-
-  return end;
-}
 
 async function readBody(req: NextRequest) {
   try {
@@ -114,15 +86,30 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return err("بيانات الخطة المطلوبة غير مكتملة", 409);
     }
 
-    const tenantPlan = tenantPlanForBillingCode(requestedPlan.code);
+    const configuredPlan = getBillingPlanConfig(
+      requestedPlan.code,
+      requestedInterval,
+    );
 
-    if (!tenantPlan) {
+    if (!configuredPlan) {
       return err("رمز الخطة غير مدعوم", 409);
+    }
+
+    if (
+      payment.amount !== configuredPlan.amount ||
+      payment.currency !== configuredPlan.currency
+    ) {
+      return err(
+        "قيمة طلب الدفع لا تطابق السعر الحالي للخطة. اطلب من العميل إرسال طلب جديد.",
+        409,
+      );
     }
 
     const now = new Date();
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, payment.tenantId);
+
       const claim = await tx.subscriptionPayment.updateMany({
         where: {
           id: payment.id,
@@ -191,8 +178,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           },
           data: {
             status: SubscriptionStatus.ACTIVE,
-            amount: payment.amount,
-            currency: payment.currency,
+            amount: configuredPlan.amount,
+            currency: configuredPlan.currency,
             trialEndsAt: null,
             currentPeriodStart:
               currentSubscription.currentPeriodStart ?? now,
@@ -233,8 +220,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             planId: requestedPlan.id,
             status: SubscriptionStatus.ACTIVE,
             interval: requestedInterval,
-            amount: payment.amount,
-            currency: payment.currency,
+            amount: configuredPlan.amount,
+            currency: configuredPlan.currency,
             trialEndsAt: null,
             currentPeriodStart: now,
             currentPeriodEnd: addBillingPeriod(now, requestedInterval),
@@ -263,33 +250,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         },
       });
 
-      const updatedTenant = await tx.tenant.update({
-        where: {
-          id: payment.tenantId,
-        },
-        data: {
-          status: "ACTIVE",
-          isSuspended: false,
-          trialEndsAt: null,
-          plan: tenantPlan,
-          maxUsers: requestedPlan.maxUsers,
-          ...(requestedPlan.aiEnabled
-            ? {}
-            : {
-                aiEnabled: false,
-                aiConsentAt: null,
-                aiConsentBy: null,
-                aiConsentPolicyVersion: null,
-              }),
-        },
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          plan: true,
-          maxUsers: true,
-          aiEnabled: true,
-        },
+      const updatedTenant = await syncTenantSubscriptionMirror(tx, {
+        tenantId: payment.tenantId,
+        planCode: requestedPlan.code,
       });
 
       await tx.activity.create({

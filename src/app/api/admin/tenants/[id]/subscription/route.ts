@@ -1,15 +1,17 @@
 import { NextRequest } from "next/server";
-import {
-  BillingInterval,
-  Plan,
-  SubscriptionStatus,
-} from "@prisma/client";
+import { BillingInterval, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import {
+  addBillingPeriod,
+  getBillingPlanConfig,
+  syncTenantSubscriptionMirror,
+} from "@/lib/subscription-consistency";
 
 type RouteContext = {
   params: Promise<{
@@ -41,36 +43,6 @@ function normalizeInterval(value: unknown): BillingInterval | null {
   if (value === BillingInterval.YEARLY) return BillingInterval.YEARLY;
 
   return null;
-}
-
-function tenantPlanForBillingCode(code: string): Plan | null {
-  switch (code.toUpperCase()) {
-    case "BASIC":
-      return Plan.FREE;
-    case "PRO":
-      return Plan.PRO;
-    case "BUSINESS":
-      return Plan.ENTERPRISE;
-    default:
-      return null;
-  }
-}
-
-function addBillingPeriod(start: Date, interval: BillingInterval) {
-  const end = new Date(start);
-  const originalDay = end.getUTCDate();
-  const months = interval === BillingInterval.YEARLY ? 12 : 1;
-
-  end.setUTCDate(1);
-  end.setUTCMonth(end.getUTCMonth() + months);
-
-  const lastDayOfTargetMonth = new Date(
-    Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-
-  end.setUTCDate(Math.min(originalDay, lastDayOfTargetMonth));
-
-  return end;
 }
 
 const actionLabels: Record<AdminSubscriptionAction, string> = {
@@ -118,6 +90,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const now = new Date();
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, tenantId);
+
       const tenant = await tx.tenant.findUnique({
         where: {
           id: tenantId,
@@ -186,9 +160,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           return { error: "PLAN_NOT_FOUND" as const };
         }
 
-        const legacyPlan = tenantPlanForBillingCode(requestedPlan.code);
+        const configuredPlan = getBillingPlanConfig(
+          requestedPlan.code,
+          interval,
+        );
 
-        if (!legacyPlan) {
+        if (!configuredPlan) {
           return { error: "UNSUPPORTED_PLAN" as const };
         }
 
@@ -211,19 +188,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           },
         });
 
-        const amount =
-          interval === BillingInterval.YEARLY
-            ? requestedPlan.priceYearly
-            : requestedPlan.priceMonthly;
-
         updatedSubscription = await tx.subscription.create({
           data: {
             tenantId,
             planId: requestedPlan.id,
             status: SubscriptionStatus.ACTIVE,
             interval,
-            currency: requestedPlan.currency,
-            amount,
+            currency: configuredPlan.currency,
+            amount: configuredPlan.amount,
             trialEndsAt: null,
             currentPeriodStart: now,
             currentPeriodEnd: addBillingPeriod(now, interval),
@@ -235,25 +207,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           },
         });
 
-        await tx.tenant.update({
-          where: {
-            id: tenantId,
-          },
-          data: {
-            status: "ACTIVE",
-            isSuspended: false,
-            trialEndsAt: null,
-            plan: legacyPlan,
-            maxUsers: requestedPlan.maxUsers,
-            ...(requestedPlan.aiEnabled
-              ? {}
-              : {
-                  aiEnabled: false,
-                  aiConsentAt: null,
-                  aiConsentBy: null,
-                  aiConsentPolicyVersion: null,
-                }),
-          },
+        await syncTenantSubscriptionMirror(tx, {
+          tenantId,
+          planCode: requestedPlan.code,
         });
       } else if (action === "RENEW") {
         if (!currentSubscription) {
@@ -266,16 +222,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             ? currentSubscription.currentPeriodEnd
             : now;
 
-        const amount =
-          currentSubscription.interval === BillingInterval.YEARLY
-            ? currentSubscription.plan.priceYearly
-            : currentSubscription.plan.priceMonthly;
-
-        const legacyPlan = tenantPlanForBillingCode(
+        const configuredPlan = getBillingPlanConfig(
           currentSubscription.plan.code,
+          currentSubscription.interval,
         );
 
-        if (!legacyPlan) {
+        if (!configuredPlan) {
           return { error: "UNSUPPORTED_PLAN" as const };
         }
 
@@ -285,8 +237,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           },
           data: {
             status: SubscriptionStatus.ACTIVE,
-            amount,
-            currency: currentSubscription.plan.currency,
+            amount: configuredPlan.amount,
+            currency: configuredPlan.currency,
             trialEndsAt: null,
             currentPeriodStart: currentSubscription.currentPeriodStart ?? now,
             currentPeriodEnd: addBillingPeriod(
@@ -301,25 +253,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           },
         });
 
-        await tx.tenant.update({
-          where: {
-            id: tenantId,
-          },
-          data: {
-            status: "ACTIVE",
-            isSuspended: false,
-            trialEndsAt: null,
-            plan: legacyPlan,
-            maxUsers: currentSubscription.plan.maxUsers,
-            ...(currentSubscription.plan.aiEnabled
-              ? {}
-              : {
-                  aiEnabled: false,
-                  aiConsentAt: null,
-                  aiConsentBy: null,
-                  aiConsentPolicyVersion: null,
-                }),
-          },
+        await syncTenantSubscriptionMirror(tx, {
+          tenantId,
+          planCode: currentSubscription.plan.code,
         });
       } else {
         if (!currentSubscription) {

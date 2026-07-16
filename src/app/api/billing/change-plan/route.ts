@@ -10,6 +10,11 @@ import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import {
+  addBillingPeriod,
+  syncTenantSubscriptionMirror,
+} from "@/lib/subscription-consistency";
 
 type BillingInterval = "MONTHLY" | "YEARLY";
 
@@ -33,12 +38,6 @@ function normalizePlanCode(value: unknown): PlanCode | null {
 
 function getConfiguredPlan(code: PlanCode) {
   return PLANS.find((plan) => plan.code === code) ?? null;
-}
-
-function addMonths(date: Date, months: number) {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + months);
-  return next;
 }
 
 function getPlanAmountFils(planCode: PlanCode, interval: BillingInterval) {
@@ -109,28 +108,23 @@ export async function POST(req: NextRequest) {
       return err("الخطة غير موجودة أو غير مفعلة في قاعدة البيانات", 404);
     }
 
-    const currentSubscription = await prisma.subscription.findFirst({
-      where: {
-        tenantId: auth.user.tenantId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
     const now = new Date();
-
-    const currentPeriodEnd =
-      interval === "YEARLY" ? addMonths(now, 12) : addMonths(now, 1);
+    const currentPeriodEnd = addBillingPeriod(now, interval);
 
     const subscription = await prisma.$transaction(async (tx) => {
-      await tx.tenant.update({
+      await lockTenantMutation(tx, auth.user.tenantId);
+
+      const currentSubscription = await tx.subscription.findFirst({
         where: {
-          id: auth.user.tenantId,
+          tenantId: auth.user.tenantId,
+          status: { in: ["ACTIVE", "TRIALING"] },
         },
-        data: {
-          status: "ACTIVE",
-        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      await syncTenantSubscriptionMirror(tx, {
+        tenantId: auth.user.tenantId,
+        planCode,
       });
 
       if (!currentSubscription) {

@@ -18,6 +18,7 @@ import {
   RECEIPT_UPLOAD_MIME_TYPES,
   validateUploadFileContent,
 } from "@/lib/server/upload-file-security";
+import { getBillingPlanConfig } from "@/lib/subscription-consistency";
 
 export const runtime = "nodejs";
 
@@ -197,7 +198,13 @@ export async function POST(req: NextRequest) {
       return err("الخطة غير موجودة أو غير فعالة", 404);
     }
 
-    const amount = interval === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
+    const configuredPlan = getBillingPlanConfig(plan.code, interval);
+
+    if (!configuredPlan) {
+      return err("رمز الخطة غير مدعوم", 409);
+    }
+
+    const amount = configuredPlan.amount;
 
     if (amount <= 0) {
       return err("سعر الخطة غير صالح", 400);
@@ -239,7 +246,7 @@ export async function POST(req: NextRequest) {
         requestedPlanId: plan.id,
         requestedInterval: interval,
         amount,
-        currency: plan.currency,
+        currency: configuredPlan.currency,
         status: "PENDING",
         method,
         receiptUrl: upload.secureUrl,

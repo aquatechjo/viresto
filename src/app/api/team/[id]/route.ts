@@ -1,12 +1,14 @@
 import { NextRequest } from "next/server";
+import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
-const allowedRoles = ["ADMIN", "LAWYER", "STAFF"] as const;
+const allowedRoles = [UserRole.ADMIN, UserRole.LAWYER, UserRole.STAFF] as const;
 
 export async function PATCH(
   req: NextRequest,
@@ -23,123 +25,152 @@ export async function PATCH(
       auth.user.tenantId,
       "تعديل مستخدم",
     );
-
-    if (!writeCheck.ok) {
-      return err(writeCheck.message, writeCheck.status);
-    }
+    if (!writeCheck.ok) return err(writeCheck.message, writeCheck.status);
 
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
-
-    const targetUser = await prisma.user.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
-      select: {
-        id: true,
-        role: true,
-        isActive: true,
-        isSystemAdmin: true,
-      },
-    });
-
-    if (!targetUser) {
-      return err("المستخدم غير موجود", 404);
-    }
-
-    if (targetUser.isSystemAdmin) {
-      return err("لا يمكن تعديل حساب مدير النظام", 403);
-    }
-
     const role =
       typeof body.role === "string"
-        ? body.role.trim().toUpperCase()
+        ? (body.role.trim().toUpperCase() as UserRole)
         : undefined;
-
     const hasRoleUpdate = role !== undefined;
     const hasActiveUpdate = typeof body.isActive === "boolean";
 
     if (!hasRoleUpdate && !hasActiveUpdate) {
       return err("لا توجد بيانات للتعديل", 400);
     }
-
-    if (hasRoleUpdate && !allowedRoles.includes(role as any)) {
+    if (hasRoleUpdate && !allowedRoles.includes(role)) {
       return err("صلاحية غير صحيحة", 400);
     }
-
-    if (targetUser.id === auth.user.userId && body.isActive === false) {
+    if (id === auth.user.userId && body.isActive === false) {
       return err("لا يمكنك تعطيل حسابك الحالي", 400);
     }
 
-    if (
-      targetUser.id === auth.user.userId &&
-      hasRoleUpdate &&
-      role !== targetUser.role
-    ) {
-      return err("لا يمكنك تغيير صلاحية حسابك الحالي", 400);
-    }
+    const result = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, auth.user.tenantId);
 
-    const willLoseAdminRole =
-      targetUser.role === "ADMIN" &&
-      hasRoleUpdate &&
-      role !== "ADMIN";
-
-    const willBeDisabled =
-      targetUser.role === "ADMIN" &&
-      hasActiveUpdate &&
-      body.isActive === false;
-
-    if (willLoseAdminRole || willBeDisabled) {
-      const otherActiveAdmins = await prisma.user.count({
-        where: {
-          tenantId: auth.user.tenantId,
-          id: {
-            not: targetUser.id,
-          },
-          role: "ADMIN",
+      const targetUser = await tx.user.findFirst({
+        where: { id, tenantId: auth.user.tenantId },
+        select: {
+          id: true,
+          role: true,
           isActive: true,
+          isSystemAdmin: true,
         },
       });
 
-      if (otherActiveAdmins === 0) {
-        return err("لا يمكن إزالة آخر مدير نشط داخل المكتب", 400);
+      if (!targetUser) return { error: "NOT_FOUND" as const };
+      if (targetUser.isSystemAdmin) {
+        return { error: "SYSTEM_ADMIN" as const };
       }
-    }
+      if (
+        targetUser.id === auth.user.userId &&
+        hasRoleUpdate &&
+        role !== targetUser.role
+      ) {
+        return { error: "SELF_ROLE" as const };
+      }
 
-    const updated = await prisma.user.update({
-      where: {
-        id: targetUser.id,
-      },
-      data: {
-        ...(hasRoleUpdate ? { role: role as any } : {}),
-        ...(hasActiveUpdate ? { isActive: body.isActive } : {}),
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-        isSystemAdmin: true,
-        createdAt: true,
-      },
+      const willLoseAdmin =
+        targetUser.role === UserRole.ADMIN &&
+        targetUser.isActive &&
+        ((hasRoleUpdate && role !== UserRole.ADMIN) ||
+          (hasActiveUpdate && body.isActive === false));
+
+      if (willLoseAdmin) {
+        const otherActiveAdmins = await tx.user.count({
+          where: {
+            tenantId: auth.user.tenantId,
+            id: { not: targetUser.id },
+            role: UserRole.ADMIN,
+            isActive: true,
+          },
+        });
+
+        if (otherActiveAdmins === 0) {
+          return { error: "LAST_ADMIN" as const };
+        }
+      }
+
+      const willReactivate =
+        !targetUser.isActive && hasActiveUpdate && body.isActive === true;
+
+      if (willReactivate) {
+        const activeUsers = await tx.user.count({
+          where: { tenantId: auth.user.tenantId, isActive: true },
+        });
+        const limit = writeCheck.billing.limits.users;
+
+        if (limit !== null && activeUsers >= limit) {
+          return { error: "SEAT_LIMIT" as const, limit };
+        }
+      }
+
+      const updated = await tx.user.update({
+        where: { id: targetUser.id },
+        data: {
+          ...(hasRoleUpdate ? { role } : {}),
+          ...(hasActiveUpdate ? { isActive: body.isActive } : {}),
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          isSystemAdmin: true,
+          createdAt: true,
+        },
+      });
+
+      const securityContextChanged =
+        (hasRoleUpdate && role !== targetUser.role) ||
+        (hasActiveUpdate && body.isActive === false);
+
+      if (securityContextChanged) {
+        await tx.session.updateMany({
+          where: {
+            userId: targetUser.id,
+            tenantId: auth.user.tenantId,
+            isActive: true,
+          },
+          data: { isActive: false },
+        });
+      }
+
+      await tx.activity.create({
+        data: {
+          tenantId: auth.user.tenantId,
+          actorId: auth.user.userId,
+          type: "TEAM_MEMBER_UPDATED",
+          title: "تم تحديث عضو في الفريق",
+          message: `${updated.email} (${updated.role}, ${updated.isActive ? "ACTIVE" : "DISABLED"})`,
+          entityType: "User",
+          entityId: updated.id,
+        },
+      });
+
+      return { updated };
     });
 
-    if (hasActiveUpdate && body.isActive === false) {
-      await prisma.session.updateMany({
-        where: {
-          userId: targetUser.id,
-          tenantId: auth.user.tenantId,
-          isActive: true,
-        },
-        data: {
-          isActive: false,
-        },
+    if ("error" in result) {
+      if (result.error === "NOT_FOUND") return err("المستخدم غير موجود", 404);
+      if (result.error === "SYSTEM_ADMIN") {
+        return err("لا يمكن تعديل حساب مدير النظام", 403);
+      }
+      if (result.error === "SELF_ROLE") {
+        return err("لا يمكنك تغيير صلاحية حسابك الحالي", 400);
+      }
+      if (result.error === "LAST_ADMIN") {
+        return err("لا يمكن إزالة آخر مدير نشط داخل المكتب", 400);
+      }
+      return err(`وصلت إلى حد المستخدمين في خطتك الحالية (${result.limit}).`, 400, {
+        code: "PLAN_LIMIT_REACHED",
+        resource: "users",
       });
     }
 
-    return ok(updated);
+    return ok(result.updated);
   });
 }
 
@@ -158,78 +189,82 @@ export async function DELETE(
       auth.user.tenantId,
       "تعطيل مستخدم",
     );
-
-    if (!writeCheck.ok) {
-      return err(writeCheck.message, writeCheck.status);
-    }
+    if (!writeCheck.ok) return err(writeCheck.message, writeCheck.status);
 
     const { id } = await params;
-
     if (id === auth.user.userId) {
       return err("لا يمكنك تعطيل حسابك الحالي", 400);
     }
 
-    const targetUser = await prisma.user.findFirst({
-      where: {
-        id,
-        tenantId: auth.user.tenantId,
-      },
-      select: {
-        id: true,
-        role: true,
-        isActive: true,
-        isSystemAdmin: true,
-      },
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, auth.user.tenantId);
 
-    if (!targetUser) {
-      return err("المستخدم غير موجود", 404);
-    }
-
-    if (targetUser.isSystemAdmin) {
-      return err("لا يمكن تعطيل حساب مدير النظام", 403);
-    }
-
-    if (targetUser.role === "ADMIN" && targetUser.isActive) {
-      const otherActiveAdmins = await prisma.user.count({
-        where: {
-          tenantId: auth.user.tenantId,
-          id: {
-            not: targetUser.id,
-          },
-          role: "ADMIN",
+      const targetUser = await tx.user.findFirst({
+        where: { id, tenantId: auth.user.tenantId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
           isActive: true,
+          isSystemAdmin: true,
         },
       });
 
-      if (otherActiveAdmins === 0) {
-        return err("لا يمكن تعطيل آخر مدير نشط داخل المكتب", 400);
+      if (!targetUser) return { error: "NOT_FOUND" as const };
+      if (targetUser.isSystemAdmin) {
+        return { error: "SYSTEM_ADMIN" as const };
       }
+
+      if (targetUser.role === UserRole.ADMIN && targetUser.isActive) {
+        const otherActiveAdmins = await tx.user.count({
+          where: {
+            tenantId: auth.user.tenantId,
+            id: { not: targetUser.id },
+            role: UserRole.ADMIN,
+            isActive: true,
+          },
+        });
+
+        if (otherActiveAdmins === 0) {
+          return { error: "LAST_ADMIN" as const };
+        }
+      }
+
+      await tx.user.update({
+        where: { id: targetUser.id },
+        data: { isActive: false },
+      });
+      await tx.session.updateMany({
+        where: {
+          userId: targetUser.id,
+          tenantId: auth.user.tenantId,
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
+      await tx.activity.create({
+        data: {
+          tenantId: auth.user.tenantId,
+          actorId: auth.user.userId,
+          type: "TEAM_MEMBER_DISABLED",
+          title: "تم تعطيل عضو في الفريق",
+          message: targetUser.email,
+          entityType: "User",
+          entityId: targetUser.id,
+        },
+      });
+
+      return { disabled: true };
+    });
+
+    if ("error" in result) {
+      if (result.error === "NOT_FOUND") return err("المستخدم غير موجود", 404);
+      if (result.error === "SYSTEM_ADMIN") {
+        return err("لا يمكن تعطيل حساب مدير النظام", 403);
+      }
+      return err("لا يمكن تعطيل آخر مدير نشط داخل المكتب", 400);
     }
 
-    await prisma.user.update({
-      where: {
-        id: targetUser.id,
-      },
-      data: {
-        isActive: false,
-      },
-    });
-
-    await prisma.session.updateMany({
-      where: {
-        userId: targetUser.id,
-        tenantId: auth.user.tenantId,
-        isActive: true,
-      },
-      data: {
-        isActive: false,
-      },
-    });
-
-    return ok({
-      disabled: true,
-      message: "تم تعطيل المستخدم بنجاح",
-    });
+    return ok({ disabled: true, message: "تم تعطيل المستخدم بنجاح" });
   });
 }

@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { formatLimit } from "@/lib/plans";
+import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
 import AppLoader from "@/components/ui/AppLoader";

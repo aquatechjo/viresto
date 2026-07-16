@@ -161,3 +161,17 @@ export function formatTokens(tokens: number) {
   if (tokens >= 1_000_000) return `${tokens / 1_000_000}M tokens`;
   return tokens.toLocaleString("en-US");
 }
+
+export function formatLimit(
+  value: number | null,
+  locale: "ar" | "en" = "ar",
+  unit = "",
+) {
+  if (value === null) {
+    return locale === "ar" ? "غير محدود" : "Unlimited";
+  }
+
+  return `${value.toLocaleString(locale === "ar" ? "ar-JO" : "en-US")}${
+    unit ? ` ${unit}` : ""
+  }`;
+}
