@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -444,6 +445,144 @@ function statusStyle(status: PaymentStatus) {
   }
 }
 
+
+function FinanceSuccessOverlay({
+  open,
+  kind,
+  title,
+  subtitle,
+  status,
+  onComplete,
+}: {
+  open: boolean;
+  kind: "invoice" | "payment" | "update" | "pdf";
+  title: string;
+  subtitle?: string;
+  status?: string;
+  onComplete?: () => void;
+}) {
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!open || !onComplete) return;
+    const timeout = window.setTimeout(onComplete, reduceMotion ? 250 : 1450);
+    return () => window.clearTimeout(timeout);
+  }, [open, onComplete, reduceMotion]);
+
+  const icon =
+    kind === "payment" ? "💳" : kind === "pdf" ? "🖨️" : kind === "update" ? "✓" : "🧾";
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          role="status"
+          aria-live="polite"
+        >
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 260, damping: 24 }}
+            className="relative w-full max-w-sm overflow-hidden rounded-[30px] border p-7 text-center shadow-2xl"
+            style={{
+              background: "var(--card)",
+              borderColor: "rgba(184,115,51,.35)",
+              color: "var(--text)",
+            }}
+          >
+            <motion.div
+              className="absolute inset-x-0 top-0 h-1"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent, #b87333, #f1c27d, transparent)",
+              }}
+              initial={{ x: "-100%" }}
+              animate={{ x: "100%" }}
+              transition={{ duration: reduceMotion ? 0.01 : 1.05, ease: "easeInOut" }}
+            />
+
+            <motion.div
+              className="relative mx-auto grid h-24 w-24 place-items-center rounded-[26px] border text-4xl"
+              style={{
+                background: "var(--green-soft)",
+                borderColor: "rgba(53,138,136,.26)",
+              }}
+              initial={reduceMotion ? false : { rotate: -8, scale: 0.75 }}
+              animate={{ rotate: 0, scale: 1 }}
+              transition={{ delay: 0.08, type: "spring", stiffness: 300 }}
+            >
+              {icon}
+              <motion.span
+                className="absolute -bottom-2 -right-2 grid h-9 w-9 place-items-center rounded-full bg-emerald-600 text-lg font-black text-white shadow-lg"
+                initial={reduceMotion ? false : { scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.28, type: "spring", stiffness: 380 }}
+              >
+                ✓
+              </motion.span>
+            </motion.div>
+
+            <motion.h2
+              className="mt-5 text-xl font-black"
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22 }}
+            >
+              {title}
+            </motion.h2>
+
+            {subtitle && (
+              <motion.p
+                className="mt-2 text-sm font-semibold leading-6"
+                style={{ color: "var(--text-3)" }}
+                initial={reduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.32 }}
+              >
+                {subtitle}
+              </motion.p>
+            )}
+
+            {status && (
+              <motion.div
+                className="mx-auto mt-4 w-fit -rotate-3 rounded-xl border-2 px-4 py-2 text-sm font-black uppercase tracking-[0.18em]"
+                style={{
+                  borderColor: "#15803d",
+                  color: "#15803d",
+                  background: "rgba(34,197,94,.08)",
+                }}
+                initial={reduceMotion ? false : { opacity: 0, scale: 1.5, rotate: -14 }}
+                animate={{ opacity: 1, scale: 1, rotate: -3 }}
+                transition={{ delay: 0.4, type: "spring", stiffness: 260 }}
+              >
+                {status}
+              </motion.div>
+            )}
+
+            <div
+              className="mt-6 h-1.5 overflow-hidden rounded-full"
+              style={{ background: "var(--green-soft)" }}
+            >
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: "linear-gradient(90deg,#0f5253,#b87333)" }}
+                initial={{ width: "0%" }}
+                animate={{ width: "100%" }}
+                transition={{ duration: reduceMotion ? 0.1 : 1.15, ease: "easeOut" }}
+              />
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export default function PaymentsPage() {
   const router = useRouter()
   const localeState = useLocale() as { locale?: Locale }
@@ -463,6 +602,7 @@ export default function PaymentsPage() {
   >({})
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [savingPayment, setSavingPayment] = useState(false)
+  const [successPayment, setSuccessPayment] = useState<{ amount: number; status: PaymentStatus; invoiceId?: string } | null>(null)
   const [paymentForm, setPaymentForm] = useState(INITIAL_PAYMENT_FORM)
   const [targetSearch, setTargetSearch] = useState('')
   const [targetLoading, setTargetLoading] = useState(false)
@@ -716,11 +856,16 @@ export default function PaymentsPage() {
         return
       }
 
-      toast.success(copy.actions.paymentCreated)
+      const created = unwrapPayment(payload)
       setPaymentOpen(false)
       setPaymentForm(INITIAL_PAYMENT_FORM)
       setTargetSearch('')
       setTargetError('')
+      setSuccessPayment({
+        amount,
+        status: paymentForm.status,
+        invoiceId: created?.invoice?.id,
+      })
       await load()
     } catch {
       toast.error(copy.actions.paymentCreateError)
@@ -1576,6 +1721,19 @@ export default function PaymentsPage() {
           </form>
         </div>
       ) : null}
+      <FinanceSuccessOverlay
+        open={!!successPayment}
+        kind="payment"
+        title={copy.actions.paymentCreated}
+        subtitle={
+          successPayment
+            ? `${money(successPayment.amount, locale)} · ${copy.statuses[successPayment.status]}`
+            : undefined
+        }
+        status={successPayment ? copy.statuses[successPayment.status] : undefined}
+        onComplete={() => setSuccessPayment(null)}
+      />
+
     </div>
   )
 }
