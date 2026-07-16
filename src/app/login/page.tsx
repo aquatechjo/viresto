@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import Image from "next/image";
 import FormField from "@/components/ui/FormField";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Eye, EyeOff, FolderLock, Scale } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 type Locale = "ar" | "en";
 
@@ -265,9 +265,7 @@ export default function LoginPage() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [loginSuccess, setLoginSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const reduceMotion = useReducedMotion();
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const copy = COPY[locale];
@@ -295,25 +293,15 @@ export default function LoginPage() {
     let cancelled = false;
 
     async function checkExistingSession() {
-      const hasTabSession =
-        typeof window !== "undefined" &&
-        sessionStorage.getItem("viresto_tab_session") === "active";
-
       const res = await fetch("/api/auth/me", {
         cache: "no-store",
       });
 
       if (cancelled) return;
 
-      if (res.ok && hasTabSession) {
+      if (res.ok) {
+        localStorage.setItem("viresto_last_activity", String(Date.now()));
         router.replace("/dashboard");
-        return;
-      }
-
-      if (res.ok && !hasTabSession) {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-        }).catch(() => null);
       }
     }
 
@@ -354,15 +342,9 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
 
       if (data.success) {
-        sessionStorage.setItem("viresto_tab_session", "active");
-        sessionStorage.setItem("viresto_last_activity", String(Date.now()));
+        localStorage.setItem("viresto_last_activity", String(Date.now()));
 
-        setLoginSuccess(true);
         toast.success(copy.toast.loginSuccess);
-
-        if (!reduceMotion) {
-          await new Promise((resolve) => window.setTimeout(resolve, 1050));
-        }
 
         window.location.href = "/dashboard";
 
@@ -660,69 +642,11 @@ export default function LoginPage() {
         {/* Login side */}
         <section className="flex items-center justify-center p-5 pt-20 sm:p-8 sm:pt-20 lg:pt-8">
           <motion.div
-            initial={{ opacity: 0, y: 28, scale: 0.98, rotate: -1.5 }}
-            animate={
-              loginSuccess
-                ? {
-                    opacity: 1,
-                    y: reduceMotion ? 0 : -8,
-                    scale: reduceMotion ? 1 : 0.985,
-                    rotate: 0,
-                  }
-                : { opacity: 1, y: 0, scale: 1, rotate: 0 }
-            }
-            transition={{
-              duration: loginSuccess ? 0.45 : 0.65,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            className="relative w-full max-w-[460px]"
+            initial={{ opacity: 0, y: 28, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.65, ease: "easeOut" }}
+            className="w-full max-w-[460px]"
           >
-            <motion.div
-              aria-hidden="true"
-              className={`pointer-events-none absolute -top-14 z-30 hidden items-end gap-2 lg:flex ${
-                isArabic ? "-right-7" : "-left-7"
-              }`}
-              initial={{ opacity: 0, x: isArabic ? 28 : -28, y: 12 }}
-              animate={
-                loginSuccess
-                  ? {
-                      opacity: 1,
-                      x: isArabic ? -10 : 10,
-                      y: -4,
-                      rotate: isArabic ? -5 : 5,
-                    }
-                  : { opacity: 1, x: 0, y: 0, rotate: 0 }
-              }
-              transition={{
-                delay: loginSuccess ? 0 : 0.35,
-                duration: 0.65,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-            >
-              <motion.div
-                className="relative flex h-16 w-16 items-center justify-center rounded-[22px] border border-copper-300/35 bg-[#0c3536]/95 text-copper-200 shadow-2xl shadow-black/30 backdrop-blur-xl"
-                animate={
-                  loginSuccess || reduceMotion
-                    ? undefined
-                    : { y: [0, -5, 0], rotate: [0, -2, 0, 2, 0] }
-                }
-                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <Scale className="h-8 w-8" strokeWidth={1.65} />
-                <span className="absolute -bottom-1 h-2 w-8 rounded-full bg-black/25 blur-sm" />
-              </motion.div>
-
-              <motion.div
-                className="mb-2 h-[2px] w-10 origin-center rounded-full bg-gradient-to-r from-copper-200/20 via-copper-200 to-copper-200/20"
-                animate={
-                  loginSuccess || reduceMotion
-                    ? { scaleX: 0.7, opacity: 0.45 }
-                    : { scaleX: [0.75, 1, 0.75], opacity: [0.45, 0.9, 0.45] }
-                }
-                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-              />
-            </motion.div>
-
             {/* Mobile logo */}
             <div className="mb-8 text-center lg:hidden">
               <motion.div
@@ -747,28 +671,12 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <motion.div
+            <div
               className="relative overflow-hidden rounded-[32px] border p-1 shadow-2xl backdrop-blur-2xl"
               style={{
                 background: "rgba(255,255,255,.14)",
                 borderColor: "rgba(255,255,255,.22)",
-                transformOrigin: isArabic ? "top right" : "top left",
               }}
-              animate={
-                loginSuccess
-                  ? {
-                      rotateX: reduceMotion ? 0 : -3,
-                      rotateY: reduceMotion ? 0 : isArabic ? 4 : -4,
-                      boxShadow:
-                        "0 34px 80px rgba(0,0,0,.34), 0 0 0 1px rgba(229,176,112,.18)",
-                    }
-                  : {
-                      rotateX: 0,
-                      rotateY: 0,
-                      boxShadow: "0 25px 50px -12px rgba(0,0,0,.25)",
-                    }
-              }
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
               <div
                 className="absolute -right-12 -top-12 h-32 w-32 rounded-full blur-2xl"
@@ -918,10 +826,10 @@ export default function LoginPage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.45 }}
-                    whileHover={{ scale: loading || loginSuccess ? 1 : 1.015 }}
-                    whileTap={{ scale: loading || loginSuccess ? 1 : 0.985 }}
+                    whileHover={{ scale: loading ? 1 : 1.015 }}
+                    whileTap={{ scale: loading ? 1 : 0.985 }}
                     type="submit"
-                    disabled={loading || loginSuccess}
+                    disabled={loading}
                     className="btn btn-primary w-full py-3 text-base"
                     style={{
                       boxShadow: "0 18px 35px rgba(31,70,57,.28)",
@@ -956,84 +864,7 @@ export default function LoginPage() {
                   </motion.div>
                 )}
               </div>
-              <AnimatePresence>
-                {loginSuccess && (
-                  <motion.div
-                    className="absolute inset-1 z-40 flex items-center justify-center overflow-hidden rounded-[28px] bg-[#082f30]/96 px-6 text-center backdrop-blur-xl"
-                    initial={{ opacity: 0, clipPath: "inset(100% 0 0 0 round 28px)" }}
-                    animate={{ opacity: 1, clipPath: "inset(0% 0 0 0 round 28px)" }}
-                    exit={{ opacity: 0 }}
-                    transition={{
-                      duration: reduceMotion ? 0.15 : 0.52,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                  >
-                    <motion.div
-                      initial={{ opacity: 0, y: 18, scale: 0.9 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{
-                        delay: reduceMotion ? 0 : 0.22,
-                        duration: 0.4,
-                      }}
-                      className="flex flex-col items-center"
-                    >
-                      <motion.div
-                        className="relative flex h-24 w-24 items-center justify-center"
-                        animate={
-                          reduceMotion
-                            ? undefined
-                            : { y: [0, -5, 0], rotate: [0, -1.5, 0] }
-                        }
-                        transition={{
-                          duration: 1.8,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                        }}
-                      >
-                        <FolderLock
-                          className="h-20 w-20 text-copper-200"
-                          strokeWidth={1.35}
-                        />
-                        <motion.span
-                          className="absolute -right-1 top-1 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-400 text-[#062d2d] shadow-lg shadow-emerald-400/25"
-                          initial={{ scale: 0, rotate: -25 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          transition={{
-                            delay: reduceMotion ? 0 : 0.38,
-                            type: "spring",
-                            stiffness: 260,
-                            damping: 18,
-                          }}
-                        >
-                          <CheckCircle2 className="h-6 w-6" strokeWidth={2.4} />
-                        </motion.span>
-                      </motion.div>
-
-                      <p className="mt-4 text-xl font-black text-white">
-                        {isArabic ? "تم فتح مكتبك بنجاح" : "Your office is ready"}
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-white/65">
-                        {isArabic
-                          ? "جارٍ تجهيز لوحة التحكم والملفات القانونية..."
-                          : "Preparing your dashboard and legal files..."}
-                      </p>
-
-                      <div className="mt-6 h-1.5 w-44 overflow-hidden rounded-full bg-white/10">
-                        <motion.div
-                          className="h-full rounded-full bg-copper-300"
-                          initial={{ width: "0%" }}
-                          animate={{ width: "100%" }}
-                          transition={{
-                            duration: reduceMotion ? 0.2 : 0.85,
-                            ease: "easeInOut",
-                          }}
-                        />
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+            </div>
           </motion.div>
         </section>
       </div>

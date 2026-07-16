@@ -7,10 +7,9 @@ import { prisma } from "@/lib/prisma";
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 
-// Cache قصير جدًا لتخفيف ضربات auth على DB.
-// إذا بدك تعطله لاحقًا:
-// AUTH_CACHE_TTL_MS=0
-const AUTH_CACHE_TTL_MS = Number(process.env.AUTH_CACHE_TTL_MS || 10_000);
+// Revocations and role changes must take effect on the next request.
+// A distributed, versioned cache can be added later without weakening this rule.
+const AUTH_CACHE_TTL_MS = 0;
 
 type AuthenticatedUser = {
   userId: string;

@@ -8,7 +8,6 @@ const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 10 * 1000;
 const ACTIVITY_PING_INTERVAL_MS = 60 * 1000;
 
-const TAB_SESSION_KEY = "viresto_tab_session";
 const LAST_ACTIVITY_KEY = "viresto_last_activity";
 
 const ACTIVITY_EVENTS = [
@@ -29,8 +28,7 @@ export default function SessionGuard() {
 
     loggingOutRef.current = true;
 
-    sessionStorage.removeItem(TAB_SESSION_KEY);
-    sessionStorage.removeItem(LAST_ACTIVITY_KEY);
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
 
     await fetch("/api/auth/logout", {
       method: "POST",
@@ -61,21 +59,14 @@ export default function SessionGuard() {
   }
 
   useEffect(() => {
-    const hasTabSession = sessionStorage.getItem(TAB_SESSION_KEY) === "active";
-
-    if (!hasTabSession) {
-      forceLogout("انتهت الجلسة. يرجى تسجيل الدخول مجددًا.");
-      return;
-    }
-
     function markActivity() {
-      sessionStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
       pingSessionActivity();
     }
 
     function checkIdleTimeout() {
       const lastActivity = Number(
-        sessionStorage.getItem(LAST_ACTIVITY_KEY) || "0",
+        localStorage.getItem(LAST_ACTIVITY_KEY) || "0",
       );
 
       if (!lastActivity) {

@@ -126,7 +126,7 @@ function normalizeInvoiceItems(
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
 
     const { id } = await params;

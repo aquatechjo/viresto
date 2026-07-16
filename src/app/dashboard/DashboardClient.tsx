@@ -89,6 +89,10 @@ interface InvoiceAlertItem {
 
 interface Stats {
   timeZone?: string;
+  role?: "ADMIN" | "LAWYER" | "STAFF";
+  permissions?: {
+    canViewFinance: boolean;
+  };
   clientCount: number;
   activeCaseCount: number;
   totalCasesCount: number;
@@ -1246,6 +1250,8 @@ export default function DashboardPage() {
       ? t.clearDay
       : t.dailySummary(stats?.todayApptCount ?? 0, stats?.dueTasksCount ?? 0);
 
+  const canViewFinance = stats?.permissions?.canViewFinance === true;
+
   const attentionItems = useMemo(() => {
     const items: Array<{
       key: string;
@@ -1278,7 +1284,7 @@ export default function DashboardPage() {
       });
     }
 
-    if ((stats?.overdueInvoicesCount ?? 0) > 0) {
+    if (canViewFinance && (stats?.overdueInvoicesCount ?? 0) > 0) {
       items.push({
         key: "overdue-invoices",
         title: t.overdueInvoicesTitle(stats?.overdueInvoicesCount ?? 0),
@@ -1313,6 +1319,7 @@ export default function DashboardPage() {
     stats?.overdueAmount,
     stats?.overdueInvoicesCount,
     stats?.overdueTasksCount,
+    canViewFinance,
     t,
   ]);
 
@@ -1418,17 +1425,19 @@ export default function DashboardPage() {
                 {t.addAppointment}
               </Link>
 
-              <Link
-                href="/dashboard/invoices"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
-                style={{
-                  background: "rgba(255,255,255,0.10)",
-                  borderColor: "rgba(255,255,255,0.18)",
-                }}
-              >
-                <ReceiptText className="h-4 w-4" />
-                {t.createInvoice}
-              </Link>
+              {canViewFinance && (
+                <Link
+                  href="/dashboard/invoices"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
+                  style={{
+                    background: "rgba(255,255,255,0.10)",
+                    borderColor: "rgba(255,255,255,0.18)",
+                  }}
+                >
+                  <ReceiptText className="h-4 w-4" />
+                  {t.createInvoice}
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -1461,14 +1470,24 @@ export default function DashboardPage() {
           alert={(stats?.overdueTasksCount ?? 0) > 0}
         />
 
-        <MetricCard
-          label={t.receivables}
-          value={formatMoney(stats?.pendingAmount ?? 0, locale)}
-          sub={t.receivablesSub}
-          icon={<WalletCards className="h-5 w-5" />}
-          href="/dashboard/invoices"
-          alert={(stats?.overdueInvoicesCount ?? 0) > 0}
-        />
+        {canViewFinance ? (
+          <MetricCard
+            label={t.receivables}
+            value={formatMoney(stats?.pendingAmount ?? 0, locale)}
+            sub={t.receivablesSub}
+            icon={<WalletCards className="h-5 w-5" />}
+            href="/dashboard/invoices"
+            alert={(stats?.overdueInvoicesCount ?? 0) > 0}
+          />
+        ) : (
+          <MetricCard
+            label={t.clients}
+            value={stats?.clientCount ?? 0}
+            sub={t.officeSummarySub}
+            icon={<Users className="h-5 w-5" />}
+            href="/dashboard/clients"
+          />
+        )}
       </section>
 
       {/* Attention */}
@@ -2045,50 +2064,54 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {canViewFinance && (
+                <div
+                  className="rounded-2xl border p-3.5"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <CircleDollarSign className="h-4 w-4 text-teal-700 dark:text-teal-200" />
+                  <p
+                    className="mt-3 text-xs font-bold"
+                    style={{ color: "var(--text-3)" }}
+                  >
+                    {t.monthlyRevenue}
+                  </p>
+                  <p
+                    className="mt-1 truncate text-base font-black"
+                    style={{ color: "var(--sidebar)" }}
+                  >
+                    {formatMoney(stats?.monthlyRevenue ?? 0, locale)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {canViewFinance && (
               <div
-                className="rounded-2xl border p-3.5"
-                style={{ borderColor: "var(--border)" }}
+                className="mt-3 flex items-center justify-between gap-3 rounded-2xl border p-3.5"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--green-soft)",
+                }}
               >
-                <CircleDollarSign className="h-4 w-4 text-teal-700 dark:text-teal-200" />
-                <p
-                  className="mt-3 text-xs font-bold"
-                  style={{ color: "var(--text-3)" }}
-                >
-                  {t.monthlyRevenue}
-                </p>
-                <p
-                  className="mt-1 truncate text-base font-black"
-                  style={{ color: "var(--sidebar)" }}
-                >
-                  {formatMoney(stats?.monthlyRevenue ?? 0, locale)}
-                </p>
-              </div>
-            </div>
+                <div>
+                  <p
+                    className="text-xs font-bold"
+                    style={{ color: "var(--text-3)" }}
+                  >
+                    {t.totalRevenue}
+                  </p>
+                  <p
+                    className="mt-1 text-lg font-black"
+                    style={{ color: "var(--sidebar)" }}
+                  >
+                    {formatMoney(stats?.totalRevenue ?? 0, locale)}
+                  </p>
+                </div>
 
-            <div
-              className="mt-3 flex items-center justify-between gap-3 rounded-2xl border p-3.5"
-              style={{
-                borderColor: "var(--border)",
-                background: "var(--green-soft)",
-              }}
-            >
-              <div>
-                <p
-                  className="text-xs font-bold"
-                  style={{ color: "var(--text-3)" }}
-                >
-                  {t.totalRevenue}
-                </p>
-                <p
-                  className="mt-1 text-lg font-black"
-                  style={{ color: "var(--sidebar)" }}
-                >
-                  {formatMoney(stats?.totalRevenue ?? 0, locale)}
-                </p>
+                <CircleDollarSign className="h-6 w-6 text-teal-700 dark:text-teal-200" />
               </div>
-
-              <CircleDollarSign className="h-6 w-6 text-teal-700 dark:text-teal-200" />
-            </div>
+            )}
           </div>
         </aside>
       </section>

@@ -212,8 +212,7 @@ export default function Sidebar() {
   }, [mobileOpen]);
 
   async function logout() {
-    sessionStorage.removeItem("viresto_tab_session");
-    sessionStorage.removeItem("viresto_last_activity");
+    localStorage.removeItem("viresto_last_activity");
 
     await fetch("/api/auth/logout", {
       method: "POST",

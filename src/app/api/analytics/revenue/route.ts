@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
     if (auth.error || !auth.user) return auth.error
 
     const from = new Date()

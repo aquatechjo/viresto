@@ -4,6 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/api-handler";
 import { requireRole } from "@/lib/api-auth";
 import { ok } from "@/lib/api-response";
+import {
+  buildAppointmentAccessWhere,
+  buildCaseAccessWhere,
+  buildTaskAccessWhere,
+} from "@/lib/access-control";
+import { canReadFinance } from "@/lib/permissions";
 
 const DEFAULT_TIME_ZONE = "Asia/Amman";
 
@@ -19,6 +25,7 @@ export async function GET(req: NextRequest) {
     if (auth.error || !auth.user) return auth.error;
 
     const tenantId = auth.user.tenantId;
+    const canViewFinance = canReadFinance(auth.user.role);
 
     /*
      * نستخدم توقيت جهاز المستخدم عند إرساله من الواجهة.
@@ -83,33 +90,28 @@ export async function GET(req: NextRequest) {
       }),
 
       prisma.case.count({
-        where: {
-          tenantId,
+        where: buildCaseAccessWhere(auth.user, {
           status: {
             in: ["OPEN", "IN_PROGRESS"],
           },
-        },
+        }),
       }),
 
       prisma.case.count({
-        where: {
-          tenantId,
-        },
+        where: buildCaseAccessWhere(auth.user),
       }),
 
       prisma.case.count({
-        where: {
-          tenantId,
+        where: buildCaseAccessWhere(auth.user, {
           status: "CLOSED",
-        },
+        }),
       }),
 
       /*
        * جميع مواعيد اليوم ما عدا الملغاة.
        */
       prisma.appointment.findMany({
-        where: {
-          tenantId,
+        where: buildAppointmentAccessWhere(auth.user, {
           status: {
             not: "CANCELLED",
           },
@@ -117,7 +119,7 @@ export async function GET(req: NextRequest) {
             gte: todayStart,
             lt: tomorrowStart,
           },
-        },
+        }),
         orderBy: {
           startTime: "asc",
         },
@@ -149,14 +151,13 @@ export async function GET(req: NextRequest) {
        * أقرب خمسة مواعيد خلال الأيام السبعة القادمة.
        */
       prisma.appointment.findMany({
-        where: {
-          tenantId,
+        where: buildAppointmentAccessWhere(auth.user, {
           status: "SCHEDULED",
           startTime: {
             gte: now,
             lte: weekEnd,
           },
-        },
+        }),
         orderBy: {
           startTime: "asc",
         },
@@ -230,40 +231,46 @@ export async function GET(req: NextRequest) {
        * المهام المتأخرة: غير مكتملة وتاريخها قبل اليوم.
        */
       prisma.task.count({
-        where: {
-          tenantId,
+        where: buildTaskAccessWhere(auth.user, {
           completed: false,
+          status: {
+            notIn: ["COMPLETED", "CANCELLED"],
+          },
           dueDate: {
             lt: todayStart,
           },
-        },
+        }),
       }),
 
       /*
        * المهام المستحقة خلال اليوم الحالي فقط.
        */
       prisma.task.count({
-        where: {
-          tenantId,
+        where: buildTaskAccessWhere(auth.user, {
           completed: false,
+          status: {
+            notIn: ["COMPLETED", "CANCELLED"],
+          },
           dueDate: {
             gte: todayStart,
             lt: tomorrowStart,
           },
-        },
+        }),
       }),
 
       /*
        * أقرب المهام، ويشمل المتأخر منها حتى يظهر أولًا.
        */
       prisma.task.findMany({
-        where: {
-          tenantId,
+        where: buildTaskAccessWhere(auth.user, {
           completed: false,
+          status: {
+            notIn: ["COMPLETED", "CANCELLED"],
+          },
           dueDate: {
             not: null,
           },
-        },
+        }),
         orderBy: {
           dueDate: "asc",
         },
@@ -420,6 +427,10 @@ export async function GET(req: NextRequest) {
 
     return ok({
       timeZone,
+      role: auth.user.role,
+      permissions: {
+        canViewFinance,
+      },
 
       clientCount,
       activeCaseCount,
@@ -437,21 +448,21 @@ export async function GET(req: NextRequest) {
       dueTasksCount,
       upcomingTasks,
 
-      totalRevenue,
-      monthlyRevenue,
+      totalRevenue: canViewFinance ? totalRevenue : 0,
+      monthlyRevenue: canViewFinance ? monthlyRevenue : 0,
 
       /*
        * المستحقات الحقيقية من الفواتير.
        */
-      pendingAmount,
-      overdueAmount,
-      unpaidInvoicesCount: unpaidInvoices.length,
-      overdueInvoicesCount: overdueInvoices.length,
+      pendingAmount: canViewFinance ? pendingAmount : 0,
+      overdueAmount: canViewFinance ? overdueAmount : 0,
+      unpaidInvoicesCount: canViewFinance ? unpaidInvoices.length : 0,
+      overdueInvoicesCount: canViewFinance ? overdueInvoices.length : 0,
 
       /*
        * نرسل أول خمس فواتير متأخرة لقسم "يحتاج انتباهك".
        */
-      overdueInvoices: overdueInvoices.slice(0, 5),
+      overdueInvoices: canViewFinance ? overdueInvoices.slice(0, 5) : [],
     });
   });
 }

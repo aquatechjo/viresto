@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ok } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
+import { canReadFinance } from "@/lib/permissions";
 
 function addAndCondition(
   where: Prisma.ActivityWhereInput,
@@ -116,6 +117,18 @@ export async function GET(req: NextRequest) {
     const where: Prisma.ActivityWhereInput = {
       tenantId: auth.user.tenantId,
     };
+
+    if (!canReadFinance(auth.user.role)) {
+      const paymentCondition = categoryCondition("payments");
+      const invoiceCondition = categoryCondition("invoices");
+
+      addAndCondition(where, {
+        NOT: [
+          ...(paymentCondition ? [paymentCondition] : []),
+          ...(invoiceCondition ? [invoiceCondition] : []),
+        ],
+      });
+    }
 
     if (type) {
       where.type = type;

@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanCreate } from "@/lib/billing-limits";
+import { buildCaseAccessWhere } from "@/lib/access-control";
 
 const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
@@ -60,9 +61,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const where: Prisma.CaseWhereInput = {
-      tenantId: auth.user.tenantId,
-
+    const requestedWhere: Prisma.CaseWhereInput = {
       ...(includeArchivedClients
         ? {}
         : {
@@ -133,6 +132,8 @@ export async function GET(req: NextRequest) {
           }
         : {}),
     };
+
+    const where = buildCaseAccessWhere(auth.user, requestedWhere);
 
     const [data, total] = await Promise.all([
       prisma.case.findMany({
@@ -277,9 +278,20 @@ export async function POST(req: NextRequest) {
       return err("المحامي المسؤول غير موجود أو لا يملك صلاحية محامٍ", 400);
     }
 
-    const memberIds = Array.from(
-      new Set(parsed.data.memberIds || []),
-    ).filter((memberId) => memberId !== leadLawyerId);
+    const requestedMemberIds = new Set(parsed.data.memberIds || []);
+
+    // The lawyer who creates a case must retain access even when another
+    // lawyer is selected as the lead.
+    if (
+      auth.user.role === "LAWYER" &&
+      leadLawyerId !== auth.user.userId
+    ) {
+      requestedMemberIds.add(auth.user.userId);
+    }
+
+    const memberIds = Array.from(requestedMemberIds).filter(
+      (memberId) => memberId !== leadLawyerId,
+    );
 
     if (memberIds.length > 0) {
       const validMembers = await prisma.user.count({

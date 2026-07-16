@@ -59,15 +59,13 @@ function VerifyEmailContent() {
 
       setTimeout(() => {
         if (next === "DASHBOARD") {
-          sessionStorage.setItem("viresto_tab_session", "active");
-          sessionStorage.setItem("viresto_last_activity", String(Date.now()));
+          localStorage.setItem("viresto_last_activity", String(Date.now()));
 
           window.location.href = "/dashboard";
           return;
         }
 
-        sessionStorage.removeItem("viresto_tab_session");
-        sessionStorage.removeItem("viresto_last_activity");
+        localStorage.removeItem("viresto_last_activity");
 
         window.location.href = "/login";
       }, 900);

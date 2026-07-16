@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { caseSchema } from "@/lib/validations";
@@ -9,21 +8,10 @@ import { apiHandler } from "@/lib/api-handler";
 import { decryptText } from "@/lib/encryption";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
+import { buildCaseIdentifierAccessWhere } from "@/lib/access-control";
+import { canReadFinance } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
-
-function caseLookupWhere(
-  identifier: string,
-  tenantId: string,
-): Prisma.CaseWhereInput {
-  const publicId = Number(identifier);
-  const hasPublicId = Number.isSafeInteger(publicId) && publicId > 0;
-
-  return {
-    tenantId,
-    OR: hasPublicId ? [{ id: identifier }, { publicId }] : [{ id: identifier }],
-  };
-}
 
 const caseUserSelect = {
   id: true,
@@ -51,7 +39,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const tenantId = auth.user.tenantId;
 
     const c = await prisma.case.findFirst({
-      where: caseLookupWhere(id, tenantId),
+      where: buildCaseIdentifierAccessWhere(id, auth.user),
       include: {
         client: {
           select: {
@@ -169,11 +157,12 @@ export async function GET(req: NextRequest, { params }: Params) {
       return notFound("القضية غير موجودة");
     }
 
-    const paymentIds = c.payments.map((p) => p.id);
+    const canViewFinance = canReadFinance(auth.user.role);
+    const paymentIds = canViewFinance ? c.payments.map((p) => p.id) : [];
     const appointmentIds = c.appointments.map((a) => a.id);
     const documentIds = c.documents.map((d) => d.id);
     const taskIds = c.tasks.map((t) => t.id);
-    const invoiceIds = c.invoices.map((i) => i.id);
+    const invoiceIds = canViewFinance ? c.invoices.map((i) => i.id) : [];
 
     const activityFilters = [
       { entityType: "CASE", entityId: c.id },
@@ -205,12 +194,20 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     return ok({
       ...c,
+      payments: canViewFinance ? c.payments : [],
+      invoices: canViewFinance ? c.invoices : [],
       client: {
         ...c.client,
-        email: safeDecrypt(c.client.email),
-        phone: safeDecrypt(c.client.phone),
-        nationalId: safeDecrypt(c.client.nationalId),
-        address: safeDecrypt(c.client.address),
+        email:
+          auth.user.role === "STAFF" ? null : safeDecrypt(c.client.email),
+        phone:
+          auth.user.role === "STAFF" ? null : safeDecrypt(c.client.phone),
+        nationalId:
+          auth.user.role === "STAFF"
+            ? null
+            : safeDecrypt(c.client.nationalId),
+        address:
+          auth.user.role === "STAFF" ? null : safeDecrypt(c.client.address),
       },
       activities,
     });
@@ -238,7 +235,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.case.findFirst({
-      where: caseLookupWhere(id, auth.user.tenantId),
+      where: buildCaseIdentifierAccessWhere(id, auth.user),
       select: {
         id: true,
         title: true,
@@ -468,7 +465,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const exists = await prisma.case.findFirst({
-      where: caseLookupWhere(id, auth.user.tenantId),
+      where: buildCaseIdentifierAccessWhere(id, auth.user),
       select: {
         id: true,
         title: true,
