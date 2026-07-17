@@ -23,6 +23,13 @@ import {
   normalizeReportTimeZone,
 } from "@/lib/report-finance";
 import { roundMoney } from "@/lib/finance";
+import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  REPORT_EXPORT_LIMIT,
+  REPORT_SUMMARY_SCAN_LIMIT,
+  exceedsReportLimit,
+  getReportDetailQueryLimit,
+} from "@/lib/report-limits";
 
 type ReportType = "monthly" | "yearly";
 type CaseStatus = "OPEN" | "IN_PROGRESS" | "CLOSED" | "ARCHIVED";
@@ -45,8 +52,6 @@ const invoiceStatuses = [
   "OVERDUE",
   "CANCELLED",
 ] as const;
-
-const REPORT_PREVIEW_LIMIT = 100;
 
 function parseReportParams(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
@@ -163,6 +168,19 @@ export async function GET(req: NextRequest) {
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
 
+    const reportRateLimit = await checkRateLimit(
+      `${auth.user.tenantId}:${auth.user.userId}`,
+      {
+        windowMs: 60_000,
+        max: 30,
+        keyPrefix: "reports-summary",
+      },
+    );
+
+    if (!reportRateLimit.allowed) {
+      return err("طلبات التقارير كثيرة جدًا. حاول مرة أخرى بعد دقيقة.", 429);
+    }
+
     const params = parseReportParams(req);
     if ("error" in params) {
       return err(params.error || "بيانات التقرير غير صالحة", 400);
@@ -191,7 +209,15 @@ export async function GET(req: NextRequest) {
         client: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
+      take: REPORT_SUMMARY_SCAN_LIMIT + 1,
     });
+
+    if (exceedsReportLimit(cases.length, REPORT_SUMMARY_SCAN_LIMIT)) {
+      return err(
+        "عدد القضايا أكبر من الحد الآمن للتقرير. استخدم فلتر موكل أو حالة قضية.",
+        413,
+      );
+    }
 
     const caseIds = cases.map((item) => item.id);
     const relationScope: {
@@ -248,6 +274,8 @@ export async function GET(req: NextRequest) {
             _sum: { amount: true },
           });
 
+    const detailQueryLimit = getReportDetailQueryLimit(params.detailMode);
+
     const [
       periodPaymentsRaw,
       periodPaymentCount,
@@ -282,7 +310,7 @@ export async function GET(req: NextRequest) {
           params.paymentStatus === "PAID"
             ? [{ paidAt: "desc" }, { createdAt: "desc" }]
             : { createdAt: "desc" },
-        ...(params.detailMode === "preview" ? { take: REPORT_PREVIEW_LIMIT } : {}),
+        take: detailQueryLimit,
       }),
       prisma.payment.count({ where: periodPaymentWhere }),
       periodRevenuePromise,
@@ -317,7 +345,7 @@ export async function GET(req: NextRequest) {
           },
         },
         orderBy: { issueDate: "desc" },
-        ...(params.detailMode === "preview" ? { take: REPORT_PREVIEW_LIMIT } : {}),
+        take: detailQueryLimit,
       }),
       prisma.invoice.count({ where: periodInvoiceWhere }),
       prisma.invoice.findMany({
@@ -331,6 +359,7 @@ export async function GET(req: NextRequest) {
             select: { amount: true },
           },
         },
+        take: REPORT_SUMMARY_SCAN_LIMIT + 1,
       }),
       prisma.appointment.findMany({
         where: upcomingAppointmentWhere,
@@ -365,6 +394,7 @@ export async function GET(req: NextRequest) {
           paidAt: { gte: params.yearStart, lt: params.yearEnd },
         }),
         select: { amount: true, paidAt: true },
+        take: REPORT_SUMMARY_SCAN_LIMIT + 1,
       }),
       prisma.payment.groupBy({
         by: ["clientId"],
@@ -379,6 +409,32 @@ export async function GET(req: NextRequest) {
         _count: { _all: true },
       }),
     ]);
+
+    if (
+      params.detailMode === "all" &&
+      (exceedsReportLimit(periodPaymentsRaw.length, REPORT_EXPORT_LIMIT) ||
+        exceedsReportLimit(periodInvoicesRaw.length, REPORT_EXPORT_LIMIT))
+    ) {
+      return err(
+        `حجم التصدير يتجاوز الحد الآمن (${REPORT_EXPORT_LIMIT} سجل لكل قسم). ضيّق الفلاتر أو استخدم تقريرًا شهريًا.`,
+        413,
+        {
+          limit: REPORT_EXPORT_LIMIT,
+          payments: periodPaymentCount,
+          invoices: periodInvoiceCount,
+        },
+      );
+    }
+
+    if (
+      exceedsReportLimit(allInvoices.length, REPORT_SUMMARY_SCAN_LIMIT) ||
+      exceedsReportLimit(yearlyPaidPayments.length, REPORT_SUMMARY_SCAN_LIMIT)
+    ) {
+      return err(
+        "حجم البيانات المالية أكبر من الحد الآمن للتقرير. استخدم فلتر موكل أو حالة قضية لتضييق النتائج.",
+        413,
+      );
+    }
 
     const periodPayments = periodPaymentsRaw.map((payment) => ({
       ...payment,

@@ -1,10 +1,15 @@
 import { NextRequest } from 'next/server'
 import { DateTime } from 'luxon'
 import { prisma } from '@/lib/prisma'
-import { ok } from '@/lib/api-response'
+import { ok, err } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
 import { requireRole } from '@/lib/api-auth'
 import { buildPaymentAccessWhere } from '@/lib/access-control'
+import { checkRateLimit } from '@/lib/rate-limit'
+import {
+  REPORT_SUMMARY_SCAN_LIMIT,
+  exceedsReportLimit,
+} from '@/lib/report-limits'
 import {
   buildRollingMonthlyRevenue,
   DEFAULT_REPORT_TIME_ZONE,
@@ -14,6 +19,19 @@ export async function GET(req: NextRequest) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
     if (auth.error || !auth.user) return auth.error
+
+    const reportRateLimit = await checkRateLimit(
+      `${auth.user.tenantId}:${auth.user.userId}`,
+      {
+        windowMs: 60_000,
+        max: 60,
+        keyPrefix: 'analytics-revenue',
+      },
+    )
+
+    if (!reportRateLimit.allowed) {
+      return err('طلبات التحليلات كثيرة جدًا. حاول مرة أخرى بعد دقيقة.', 429)
+    }
 
     const nowInZone = DateTime.now().setZone(DEFAULT_REPORT_TIME_ZONE)
     const from = nowInZone
@@ -31,7 +49,15 @@ export async function GET(req: NextRequest) {
         amount: true,
         paidAt: true,
       },
+      take: REPORT_SUMMARY_SCAN_LIMIT + 1,
     })
+
+    if (exceedsReportLimit(payments.length, REPORT_SUMMARY_SCAN_LIMIT)) {
+      return err(
+        'حجم بيانات الإيرادات أكبر من الحد الآمن للتحليل. استخدم صفحة التقارير مع فلاتر أضيق.',
+        413,
+      )
+    }
 
     const months = buildRollingMonthlyRevenue(
       payments,
