@@ -4,6 +4,7 @@ import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 type RouteContext = {
   params: Promise<{
@@ -64,6 +65,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const now = new Date();
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, payment.tenantId);
+
       const claim = await tx.subscriptionPayment.updateMany({
         where: {
           id: payment.id,

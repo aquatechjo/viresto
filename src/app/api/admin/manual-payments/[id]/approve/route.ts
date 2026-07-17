@@ -8,8 +8,8 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import {
   addBillingPeriod,
-  getBillingPlanConfig,
   syncTenantSubscriptionMirror,
+  validateManualPaymentPricingSnapshot,
 } from "@/lib/subscription-consistency";
 
 type RouteContext = {
@@ -86,21 +86,16 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return err("بيانات الخطة المطلوبة غير مكتملة", 409);
     }
 
-    const configuredPlan = getBillingPlanConfig(
-      requestedPlan.code,
-      requestedInterval,
-    );
+    const pricingSnapshot = validateManualPaymentPricingSnapshot({
+      amount: payment.amount,
+      currency: payment.currency,
+      interval: requestedInterval,
+      planCode: requestedPlan.code,
+    });
 
-    if (!configuredPlan) {
-      return err("رمز الخطة غير مدعوم", 409);
-    }
-
-    if (
-      payment.amount !== configuredPlan.amount ||
-      payment.currency !== configuredPlan.currency
-    ) {
+    if (!pricingSnapshot) {
       return err(
-        "قيمة طلب الدفع لا تطابق السعر الحالي للخطة. اطلب من العميل إرسال طلب جديد.",
+        "بيانات السعر المحفوظة مع طلب الدفع غير صالحة",
         409,
       );
     }
@@ -178,8 +173,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           },
           data: {
             status: SubscriptionStatus.ACTIVE,
-            amount: configuredPlan.amount,
-            currency: configuredPlan.currency,
+            amount: pricingSnapshot.amount,
+            currency: pricingSnapshot.currency,
             trialEndsAt: null,
             currentPeriodStart:
               currentSubscription.currentPeriodStart ?? now,
@@ -220,8 +215,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             planId: requestedPlan.id,
             status: SubscriptionStatus.ACTIVE,
             interval: requestedInterval,
-            amount: configuredPlan.amount,
-            currency: configuredPlan.currency,
+            amount: pricingSnapshot.amount,
+            currency: pricingSnapshot.currency,
             trialEndsAt: null,
             currentPeriodStart: now,
             currentPeriodEnd: addBillingPeriod(now, requestedInterval),
@@ -261,7 +256,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           actorId: auth.user.userId,
           type: "MANUAL_PAYMENT_APPROVED",
           title: "تمت الموافقة على طلب الدفع اليدوي",
-          message: `تم تفعيل خطة ${requestedPlan.name} (${requestedInterval}) بعد مراجعة الإيصال`,
+          message: `تم تفعيل خطة ${requestedPlan.name} (${requestedInterval}) بمبلغ ${pricingSnapshot.amount / 1000} ${pricingSnapshot.currency} بعد مراجعة الإيصال`,
           entityType: "SubscriptionPayment",
           entityId: payment.id,
         },

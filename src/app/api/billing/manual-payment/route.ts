@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
-import { BillingInterval } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import cloudinary from "@/lib/cloudinary";
 import { ok, err } from "@/lib/api-response";
@@ -20,7 +19,10 @@ import {
   RECEIPT_UPLOAD_MIME_TYPES,
   validateUploadFileContent,
 } from "@/lib/server/upload-file-security";
-import { getBillingPlanConfig } from "@/lib/subscription-consistency";
+import {
+  getBillingPlanConfig,
+  parseBillingInterval,
+} from "@/lib/subscription-consistency";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -29,10 +31,6 @@ export const runtime = "nodejs";
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
 const STALE_UPLOAD_MINUTES = 15;
 const OPEN_PAYMENT_STATUSES = ["UPLOADING", "PENDING", "PROCESSING"];
-
-function normalizeInterval(value: FormDataEntryValue | null): BillingInterval {
-  return value === "YEARLY" ? "YEARLY" : "MONTHLY";
-}
 
 async function uploadReceiptToCloudinary(
   file: PreparedUploadFile,
@@ -169,12 +167,16 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
 
     const planId = String(formData.get("planId") || "").trim();
-    const interval = normalizeInterval(formData.get("interval"));
+    const interval = parseBillingInterval(formData.get("interval"));
     const method = normalizeManualPaymentMethod(formData.get("method"));
     const receipt = formData.get("receipt");
 
     if (!planId) {
       return err("الخطة مطلوبة", 400);
+    }
+
+    if (!interval) {
+      return err("دورة الاشتراك غير صحيحة", 400);
     }
 
     if (!method) {
@@ -292,6 +294,14 @@ export async function POST(req: NextRequest) {
       planName: plan.name,
       interval,
       paymentMethod: method,
+      pricingSnapshot: {
+        version: 1,
+        planId: plan.id,
+        planCode: plan.code,
+        amountMinor: amount,
+        currency: configuredPlan.currency,
+        interval,
+      },
     };
     const staleBefore = new Date(
       Date.now() - STALE_UPLOAD_MINUTES * 60 * 1000,
