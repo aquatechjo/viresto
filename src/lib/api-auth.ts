@@ -1,17 +1,24 @@
 import { NextRequest } from "next/server";
 import { err } from "@/lib/api-response";
 import { COOKIE, verifyToken } from "@/lib/auth";
+import type { JWTPayload } from "@/lib/auth";
 import type { UserRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
+import {
+  SESSION_IDLE_TIMEOUT_MS,
+  SESSION_TOUCH_INTERVAL_MS,
+  hasUsableSessionId,
+  sessionExpired,
+  sessionMatchesToken,
+  shouldTouchSession,
+  userCanUseSession,
+} from "@/lib/session-policy";
 
 // Revocations and role changes must take effect on the next request.
 // A distributed, versioned cache can be added later without weakening this rule.
 const AUTH_CACHE_TTL_MS = 0;
 
-type AuthenticatedUser = {
+export type AuthenticatedUser = {
   userId: string;
   tenantId: string;
   email: string;
@@ -31,6 +38,16 @@ type GlobalWithAuthCache = typeof globalThis & {
   __virestoAuthCache?: Map<string, AuthCacheEntry>;
 };
 
+export type SessionValidationResult =
+  | {
+      ok: true;
+      user: AuthenticatedUser;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
 const authCache =
   ((globalThis as GlobalWithAuthCache).__virestoAuthCache ??=
     new Map<string, AuthCacheEntry>());
@@ -46,18 +63,6 @@ export function getRequestMeta(req: NextRequest) {
     ipAddress,
     userAgent,
   };
-}
-
-function sessionExpired(lastActivityAt?: Date | null) {
-  if (!lastActivityAt) return true;
-
-  return Date.now() - lastActivityAt.getTime() > IDLE_TIMEOUT_MS;
-}
-
-function shouldTouchSession(lastActivityAt?: Date | null) {
-  if (!lastActivityAt) return true;
-
-  return Date.now() - lastActivityAt.getTime() > SESSION_TOUCH_INTERVAL_MS;
 }
 
 function getCacheKey(sessionId: string, userId: string, tenantId: string) {
@@ -77,7 +82,7 @@ function getCachedAuth(cacheKey: string) {
     return null;
   }
 
-  if (now - cached.lastActivityAt > IDLE_TIMEOUT_MS) {
+  if (now - cached.lastActivityAt > SESSION_IDLE_TIMEOUT_MS) {
     authCache.delete(cacheKey);
     return null;
   }
@@ -110,29 +115,13 @@ function setCachedAuth(
   }
 }
 
-export async function requireAuth(req: NextRequest) {
-  const token = req.cookies.get(COOKIE)?.value;
-
-  if (!token) {
+export async function validateSessionPayload(
+  tokenUser: JWTPayload,
+): Promise<SessionValidationResult> {
+  if (!hasUsableSessionId(tokenUser)) {
     return {
-      error: err("غير مصرح", 401),
-      user: null,
-    };
-  }
-
-  const tokenUser = await verifyToken(token);
-
-  if (!tokenUser) {
-    return {
-      error: err("جلسة غير صالحة", 401),
-      user: null,
-    };
-  }
-
-  if (!tokenUser.sessionId) {
-    return {
-      error: err("جلسة غير صالحة. يرجى تسجيل الدخول مجددًا.", 401),
-      user: null,
+      ok: false,
+      message: "جلسة غير صالحة. يرجى تسجيل الدخول مجددًا.",
     };
   }
 
@@ -146,7 +135,7 @@ export async function requireAuth(req: NextRequest) {
 
   if (cachedUser) {
     return {
-      error: null,
+      ok: true,
       user: cachedUser,
     };
   }
@@ -189,18 +178,14 @@ export async function requireAuth(req: NextRequest) {
     }),
   ]);
 
-  const validSession =
-    session &&
-    session.isActive &&
-    session.userId === tokenUser.userId &&
-    session.tenantId === tokenUser.tenantId;
+  const validSession = sessionMatchesToken(session, tokenUser);
 
   if (!validSession) {
     authCache.delete(cacheKey);
 
     return {
-      error: err("انتهت الجلسة أو لم تعد صالحة. يرجى تسجيل الدخول مجددًا.", 401),
-      user: null,
+      ok: false,
+      message: "انتهت الجلسة أو لم تعد صالحة. يرجى تسجيل الدخول مجددًا.",
     };
   }
 
@@ -219,18 +204,12 @@ export async function requireAuth(req: NextRequest) {
     });
 
     return {
-      error: err("انتهت الجلسة بسبب عدم النشاط. يرجى تسجيل الدخول مجددًا.", 401),
-      user: null,
+      ok: false,
+      message: "انتهت الجلسة بسبب عدم النشاط. يرجى تسجيل الدخول مجددًا.",
     };
   }
 
-  const validUser =
-    dbUser &&
-    dbUser.tenantId === tokenUser.tenantId &&
-    dbUser.isActive &&
-    dbUser.emailVerifiedAt &&
-    !dbUser.tenant.isSuspended &&
-    dbUser.tenant.status !== "SUSPENDED";
+  const validUser = userCanUseSession(dbUser, tokenUser.tenantId);
 
   if (!validUser) {
     authCache.delete(cacheKey);
@@ -245,8 +224,8 @@ export async function requireAuth(req: NextRequest) {
     });
 
     return {
-      error: err("انتهت الجلسة أو لم تعد صالحة. يرجى تسجيل الدخول مجددًا.", 401),
-      user: null,
+      ok: false,
+      message: "انتهت الجلسة أو لم تعد صالحة. يرجى تسجيل الدخول مجددًا.",
     };
   }
 
@@ -291,8 +270,42 @@ export async function requireAuth(req: NextRequest) {
   setCachedAuth(cacheKey, user, lastActivityAtForCache);
 
   return {
-    error: null,
+    ok: true,
     user,
+  };
+}
+
+export async function requireAuth(req: NextRequest) {
+  const token = req.cookies.get(COOKIE)?.value;
+
+  if (!token) {
+    return {
+      error: err("غير مصرح", 401),
+      user: null,
+    };
+  }
+
+  const tokenUser = await verifyToken(token);
+
+  if (!tokenUser) {
+    return {
+      error: err("جلسة غير صالحة", 401),
+      user: null,
+    };
+  }
+
+  const validation = await validateSessionPayload(tokenUser);
+
+  if (!validation.ok) {
+    return {
+      error: err(validation.message, 401),
+      user: null,
+    };
+  }
+
+  return {
+    error: null,
+    user: validation.user,
   };
 }
 

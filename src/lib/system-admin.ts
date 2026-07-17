@@ -1,42 +1,28 @@
 import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { validateSessionPayload } from "@/lib/api-auth";
 
 export async function requireSystemAdmin() {
-  const session = await getSession();
+  const tokenUser = await getSession();
 
-  if (!session?.userId || !session?.tenantId) {
+  if (!tokenUser) {
     throw new Error("Unauthorized");
   }
 
-  const user = await prisma.user.findFirst({
-    where: {
-      id: session.userId,
-      tenantId: session.tenantId,
-      isActive: true,
-      isSystemAdmin: true,
-      ...(session.sessionId
-        ? {
-            sessions: {
-              some: {
-                id: session.sessionId,
-                isActive: true,
-              },
-            },
-          }
-        : {}),
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      isSystemAdmin: true,
-    },
-  });
+  const validation = await validateSessionPayload(tokenUser);
 
-  if (!user) {
+  if (!validation.ok) {
+    throw new Error("Unauthorized");
+  }
+
+  if (!validation.user.isSystemAdmin) {
     throw new Error("Forbidden");
   }
 
-  return user;
+  return {
+    id: validation.user.userId,
+    name: validation.user.name,
+    email: validation.user.email,
+    role: validation.user.role,
+    isSystemAdmin: validation.user.isSystemAdmin,
+  };
 }

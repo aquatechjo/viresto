@@ -101,7 +101,7 @@ async function main() {
   const plan = await prisma.billingPlan.findUnique({ where: { code: planCode } })
 
   if (!plan || !plan.isActive) {
-    throw new Error(`Billing plan not found or inactive: ${planCode}. Run: node scripts/seed-billing-plans.js`)
+    throw new Error(`Billing plan not found or inactive: ${planCode}. Run: npm run db:seed`)
   }
 
   const now = new Date()

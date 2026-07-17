@@ -106,11 +106,10 @@ openssl rand -base64 64
 # أو في Node.js:
 node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
 ```
-````md
 **لتوليد ENCRYPTION_KEY:**
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
+```
 
 5. انقر **Deploy** → انتظر دقيقة أو دقيقتين
 
@@ -138,17 +137,19 @@ ENCRYPTION_PREVIOUS_KEYS="key-2026-01=OLD_BASE64_KEY"
 
 ---
 
-## الخطوة 6 — تشغيل Migration على Neon
+## الخطوة 6 — ترحيل قاعدة البيانات قبل ترقية النشر إلى Production
 
-بعد النشر، شغّل الـ migration مرة واحدة عبر جهازك المحلي:
+شغّل الـ migrations أولًا على قاعدة Neon المستهدفة، ثم زامن كتالوج خطط الاشتراك الآمن:
 
 ```bash
-# في مجلد المشروع على جهازك
-DATABASE_URL="your-neon-url" npx prisma migrate deploy
-DATABASE_URL="your-neon-url" npx ts-node prisma/seed.ts
+# في مجلد المشروع، بعد ضبط DATABASE_URL وDIRECT_URL للبيئة المستهدفة
+npm run db:deploy
+npm run db:seed
 ```
 
-> أو استخدم **Neon SQL Editor** في لوحة التحكم لتشغيل الـ migration يدوياً.
+`npm run db:seed` آمن للإنتاج: يقوم بعملية upsert لخطط الاشتراك فقط، ولا ينشئ مستخدمين ولا يحذف بيانات مكاتب.
+
+> لا تشغّل `npm run db:seed:demo` على أي قاعدة مشتركة أو إنتاجية. هذا الأمر مخصص لقاعدة محلية قابلة للحذف، ويتطلب موافقة صريحة ومتغير كلمة مرور مؤقتة.
 
 ---
 
@@ -163,7 +164,7 @@ DATABASE_URL="your-neon-url" npx ts-node prisma/seed.ts
 ## ملاحظات مهمة بعد النشر
 
 ### 🔒 الأمان
-- غيّر كلمة مرور الـ seed فوراً: `lawyer@example.com / Lawyer@123456`
+- لا تستخدم seed الديمو على قاعدة Production أو Staging مشتركة.
 - تأكد أن `NODE_ENV=production` مضبوطة (تفعّل الـ secure cookie)
 - لا تضع قيم `.env` في الكود أو GitHub
 

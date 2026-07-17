@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ok } from "@/lib/api-response";
+import { err, ok } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { requireAuth } from "@/lib/api-auth";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
 
     const auth = await requireAuth(req);
 
-    if (auth.error || !auth.user?.sessionId) {
-      return ok({ updated: false });
+    if (auth.error || !auth.user) {
+      return auth.error ?? err("انتهت الجلسة. يرجى تسجيل الدخول مجددًا.", 401);
     }
 
     const ip =
@@ -35,6 +35,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return ok({ updated: updated.count > 0 });
+    if (updated.count === 0) {
+      return err("انتهت الجلسة. يرجى تسجيل الدخول مجددًا.", 401);
+    }
+
+    return ok({ updated: true });
   });
 }
