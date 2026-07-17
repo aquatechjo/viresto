@@ -3,6 +3,8 @@ import { roundMoney } from "@/lib/finance";
 
 export const DEFAULT_REPORT_TIME_ZONE = "Asia/Amman";
 
+type MonetaryValue = number | string | { toString(): string };
+
 type ReportType = "monthly" | "yearly";
 
 interface ReportPeriodInput {
@@ -48,7 +50,7 @@ export function getReportPeriod({
 }
 
 interface PaidPaymentInput {
-  amount: number;
+  amount: MonetaryValue;
   paidAt: Date | null;
 }
 
@@ -77,10 +79,10 @@ export function buildMonthlyRevenue(
 }
 
 export type InvoiceFinancialInput = {
-  total: number;
+  total: MonetaryValue;
   status: string;
   dueDate: Date | null;
-  payments: Array<{ amount: number }>;
+  payments: Array<{ amount: MonetaryValue }>;
 };
 
 const NON_COLLECTIBLE_STATUSES = new Set(["DRAFT", "CANCELLED"]);

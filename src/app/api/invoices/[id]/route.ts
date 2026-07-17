@@ -16,6 +16,7 @@ import {
   buildInvoiceIdentifierAccessWhere,
 } from "@/lib/access-control";
 import { roundMoney } from "@/lib/finance";
+import { MAX_JOD_AMOUNT } from "@/lib/money";
 import {
   assertCaseCanAcceptAmount,
   isCaseFinancialLimitError,
@@ -66,6 +67,21 @@ function calculateTotals(
   const tax = roundMoney(Number(taxInput || 0));
   const discount = roundMoney(Number(discountInput || 0));
   const beforeDiscount = roundMoney(subtotal + tax);
+
+  if (
+    items.some((item) => item.total > MAX_JOD_AMOUNT) ||
+    subtotal > MAX_JOD_AMOUNT ||
+    beforeDiscount > MAX_JOD_AMOUNT
+  ) {
+    return {
+      error: "إجمالي الفاتورة أكبر من الحد المالي المسموح",
+      items,
+      subtotal,
+      tax,
+      discount,
+      total: 0,
+    };
+  }
 
   if (discount > beforeDiscount) {
     return {

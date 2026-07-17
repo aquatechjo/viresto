@@ -79,14 +79,16 @@ function formatDate(value: Date) {
   }).format(value);
 }
 
-function safeMoney(value: number | string | null | undefined) {
+type MonetaryValue = number | string | { toString(): string };
+
+function safeMoney(value: MonetaryValue | null | undefined) {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? amount.toFixed(3) : "0.000";
 }
 
 function invoiceOutstanding(
-  total: number,
-  payments: Array<{ amount: number }>,
+  total: MonetaryValue,
+  payments: Array<{ amount: MonetaryValue }>,
 ) {
   const paid = payments.reduce(
     (sum, payment) => sum + Number(payment.amount || 0),
