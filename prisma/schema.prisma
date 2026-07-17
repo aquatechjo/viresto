@@ -9,59 +9,60 @@ datasource db {
 }
 
 model Tenant {
-  id            String         @id @default(cuid())
-  name          String
-  slug          String         @unique
-  plan          Plan           @default(PRO)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  isSuspended   Boolean        @default(false)
-  maxUsers      Int            @default(5)
-  status        TenantStatus   @default(ACTIVE)
-  aiEnabled     Boolean        @default(false)
-  aiConsentAt   DateTime?
-  aiConsentBy   String?
+  id                     String            @id @default(cuid())
+  name                   String
+  slug                   String            @unique
+  plan                   Plan              @default(PRO)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  isSuspended            Boolean           @default(false)
+  maxUsers               Int               @default(5)
+  status                 TenantStatus      @default(ACTIVE)
+  aiEnabled              Boolean           @default(false)
+  aiConsentAt            DateTime?
+  aiConsentBy            String?
   aiConsentPolicyVersion String?
-  trialEndsAt   DateTime?
-  address       String?
-  email         String?
-  logoUrl       String?
-  phone         String?
-  activities    Activity[]
-  aiUsagePeriods AiUsagePeriod[]
-  appointments  Appointment[]
-  cases         Case[]
-  caseMembers   CaseMember[]
-  clients       Client[]
-  documents     Document[]
-  invoices      Invoice[]
-  invoiceSequences InvoiceSequence[]
-  notifications Notification[]
-  payments      Payment[]
-  sessions      Session[]
-  tasks         Task[]
-  teamInvitations TeamInvitation[]
-  users         User[]
+  trialEndsAt            DateTime?
+  address                String?
+  email                  String?
+  logoUrl                String?
+  phone                  String?
+  activities             Activity[]
+  aiUsagePeriods         AiUsagePeriod[]
+  appointments           Appointment[]
+  cases                  Case[]
+  caseMembers            CaseMember[]
+  clients                Client[]
+  documents              Document[]
+  invoices               Invoice[]
+  invoiceSequences       InvoiceSequence[]
+  notifications          Notification[]
+  payments               Payment[]
+  sessions               Session[]
+  tasks                  Task[]
+  teamInvitations        TeamInvitation[]
+  users                  User[]
 
   subscriptions        Subscription[]
   subscriptionPayments SubscriptionPayment[]
 }
 
 model TeamInvitation {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
-  email       String   @unique
+  email       String    @unique
   name        String
   role        UserRole
-  tokenHash   String   @unique
+  tokenHash   String    @unique
   invitedById String?
   expiresAt   DateTime
   acceptedAt  DateTime?
   revokedAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invitedBy User?  @relation("TeamInvitationInviter", fields: [invitedById, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   @@index([tenantId, acceptedAt, revokedAt, expiresAt])
   @@index([invitedById])
@@ -141,6 +142,7 @@ model Subscription {
   plan     BillingPlan           @relation(fields: [planId], references: [id])
   payments SubscriptionPayment[]
 
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@index([planId])
   @@index([status])
@@ -173,7 +175,7 @@ model SubscriptionPayment {
   updatedAt DateTime @updatedAt
 
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  subscription  Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  subscription  Subscription? @relation(fields: [subscriptionId, tenantId], references: [id, tenantId], onDelete: Restrict)
   requestedPlan BillingPlan?  @relation("RequestedBillingPlan", fields: [requestedPlanId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
@@ -243,10 +245,12 @@ model User {
   cancelledPayments    Payment[]            @relation("PaymentCancelledBy")
   assignedAppointments Appointment[]        @relation("AppointmentAssignee")
   createdAppointments  Appointment[]        @relation("AppointmentCreator")
+  notifications        Notification[]
+  invitedTeamMembers   TeamInvitation[]     @relation("TeamInvitationInviter")
 
   @@unique([tenantId, email])
-  @@index([tenantId])
   @@unique([id, tenantId])
+  @@index([tenantId])
 }
 
 model Client {
@@ -273,6 +277,7 @@ model Client {
   tasks          Task[]
   archivedAt     DateTime?
 
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@index([tenantId, archivedAt, createdAt])
 }
@@ -296,8 +301,8 @@ model Case {
   updatedAt     DateTime   @updatedAt
 
   appointments Appointment[]
-  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  leadLawyer   User?         @relation("CaseLeadLawyer", fields: [leadLawyerId], references: [id], onDelete: SetNull)
+  client       Client        @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  leadLawyer   User?         @relation("CaseLeadLawyer", fields: [leadLawyerId, tenantId], references: [id, tenantId], onDelete: Restrict)
   members      CaseMember[]
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   documents    Document[]
@@ -356,18 +361,18 @@ model Payment {
 
   notes String?
 
-  cancelledAt     DateTime?
-  cancelledById   String?
+  cancelledAt        DateTime?
+  cancelledById      String?
   cancellationReason String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  client  Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  case    Case?    @relation(fields: [caseId], references: [id], onDelete: Restrict)
-  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  cancelledBy User? @relation("PaymentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client      Client   @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  case        Case?    @relation(fields: [caseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  invoice     Invoice? @relation(fields: [invoiceId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  cancelledBy User?    @relation("PaymentCancelledBy", fields: [cancelledById, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   @@index([tenantId])
   @@index([tenantId, status])
@@ -396,10 +401,10 @@ model Appointment {
   status       AppointmentStatus @default(SCHEDULED)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
-  case         Case?             @relation(fields: [caseId], references: [id])
-  client       Client?           @relation(fields: [clientId], references: [id])
-  assignedTo   User?             @relation("AppointmentAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy    User?             @relation("AppointmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  case         Case?             @relation(fields: [caseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  client       Client?           @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  assignedTo   User?             @relation("AppointmentAssignee", fields: [assignedToId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  createdBy    User?             @relation("AppointmentCreator", fields: [createdById, tenantId], references: [id, tenantId], onDelete: Restrict)
   tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -430,8 +435,8 @@ model Document {
   aiParties    Json?
   aiSummary    String?
   tags         String[]  @default([])
-  case         Case?     @relation(fields: [caseId], references: [id])
-  client       Client?   @relation(fields: [clientId], references: [id])
+  case         Case?     @relation(fields: [caseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  client       Client?   @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -455,10 +460,10 @@ model Task {
   completedAt  DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
-  assignedTo   User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy    User?        @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  case         Case?        @relation(fields: [caseId], references: [id])
-  client       Client?      @relation(fields: [clientId], references: [id])
+  assignedTo   User?        @relation("TaskAssignee", fields: [assignedToId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  createdBy    User?        @relation("TaskCreator", fields: [createdById, tenantId], references: [id, tenantId], onDelete: Restrict)
+  case         Case?        @relation(fields: [caseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  client       Client?      @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -525,6 +530,7 @@ model Notification {
   createdAt DateTime  @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   @@unique([tenantId, dedupeKey])
   @@index([tenantId, createdAt])
@@ -546,7 +552,7 @@ model Session {
   city           String?
   country        String?
   tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   @@index([userId])
   @@index([tenantId])
@@ -555,11 +561,11 @@ model Session {
 }
 
 model InvoiceSequence {
-  tenantId  String
-  year      Int
+  tenantId   String
+  year       Int
   nextNumber Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -583,13 +589,14 @@ model Invoice {
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  case          Case?         @relation(fields: [caseId], references: [id])
-  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  case          Case?         @relation(fields: [caseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  client        Client        @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items         InvoiceItem[]
   payments      Payment[]
 
   @@unique([tenantId, invoiceNumber])
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@index([tenantId, status, dueDate])
   @@index([tenantId, issueDate])

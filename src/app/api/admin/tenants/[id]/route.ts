@@ -204,6 +204,7 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       await tx.session.deleteMany({ where: { tenantId } });
       await tx.notification.deleteMany({ where: { tenantId } });
       await tx.activity.deleteMany({ where: { tenantId } });
+      await tx.teamInvitation.deleteMany({ where: { tenantId } });
       await tx.user.deleteMany({ where: { tenantId } });
       await tx.tenant.delete({ where: { id: tenantId } });
 
