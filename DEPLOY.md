@@ -80,13 +80,24 @@ git push -u origin main
 | `DATABASE_URL` | رابط Neon pooled connection |
 | `DIRECT_URL` | رابط Neon direct connection للمigrations |
 | `JWT_SECRET` | نص عشوائي طويل |
+| `PASSWORD_RESET_SECRET` | سر عشوائي مستقل بطول 32 حرفًا على الأقل |
+| `VERIFICATION_SECRET` | سر عشوائي مستقل بطول 32 حرفًا على الأقل |
 | `ENCRYPTION_KEY` | مفتاح base64 بطول 32 bytes |
+| `ENCRYPTION_KEY_ID` | معرف ثابت للمفتاح الحالي مثل `key-2026-01` |
+| `ENCRYPTION_PREVIOUS_KEYS` | فارغ عادة؛ يستخدم فقط أثناء تدوير المفاتيح القديمة |
 | `SEARCH_HASH_SECRET` | نص عشوائي طويل وثابت |
 | `CLOUDINARY_CLOUD_NAME` | من Cloudinary |
 | `CLOUDINARY_API_KEY` | من Cloudinary |
 | `CLOUDINARY_API_SECRET` | من Cloudinary |
 | `UPSTASH_REDIS_REST_URL` | من Upstash |
 | `UPSTASH_REDIS_REST_TOKEN` | من Upstash |
+| `RESEND_API_KEY` | مفتاح Resend لإرسال التحقق والاسترجاع |
+| `EMAIL_FROM` | عنوان المرسل الموثق في Resend |
+| `CRON_SECRET` | سر عشوائي مستقل بطول 32 حرفًا على الأقل |
+| `APP_URL` | `https://www.virestojo.com` |
+| `ALLOWED_SERVER_ACTION_ORIGINS` | `virestojo.com,www.virestojo.com` بدون `https://` |
+| `PUBLIC_REGISTER_ENABLED` | `true` أو `false` ويجب أن يطابق متغير الواجهة |
+| `NEXT_PUBLIC_REGISTER_ENABLED` | نفس قيمة `PUBLIC_REGISTER_ENABLED` |
 | `OPENAI_API_KEY` | اختياري — اتركه فارغًا إذا لن تستخدم AI |
 
 **لتوليد JWT_SECRET عشوائي:**
@@ -102,6 +113,28 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 
 5. انقر **Deploy** → انتظر دقيقة أو دقيقتين
+
+### فحص البيئة قبل النشر
+
+يشغّل `npm run build` فحص البيئة تلقائيًا. ويمكن تشغيله منفصلًا:
+
+```bash
+npm run env:check
+```
+
+في Production يفشل البناء إذا كان سر أو اتصال أساسي ناقصًا، أو إذا كانت رايات التسجيل غير متطابقة. الفحص لا يطبع قيم الأسرار.
+
+### تدوير مفتاح تشفير بيانات الموكلين
+
+لا تحذف المفتاح القديم مباشرة. اجعل المفتاح الجديد هو `ENCRYPTION_KEY` وغيّر معرفه في `ENCRYPTION_KEY_ID`، ثم احتفظ بالمفتاح السابق مؤقتًا بهذا الشكل:
+
+```env
+ENCRYPTION_KEY="NEW_BASE64_KEY"
+ENCRYPTION_KEY_ID="key-2026-02"
+ENCRYPTION_PREVIOUS_KEYS="key-2026-01=OLD_BASE64_KEY"
+```
+
+البيانات الجديدة تستخدم المفتاح الجديد، وتبقى البيانات القديمة قابلة للقراءة. لا تغيّر `SEARCH_HASH_SECRET` من دون عملية backfill مخصصة لقيم البحث.
 
 ---
 

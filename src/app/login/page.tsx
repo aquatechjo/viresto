@@ -256,7 +256,7 @@ function getStoredLocale(): Locale {
 export default function LoginPage() {
   const router = useRouter();
   const publicRegisterEnabled =
-    process.env.NEXT_PUBLIC_REGISTER_ENABLED !== "false";
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true";
 
   const [locale, setLocale] = useState<Locale>("ar");
   const [form, setForm] = useState({
