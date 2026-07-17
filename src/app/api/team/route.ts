@@ -136,26 +136,24 @@ export async function POST(req: NextRequest) {
       return err("البريد الإلكتروني غير صالح", 400);
     }
 
-    const limitCheck = await assertTenantCanCreate(
-      auth.user.tenantId,
-      "users",
-    );
-
-    if (!limitCheck.ok) {
-      const isPlanLimit = limitCheck.billing?.canCreate === true;
-
-      return err(limitCheck.message, isPlanLimit ? 400 : 402, {
-        code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
-        resource: "users",
-        billing: limitCheck.billing ?? null,
-      });
-    }
-
     const { token, tokenHash } = createTeamInvitationToken();
     const expiresAt = teamInvitationExpiresAt();
 
     const result = await prisma.$transaction(async (tx) => {
       await lockTenantMutation(tx, auth.user.tenantId);
+
+      const lockedLimitCheck = await assertTenantCanCreate(
+        auth.user.tenantId,
+        "users",
+        tx,
+      );
+
+      if (!lockedLimitCheck.ok) {
+        return {
+          error: "LIMIT" as const,
+          limitCheck: lockedLimitCheck,
+        };
+      }
 
       const [tenant, existingUser, existingInvitation] = await Promise.all([
         tx.tenant.findUnique({
@@ -197,7 +195,7 @@ export async function POST(req: NextRequest) {
         }),
       ]);
 
-      const seatLimit = limitCheck.limit;
+      const seatLimit = lockedLimitCheck.limit;
 
       if (
         seatLimit !== null &&
@@ -272,6 +270,18 @@ export async function POST(req: NextRequest) {
       }
       if (result.error === "EMAIL_INVITED_ELSEWHERE") {
         return err("توجد دعوة فعالة لهذا البريد في مكتب آخر", 409);
+      }
+      if (result.error === "LIMIT") {
+        const lockedLimitCheck = result.limitCheck;
+        const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
+
+        return err(lockedLimitCheck.message, isPlanLimit ? 400 : 402, {
+          code: isPlanLimit
+            ? "PLAN_LIMIT_REACHED"
+            : "SUBSCRIPTION_INACTIVE",
+          resource: "users",
+          billing: lockedLimitCheck.billing ?? null,
+        });
       }
 
       return err(

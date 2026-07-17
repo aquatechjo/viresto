@@ -4,7 +4,6 @@ import { NextRequest } from "next/server";
 import { ok, err } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import cloudinary from "@/lib/cloudinary";
-import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
@@ -22,6 +21,7 @@ import {
   validateUploadFileContent,
 } from "@/lib/server/upload-file-security";
 import { buildCaseAccessWhere } from "@/lib/access-control";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_INPUT_SIZE_BYTES = 25 * 1024 * 1024;
@@ -314,59 +314,155 @@ export async function POST(req: NextRequest) {
       return err("استجابة تخزين الملف غير صالحة", 502);
     }
 
-    const doc = await prisma.document
-      .create({
-        data: {
-          tenantId: auth.user.tenantId,
-          clientId: caseRecord.clientId,
-          caseId: caseRecord.id,
-          fileName: preparedFile.fileName,
-          fileType: preparedFile.mimeType,
-          fileUrl: secureUrl,
-          fileSize: storedSize,
-          publicId,
-          notes: notes?.trim().slice(0, 1000) || null,
-          tags,
-        },
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              archivedAt: true,
+    let finalizeResult;
+
+    try {
+      finalizeResult = await prisma.$transaction(async (tx) => {
+        await lockTenantMutation(tx, auth.user.tenantId);
+
+        const lockedDocumentsLimit = await assertTenantCanCreate(
+          auth.user.tenantId,
+          "documents",
+          tx,
+        );
+
+        if (!lockedDocumentsLimit.ok) {
+          return {
+            error: "DOCUMENT_LIMIT" as const,
+            limitCheck: lockedDocumentsLimit,
+          };
+        }
+
+        const lockedStorageLimit = await assertTenantCanUseStorage(
+          auth.user.tenantId,
+          storedSize,
+          tx,
+        );
+
+        if (!lockedStorageLimit.ok) {
+          return {
+            error: "STORAGE_LIMIT" as const,
+            limitCheck: lockedStorageLimit,
+          };
+        }
+
+        const lockedCase = await tx.case.findFirst({
+          where: buildCaseAccessWhere(auth.user, { id: caseRecord.id }),
+          select: {
+            id: true,
+            title: true,
+            clientId: true,
+            client: {
+              select: {
+                archivedAt: true,
+              },
             },
           },
-          case: {
-            select: {
-              id: true,
-              title: true,
-              client: {
-                select: {
-                  id: true,
-                  name: true,
-                  archivedAt: true,
+        });
+
+        if (!lockedCase) return { error: "CASE_NOT_FOUND" as const };
+        if (lockedCase.client.archivedAt) {
+          return { error: "CLIENT_ARCHIVED" as const };
+        }
+
+        const doc = await tx.document.create({
+          data: {
+            tenantId: auth.user.tenantId,
+            clientId: lockedCase.clientId,
+            caseId: lockedCase.id,
+            fileName: preparedFile.fileName,
+            fileType: preparedFile.mimeType,
+            fileUrl: secureUrl,
+            fileSize: storedSize,
+            publicId,
+            notes: notes?.trim().slice(0, 1000) || null,
+            tags,
+          },
+          include: {
+            client: {
+              select: {
+                id: true,
+                name: true,
+                archivedAt: true,
+              },
+            },
+            case: {
+              select: {
+                id: true,
+                title: true,
+                client: {
+                  select: {
+                    id: true,
+                    name: true,
+                    archivedAt: true,
+                  },
                 },
               },
             },
           },
-        },
-      })
-      .catch(async (error) => {
-        await cleanupUploadedAsset(publicId, resourceType);
-        throw error;
-      });
+        });
 
-    await logActivity({
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      tenantId: auth.user.tenantId,
-      type: "DOCUMENT_UPLOADED",
-      title: "تم رفع مستند",
-      message: `${preparedFile.fileName} — ${caseRecord.title}`,
-      entityType: "CASE",
-      entityId: caseRecord.id,
-    });
+        await tx.activity.create({
+          data: {
+            actorId: auth.user.userId,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+            tenantId: auth.user.tenantId,
+            type: "DOCUMENT_UPLOADED",
+            title: "تم رفع مستند",
+            message: `${preparedFile.fileName} — ${lockedCase.title}`,
+            entityType: "CASE",
+            entityId: lockedCase.id,
+          },
+        });
+
+        return { doc };
+      });
+    } catch (error) {
+      await cleanupUploadedAsset(publicId, resourceType);
+      throw error;
+    }
+
+    if ("error" in finalizeResult) {
+      await cleanupUploadedAsset(publicId, resourceType);
+
+      if (finalizeResult.error === "DOCUMENT_LIMIT") {
+        const lockedLimitCheck = finalizeResult.limitCheck;
+        const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
+
+        return err(lockedLimitCheck.message, isPlanLimit ? 400 : 402, {
+          code: isPlanLimit
+            ? "PLAN_LIMIT_REACHED"
+            : "SUBSCRIPTION_INACTIVE",
+          resource: "documents",
+          billing: lockedLimitCheck.billing ?? null,
+        });
+      }
+
+      if (finalizeResult.error === "STORAGE_LIMIT") {
+        const lockedLimitCheck = finalizeResult.limitCheck;
+        const isStorageLimit = lockedLimitCheck.billing?.canCreate === true;
+
+        return err(lockedLimitCheck.message, isStorageLimit ? 400 : 402, {
+          code: isStorageLimit
+            ? "STORAGE_LIMIT_REACHED"
+            : "SUBSCRIPTION_INACTIVE",
+          resource: "storage",
+          billing: lockedLimitCheck.billing ?? null,
+          usedBytes: lockedLimitCheck.usedBytes,
+          incomingBytes: lockedLimitCheck.incomingBytes,
+          limitBytes: lockedLimitCheck.limitBytes,
+        });
+      }
+
+      if (finalizeResult.error === "CASE_NOT_FOUND") {
+        return err("القضية غير موجودة أو لا تتبع لهذا المكتب", 404);
+      }
+
+      return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 409);
+    }
+
+    const doc = finalizeResult.doc;
 
     return ok(
       {

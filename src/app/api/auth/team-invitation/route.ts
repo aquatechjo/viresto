@@ -151,22 +151,25 @@ export async function POST(req: NextRequest) {
         return { error: "INVALID_INVITATION" as const };
       }
 
-      const [existingUser, activeUsers] = await Promise.all([
-        tx.user.findUnique({
-          where: { email: invitation.email },
-          select: { id: true },
-        }),
-        tx.user.count({
-          where: { tenantId: invitation.tenantId, isActive: true },
-        }),
-      ]);
+      const lockedLimitCheck = await assertTenantCanCreate(
+        invitation.tenantId,
+        "users",
+        tx,
+      );
+
+      if (!lockedLimitCheck.ok) {
+        return {
+          error: "LIMIT" as const,
+          limitCheck: lockedLimitCheck,
+        };
+      }
+
+      const existingUser = await tx.user.findUnique({
+        where: { email: invitation.email },
+        select: { id: true },
+      });
 
       if (existingUser) return { error: "EMAIL_IN_USE" as const };
-
-      const seatLimit = limitCheck.limit;
-      if (seatLimit !== null && seatLimit > 0 && activeUsers >= seatLimit) {
-        return { error: "SEAT_LIMIT" as const, limit: seatLimit };
-      }
 
       const user = await tx.user.create({
         data: {
@@ -215,8 +218,17 @@ export async function POST(req: NextRequest) {
       if (result.error === "EMAIL_IN_USE") {
         return err("البريد الإلكتروني مستخدم مسبقًا", 409);
       }
-      if (result.error === "SEAT_LIMIT") {
-        return err(`وصل المكتب إلى حد المستخدمين (${result.limit}).`, 409);
+      if (result.error === "LIMIT") {
+        const lockedLimitCheck = result.limitCheck;
+        const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
+
+        return err(lockedLimitCheck.message, isPlanLimit ? 409 : 402, {
+          code: isPlanLimit
+            ? "PLAN_LIMIT_REACHED"
+            : "SUBSCRIPTION_INACTIVE",
+          resource: "users",
+          billing: lockedLimitCheck.billing ?? null,
+        });
       }
       return err("الدعوة غير صالحة أو منتهية", 404);
     }

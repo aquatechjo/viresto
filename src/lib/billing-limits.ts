@@ -1,5 +1,12 @@
+import type { Prisma } from "@prisma/client";
 import { PLANS, type PlanCode } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
+import { hasPlanCapacity } from "@/lib/plan-capacity";
+
+type BillingReadClient = Pick<
+  Prisma.TransactionClient,
+  "tenant" | "subscription" | "user" | "client" | "case" | "document"
+>;
 
 export type LimitedBillingResource =
   | "users"
@@ -113,8 +120,9 @@ function formatStorageMb(storageMb: number) {
 
 export async function getTenantBillingLimits(
   tenantId: string,
+  db: BillingReadClient = prisma,
 ): Promise<TenantBillingLimits> {
-  const subscriptions = await prisma.subscription.findMany({
+  const subscriptions = await db.subscription.findMany({
     where: { tenantId },
     orderBy: { createdAt: "desc" },
     take: 20,
@@ -246,8 +254,9 @@ export async function getTenantBillingLimits(
 export async function assertTenantCanWrite(
   tenantId: string,
   action = "تنفيذ هذا الإجراء",
+  db: BillingReadClient = prisma,
 ) {
-  const tenant = await prisma.tenant.findUnique({
+  const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
     select: {
       id: true,
@@ -272,7 +281,7 @@ export async function assertTenantCanWrite(
     };
   }
 
-  const billing = await getTenantBillingLimits(tenantId);
+  const billing = await getTenantBillingLimits(tenantId, db);
 
   if (!billing.canCreate) {
     return {
@@ -293,8 +302,13 @@ export async function assertTenantCanWrite(
 export async function assertTenantCanCreate(
   tenantId: string,
   resource: LimitedBillingResource,
+  db: BillingReadClient = prisma,
 ) {
-  const writeCheck = await assertTenantCanWrite(tenantId, "إنشاء عنصر جديد");
+  const writeCheck = await assertTenantCanWrite(
+    tenantId,
+    "إنشاء عنصر جديد",
+    db,
+  );
 
   if (!writeCheck.ok) {
     return {
@@ -330,9 +344,9 @@ export async function assertTenantCanCreate(
     };
   }
 
-  const used = await getResourceUsage(tenantId, resource);
+  const used = await getResourceUsage(tenantId, resource, db);
 
-  if (used >= limit) {
+  if (!hasPlanCapacity(used, limit)) {
     return {
       ok: false as const,
       status: 402,
@@ -355,10 +369,11 @@ export async function assertTenantCanCreate(
 async function getResourceUsage(
   tenantId: string,
   resource: LimitedBillingResource,
+  db: BillingReadClient,
 ) {
   switch (resource) {
     case "users":
-      return prisma.user.count({
+      return db.user.count({
         where: {
           tenantId,
           isActive: true,
@@ -366,7 +381,7 @@ async function getResourceUsage(
       });
 
     case "clients":
-      return prisma.client.count({
+      return db.client.count({
         where: {
           tenantId,
           archivedAt: null,
@@ -374,14 +389,14 @@ async function getResourceUsage(
       });
 
     case "cases":
-      return prisma.case.count({
+      return db.case.count({
         where: {
           tenantId,
         },
       });
 
     case "documents":
-      return prisma.document.count({
+      return db.document.count({
         where: {
           tenantId,
         },
@@ -406,8 +421,13 @@ function getLimitMessage(resource: LimitedBillingResource, limit: number) {
 export async function assertTenantCanUseStorage(
   tenantId: string,
   incomingBytes: number,
+  db: BillingReadClient = prisma,
 ) {
-  const writeCheck = await assertTenantCanWrite(tenantId, "رفع ملفات جديدة");
+  const writeCheck = await assertTenantCanWrite(
+    tenantId,
+    "رفع ملفات جديدة",
+    db,
+  );
 
   if (!writeCheck.ok) {
     return {
@@ -449,7 +469,7 @@ export async function assertTenantCanUseStorage(
     };
   }
 
-  const result = await prisma.document.aggregate({
+  const result = await db.document.aggregate({
     where: {
       tenantId,
     },
@@ -461,7 +481,7 @@ export async function assertTenantCanUseStorage(
   const usedBytes = result._sum.fileSize || 0;
   const limitBytes = storageMb * 1024 * 1024;
 
-  if (usedBytes + incomingBytes > limitBytes) {
+  if (!hasPlanCapacity(usedBytes, limitBytes, incomingBytes)) {
     return {
       ok: false as const,
       status: 402,

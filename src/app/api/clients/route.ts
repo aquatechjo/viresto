@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { clientSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { logActivity } from "@/lib/activity";
 import { verifySameOrigin } from "@/lib/csrf";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanCreate } from "@/lib/billing-limits";
@@ -20,6 +19,7 @@ import {
   buildCaseAccessWhere,
   buildClientAccessWhere,
 } from "@/lib/access-control";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -138,21 +138,6 @@ export async function POST(req: NextRequest) {
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
 
-    const limitCheck = await assertTenantCanCreate(
-      auth.user.tenantId,
-      "clients",
-    );
-
-    if (!limitCheck.ok) {
-      const isPlanLimit = limitCheck.billing?.canCreate === true;
-
-      return err(limitCheck.message, isPlanLimit ? 400 : 402, {
-        code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
-        resource: "clients",
-        billing: limitCheck.billing ?? null,
-      });
-    }
-
     const meta = getRequestMeta(req);
     const body = await req.json().catch(() => ({}));
     const parsed = clientSchema.safeParse(body);
@@ -192,29 +177,92 @@ export async function POST(req: NextRequest) {
       ...(secureData.emailHash ? [{ emailHash: secureData.emailHash }] : []),
     ];
 
-    const duplicateClient =
-      duplicateConditions.length > 0
-        ? await prisma.client.findFirst({
-            where: {
-              tenantId: auth.user.tenantId,
-              OR: duplicateConditions,
-            },
-            select: {
-              id: true,
-              publicId: true,
-              name: true,
-              archivedAt: true,
-            },
-          })
-        : null;
+    const createResult = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, auth.user.tenantId);
 
-    if (duplicateClient) {
-      const duplicateIsVisible =
-        (await prisma.client.count({
-          where: buildClientAccessWhere(auth.user, {
-            id: duplicateClient.id,
-          }),
-        })) > 0;
+      const lockedLimitCheck = await assertTenantCanCreate(
+        auth.user.tenantId,
+        "clients",
+        tx,
+      );
+
+      if (!lockedLimitCheck.ok) {
+        return {
+          error: "LIMIT" as const,
+          limitCheck: lockedLimitCheck,
+        };
+      }
+
+      const duplicateClient =
+        duplicateConditions.length > 0
+          ? await tx.client.findFirst({
+              where: {
+                tenantId: auth.user.tenantId,
+                OR: duplicateConditions,
+              },
+              select: {
+                id: true,
+                publicId: true,
+                name: true,
+                archivedAt: true,
+              },
+            })
+          : null;
+
+      if (duplicateClient) {
+        const duplicateIsVisible =
+          (await tx.client.count({
+            where: buildClientAccessWhere(auth.user, {
+              id: duplicateClient.id,
+            }),
+          })) > 0;
+
+        return {
+          error: "DUPLICATE" as const,
+          duplicateClient,
+          duplicateIsVisible,
+        };
+      }
+
+      const client = await tx.client.create({
+        data: {
+          tenantId: auth.user.tenantId,
+          ...secureData,
+        },
+      });
+
+      await tx.activity.create({
+        data: {
+          actorId: auth.user.userId,
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+          tenantId: auth.user.tenantId,
+          type: "CLIENT_CREATED",
+          title: "تم إضافة موكل جديد",
+          message: client.name,
+          entityType: "CLIENT",
+          entityId: client.id,
+        },
+      });
+
+      return { client };
+    });
+
+    if ("error" in createResult) {
+      if (createResult.error === "LIMIT") {
+        const lockedLimitCheck = createResult.limitCheck;
+        const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
+
+        return err(lockedLimitCheck.message, isPlanLimit ? 400 : 402, {
+          code: isPlanLimit
+            ? "PLAN_LIMIT_REACHED"
+            : "SUBSCRIPTION_INACTIVE",
+          resource: "clients",
+          billing: lockedLimitCheck.billing ?? null,
+        });
+      }
+
+      const { duplicateClient, duplicateIsVisible } = createResult;
 
       return err(
         duplicateIsVisible
@@ -236,24 +284,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const client = await prisma.client.create({
-      data: {
-        tenantId: auth.user.tenantId,
-        ...secureData,
-      },
-    });
-
-    await logActivity({
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      tenantId: auth.user.tenantId,
-      type: "CLIENT_CREATED",
-      title: "تم إضافة موكل جديد",
-      message: client.name,
-      entityType: "CLIENT",
-      entityId: client.id,
-    });
+    const client = createResult.client;
 
     const {
       emailHash: _emailHash,

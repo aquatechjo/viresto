@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { assertTenantCanWrite } from "@/lib/billing-limits";
+import {
+  assertTenantCanCreate,
+  assertTenantCanWrite,
+} from "@/lib/billing-limits";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { clientSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
@@ -21,6 +24,7 @@ import {
   buildTaskAccessWhere,
 } from "@/lib/access-control";
 import { canReadFinance } from "@/lib/permissions";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -183,26 +187,83 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         return err("الموكل غير مؤرشف", 400);
       }
 
-      const updated = await prisma.client.update({
-        where: {
-          id: exists.id,
-        },
-        data: {
-          archivedAt: null,
-        },
+      const restoreResult = await prisma.$transaction(async (tx) => {
+        await lockTenantMutation(tx, auth.user.tenantId);
+
+        const lockedClient = await tx.client.findFirst({
+          where: buildClientIdentifierAccessWhere(id, auth.user),
+          select: {
+            id: true,
+            archivedAt: true,
+          },
+        });
+
+        if (!lockedClient) return { error: "NOT_FOUND" as const };
+        if (!lockedClient.archivedAt) {
+          return { error: "NOT_ARCHIVED" as const };
+        }
+
+        const lockedLimitCheck = await assertTenantCanCreate(
+          auth.user.tenantId,
+          "clients",
+          tx,
+        );
+
+        if (!lockedLimitCheck.ok) {
+          return {
+            error: "LIMIT" as const,
+            limitCheck: lockedLimitCheck,
+          };
+        }
+
+        const updated = await tx.client.update({
+          where: {
+            id: lockedClient.id,
+          },
+          data: {
+            archivedAt: null,
+          },
+        });
+
+        await tx.activity.create({
+          data: {
+            tenantId: auth.user.tenantId,
+            type: "CLIENT_RESTORED",
+            title: "تمت استعادة موكل",
+            message: updated.name,
+            entityType: "CLIENT",
+            entityId: updated.id,
+            actorId: auth.user.userId,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+          },
+        });
+
+        return { updated };
       });
 
-      await logActivity({
-        tenantId: auth.user.tenantId,
-        type: "CLIENT_RESTORED",
-        title: "تمت استعادة موكل",
-        message: updated.name,
-        entityType: "CLIENT",
-        entityId: updated.id,
-        actorId: auth.user.userId,
-        ipAddress: meta.ipAddress,
-        userAgent: meta.userAgent,
-      });
+      if ("error" in restoreResult) {
+        if (restoreResult.error === "NOT_FOUND") {
+          return notFound("الموكل غير موجود");
+        }
+        if (restoreResult.error === "NOT_ARCHIVED") {
+          return err("الموكل غير مؤرشف", 409);
+        }
+        if (restoreResult.error === "LIMIT") {
+          const lockedLimitCheck = restoreResult.limitCheck;
+          const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
+
+          return err(lockedLimitCheck.message, isPlanLimit ? 400 : 402, {
+            code: isPlanLimit
+              ? "PLAN_LIMIT_REACHED"
+              : "SUBSCRIPTION_INACTIVE",
+            resource: "clients",
+            billing: lockedLimitCheck.billing ?? null,
+          });
+        }
+      }
+
+      const updated = restoreResult.updated;
 
       return ok({
         ...decryptClient(updated),

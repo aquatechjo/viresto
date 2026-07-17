@@ -4,11 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { verifySameOrigin } from "@/lib/csrf";
 import { caseSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
-import { logActivity } from "@/lib/activity";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanCreate } from "@/lib/billing-limits";
 import { buildCaseAccessWhere } from "@/lib/access-control";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
@@ -205,18 +205,6 @@ export async function POST(req: NextRequest) {
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
 
-    const limitCheck = await assertTenantCanCreate(auth.user.tenantId, "cases");
-
-    if (!limitCheck.ok) {
-      const isPlanLimit = limitCheck.billing?.canCreate === true;
-
-      return err(limitCheck.message, isPlanLimit ? 400 : 402, {
-        code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
-        resource: "cases",
-        billing: limitCheck.billing ?? null,
-      });
-    }
-
     const meta = getRequestMeta(req);
     const body = await req.json().catch(() => ({}));
     const parsed = caseSchema.safeParse(body);
@@ -317,8 +305,76 @@ export async function POST(req: NextRequest) {
       ...caseData
     } = parsed.data;
 
-    const newCase = await prisma.$transaction(async (tx) => {
-      return tx.case.create({
+    const createResult = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, auth.user.tenantId);
+
+      const lockedLimitCheck = await assertTenantCanCreate(
+        auth.user.tenantId,
+        "cases",
+        tx,
+      );
+
+      if (!lockedLimitCheck.ok) {
+        return {
+          error: "LIMIT" as const,
+          limitCheck: lockedLimitCheck,
+        };
+      }
+
+      const [lockedClient, lockedLeadLawyer, lockedMembersCount, duplicateCase] =
+        await Promise.all([
+          tx.client.findFirst({
+            where: {
+              id: parsed.data.clientId,
+              tenantId: auth.user.tenantId,
+            },
+            select: {
+              id: true,
+              archivedAt: true,
+            },
+          }),
+          tx.user.findFirst({
+            where: {
+              id: leadLawyerId,
+              tenantId: auth.user.tenantId,
+              isActive: true,
+              role: {
+                in: ["ADMIN", "LAWYER"],
+              },
+            },
+            select: { id: true },
+          }),
+          memberIds.length > 0
+            ? tx.user.count({
+                where: {
+                  tenantId: auth.user.tenantId,
+                  isActive: true,
+                  id: { in: memberIds },
+                },
+              })
+            : Promise.resolve(0),
+          parsed.data.caseNumber
+            ? tx.case.findFirst({
+                where: {
+                  tenantId: auth.user.tenantId,
+                  caseNumber: parsed.data.caseNumber,
+                },
+                select: { id: true },
+              })
+            : Promise.resolve(null),
+        ]);
+
+      if (!lockedClient) return { error: "CLIENT_NOT_FOUND" as const };
+      if (lockedClient.archivedAt) {
+        return { error: "CLIENT_ARCHIVED" as const };
+      }
+      if (!lockedLeadLawyer) return { error: "LEAD_LAWYER" as const };
+      if (lockedMembersCount !== memberIds.length) {
+        return { error: "CASE_MEMBERS" as const };
+      }
+      if (duplicateCase) return { error: "CASE_NUMBER" as const };
+
+      const newCase = await tx.case.create({
         data: {
           tenantId: auth.user!.tenantId,
           ...caseData,
@@ -357,19 +413,54 @@ export async function POST(req: NextRequest) {
           },
         },
       });
+
+      await tx.activity.create({
+        data: {
+          actorId: auth.user.userId,
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+          tenantId: auth.user.tenantId,
+          type: "CASE_CREATED",
+          title: "تم إنشاء قضية جديدة",
+          message: newCase.title,
+          entityType: "CASE",
+          entityId: newCase.id,
+        },
+      });
+
+      return { newCase };
     });
 
-    await logActivity({
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      tenantId: auth.user.tenantId,
-      type: "CASE_CREATED",
-      title: "تم إنشاء قضية جديدة",
-      message: newCase.title,
-      entityType: "CASE",
-      entityId: newCase.id,
-    });
+    if ("error" in createResult) {
+      if (createResult.error === "LIMIT") {
+        const lockedLimitCheck = createResult.limitCheck;
+        const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
+
+        return err(lockedLimitCheck.message, isPlanLimit ? 400 : 402, {
+          code: isPlanLimit
+            ? "PLAN_LIMIT_REACHED"
+            : "SUBSCRIPTION_INACTIVE",
+          resource: "cases",
+          billing: lockedLimitCheck.billing ?? null,
+        });
+      }
+      if (createResult.error === "CLIENT_NOT_FOUND") {
+        return err("الموكل غير موجود", 404);
+      }
+      if (createResult.error === "CLIENT_ARCHIVED") {
+        return err("لا يمكن إنشاء قضية جديدة لموكل مؤرشف", 409);
+      }
+      if (createResult.error === "LEAD_LAWYER") {
+        return err("المحامي المسؤول غير موجود أو لا يملك صلاحية محامٍ", 409);
+      }
+      if (createResult.error === "CASE_MEMBERS") {
+        return err("أحد أعضاء القضية غير موجود أو حسابه معطل", 409);
+      }
+
+      return err("رقم القضية مستخدم مسبقًا", 409);
+    }
+
+    const newCase = createResult.newCase;
 
     return ok(newCase, 201);
   });

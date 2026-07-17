@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
-import { assertTenantCanWrite } from "@/lib/billing-limits";
+import {
+  assertTenantCanCreate,
+  assertTenantCanWrite,
+} from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
@@ -96,13 +99,17 @@ export async function PATCH(
         !targetUser.isActive && hasActiveUpdate && body.isActive === true;
 
       if (willReactivate) {
-        const activeUsers = await tx.user.count({
-          where: { tenantId: auth.user.tenantId, isActive: true },
-        });
-        const limit = writeCheck.billing.limits.users;
+        const lockedLimitCheck = await assertTenantCanCreate(
+          auth.user.tenantId,
+          "users",
+          tx,
+        );
 
-        if (limit !== null && activeUsers >= limit) {
-          return { error: "SEAT_LIMIT" as const, limit };
+        if (!lockedLimitCheck.ok) {
+          return {
+            error: "LIMIT" as const,
+            limitCheck: lockedLimitCheck,
+          };
         }
       }
 
@@ -164,10 +171,18 @@ export async function PATCH(
       if (result.error === "LAST_ADMIN") {
         return err("لا يمكن إزالة آخر مدير نشط داخل المكتب", 400);
       }
-      return err(`وصلت إلى حد المستخدمين في خطتك الحالية (${result.limit}).`, 400, {
-        code: "PLAN_LIMIT_REACHED",
-        resource: "users",
-      });
+      if (result.error === "LIMIT") {
+        const lockedLimitCheck = result.limitCheck;
+        const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
+
+        return err(lockedLimitCheck.message, isPlanLimit ? 400 : 402, {
+          code: isPlanLimit
+            ? "PLAN_LIMIT_REACHED"
+            : "SUBSCRIPTION_INACTIVE",
+          resource: "users",
+          billing: lockedLimitCheck.billing ?? null,
+        });
+      }
     }
 
     return ok(result.updated);
