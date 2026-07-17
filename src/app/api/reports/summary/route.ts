@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { requireRole } from '@/lib/api-auth'
-import { ok, err } from '@/lib/api-response'
-import { apiHandler } from '@/lib/api-handler'
+import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
+import { DateTime } from "luxon";
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
+import { ok, err } from "@/lib/api-response";
+import { apiHandler } from "@/lib/api-handler";
 import {
   buildAppointmentAccessWhere,
   buildCaseAccessWhere,
@@ -10,104 +12,171 @@ import {
   buildInvoiceAccessWhere,
   buildPaymentAccessWhere,
   buildTaskAccessWhere,
-} from '@/lib/access-control'
+} from "@/lib/access-control";
+import {
+  buildMonthlyRevenue,
+  calculateInvoiceFinancialSummary,
+  getInvoicePaidAmount,
+  getInvoiceRemainingAmount,
+  getReportPeriod,
+  isInvoiceOverdue,
+  normalizeReportTimeZone,
+} from "@/lib/report-finance";
+import { roundMoney } from "@/lib/finance";
 
-type ReportType = 'monthly' | 'yearly'
-type CaseStatus = 'OPEN' | 'IN_PROGRESS' | 'CLOSED' | 'ARCHIVED'
-type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE' | 'CANCELLED'
-type InvoiceStatus = 'DRAFT' | 'UNPAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
+type ReportType = "monthly" | "yearly";
+type CaseStatus = "OPEN" | "IN_PROGRESS" | "CLOSED" | "ARCHIVED";
+type PaymentStatus = "PAID" | "PENDING" | "OVERDUE" | "CANCELLED";
+type InvoiceStatus =
+  | "DRAFT"
+  | "UNPAID"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "OVERDUE"
+  | "CANCELLED";
 
-const caseStatuses = ['OPEN', 'IN_PROGRESS', 'CLOSED', 'ARCHIVED'] as const
-const paymentStatuses = ['PAID', 'PENDING', 'OVERDUE', 'CANCELLED'] as const
-const invoiceStatuses = ['DRAFT', 'UNPAID', 'PAID', 'OVERDUE', 'CANCELLED'] as const
+const caseStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
+const paymentStatuses = ["PAID", "PENDING", "OVERDUE", "CANCELLED"] as const;
+const invoiceStatuses = [
+  "DRAFT",
+  "UNPAID",
+  "PARTIALLY_PAID",
+  "PAID",
+  "OVERDUE",
+  "CANCELLED",
+] as const;
 
-function roundMoney(value: number) {
-  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100
-}
-
-function sumBy<T>(items: T[], pick: (item: T) => number) {
-  return roundMoney(items.reduce((sum, item) => sum + Number(pick(item) || 0), 0))
-}
+const REPORT_PREVIEW_LIMIT = 100;
 
 function parseReportParams(req: NextRequest) {
-  const sp = new URL(req.url).searchParams
-  const now = new Date()
+  const sp = new URL(req.url).searchParams;
+  const timeZone = normalizeReportTimeZone(sp.get("tz"));
+  const nowInZone = DateTime.now().setZone(timeZone);
 
-  const type = (sp.get('type') || 'yearly') as ReportType
-  const year = Number(sp.get('year') || now.getFullYear())
-  const month = Number(sp.get('month') || now.getMonth())
+  const type = (sp.get("type") || "yearly") as ReportType;
+  const year = Number(sp.get("year") || nowInZone.year);
+  const month = Number(sp.get("month") || nowInZone.month - 1);
+  const caseStatus = sp.get("caseStatus") || "";
+  const paymentStatus = sp.get("paymentStatus") || "";
+  const invoiceStatus = sp.get("invoiceStatus") || "";
+  const clientId = sp.get("clientId") || "";
+  const detailMode = sp.get("details") === "all" ? "all" : "preview";
 
-  const caseStatus = sp.get('caseStatus') || ''
-  const paymentStatus = sp.get('paymentStatus') || ''
-  const invoiceStatus = sp.get('invoiceStatus') || ''
-  const clientId = sp.get('clientId') || ''
-
-  if (!['monthly', 'yearly'].includes(type)) {
-    return { error: 'نوع التقرير غير صالح' }
+  if (!["monthly", "yearly"].includes(type)) {
+    return { error: "نوع التقرير غير صالح" } as const;
   }
 
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-    return { error: 'السنة غير صالحة' }
+    return { error: "السنة غير صالحة" } as const;
   }
 
-  if (type === 'monthly' && (!Number.isInteger(month) || month < 0 || month > 11)) {
-    return { error: 'الشهر غير صالح' }
+  if (type === "monthly" && (!Number.isInteger(month) || month < 0 || month > 11)) {
+    return { error: "الشهر غير صالح" } as const;
   }
 
   if (caseStatus && !caseStatuses.includes(caseStatus as CaseStatus)) {
-    return { error: 'حالة القضية غير صالحة' }
+    return { error: "حالة القضية غير صالحة" } as const;
   }
 
   if (paymentStatus && !paymentStatuses.includes(paymentStatus as PaymentStatus)) {
-    return { error: 'حالة الدفعة غير صالحة' }
+    return { error: "حالة الدفعة غير صالحة" } as const;
   }
 
   if (invoiceStatus && !invoiceStatuses.includes(invoiceStatus as InvoiceStatus)) {
-    return { error: 'حالة الفاتورة غير صالحة' }
+    return { error: "حالة الفاتورة غير صالحة" } as const;
   }
 
-  const start = type === 'monthly'
-    ? new Date(year, month, 1, 0, 0, 0, 0)
-    : new Date(year, 0, 1, 0, 0, 0, 0)
-
-  const end = type === 'monthly'
-    ? new Date(year, month + 1, 1, 0, 0, 0, 0)
-    : new Date(year + 1, 0, 1, 0, 0, 0, 0)
+  const period = getReportPeriod({ type, year, month, timeZone });
+  const yearPeriod = getReportPeriod({
+    type: "yearly",
+    year,
+    month: 0,
+    timeZone,
+  });
 
   return {
     type,
     year,
     month,
-    start,
-    end,
+    start: period.start,
+    end: period.end,
+    yearStart: yearPeriod.start,
+    yearEnd: yearPeriod.end,
+    timeZone: period.timeZone,
     caseStatus,
     paymentStatus,
     invoiceStatus,
     clientId,
+    detailMode,
+  } as const;
+}
+
+function paymentPeriodWhere(params: {
+  start: Date;
+  end: Date;
+  paymentStatus: string;
+}): Prisma.PaymentWhereInput {
+  const range = { gte: params.start, lt: params.end };
+
+  if (params.paymentStatus === "PAID") {
+    return { status: "PAID", paidAt: range };
   }
+
+  if (params.paymentStatus) {
+    return {
+      status: params.paymentStatus as PaymentStatus,
+      createdAt: range,
+    };
+  }
+
+  return {
+    OR: [
+      { status: "PAID", paidAt: range },
+      { status: { not: "PAID" }, createdAt: range },
+    ],
+  };
+}
+
+function invoiceStatusWhere(
+  status: string,
+  now: Date,
+): Prisma.InvoiceWhereInput {
+  if (!status) return {};
+
+  if (status === "OVERDUE") {
+    return {
+      OR: [
+        { status: "OVERDUE" },
+        {
+          status: { in: ["UNPAID", "PARTIALLY_PAID"] },
+          dueDate: { lt: now },
+        },
+      ],
+    };
+  }
+
+  return { status: status as InvoiceStatus };
 }
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
-    if (auth.error || !auth.user) return auth.error
+    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    if (auth.error || !auth.user) return auth.error;
 
-    const params = parseReportParams(req)
-    if ('error' in params) return err(params.error || 'بيانات التقرير غير صالحة', 400)
+    const params = parseReportParams(req);
+    if ("error" in params) {
+      return err(params.error || "بيانات التقرير غير صالحة", 400);
+    }
 
-    const now = new Date()
-
+    const now = new Date();
     const clients = await prisma.client.findMany({
       where: buildClientAccessWhere(auth.user),
       select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    })
+      orderBy: { name: "asc" },
+    });
 
-    if (params.clientId) {
-      const clientExists = clients.some((client) => client.id === params.clientId)
-      if (!clientExists) {
-        return err('الموكل غير موجود داخل هذا المكتب', 404)
-      }
+    if (params.clientId && !clients.some((client) => client.id === params.clientId)) {
+      return err("الموكل غير موجود داخل هذا المكتب", 404);
     }
 
     const cases = await prisma.case.findMany({
@@ -119,102 +188,152 @@ export async function GET(req: NextRequest) {
         id: true,
         title: true,
         status: true,
-        feeAgreed: true,
-        client: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+        client: { select: { id: true, name: true } },
       },
-      orderBy: { createdAt: 'desc' },
-    })
+      orderBy: { createdAt: "desc" },
+    });
 
-    const caseIds = cases.map((c) => c.id)
-    const scopedByCases = Boolean(params.clientId || params.caseStatus)
-    const emptyScope = scopedByCases && caseIds.length === 0
-
-    const caseScopeWhere = scopedByCases
-      ? { caseId: { in: caseIds } }
-      : {}
-
-    const paymentBaseWhere = {
-      ...(emptyScope ? { id: { in: [] as string[] } } : caseScopeWhere),
-    }
-
-    const invoiceBaseWhere = {
+    const caseIds = cases.map((item) => item.id);
+    const relationScope: {
+      clientId?: string;
+      caseId?: { in: string[] };
+    } = {
       ...(params.clientId ? { clientId: params.clientId } : {}),
-      ...(params.caseStatus
-        ? { caseId: { in: caseIds } }
-        : {}),
-      ...(emptyScope ? { id: { in: [] as string[] } } : {}),
-    }
+      ...(params.caseStatus ? { caseId: { in: caseIds } } : {}),
+    };
 
-    const [periodPayments, allPaidPayments, pendingPayments, periodInvoices, allInvoices, upcomingAppointments, overdueTasks] = await Promise.all([
+    const paymentBaseWhere: Prisma.PaymentWhereInput = relationScope;
+    const invoiceBaseWhere: Prisma.InvoiceWhereInput = relationScope;
+    const appointmentBaseWhere: Prisma.AppointmentWhereInput = relationScope;
+    const taskBaseWhere: Prisma.TaskWhereInput = relationScope;
+
+    const periodPaymentWhere = buildPaymentAccessWhere(auth.user, {
+      AND: [paymentBaseWhere, paymentPeriodWhere(params)],
+    });
+
+    const periodInvoiceWhere = buildInvoiceAccessWhere(auth.user, {
+      AND: [
+        invoiceBaseWhere,
+        { issueDate: { gte: params.start, lt: params.end } },
+        invoiceStatusWhere(params.invoiceStatus, now),
+      ],
+    });
+
+    const allInvoiceWhere = buildInvoiceAccessWhere(auth.user, invoiceBaseWhere);
+    const upcomingStart = new Date(Math.max(now.getTime(), params.start.getTime()));
+    const overdueEnd = new Date(Math.min(now.getTime(), params.end.getTime()));
+
+    const upcomingAppointmentWhere = buildAppointmentAccessWhere(auth.user, {
+      ...appointmentBaseWhere,
+      status: { not: "CANCELLED" },
+      startTime: { gte: upcomingStart, lt: params.end },
+    });
+
+    const overdueTaskWhere = buildTaskAccessWhere(auth.user, {
+      ...taskBaseWhere,
+      completed: false,
+      status: { notIn: ["COMPLETED", "CANCELLED"] },
+      dueDate: { gte: params.start, lt: overdueEnd },
+    });
+
+    const periodRevenuePromise =
+      params.paymentStatus && params.paymentStatus !== "PAID"
+        ? Promise.resolve({ _sum: { amount: null as number | null } })
+        : prisma.payment.aggregate({
+            where: buildPaymentAccessWhere(auth.user, {
+              ...paymentBaseWhere,
+              status: "PAID",
+              paidAt: { gte: params.start, lt: params.end },
+            }),
+            _sum: { amount: true },
+          });
+
+    const [
+      periodPaymentsRaw,
+      periodPaymentCount,
+      periodRevenueAggregate,
+      allPaidAggregate,
+      pendingPaymentsAggregate,
+      periodInvoicesRaw,
+      periodInvoiceCount,
+      allInvoices,
+      upcomingAppointments,
+      upcomingAppointmentsCount,
+      overdueTasks,
+      overdueTasksCount,
+      yearlyPaidPayments,
+      paymentClientGroups,
+      invoiceClientGroups,
+    ] = await Promise.all([
       prisma.payment.findMany({
-        where: buildPaymentAccessWhere(auth.user, {
-          ...paymentBaseWhere,
-          paidAt: { gte: params.start, lt: params.end },
-          ...(params.paymentStatus ? { status: params.paymentStatus as PaymentStatus } : {}),
-        }),
-        include: {
-          case: {
-            select: {
-              id: true,
-              title: true,
-              client: { select: { id: true, name: true } },
-            },
-          },
-        },
-        orderBy: { paidAt: 'desc' },
-        take: 100,
-      }),
-
-      prisma.payment.findMany({
-        where: buildPaymentAccessWhere(auth.user, {
-          ...paymentBaseWhere,
-          status: 'PAID',
-        }),
-        select: { amount: true },
-      }),
-
-      prisma.payment.findMany({
-        where: buildPaymentAccessWhere(auth.user, {
-          ...paymentBaseWhere,
-          status: { in: ['PENDING', 'OVERDUE'] },
-        }),
-        select: { amount: true, status: true },
-      }),
-
-      prisma.invoice.findMany({
-        where: buildInvoiceAccessWhere(auth.user, {
-          ...invoiceBaseWhere,
-          issueDate: { gte: params.start, lt: params.end },
-          ...(params.invoiceStatus ? { status: params.invoiceStatus as InvoiceStatus } : {}),
-        }),
-        include: {
+        where: periodPaymentWhere,
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          method: true,
+          paidAt: true,
+          createdAt: true,
+          notes: true,
           client: { select: { id: true, name: true } },
           case: { select: { id: true, title: true } },
         },
-        orderBy: { issueDate: 'desc' },
-        take: 100,
+        orderBy:
+          params.paymentStatus === "PAID"
+            ? [{ paidAt: "desc" }, { createdAt: "desc" }]
+            : { createdAt: "desc" },
+        ...(params.detailMode === "preview" ? { take: REPORT_PREVIEW_LIMIT } : {}),
       }),
-
+      prisma.payment.count({ where: periodPaymentWhere }),
+      periodRevenuePromise,
+      prisma.payment.aggregate({
+        where: buildPaymentAccessWhere(auth.user, {
+          ...paymentBaseWhere,
+          status: "PAID",
+        }),
+        _sum: { amount: true },
+      }),
+      prisma.payment.aggregate({
+        where: buildPaymentAccessWhere(auth.user, {
+          ...paymentBaseWhere,
+          status: { in: ["PENDING", "OVERDUE"] },
+        }),
+        _sum: { amount: true },
+      }),
       prisma.invoice.findMany({
-        where: buildInvoiceAccessWhere(auth.user, invoiceBaseWhere),
+        where: periodInvoiceWhere,
+        select: {
+          id: true,
+          invoiceNumber: true,
+          total: true,
+          status: true,
+          issueDate: true,
+          dueDate: true,
+          client: { select: { id: true, name: true } },
+          case: { select: { id: true, title: true } },
+          payments: {
+            where: { status: "PAID" },
+            select: { amount: true },
+          },
+        },
+        orderBy: { issueDate: "desc" },
+        ...(params.detailMode === "preview" ? { take: REPORT_PREVIEW_LIMIT } : {}),
+      }),
+      prisma.invoice.count({ where: periodInvoiceWhere }),
+      prisma.invoice.findMany({
+        where: allInvoiceWhere,
         select: {
           total: true,
           status: true,
           dueDate: true,
+          payments: {
+            where: { status: "PAID" },
+            select: { amount: true },
+          },
         },
       }),
-
       prisma.appointment.findMany({
-        where: buildAppointmentAccessWhere(auth.user, {
-          startTime: { gte: now },
-          status: { not: 'CANCELLED' },
-          ...(emptyScope ? { id: { in: [] as string[] } } : caseScopeWhere),
-        }),
+        where: upcomingAppointmentWhere,
         select: {
           id: true,
           title: true,
@@ -222,16 +341,12 @@ export async function GET(req: NextRequest) {
           location: true,
           case: { select: { id: true, title: true } },
         },
-        orderBy: { startTime: 'asc' },
+        orderBy: { startTime: "asc" },
         take: 10,
       }),
-
+      prisma.appointment.count({ where: upcomingAppointmentWhere }),
       prisma.task.findMany({
-        where: buildTaskAccessWhere(auth.user, {
-          completed: false,
-          dueDate: { lt: now },
-          ...(emptyScope ? { id: { in: [] as string[] } } : caseScopeWhere),
-        }),
+        where: overdueTaskWhere,
         select: {
           id: true,
           title: true,
@@ -239,148 +354,137 @@ export async function GET(req: NextRequest) {
           priority: true,
           case: { select: { id: true, title: true } },
         },
-        orderBy: { dueDate: 'asc' },
+        orderBy: { dueDate: "asc" },
         take: 10,
       }),
-    ])
+      prisma.task.count({ where: overdueTaskWhere }),
+      prisma.payment.findMany({
+        where: buildPaymentAccessWhere(auth.user, {
+          ...paymentBaseWhere,
+          status: "PAID",
+          paidAt: { gte: params.yearStart, lt: params.yearEnd },
+        }),
+        select: { amount: true, paidAt: true },
+      }),
+      prisma.payment.groupBy({
+        by: ["clientId"],
+        where: periodPaymentWhere,
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      prisma.invoice.groupBy({
+        by: ["clientId"],
+        where: periodInvoiceWhere,
+        _sum: { total: true },
+        _count: { _all: true },
+      }),
+    ]);
 
-    const monthlyRevenue = await Promise.all(
-      Array.from({ length: 12 }, async (_, i) => {
-        const start = new Date(params.year, i, 1, 0, 0, 0, 0)
-        const end = new Date(params.year, i + 1, 1, 0, 0, 0, 0)
+    const periodPayments = periodPaymentsRaw.map((payment) => ({
+      ...payment,
+      reportDate: payment.status === "PAID" ? payment.paidAt : payment.createdAt,
+    }));
 
-        const payments = await prisma.payment.findMany({
-          where: buildPaymentAccessWhere(auth.user, {
-            ...paymentBaseWhere,
-            status: 'PAID',
-            paidAt: { gte: start, lt: end },
-          }),
-          select: { amount: true },
-        })
+    const periodInvoices = periodInvoicesRaw.map((invoice) => ({
+      ...invoice,
+      paidAmount: getInvoicePaidAmount(invoice),
+      remainingAmount: getInvoiceRemainingAmount(invoice),
+      isOverdue: isInvoiceOverdue(invoice, now),
+      payments: undefined,
+    }));
 
-        return {
-          month: i,
-          revenue: sumBy(payments, (p) => p.amount),
-        }
-      })
-    )
+    const invoiceSummary = calculateInvoiceFinancialSummary(allInvoices, now);
+    const monthlyRevenue = buildMonthlyRevenue(
+      yearlyPaidPayments,
+      params.year,
+      params.timeZone,
+    );
 
     const caseStatus = {
       OPEN: 0,
       IN_PROGRESS: 0,
       CLOSED: 0,
       ARCHIVED: 0,
-    }
+    };
 
-    cases.forEach((c) => {
-      const status = c.status as keyof typeof caseStatus
-      if (status in caseStatus) caseStatus[status] += 1
-    })
-
-    const totalCases = cases.length
-    const openCases = caseStatus.OPEN + caseStatus.IN_PROGRESS
-    const closedCases = caseStatus.CLOSED + caseStatus.ARCHIVED
-
-    const periodPaidPayments = periodPayments.filter((p) => p.status === 'PAID')
-    const periodRevenue = sumBy(periodPaidPayments, (p) => p.amount)
-    const totalPaidAll = sumBy(allPaidPayments, (p) => p.amount)
-    const pendingPaymentsAmount = sumBy(pendingPayments, (p) => p.amount)
-
-    const totalInvoicesAmount = sumBy(allInvoices.filter((inv) => inv.status !== 'CANCELLED'), (inv) => inv.total)
-    const paidInvoicesAmount = sumBy(allInvoices.filter((inv) => inv.status === 'PAID'), (inv) => inv.total)
-    const unpaidInvoicesAmount = sumBy(
-      allInvoices.filter((inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED'),
-      (inv) => inv.total
-    )
-    const overdueInvoicesAmount = sumBy(
-      allInvoices.filter((inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED' && inv.dueDate && inv.dueDate < now),
-      (inv) => inv.total
-    )
-
-    const collectionRate = totalInvoicesAmount > 0
-      ? Math.round((paidInvoicesAmount / totalInvoicesAmount) * 100)
-      : 0
-
-    const topClientMap = new Map<string, {
-      id: string
-      name: string
-      casesCount: number
-      paymentsTotal: number
-      invoicesTotal: number
-      activityScore: number
-    }>()
-
-    cases.forEach((c) => {
-      if (!topClientMap.has(c.client.id)) {
-        topClientMap.set(c.client.id, {
-          id: c.client.id,
-          name: c.client.name,
-          casesCount: 0,
-          paymentsTotal: 0,
-          invoicesTotal: 0,
-          activityScore: 0,
-        })
+    const clientMap = new Map(clients.map((client) => [client.id, client]));
+    const topClientMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        casesCount: number;
+        paymentsTotal: number;
+        invoicesTotal: number;
+        activityScore: number;
       }
+    >();
 
-      const item = topClientMap.get(c.client.id)!
-      item.casesCount += 1
-      item.activityScore += 3
-    })
+    const ensureTopClient = (clientId: string) => {
+      const client = clientMap.get(clientId);
+      if (!client) return null;
 
-    periodPayments.forEach((payment) => {
-      const client = payment.case?.client
-      if (!client) return
-
-      if (!topClientMap.has(client.id)) {
-        topClientMap.set(client.id, {
+      if (!topClientMap.has(clientId)) {
+        topClientMap.set(clientId, {
           id: client.id,
           name: client.name,
           casesCount: 0,
           paymentsTotal: 0,
           invoicesTotal: 0,
           activityScore: 0,
-        })
+        });
       }
 
-      const item = topClientMap.get(client.id)!
-      item.paymentsTotal += Number(payment.amount || 0)
-      item.activityScore += 2
-    })
+      return topClientMap.get(clientId)!;
+    };
 
-    periodInvoices.forEach((invoice) => {
-      if (!invoice.client) return
-
-      if (!topClientMap.has(invoice.client.id)) {
-        topClientMap.set(invoice.client.id, {
-          id: invoice.client.id,
-          name: invoice.client.name,
-          casesCount: 0,
-          paymentsTotal: 0,
-          invoicesTotal: 0,
-          activityScore: 0,
-        })
+    for (const item of cases) {
+      caseStatus[item.status as keyof typeof caseStatus] += 1;
+      const client = ensureTopClient(item.client.id);
+      if (client) {
+        client.casesCount += 1;
+        client.activityScore += 3;
       }
+    }
 
-      const item = topClientMap.get(invoice.client.id)!
-      item.invoicesTotal += Number(invoice.total || 0)
-      item.activityScore += 1
-    })
+    for (const group of paymentClientGroups) {
+      const client = ensureTopClient(group.clientId);
+      if (!client) continue;
+
+      client.paymentsTotal = roundMoney(Number(group._sum.amount || 0));
+      client.activityScore += group._count._all * 2;
+    }
+
+    for (const group of invoiceClientGroups) {
+      const client = ensureTopClient(group.clientId);
+      if (!client) continue;
+
+      client.invoicesTotal = roundMoney(Number(group._sum.total || 0));
+      client.activityScore += group._count._all;
+    }
 
     const topClients = Array.from(topClientMap.values())
       .map((client) => ({
         ...client,
-        paymentsTotal: roundMoney(client.paymentsTotal),
-        invoicesTotal: roundMoney(client.invoicesTotal),
-        activityScore: roundMoney(client.activityScore + client.paymentsTotal / 1000 + client.invoicesTotal / 2000),
+        activityScore: roundMoney(
+          client.activityScore +
+            client.paymentsTotal / 1000 +
+            client.invoicesTotal / 2000,
+        ),
       }))
       .sort((a, b) => b.activityScore - a.activityScore)
-      .slice(0, 5)
+      .slice(0, 5);
+
+    const totalCases = cases.length;
+    const openCases = caseStatus.OPEN + caseStatus.IN_PROGRESS;
+    const closedCases = caseStatus.CLOSED + caseStatus.ARCHIVED;
 
     return ok({
       filters: {
         type: params.type,
         year: params.year,
         month: params.month,
+        timeZone: params.timeZone,
         caseStatus: params.caseStatus,
         paymentStatus: params.paymentStatus,
         invoiceStatus: params.invoiceStatus,
@@ -388,27 +492,30 @@ export async function GET(req: NextRequest) {
       },
       clients,
       summary: {
-        periodRevenue,
-        totalPaidAll,
-        pendingPaymentsAmount,
-        totalInvoicesAmount,
-        paidInvoicesAmount,
-        unpaidInvoicesAmount,
-        overdueInvoicesAmount,
-        collectionRate,
+        periodRevenue: roundMoney(Number(periodRevenueAggregate._sum.amount || 0)),
+        totalPaidAll: roundMoney(Number(allPaidAggregate._sum.amount || 0)),
+        pendingPaymentsAmount: roundMoney(
+          Number(pendingPaymentsAggregate._sum.amount || 0),
+        ),
+        ...invoiceSummary,
         totalCases,
         openCases,
         closedCases,
-        upcomingAppointmentsCount: upcomingAppointments.length,
-        overdueTasksCount: overdueTasks.length,
+        upcomingAppointmentsCount,
+        overdueTasksCount,
       },
       caseStatus,
       topClients,
       monthlyRevenue,
+      detailMode: params.detailMode,
+      detailCounts: {
+        payments: periodPaymentCount,
+        invoices: periodInvoiceCount,
+      },
       periodPayments,
       periodInvoices,
       upcomingAppointments,
       overdueTasks,
-    })
-  })
+    });
+  });
 }

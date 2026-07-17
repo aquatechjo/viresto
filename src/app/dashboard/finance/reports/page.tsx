@@ -3,6 +3,7 @@ import AppLoader from "@/components/ui/AppLoader"
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { toast } from 'sonner'
 import PageLoader from '@/components/ui/PageLoader'
 import { useLocale } from '@/lib/useLocale'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
@@ -27,12 +28,14 @@ const REPORT_COPY = {
       paymentsCsv: 'دفعات CSV',
       invoicesCsv: 'فواتير CSV',
       retry: 'إعادة المحاولة',
+      exporting: 'جاري تجهيز الملف الكامل...',
       exportLocked: 'التصدير متاح بعد تجديد الاشتراك.',
     },
     error: {
       title: 'التقارير',
       subtitle: 'تعذر تحميل بيانات التقارير في الوقت الحالي.',
       load: 'تعذر تحميل التقرير',
+      export: 'تعذر تحميل جميع بيانات التقرير للتصدير',
     },
     filters: {
       reportType: 'نوع التقرير',
@@ -61,7 +64,7 @@ const REPORT_COPY = {
       overdueTasks: 'مهام متأخرة',
       totalPaidAll: 'إجمالي التحصيل',
       totalInvoices: 'إجمالي الفواتير',
-      paidInvoices: 'فواتير مدفوعة',
+      paidInvoices: 'المحصّل من الفواتير',
       overdueInvoices: 'فواتير متأخرة',
       closedCases: 'القضايا المغلقة/المؤرشفة',
     },
@@ -74,7 +77,7 @@ const REPORT_COPY = {
       appointments: { title: 'المواعيد القادمة', subtitle: 'أقرب المواعيد ضمن نطاق التقرير', empty: 'لا توجد مواعيد قادمة.' },
       tasks: { title: 'المهام المتأخرة', subtitle: 'المهام التي تحتاج متابعة فورية', empty: 'لا توجد مهام متأخرة.' },
     },
-    table: { case: 'القضية', client: 'الموكل', amount: 'المبلغ', status: 'الحالة', date: 'التاريخ', invoiceNumber: 'رقم الفاتورة', dueDate: 'الاستحقاق', paymentMethod: 'طريقة الدفع', notes: 'ملاحظات', issueDate: 'تاريخ الإصدار', dueDateFull: 'تاريخ الاستحقاق', appointment: 'الموعد', location: 'المكان', task: 'المهمة', priority: 'الأولوية', activityScore: 'مؤشر النشاط', invoicesTotal: 'إجمالي الفواتير', paymentsTotal: 'إجمالي الدفعات', casesCount: 'عدد القضايا', item: 'البند', value: 'القيمة' },
+    table: { case: 'القضية', client: 'الموكل', amount: 'المبلغ', collected: 'المحصل', remaining: 'المتبقي', status: 'الحالة', date: 'التاريخ', invoiceNumber: 'رقم الفاتورة', dueDate: 'الاستحقاق', paymentMethod: 'طريقة الدفع', notes: 'ملاحظات', issueDate: 'تاريخ الإصدار', dueDateFull: 'تاريخ الاستحقاق', appointment: 'الموعد', location: 'المكان', task: 'المهمة', priority: 'الأولوية', activityScore: 'مؤشر النشاط', invoicesTotal: 'إجمالي الفواتير', paymentsTotal: 'إجمالي الدفعات', casesCount: 'عدد القضايا', item: 'البند', value: 'القيمة' },
     statuses: {
       payments: { PAID: 'مدفوع', PENDING: 'معلق', OVERDUE: 'متأخر', CANCELLED: 'ملغي' },
       invoices: { DRAFT: 'مسودة', UNPAID: 'غير مدفوعة', PARTIALLY_PAID: 'مدفوعة جزئيًا', PAID: 'مدفوعة', OVERDUE: 'متأخرة', CANCELLED: 'ملغاة' },
@@ -101,12 +104,14 @@ const REPORT_COPY = {
       paymentsCsv: 'Payments CSV',
       invoicesCsv: 'Invoices CSV',
       retry: 'Retry',
+      exporting: 'Preparing the complete file...',
       exportLocked: 'Export is available after renewing the subscription.',
     },
     error: {
       title: 'Reports',
       subtitle: 'Unable to load report data right now.',
       load: 'Failed to load report',
+      export: 'Could not load all report data for export',
     },
     filters: {
       reportType: 'Report type',
@@ -135,7 +140,7 @@ const REPORT_COPY = {
       overdueTasks: 'Overdue tasks',
       totalPaidAll: 'Total collected',
       totalInvoices: 'Total invoices',
-      paidInvoices: 'Paid invoices',
+      paidInvoices: 'Collected on invoices',
       overdueInvoices: 'Overdue invoices',
       closedCases: 'Closed/archived cases',
     },
@@ -148,7 +153,7 @@ const REPORT_COPY = {
       appointments: { title: 'Upcoming appointments', subtitle: 'Nearest appointments within the report range', empty: 'No upcoming appointments.' },
       tasks: { title: 'Overdue tasks', subtitle: 'Tasks that need immediate follow-up', empty: 'No overdue tasks.' },
     },
-    table: { case: 'Case', client: 'Client', amount: 'Amount', status: 'Status', date: 'Date', invoiceNumber: 'Invoice number', dueDate: 'Due date', paymentMethod: 'Payment method', notes: 'Notes', issueDate: 'Issue date', dueDateFull: 'Due date', appointment: 'Appointment', location: 'Location', task: 'Task', priority: 'Priority', activityScore: 'Activity score', invoicesTotal: 'Invoices total', paymentsTotal: 'Payments total', casesCount: 'Cases count', item: 'Item', value: 'Value' },
+    table: { case: 'Case', client: 'Client', amount: 'Amount', collected: 'Collected', remaining: 'Remaining', status: 'Status', date: 'Date', invoiceNumber: 'Invoice number', dueDate: 'Due date', paymentMethod: 'Payment method', notes: 'Notes', issueDate: 'Issue date', dueDateFull: 'Due date', appointment: 'Appointment', location: 'Location', task: 'Task', priority: 'Priority', activityScore: 'Activity score', invoicesTotal: 'Invoices total', paymentsTotal: 'Payments total', casesCount: 'Cases count', item: 'Item', value: 'Value' },
     statuses: {
       payments: { PAID: 'Paid', PENDING: 'Pending', OVERDUE: 'Overdue', CANCELLED: 'Cancelled' },
       invoices: { DRAFT: 'Draft', UNPAID: 'Unpaid', PARTIALLY_PAID: 'Partially paid', PAID: 'Paid', OVERDUE: 'Overdue', CANCELLED: 'Cancelled' },
@@ -172,7 +177,13 @@ interface ReportPayment {
   status: string
   method?: string | null
   paidAt?: string | null
+  createdAt: string
+  reportDate: string
   notes?: string | null
+  client: {
+    id: string
+    name: string
+  }
   case?: {
     id: string
     title: string
@@ -190,6 +201,9 @@ interface ReportInvoice {
   status: string
   issueDate: string
   dueDate?: string | null
+  paidAmount: number
+  remainingAmount: number
+  isOverdue: boolean
   client?: {
     id: string
     name: string
@@ -255,6 +269,11 @@ interface ReportData {
   periodInvoices: ReportInvoice[]
   upcomingAppointments: ReportAppointment[]
   overdueTasks: ReportTask[]
+  detailMode: 'preview' | 'all'
+  detailCounts: {
+    payments: number
+    invoices: number
+  }
 }
 
 function unwrapPayload(payload: any): ReportData | null {
@@ -289,6 +308,18 @@ function paymentStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof
 
 function invoiceStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
   return copy.statuses.invoices[status as keyof typeof copy.statuses.invoices] || status || '-'
+}
+
+function invoiceDisplayStatus(
+  invoice: ReportInvoice,
+  copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en
+) {
+  if (invoice.isOverdue && invoice.status === 'PARTIALLY_PAID') {
+    return `${copy.statuses.invoices.OVERDUE} • ${copy.statuses.invoices.PARTIALLY_PAID}`
+  }
+
+  if (invoice.isOverdue) return copy.statuses.invoices.OVERDUE
+  return invoiceStatusLabel(invoice.status, copy)
 }
 
 function caseStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
@@ -346,6 +377,7 @@ export default function ReportsPage() {
   const [clientId, setClientId] = useState('')
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [error, setError] = useState('')
 
   const years = useMemo(() => {
@@ -354,20 +386,33 @@ export default function ReportsPage() {
     return Array.from({ length: 6 }, (_, index) => current - 3 + index)
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
-
+  const buildReportParams = useCallback((details: 'preview' | 'all') => {
     const params = new URLSearchParams({
       type: reportType,
       year: String(year),
       month: String(month),
+      details,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Amman',
     })
 
     if (caseStatus) params.set('caseStatus', caseStatus)
     if (paymentStatusFilter) params.set('paymentStatus', paymentStatusFilter)
     if (invoiceStatusFilter) params.set('invoiceStatus', invoiceStatusFilter)
     if (clientId) params.set('clientId', clientId)
+
+    return params
+  }, [
+    reportType,
+    year,
+    month,
+    caseStatus,
+    paymentStatusFilter,
+    invoiceStatusFilter,
+    clientId,
+  ])
+
+  const fetchReportData = useCallback(async (details: 'preview' | 'all') => {
+    const params = buildReportParams(details)
 
     const response = await fetch(`/api/reports/summary?${params.toString()}`, {
       cache: 'no-store',
@@ -377,23 +422,44 @@ export default function ReportsPage() {
     const nextData = unwrapPayload(payload)
 
     if (!response.ok || !nextData) {
-      setError(getMessage(payload, copy.error.load))
-      setData(null)
-    } else {
-      setData(nextData)
+      throw new Error(getMessage(payload, copy.error.load))
     }
 
-    setLoading(false)
-  }, [
-    reportType,
-    year,
-    month,
-    caseStatus,
-    paymentStatusFilter,
-    invoiceStatusFilter,
-    clientId,
-    copy.error.load,
-  ])
+    return nextData
+  }, [buildReportParams, copy.error.load])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      setData(await fetchReportData('preview'))
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : copy.error.load)
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchReportData, copy.error.load])
+
+  const withCompleteReport = useCallback(async (
+    action: (completeData: ReportData) => Promise<void> | void
+  ) => {
+    if (exportDisabled || exporting) return
+
+    setExporting(true)
+
+    try {
+      const completeData = await fetchReportData('all')
+      await action(completeData)
+    } catch (exportError) {
+      toast.error(
+        exportError instanceof Error ? exportError.message : copy.error.export
+      )
+    } finally {
+      setExporting(false)
+    }
+  }, [exportDisabled, exporting, fetchReportData, copy.error.export])
 
   useEffect(() => {
     load()
@@ -423,10 +489,10 @@ export default function ReportsPage() {
       : `viresto-report-${year}`
   }
 
-  function summaryRows() {
-    if (!data) return []
+  function summaryRows(source: ReportData | null = data) {
+    if (!source) return []
 
-    const summary = data.summary
+    const summary = source.summary
 
     return [
       [copy.stats.periodRevenue, formatMoney(summary.periodRevenue, locale)],
@@ -445,38 +511,40 @@ export default function ReportsPage() {
     ]
   }
 
-  function paymentRowsForExport() {
-    if (!data) return []
+  function paymentRowsForExport(source: ReportData | null = data) {
+    if (!source) return []
 
-    return data.periodPayments.map((payment) => ({
+    return source.periodPayments.map((payment) => ({
       القضية: payment.case?.title || '-',
-      الموكل: payment.case?.client?.name || '-',
+      الموكل: payment.client?.name || '-',
       المبلغ: Number(payment.amount || 0),
       الحالة: paymentStatusLabel(payment.status, copy),
       طريقة_الدفع: payment.method || '-',
-      التاريخ: formatDate(payment.paidAt, locale),
+      التاريخ: formatDate(payment.reportDate, locale),
       ملاحظات: payment.notes || '-',
     }))
   }
 
-  function invoiceRowsForExport() {
-    if (!data) return []
+  function invoiceRowsForExport(source: ReportData | null = data) {
+    if (!source) return []
 
-    return data.periodInvoices.map((invoice) => ({
+    return source.periodInvoices.map((invoice) => ({
       رقم_الفاتورة: invoice.invoiceNumber || '-',
       الموكل: invoice.client?.name || '-',
       القضية: invoice.case?.title || '-',
       المبلغ: Number(invoice.total || 0),
-      الحالة: invoiceStatusLabel(invoice.status, copy),
+      المحصل: Number(invoice.paidAmount || 0),
+      المتبقي: Number(invoice.remainingAmount || 0),
+      الحالة: invoiceDisplayStatus(invoice, copy),
       تاريخ_الإصدار: formatDate(invoice.issueDate, locale),
       تاريخ_الاستحقاق: formatDate(invoice.dueDate, locale),
     }))
   }
 
-  function appointmentRowsForExport() {
-    if (!data) return []
+  function appointmentRowsForExport(source: ReportData | null = data) {
+    if (!source) return []
 
-    return data.upcomingAppointments.map((appointment) => ({
+    return source.upcomingAppointments.map((appointment) => ({
       الموعد: appointment.title || '-',
       القضية: appointment.case?.title || '-',
       التاريخ: formatDate(appointment.startTime, locale),
@@ -484,10 +552,10 @@ export default function ReportsPage() {
     }))
   }
 
-  function taskRowsForExport() {
-    if (!data) return []
+  function taskRowsForExport(source: ReportData | null = data) {
+    if (!source) return []
 
-    return data.overdueTasks.map((task) => ({
+    return source.overdueTasks.map((task) => ({
       المهمة: task.title || '-',
       القضية: task.case?.title || '-',
       الأولوية: taskPriorityLabel(task.priority, copy),
@@ -495,10 +563,10 @@ export default function ReportsPage() {
     }))
   }
 
-  function topClientRowsForExport() {
-    if (!data) return []
+  function topClientRowsForExport(source: ReportData | null = data) {
+    if (!source) return []
 
-    return data.topClients.map((client) => ({
+    return source.topClients.map((client) => ({
       الموكل: client.name,
       عدد_القضايا: client.casesCount,
       إجمالي_الدفعات: client.paymentsTotal,
@@ -509,61 +577,64 @@ export default function ReportsPage() {
 
   const summary = data?.summary
 
-  const caseRows = data
-    ? [
-        ['OPEN', data.caseStatus.OPEN || 0],
-        ['IN_PROGRESS', data.caseStatus.IN_PROGRESS || 0],
-        ['CLOSED', data.caseStatus.CLOSED || 0],
-        ['ARCHIVED', data.caseStatus.ARCHIVED || 0],
+  function caseRowsForExport(source: ReportData | null = data) {
+    return source
+      ? [
+        ['OPEN', source.caseStatus.OPEN || 0],
+        ['IN_PROGRESS', source.caseStatus.IN_PROGRESS || 0],
+        ['CLOSED', source.caseStatus.CLOSED || 0],
+        ['ARCHIVED', source.caseStatus.ARCHIVED || 0],
       ]
-    : []
+      : []
+  }
+
+  const caseRows = caseRowsForExport()
 
   async function exportFullExcel() {
-    if (!data || exportDisabled) return
+    await withCompleteReport(async (completeData) => {
+      const { exportSheetsExcel } = await import('@/lib/export')
 
-    const { exportSheetsExcel } = await import('@/lib/export')
-
-    exportSheetsExcel(reportFilename(), [
-      {
-        name: 'الملخص',
-        rows: summaryRows().map(([البند, القيمة]) => ({ البند, القيمة })),
-      },
-      {
-        name: 'الدفعات',
-        rows: paymentRowsForExport(),
-      },
-      {
-        name: 'الفواتير',
-        rows: invoiceRowsForExport(),
-      },
-      {
-        name: copy.sections.appointments.title,
-        rows: appointmentRowsForExport(),
-      },
-      {
-        name: copy.sections.tasks.title,
-        rows: taskRowsForExport(),
-      },
-      {
-        name: copy.sections.topClients.title,
-        rows: topClientRowsForExport(),
-      },
-      {
-        name: copy.sections.caseStatus.title,
-        rows: caseRows.map(([status, count]) => ({
-          الحالة: caseStatusLabel(String(status), copy),
-          العدد: count,
-        })),
-      },
-    ])
+      exportSheetsExcel(reportFilename(), [
+        {
+          name: 'الملخص',
+          rows: summaryRows(completeData).map(([البند, القيمة]) => ({ البند, القيمة })),
+        },
+        {
+          name: 'الدفعات',
+          rows: paymentRowsForExport(completeData),
+        },
+        {
+          name: 'الفواتير',
+          rows: invoiceRowsForExport(completeData),
+        },
+        {
+          name: copy.sections.appointments.title,
+          rows: appointmentRowsForExport(completeData),
+        },
+        {
+          name: copy.sections.tasks.title,
+          rows: taskRowsForExport(completeData),
+        },
+        {
+          name: copy.sections.topClients.title,
+          rows: topClientRowsForExport(completeData),
+        },
+        {
+          name: copy.sections.caseStatus.title,
+          rows: caseRowsForExport(completeData).map(([status, count]) => ({
+            الحالة: caseStatusLabel(String(status), copy),
+            العدد: count,
+          })),
+        },
+      ])
+    })
   }
 
   async function exportFullPdf() {
-    if (!data || exportDisabled) return
+    await withCompleteReport(async (completeData) => {
+      const { exportReportPDF } = await import('@/lib/export')
 
-    const { exportReportPDF } = await import('@/lib/export')
-
-    exportReportPDF(reportFilename(), reportTitle(), summaryRows(), [
+      exportReportPDF(reportFilename(), reportTitle(), summaryRows(completeData), [
       {
         title: copy.sections.periodPayments.title,
         columns: [
@@ -575,7 +646,7 @@ export default function ReportsPage() {
           'الموكل',
           'القضية',
         ],
-        rows: paymentRowsForExport().map((payment) => [
+        rows: paymentRowsForExport(completeData).map((payment) => [
           payment.ملاحظات,
           payment.التاريخ,
           payment.طريقة_الدفع,
@@ -591,15 +662,19 @@ export default function ReportsPage() {
           'الاستحقاق',
           'الإصدار',
           'الحالة',
+          'المتبقي',
+          'المحصل',
           'المبلغ',
           'القضية',
           'الموكل',
           'رقم الفاتورة',
         ],
-        rows: invoiceRowsForExport().map((invoice) => [
+        rows: invoiceRowsForExport(completeData).map((invoice) => [
           invoice.تاريخ_الاستحقاق,
           invoice.تاريخ_الإصدار,
           invoice.الحالة,
+          formatMoney(invoice.المتبقي, locale),
+          formatMoney(invoice.المحصل, locale),
           formatMoney(invoice.المبلغ, locale),
           invoice.القضية,
           invoice.الموكل,
@@ -615,7 +690,7 @@ export default function ReportsPage() {
           'عدد القضايا',
           'الموكل',
         ],
-        rows: topClientRowsForExport().map((client) => [
+        rows: topClientRowsForExport(completeData).map((client) => [
           client.مؤشر_النشاط,
           formatMoney(client.إجمالي_الفواتير, locale),
           formatMoney(client.إجمالي_الدفعات, locale),
@@ -626,7 +701,7 @@ export default function ReportsPage() {
       {
         title: copy.sections.appointments.title,
         columns: ['المكان', 'التاريخ', 'القضية', 'الموعد'],
-        rows: appointmentRowsForExport().map((appointment) => [
+        rows: appointmentRowsForExport(completeData).map((appointment) => [
           appointment.المكان,
           appointment.التاريخ,
           appointment.القضية,
@@ -636,59 +711,64 @@ export default function ReportsPage() {
       {
         title: copy.sections.tasks.title,
         columns: ['الاستحقاق', 'الأولوية', 'القضية', 'المهمة'],
-        rows: taskRowsForExport().map((task) => [
+        rows: taskRowsForExport(completeData).map((task) => [
           task.الاستحقاق,
           task.الأولوية,
           task.القضية,
           task.المهمة,
         ]),
       },
-    ])
+      ])
+    })
   }
 
-  function exportPayments() {
-    if (!data || exportDisabled) return
+  async function exportPayments() {
+    await withCompleteReport((completeData) => {
+      const rows = [
+        ['القضية', 'الموكل', 'المبلغ', 'الحالة', 'طريقة الدفع', 'التاريخ'],
+        ...completeData.periodPayments.map((payment) => [
+          payment.case?.title || '-',
+          payment.client?.name || '-',
+          Number(payment.amount || 0),
+          paymentStatusLabel(payment.status, copy),
+          payment.method || '-',
+          formatDate(payment.reportDate, locale),
+        ]),
+      ]
 
-    const rows = [
-      ['القضية', 'الموكل', 'المبلغ', 'الحالة', 'طريقة الدفع', 'التاريخ'],
-      ...data.periodPayments.map((payment) => [
-        payment.case?.title || '-',
-        payment.case?.client?.name || '-',
-        Number(payment.amount || 0),
-        paymentStatusLabel(payment.status, copy),
-        payment.method || '-',
-        formatDate(payment.paidAt, locale),
-      ]),
-    ]
-
-    downloadCsv(`payments-report-${year}.csv`, rows)
+      downloadCsv(`payments-report-${year}.csv`, rows)
+    })
   }
 
-  function exportInvoices() {
-    if (!data || exportDisabled) return
+  async function exportInvoices() {
+    await withCompleteReport((completeData) => {
+      const rows = [
+        [
+          'رقم الفاتورة',
+          'الموكل',
+          'القضية',
+          'المبلغ',
+          'المحصل',
+          'المتبقي',
+          'الحالة',
+          'تاريخ الإصدار',
+          'تاريخ الاستحقاق',
+        ],
+        ...completeData.periodInvoices.map((invoice) => [
+          invoice.invoiceNumber || '-',
+          invoice.client?.name || '-',
+          invoice.case?.title || '-',
+          Number(invoice.total || 0),
+          Number(invoice.paidAmount || 0),
+          Number(invoice.remainingAmount || 0),
+          invoiceDisplayStatus(invoice, copy),
+          formatDate(invoice.issueDate, locale),
+          formatDate(invoice.dueDate, locale),
+        ]),
+      ]
 
-    const rows = [
-      [
-        'رقم الفاتورة',
-        'الموكل',
-        'القضية',
-        'المبلغ',
-        'الحالة',
-        'تاريخ الإصدار',
-        'تاريخ الاستحقاق',
-      ],
-      ...data.periodInvoices.map((invoice) => [
-        invoice.invoiceNumber || '-',
-        invoice.client?.name || '-',
-        invoice.case?.title || '-',
-        Number(invoice.total || 0),
-        invoiceStatusLabel(invoice.status, copy),
-        formatDate(invoice.issueDate, locale),
-        formatDate(invoice.dueDate, locale),
-      ]),
-    ]
-
-    downloadCsv(`invoices-report-${year}.csv`, rows)
+      downloadCsv(`invoices-report-${year}.csv`, rows)
+    })
   }
 
 if (loading) {
@@ -819,7 +899,7 @@ if (loading) {
 
               <button
                 onClick={exportFullPdf}
-                disabled={exportDisabled}
+                disabled={exportDisabled || exporting}
                 title={exportDisabled ? exportDisabledTitle : copy.actions.fullPdf}
                 className="btn disabled:cursor-not-allowed disabled:opacity-60"
                 style={{
@@ -828,12 +908,12 @@ if (loading) {
                   borderColor: 'rgba(255,255,255,0.22)',
                 }}
               >
-                {copy.actions.fullPdf}
+                {exporting ? copy.actions.exporting : copy.actions.fullPdf}
               </button>
 
               <button
                 onClick={exportFullExcel}
-                disabled={exportDisabled}
+                disabled={exportDisabled || exporting}
                 title={exportDisabled ? exportDisabledTitle : copy.actions.fullExcel}
                 className="btn disabled:cursor-not-allowed disabled:opacity-60"
                 style={{
@@ -842,7 +922,7 @@ if (loading) {
                   borderColor: 'rgba(184, 115, 51,0.35)',
                 }}
               >
-                {copy.actions.fullExcel}
+                {exporting ? copy.actions.exporting : copy.actions.fullExcel}
               </button>
             </div>
           </div>
@@ -999,22 +1079,22 @@ if (loading) {
 
             <button
               onClick={exportPayments}
-              disabled={exportDisabled}
+              disabled={exportDisabled || exporting}
               title={exportDisabled ? exportDisabledTitle : copy.actions.paymentsCsv}
               className={`${actionButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
               style={actionButtonStyle}
             >
-              {copy.actions.paymentsCsv}
+              {exporting ? copy.actions.exporting : copy.actions.paymentsCsv}
             </button>
 
             <button
               onClick={exportInvoices}
-              disabled={exportDisabled}
+              disabled={exportDisabled || exporting}
               title={exportDisabled ? exportDisabledTitle : copy.actions.invoicesCsv}
               className={`${actionButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
               style={actionButtonStyle}
             >
-              {copy.actions.invoicesCsv}
+              {exporting ? copy.actions.exporting : copy.actions.invoicesCsv}
             </button>
           </div>
         </div>
@@ -1259,7 +1339,7 @@ if (loading) {
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                {copy.sections.periodPayments.subtitle}
+                {copy.sections.periodPayments.subtitle} ({data.periodPayments.length}/{data.detailCounts.payments})
               </p>
             </div>
 
@@ -1286,10 +1366,10 @@ if (loading) {
                     data.periodPayments.map((payment) => (
                       <tr key={payment.id}>
                         <td>{payment.case?.title || '-'}</td>
-                        <td>{payment.case?.client?.name || '-'}</td>
+                        <td>{payment.client?.name || '-'}</td>
                         <td>{formatMoney(payment.amount, locale)}</td>
                         <td>{paymentStatusLabel(payment.status, copy)}</td>
-                        <td>{formatDate(payment.paidAt, locale)}</td>
+                        <td>{formatDate(payment.reportDate, locale)}</td>
                       </tr>
                     ))
                   )}
@@ -1308,7 +1388,7 @@ if (loading) {
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-                {copy.sections.periodInvoices.subtitle}
+                {copy.sections.periodInvoices.subtitle} ({data.periodInvoices.length}/{data.detailCounts.invoices})
               </p>
             </div>
 
@@ -1319,6 +1399,8 @@ if (loading) {
                     <th>{copy.table.invoiceNumber}</th>
                     <th>{copy.table.client}</th>
                     <th>{copy.table.amount}</th>
+                    <th>{copy.table.collected}</th>
+                    <th>{copy.table.remaining}</th>
                     <th>{copy.table.status}</th>
                     <th>{copy.table.dueDate}</th>
                   </tr>
@@ -1327,7 +1409,7 @@ if (loading) {
                 <tbody>
                   {data.periodInvoices.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center">
+                      <td colSpan={7} className="py-6 text-center">
                         {copy.sections.periodInvoices.empty}
                       </td>
                     </tr>
@@ -1337,7 +1419,9 @@ if (loading) {
                         <td>{invoice.invoiceNumber}</td>
                         <td>{invoice.client?.name || '-'}</td>
                         <td>{formatMoney(invoice.total, locale)}</td>
-                        <td>{invoiceStatusLabel(invoice.status, copy)}</td>
+                        <td>{formatMoney(invoice.paidAmount, locale)}</td>
+                        <td>{formatMoney(invoice.remainingAmount, locale)}</td>
+                        <td>{invoiceDisplayStatus(invoice, copy)}</td>
                         <td>{formatDate(invoice.dueDate, locale)}</td>
                       </tr>
                     ))
