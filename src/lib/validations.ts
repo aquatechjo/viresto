@@ -183,8 +183,8 @@ export const paymentUpdateSchema = paymentSchema.partial().extend({
 });
 
 export const appointmentSchema = z.object({
-  clientId: z.string().optional(),
-  caseId: z.string().optional(),
+  clientId: optionalId,
+  caseId: optionalId,
   assignedToId: optionalId,
   title: z.string().min(1, "العنوان مطلوب"),
   description: z.string().optional(),

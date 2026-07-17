@@ -7,7 +7,12 @@ import {
   jodToFils,
   moneyExceeds,
 } from "@/lib/money";
-import { caseSchema, invoiceCreateSchema, paymentSchema } from "@/lib/validations";
+import {
+  appointmentSchema,
+  caseSchema,
+  invoiceCreateSchema,
+  paymentSchema,
+} from "@/lib/validations";
 import { calculateCaseFinancialSnapshot } from "@/lib/server/case-finance-integrity";
 
 test("rounds Jordanian dinar values to the nearest fils", () => {
@@ -61,6 +66,22 @@ test("compares balances using fils precision", () => {
     }),
     "PARTIALLY_PAID",
   );
+});
+
+test("normalizes cleared optional appointment relations", () => {
+  const parsed = appointmentSchema.safeParse({
+    title: "Meeting",
+    startTime: "2026-07-17T10:00:00+03:00",
+    clientId: "",
+    caseId: null,
+  });
+
+  assert.equal(parsed.success, true);
+
+  if (parsed.success) {
+    assert.equal(parsed.data.clientId, null);
+    assert.equal(parsed.data.caseId, null);
+  }
 });
 
 test("combines active invoices and direct payments under the case fee", () => {

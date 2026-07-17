@@ -9,7 +9,10 @@ import {
   normalizePhone,
   hashSearchValue,
 } from '@/lib/encryption'
-import { buildClientAccessWhere } from '@/lib/access-control'
+import {
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+} from '@/lib/access-control'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -53,7 +56,9 @@ export async function GET(req: NextRequest) {
         createdAt: true,
         _count: {
           select: {
-            cases: true,
+            cases: {
+              where: buildCaseAccessWhere(auth.user),
+            },
           },
         },
       },

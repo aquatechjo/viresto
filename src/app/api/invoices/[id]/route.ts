@@ -409,6 +409,53 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         throw new Error("INVOICE_NOT_FOUND");
       }
 
+      const currentInvoice = await tx.invoice.findUnique({
+        where: { id: invoice.id },
+        select: {
+          status: true,
+          updatedAt: true,
+          payments: {
+            where: { status: "PAID" },
+            select: { amount: true },
+          },
+        },
+      });
+
+      if (!currentInvoice) {
+        throw new Error("INVOICE_NOT_FOUND");
+      }
+
+      /*
+       * منع lost update: أي دفعة أو تعديل متزامن يغيّر updatedAt قبل أن
+       * نحصل على القفل، وعندها نطلب من الواجهة إعادة تحميل أحدث نسخة.
+       */
+      if (currentInvoice.updatedAt.getTime() !== invoice.updatedAt.getTime()) {
+        throw new Error("INVOICE_CHANGED");
+      }
+
+      const currentPaidTotal = roundMoney(
+        currentInvoice.payments.reduce(
+          (sum, payment) => sum + Number(payment.amount),
+          0,
+        ),
+      );
+      const currentHasPaidPayments = currentPaidTotal > 0;
+
+      if (
+        (currentInvoice.status === "PAID" || currentHasPaidPayments) &&
+        hasFinancialChanges
+      ) {
+        throw new Error("INVOICE_FINANCIAL_LOCKED");
+      }
+
+      if (
+        currentHasPaidPayments &&
+        statusRaw !== undefined &&
+        statusRaw !== currentInvoice.status
+      ) {
+        throw new Error("INVOICE_STATUS_LOCKED");
+      }
+
       if (nextCaseId && nextStatus !== "CANCELLED") {
         await assertCaseCanAcceptAmount(tx, {
           tenantId: auth.user!.tenantId,
@@ -501,6 +548,37 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     try {
       updated = await updateInvoice();
     } catch (error) {
+      if (error instanceof Error && error.message === "INVOICE_NOT_FOUND") {
+        return notFound("الفاتورة غير موجودة");
+      }
+
+      if (error instanceof Error && error.message === "INVOICE_CHANGED") {
+        return err(
+          "تم تعديل الفاتورة أو تسجيل دفعة عليها بالتزامن. حدّث الصفحة ثم أعد المحاولة.",
+          409,
+        );
+      }
+
+      if (
+        error instanceof Error &&
+        error.message === "INVOICE_FINANCIAL_LOCKED"
+      ) {
+        return err(
+          "لا يمكن تعديل البيانات المالية لفاتورة مدفوعة أو مرتبطة بدفعة مدفوعة",
+          409,
+        );
+      }
+
+      if (
+        error instanceof Error &&
+        error.message === "INVOICE_STATUS_LOCKED"
+      ) {
+        return err(
+          "لا يمكن تغيير حالة فاتورة لديها دفعات محصلة. يجب معالجة الدفعات المرتبطة أولًا.",
+          409,
+        );
+      }
+
       if (isCaseFinancialLimitError(error)) {
         return err(error.message, error.status, error.details);
       }
@@ -599,15 +677,45 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       );
     }
 
-    const deleted = await prisma.invoice.deleteMany({
-      where: {
-        id: invoice.id,
-        tenantId: auth.user.tenantId,
-      },
-    });
+    try {
+      await prisma.$transaction(async (tx) => {
+        const lockedInvoice = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id"
+          FROM "Invoice"
+          WHERE "id" = ${invoice.id}
+            AND "tenantId" = ${auth.user!.tenantId}
+          FOR UPDATE
+        `;
 
-    if (deleted.count === 0) {
-      return notFound("الفاتورة غير موجودة");
+        if (lockedInvoice.length === 0) {
+          throw new Error("INVOICE_NOT_FOUND");
+        }
+
+        const paymentsCount = await tx.payment.count({
+          where: { invoiceId: invoice.id },
+        });
+
+        if (paymentsCount > 0) {
+          throw new Error("INVOICE_HAS_PAYMENTS");
+        }
+
+        await tx.invoice.delete({
+          where: { id: invoice.id },
+        });
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "INVOICE_NOT_FOUND") {
+        return notFound("الفاتورة غير موجودة");
+      }
+
+      if (error instanceof Error && error.message === "INVOICE_HAS_PAYMENTS") {
+        return err(
+          "لا يمكن حذف فاتورة مرتبطة بدفعات. يجب معالجة الدفعات المرتبطة أولًا حتى لا يحدث خلل مالي.",
+          409,
+        );
+      }
+
+      throw error;
     }
 
     await logActivity({

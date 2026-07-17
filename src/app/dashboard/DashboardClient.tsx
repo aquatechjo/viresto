@@ -53,7 +53,7 @@ interface TaskItem {
   title: string;
   description?: string | null;
   dueDate?: string | null;
-  priority: "LOW" | "MEDIUM" | "HIGH";
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   completed: boolean;
   client?: {
     id?: string;
@@ -207,11 +207,13 @@ const SUBSCRIPTION_STATUS_LABELS: Record<Locale, Record<string, string>> = {
 
 const PRIORITY_LABELS: Record<Locale, Record<string, string>> = {
   ar: {
+    URGENT: "عاجلة",
     HIGH: "عالية",
     MEDIUM: "متوسطة",
     LOW: "منخفضة",
   },
   en: {
+    URGENT: "Urgent",
     HIGH: "High",
     MEDIUM: "Medium",
     LOW: "Low",
@@ -219,6 +221,8 @@ const PRIORITY_LABELS: Record<Locale, Record<string, string>> = {
 };
 
 const PRIORITY_STYLES: Record<string, string> = {
+  URGENT:
+    "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
   HIGH: "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300",
   MEDIUM:
     "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",

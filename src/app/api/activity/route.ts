@@ -118,6 +118,16 @@ export async function GET(req: NextRequest) {
       tenantId: auth.user.tenantId,
     };
 
+    /*
+     * سجل النشاط العام قد يحتوي عناوين قضايا وموكلين وبيانات مالية.
+     * لا توجد علاقة مباشرة من Activity بالقضية تسمح بتطبيق صلاحيات التكليف
+     * بأمان على كل أنواع السجلات، لذلك يرى غير المدير نشاطه الشخصي فقط.
+     * نشاط القضية المشترك يبقى متاحًا من صفحة القضية بعد فحص صلاحية الوصول.
+     */
+    if (auth.user.role !== "ADMIN") {
+      where.actorId = auth.user.userId;
+    }
+
     if (!canReadFinance(auth.user.role)) {
       const paymentCondition = categoryCondition("payments");
       const invoiceCondition = categoryCondition("invoices");
