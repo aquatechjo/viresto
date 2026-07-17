@@ -173,6 +173,15 @@ export const paymentSchema = z.object({
     .nullable(),
 });
 
+export const paymentUpdateSchema = paymentSchema.partial().extend({
+  cancellationReason: z
+    .string()
+    .trim()
+    .min(5, "سبب الإلغاء يجب أن يحتوي على 5 أحرف على الأقل")
+    .max(500, "سبب الإلغاء طويل جدًا")
+    .optional(),
+});
+
 export const appointmentSchema = z.object({
   clientId: z.string().optional(),
   caseId: z.string().optional(),

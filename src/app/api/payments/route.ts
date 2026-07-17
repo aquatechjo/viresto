@@ -131,6 +131,13 @@ export async function POST(req: NextRequest) {
     const requestedInvoiceId = parsed.data.invoiceId ?? null;
     const paymentStatus = parsed.data.status ?? "PAID";
 
+    if (paymentStatus === "CANCELLED") {
+      return err(
+        "لا يمكن إنشاء دفعة ملغاة. أنشئ دفعة معلقة أو محصلة ثم استخدم مسار الإلغاء الموثق عند الحاجة.",
+        400,
+      );
+    }
+
     if (!requestedCaseId && !requestedInvoiceId) {
       return err(
         "يجب ربط الدفعة بفاتورة أو قضية على الأقل",

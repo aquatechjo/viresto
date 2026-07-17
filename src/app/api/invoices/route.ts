@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
+import { DateTime } from "luxon";
 import { prisma } from "@/lib/prisma";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { ok, err } from "@/lib/api-response";
@@ -15,6 +16,7 @@ import {
   buildInvoiceAccessWhere,
 } from "@/lib/access-control";
 import { roundMoney } from "@/lib/finance";
+import { formatSequentialInvoiceNumber } from "@/lib/financial-audit";
 import {
   assertCaseCanAcceptAmount,
   isCaseFinancialLimitError,
@@ -83,33 +85,34 @@ function calculateTotals(
   };
 }
 
-async function generateInvoiceNumber(
+async function allocateInvoiceNumber(
   tenantId: string,
-  tx: Prisma.TransactionClient = prisma,
+  tx: Prisma.TransactionClient,
 ) {
-  const year = new Date().getFullYear();
-  const prefix = `INV-${year}-`;
+  const year = DateTime.now().setZone("Asia/Amman").year;
+  const allocated = await tx.$queryRaw<Array<{ sequenceNumber: number }>>`
+    INSERT INTO "InvoiceSequence" (
+      "tenantId",
+      "year",
+      "nextNumber",
+      "createdAt",
+      "updatedAt"
+    )
+    VALUES (${tenantId}, ${year}, 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT ("tenantId", "year")
+    DO UPDATE SET
+      "nextNumber" = "InvoiceSequence"."nextNumber" + 1,
+      "updatedAt" = CURRENT_TIMESTAMP
+    RETURNING "nextNumber" - 1 AS "sequenceNumber"
+  `;
 
-  const lastInvoice = await tx.invoice.findFirst({
-    where: {
-      tenantId,
-      invoiceNumber: {
-        startsWith: prefix,
-      },
-    },
-    orderBy: {
-      invoiceNumber: "desc",
-    },
-    select: {
-      invoiceNumber: true,
-    },
-  });
+  const sequenceNumber = allocated[0]?.sequenceNumber;
 
-  const lastPart = lastInvoice?.invoiceNumber?.replace(prefix, "");
-  const parsed = lastPart ? Number(lastPart) : 0;
-  const nextNumber = Number.isNaN(parsed) ? 1 : parsed + 1;
+  if (!sequenceNumber) {
+    throw new Error("INVOICE_SEQUENCE_ALLOCATION_FAILED");
+  }
 
-  return `${prefix}${String(nextNumber).padStart(4, "0")}`;
+  return formatSequentialInvoiceNumber(year, sequenceNumber);
 }
 
 export async function GET(req: NextRequest) {
@@ -288,89 +291,79 @@ export async function POST(req: NextRequest) {
 
     }
 
-    let invoice: Awaited<ReturnType<typeof prisma.invoice.create>> | null =
-      null;
+    let invoice: Awaited<ReturnType<typeof prisma.invoice.create>>;
 
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      try {
-        invoice = await prisma.$transaction(async (tx) => {
-          if (caseId) {
-            await assertCaseCanAcceptAmount(tx, {
-              tenantId: auth.user!.tenantId,
-              caseId,
-              amount: totals.total,
-              label: "الفاتورة",
-            });
-          }
+    try {
+      invoice = await prisma.$transaction(async (tx) => {
+        if (caseId) {
+          await assertCaseCanAcceptAmount(tx, {
+            tenantId: auth.user!.tenantId,
+            caseId,
+            amount: totals.total,
+            label: "الفاتورة",
+          });
+        }
 
-          const invoiceNumber = await generateInvoiceNumber(
-            auth.user!.tenantId,
-            tx,
-          );
+        const invoiceNumber = await allocateInvoiceNumber(
+          auth.user!.tenantId,
+          tx,
+        );
 
-          return tx.invoice.create({
-            data: {
-              tenantId: auth.user!.tenantId,
-              clientId: data.clientId,
-              caseId,
-              invoiceNumber,
-              status: "UNPAID",
-              dueDate,
-              subtotal: totals.subtotal,
-              tax: totals.tax,
-              discount: totals.discount,
-              total: totals.total,
-              notes,
-              items: {
-                create: totals.items,
+        return tx.invoice.create({
+          data: {
+            tenantId: auth.user!.tenantId,
+            clientId: data.clientId,
+            caseId,
+            invoiceNumber,
+            status: "UNPAID",
+            dueDate,
+            subtotal: totals.subtotal,
+            tax: totals.tax,
+            discount: totals.discount,
+            total: totals.total,
+            notes,
+            items: {
+              create: totals.items,
+            },
+          },
+          include: {
+            client: {
+              select: {
+                id: true,
+                publicId: true,
+                name: true,
+                phone: true,
+                email: true,
+                archivedAt: true,
               },
             },
-            include: {
-              client: {
-                select: {
-                  id: true,
-                  publicId: true,
-                  name: true,
-                  phone: true,
-                  email: true,
-                  archivedAt: true,
-                },
-              },
-              case: {
-                select: {
-                  id: true,
-                  publicId: true,
-                  title: true,
-                  caseNumber: true,
-                  client: {
-                    select: {
-                      id: true,
-                      publicId: true,
-                      name: true,
-                      archivedAt: true,
-                    },
+            case: {
+              select: {
+                id: true,
+                publicId: true,
+                title: true,
+                caseNumber: true,
+                client: {
+                  select: {
+                    id: true,
+                    publicId: true,
+                    name: true,
+                    archivedAt: true,
                   },
                 },
               },
-              items: true,
-              payments: true,
             },
-          });
+            items: true,
+            payments: true,
+          },
         });
-        break;
-      } catch (error: any) {
-        if (isCaseFinancialLimitError(error)) {
-          return err(error.message, error.status, error.details);
-        }
-
-        if (error?.code !== "P2002" || attempt === 5) {
-          throw error;
-        }
+      });
+    } catch (error) {
+      if (isCaseFinancialLimitError(error)) {
+        return err(error.message, error.status, error.details);
       }
-    }
 
-    if (!invoice) {
-      return err("تعذر إنشاء رقم فاتورة فريد، حاول مرة أخرى", 409);
+      throw error;
     }
 
     await logActivity({

@@ -16,6 +16,12 @@ import { useLocale } from '@/lib/useLocale'
 
 type PaymentStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 
+function editablePaymentStatuses(status: PaymentStatus): PaymentStatus[] {
+  if (status === 'CANCELLED') return ['CANCELLED']
+  if (status === 'PAID') return ['PAID', 'CANCELLED']
+  return ['PENDING', 'PAID', 'OVERDUE', 'CANCELLED']
+}
+
 interface Payment {
   id: string
   amount: number | string
@@ -115,6 +121,9 @@ const COPY = {
       cancelStatus: 'تراجع',
       confirmStatusChange:
         'سيؤدي تغيير حالة هذه الدفعة إلى إعادة احتساب حالة الفاتورة المرتبطة. هل تريد المتابعة؟',
+      cancellationReasonPrompt:
+        'اكتب سبب إلغاء الدفعة (5 أحرف على الأقل). سيُحفظ السبب في سجل التدقيق المالي:',
+      cancellationReasonRequired: 'سبب الإلغاء مطلوب ويجب ألا يقل عن 5 أحرف.',
     },
     stats: {
       collected: 'إجمالي المحصل',
@@ -210,6 +219,10 @@ const COPY = {
       cancelStatus: 'Cancel',
       confirmStatusChange:
         'Changing this payment status will recalculate the linked invoice status. Continue?',
+      cancellationReasonPrompt:
+        'Enter the payment cancellation reason (at least 5 characters). It will be retained in the financial audit trail:',
+      cancellationReasonRequired:
+        'A cancellation reason of at least 5 characters is required.',
     },
     stats: {
       collected: 'Total collected',
@@ -891,6 +904,23 @@ export default function PaymentsPage() {
   ) {
     if (nextStatus === payment.status || updatingPaymentId) return
 
+    let cancellationReason: string | undefined
+
+    if (nextStatus === 'CANCELLED') {
+      const enteredReason = window.prompt(
+        copy.actions.cancellationReasonPrompt,
+      )
+
+      if (enteredReason === null) return
+
+      cancellationReason = enteredReason.trim()
+
+      if (cancellationReason.length < 5) {
+        toast.error(copy.actions.cancellationReasonRequired)
+        return
+      }
+    }
+
     if (payment.invoice && !window.confirm(copy.actions.confirmStatusChange)) {
       return
     }
@@ -903,7 +933,10 @@ export default function PaymentsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({
+          status: nextStatus,
+          ...(cancellationReason ? { cancellationReason } : {}),
+        }),
       })
 
       if (response.status === 401) {
@@ -937,7 +970,9 @@ export default function PaymentsPage() {
                 paidAt:
                   nextStatus === 'PAID'
                     ? item.paidAt || new Date().toISOString()
-                    : null,
+                    : nextStatus === 'CANCELLED'
+                      ? item.paidAt
+                      : null,
               }
             : item,
         )
@@ -1322,7 +1357,11 @@ export default function PaymentsPage() {
                               [payment.id]: nextStatus,
                             }))
                           }}
-                          disabled={!writeAccess.canWrite || isUpdating}
+                          disabled={
+                            !writeAccess.canWrite ||
+                            isUpdating ||
+                            payment.status === 'CANCELLED'
+                          }
                           dir={isRtl ? 'rtl' : 'ltr'}
                           className="h-10 w-full max-w-[150px] rounded-xl text-start text-xs font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
                           style={{
@@ -1336,10 +1375,13 @@ export default function PaymentsPage() {
                             paddingInlineEnd: '34px',
                           }}
                         >
-                          <option value="PENDING">{copy.statuses.PENDING}</option>
-                          <option value="PAID">{copy.statuses.PAID}</option>
-                          <option value="OVERDUE">{copy.statuses.OVERDUE}</option>
-                          <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
+                          {editablePaymentStatuses(payment.status).map(
+                            (paymentStatus) => (
+                              <option key={paymentStatus} value={paymentStatus}>
+                                {copy.statuses[paymentStatus]}
+                              </option>
+                            ),
+                          )}
                         </select>
                         {isUpdating ? (
                           <p className="mt-1 text-[10px]" style={{ color: 'var(--text-3)' }}>
@@ -1652,7 +1694,6 @@ export default function PaymentsPage() {
                     <option value="PAID">{copy.statuses.PAID}</option>
                     <option value="PENDING">{copy.statuses.PENDING}</option>
                     <option value="OVERDUE">{copy.statuses.OVERDUE}</option>
-                    <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
                   </select>
                 </div>
               </div>

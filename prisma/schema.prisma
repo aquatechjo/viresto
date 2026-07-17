@@ -35,6 +35,7 @@ model Tenant {
   clients       Client[]
   documents     Document[]
   invoices      Invoice[]
+  invoiceSequences InvoiceSequence[]
   notifications Notification[]
   payments      Payment[]
   sessions      Session[]
@@ -239,6 +240,7 @@ model User {
   createdTasks         Task[]               @relation("TaskCreator")
   leadCases            Case[]               @relation("CaseLeadLawyer")
   caseMemberships      CaseMember[]
+  cancelledPayments    Payment[]            @relation("PaymentCancelledBy")
   assignedAppointments Appointment[]        @relation("AppointmentAssignee")
   createdAppointments  Appointment[]        @relation("AppointmentCreator")
 
@@ -352,6 +354,10 @@ model Payment {
 
   notes String?
 
+  cancelledAt     DateTime?
+  cancelledById   String?
+  cancellationReason String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -359,12 +365,14 @@ model Payment {
   client  Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
   case    Case?    @relation(fields: [caseId], references: [id], onDelete: Restrict)
   invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  cancelledBy User? @relation("PaymentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([clientId])
   @@index([caseId])
   @@index([invoiceId])
+  @@index([cancelledById])
 }
 
 model Appointment {
@@ -532,6 +540,18 @@ model Session {
   @@index([userId])
   @@index([tenantId])
   @@index([isActive])
+}
+
+model InvoiceSequence {
+  tenantId  String
+  year      Int
+  nextNumber Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, year])
 }
 
 model Invoice {

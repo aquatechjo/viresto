@@ -2,13 +2,18 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
-import { paymentSchema } from "@/lib/validations";
+import { paymentUpdateSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { roundMoney, syncInvoiceStatus } from "@/lib/finance";
 import { moneyExceeds, moneyIsSettled } from "@/lib/money";
+import {
+  canTransitionPayment,
+  isPaymentFinanciallyLocked,
+  requiresPaymentCancellationReason,
+} from "@/lib/financial-audit";
 import {
   buildInvoiceAccessWhere,
   buildPaymentAccessWhere,
@@ -45,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const parsed = paymentSchema.partial().safeParse(body);
+    const parsed = paymentUpdateSchema.safeParse(body);
 
     if (!parsed.success) {
       return err("بيانات الدفعة غير صالحة", 400, parsed.error.flatten());
@@ -93,6 +98,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           paidAt: true,
           reference: true,
           notes: true,
+          cancelledAt: true,
+          cancelledById: true,
+          cancellationReason: true,
           client: {
             select: {
               id: true,
@@ -155,6 +163,77 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       const nextStatus = parsed.data.status ?? existing.status;
+
+      if (!canTransitionPayment(existing.status, nextStatus)) {
+        return {
+          ok: false as const,
+          message:
+            existing.status === "CANCELLED"
+              ? "الدفعة الملغاة سجل نهائي ولا يمكن إعادة فتحها"
+              : "لا يمكن إعادة الدفعة المحصلة إلى معلقة أو متأخرة. يمكن إلغاؤها مع تسجيل السبب فقط.",
+          status: 409,
+        };
+      }
+
+      if (existing.status === "CANCELLED") {
+        return {
+          ok: false as const,
+          message: "الدفعة الملغاة سجل نهائي ولا يمكن تعديلها",
+          status: 409,
+        };
+      }
+
+      const cancellationReason = parsed.data.cancellationReason?.trim();
+
+      if (
+        requiresPaymentCancellationReason(existing.status, nextStatus) &&
+        !cancellationReason
+      ) {
+        return {
+          ok: false as const,
+          message: "سبب الإلغاء مطلوب للحفاظ على أثر التدقيق المالي",
+          status: 400,
+        };
+      }
+
+      if (cancellationReason && nextStatus !== "CANCELLED") {
+        return {
+          ok: false as const,
+          message: "سبب الإلغاء يقبل فقط عند تحويل الدفعة إلى ملغاة",
+          status: 400,
+        };
+      }
+
+      if (
+        existing.status === "PAID" &&
+        nextStatus === "CANCELLED" &&
+        auth.user!.role !== "ADMIN"
+      ) {
+        return {
+          ok: false as const,
+          message: "إلغاء دفعة محصلة يتطلب صلاحية مدير المكتب",
+          status: 403,
+        };
+      }
+
+      const hasFinancialFieldChanges =
+        parsed.data.amount !== undefined ||
+        parsed.data.method !== undefined ||
+        parsed.data.paidAt !== undefined;
+
+      if (
+        hasFinancialFieldChanges &&
+        (isPaymentFinanciallyLocked(existing.status) ||
+          nextStatus === "CANCELLED")
+      ) {
+        return {
+          ok: false as const,
+          message:
+            "لا يمكن تعديل المبلغ أو الطريقة أو تاريخ التحصيل لدفعة محصلة أو أثناء إلغائها",
+          status: 409,
+        };
+      }
+
       const nextAmount = roundMoney(
         parsed.data.amount !== undefined
           ? parsed.data.amount
@@ -173,7 +252,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ? parsed.data.notes?.trim() || null
           : existing.notes;
 
-      let nextPaidAt: Date | null = null;
+      let nextPaidAt: Date | null =
+        nextStatus === "CANCELLED" && existing.status === "PAID"
+          ? existing.paidAt
+          : null;
 
       if (nextStatus === "PAID") {
         if (parsed.data.paidAt !== undefined) {
@@ -341,6 +423,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           paidAt: nextPaidAt,
           reference: nextReference,
           notes: nextNotes,
+          ...(nextStatus === "CANCELLED"
+            ? {
+                cancelledAt: new Date(),
+                cancelledById: auth.user!.userId,
+                cancellationReason,
+              }
+            : {}),
         },
         include: {
           client: {
@@ -364,6 +453,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
               status: true,
               total: true,
               dueDate: true,
+            },
+          },
+          cancelledBy: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },
@@ -424,10 +519,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       userAgent: meta.userAgent,
       type: "PAYMENT_UPDATED",
       title:
-        transactionResult.existing.status !== transactionResult.updated.status
-          ? "تم تغيير حالة دفعة"
-          : "تم تعديل دفعة",
-      message: `${transactionResult.existing.status} → ${transactionResult.updated.status} | ${transactionResult.updated.amount}`,
+        transactionResult.updated.status === "CANCELLED"
+          ? "تم إلغاء دفعة"
+          : transactionResult.existing.status !== transactionResult.updated.status
+            ? "تم تغيير حالة دفعة"
+            : "تم تعديل دفعة",
+      message: `${transactionResult.existing.status} → ${transactionResult.updated.status} | ${transactionResult.updated.amount}${transactionResult.updated.cancellationReason ? ` | ${transactionResult.updated.cancellationReason}` : ""}`,
       entityType,
       entityId,
     });
@@ -531,15 +628,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
        * الدفعات المحصلة لا تُحذف نهائيًا حفاظًا على أثر التدقيق.
        * يتم إلغاؤها من خلال PATCH بالحالة CANCELLED.
        */
-      if (existing.status === "PAID") {
+      if (existing.status === "PAID" || existing.status === "CANCELLED") {
         return {
           ok: false as const,
           message:
-            "لا يمكن حذف دفعة محصلة نهائيًا. غيّر حالتها إلى ملغاة للحفاظ على السجل المالي.",
+            "لا يمكن حذف دفعة محصلة أو ملغاة نهائيًا. استخدم الإلغاء الموثق للدفعة المحصلة ليبقى السجل المالي محفوظًا.",
           status: 409,
           details: {
             paymentId: existing.id,
-            requiredStatus: "CANCELLED",
+            currentStatus: existing.status,
+            deletableStatuses: ["PENDING", "OVERDUE"],
           },
         };
       }
