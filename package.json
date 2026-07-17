@@ -51,16 +51,16 @@
     "react-dom": "^19.2.7",
     "recharts": "^3.8.1",
     "resend": "^6.12.4",
-    "sonner": "^1.7.4",
+    "sonner": "^2.0.7",
     "speakeasy": "^2.0.0",
     "tailwind-merge": "^2.6.0",
-    "unpdf": "1.4.0",
+    "unpdf": "^1.6.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/luxon": "^3.7.2",
-    "@types/node": "^22.10.7",
+    "@types/node": "^24.13.3",
     "@types/pdfmake": "^0.3.3",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.7",
@@ -70,7 +70,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.2.10",
     "png-to-ico": "^3.0.1",
-    "postcss": "^8.5.1",
+    "postcss": "^8.5.19",
     "prisma": "^5.22.0",
     "sharp": "^0.35.3",
     "tailwindcss": "^3.4.17",
@@ -79,6 +79,11 @@
     "typescript": "^5.7.3"
   },
   "overrides": {
-    "uuid": "11.1.1"
-  }
+    "uuid": "11.1.1",
+    "postcss": "$postcss"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "npm@11.16.0"
 }
