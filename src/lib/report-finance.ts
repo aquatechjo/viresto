@@ -54,6 +54,50 @@ interface PaidPaymentInput {
   paidAt: Date | null;
 }
 
+export function buildRollingMonthlyRevenue(
+  payments: PaidPaymentInput[],
+  now: Date,
+  timeZone: string,
+  monthsCount = 6,
+) {
+  const zone = normalizeReportTimeZone(timeZone);
+  const count = Math.min(Math.max(Math.trunc(monthsCount), 1), 24);
+  const currentMonth = DateTime.fromJSDate(now).setZone(zone).startOf("month");
+
+  const buckets = Array.from({ length: count }, (_, index) => {
+    const monthDate = currentMonth.minus({
+      months: count - index - 1,
+    });
+
+    return {
+      key: `${monthDate.year}-${String(monthDate.month).padStart(2, "0")}`,
+      year: monthDate.year,
+      month: monthDate.month,
+      revenue: 0,
+    };
+  });
+
+  const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+
+  for (const payment of payments) {
+    if (!payment.paidAt) continue;
+
+    const paidAt = DateTime.fromJSDate(payment.paidAt).setZone(zone);
+    if (!paidAt.isValid) continue;
+
+    const key = `${paidAt.year}-${String(paidAt.month).padStart(2, "0")}`;
+    const bucket = bucketMap.get(key);
+
+    if (bucket) {
+      bucket.revenue = roundMoney(
+        bucket.revenue + Number(payment.amount || 0),
+      );
+    }
+  }
+
+  return buckets;
+}
+
 export function buildMonthlyRevenue(
   payments: PaidPaymentInput[],
   year: number,

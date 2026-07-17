@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
       dueTodayTasksCount,
       upcomingTasks,
       openInvoices,
+      openInvoicePaidGroups,
     ] = await Promise.all([
       /*
        * الموكلون غير المؤرشفين فقط.
@@ -328,7 +329,8 @@ export async function GET(req: NextRequest) {
 
       /*
        * الفواتير التي لا تزال قابلة للتحصيل.
-       * نقرأ دفعاتها المدفوعة لحساب الرصيد الحقيقي المتبقي.
+       * نجلب الحقول الحسابية فقط، ثم نجمع الدفعات باستعلام groupBy منفصل
+       * حتى لا نحمّل كل سجلات الدفعات وعلاقات الفواتير إلى الذاكرة.
        */
       canViewFinance
         ? prisma.invoice.findMany({
@@ -352,41 +354,43 @@ export async function GET(req: NextRequest) {
               issueDate: true,
               dueDate: true,
               total: true,
-              client: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-              case: {
-                select: {
-                  id: true,
-                  title: true,
-                  caseNumber: true,
-                },
-              },
-              payments: {
-                where: {
-                  status: "PAID",
-                },
-                select: {
-                  amount: true,
-                },
-              },
             },
           })
         : Promise.resolve([]),
+
+      canViewFinance
+        ? prisma.payment.groupBy({
+            by: ["invoiceId"],
+            where: buildPaymentAccessWhere(auth.user, {
+              status: "PAID",
+              invoiceId: { not: null },
+              invoice: {
+                is: buildInvoiceAccessWhere(auth.user, {
+                  status: { in: [...OPEN_INVOICE_STATUSES] },
+                }),
+              },
+            }),
+            _sum: { amount: true },
+          })
+        : Promise.resolve([]),
     ]);
+
+    const paidAmountByInvoice = new Map<string, number>();
+
+    for (const group of openInvoicePaidGroups) {
+      if (!group.invoiceId) continue;
+      paidAmountByInvoice.set(
+        group.invoiceId,
+        Number(group._sum.amount || 0),
+      );
+    }
 
     /*
      * نحسب رصيد كل فاتورة:
      * إجمالي الفاتورة - الدفعات المدفوعة.
      */
     const invoiceBalances = openInvoices.map((invoice) => {
-      const paidAmount = invoice.payments.reduce(
-        (sum, payment) => sum + Number(payment.amount || 0),
-        0,
-      );
+      const paidAmount = paidAmountByInvoice.get(invoice.id) || 0;
 
       const outstandingAmount = Math.max(
         Number(invoice.total || 0) - paidAmount,
@@ -415,8 +419,6 @@ export async function GET(req: NextRequest) {
         paidAmount,
         outstandingAmount,
         isOverdue,
-        client: invoice.client,
-        case: invoice.case,
       };
     });
 
@@ -427,6 +429,50 @@ export async function GET(req: NextRequest) {
     const overdueInvoices = unpaidInvoices.filter(
       (invoice) => invoice.isOverdue,
     );
+
+    const overduePreviewIds = overdueInvoices
+      .slice(0, 5)
+      .map((invoice) => invoice.id);
+
+    const overduePreviewRelations = overduePreviewIds.length
+      ? await prisma.invoice.findMany({
+          where: buildInvoiceAccessWhere(auth.user, {
+            id: { in: overduePreviewIds },
+          }),
+          select: {
+            id: true,
+            client: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            case: {
+              select: {
+                id: true,
+                title: true,
+                caseNumber: true,
+              },
+            },
+          },
+        })
+      : [];
+
+    const overdueRelationMap = new Map(
+      overduePreviewRelations.map((invoice) => [invoice.id, invoice]),
+    );
+
+    const overdueInvoicePreview = overdueInvoices
+      .slice(0, 5)
+      .map((invoice) => {
+        const relations = overdueRelationMap.get(invoice.id);
+
+        return {
+          ...invoice,
+          client: relations?.client ?? null,
+          case: relations?.case ?? null,
+        };
+      });
 
     const pendingAmount = unpaidInvoices.reduce(
       (sum, invoice) => sum + invoice.outstandingAmount,
@@ -499,7 +545,7 @@ export async function GET(req: NextRequest) {
       /*
        * نرسل أول خمس فواتير متأخرة لقسم "يحتاج انتباهك".
        */
-      overdueInvoices: canViewFinance ? overdueInvoices.slice(0, 5) : [],
+      overdueInvoices: canViewFinance ? overdueInvoicePreview : [],
     });
   });
 }

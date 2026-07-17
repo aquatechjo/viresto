@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildMonthlyRevenue,
+  buildRollingMonthlyRevenue,
   calculateInvoiceFinancialSummary,
   getInvoiceRemainingAmount,
   getReportPeriod,
@@ -33,6 +34,25 @@ test("places payments in months using the report time zone", () => {
 
   assert.equal(revenue[6].revenue, 25);
   assert.equal(revenue[7].revenue, 20);
+});
+
+test("builds rolling revenue across year boundaries in Amman time", () => {
+  const revenue = buildRollingMonthlyRevenue(
+    [
+      { amount: 10, paidAt: new Date("2026-01-31T21:30:00.000Z") },
+      { amount: 15, paidAt: new Date("2026-07-31T20:30:00.000Z") },
+      { amount: 20, paidAt: new Date("2026-07-31T21:30:00.000Z") },
+    ],
+    new Date("2026-07-17T12:00:00.000Z"),
+    "Asia/Amman",
+  );
+
+  assert.deepEqual(
+    revenue.map((bucket) => bucket.key),
+    ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07"],
+  );
+  assert.equal(revenue[0].revenue, 10);
+  assert.equal(revenue[5].revenue, 15);
 });
 
 test("calculates partial payments from actual paid records", () => {

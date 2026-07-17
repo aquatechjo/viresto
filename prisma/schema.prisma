@@ -274,6 +274,7 @@ model Client {
   archivedAt     DateTime?
 
   @@index([tenantId])
+  @@index([tenantId, archivedAt, createdAt])
 }
 
 model Case {
@@ -309,6 +310,7 @@ model Case {
   @@index([tenantId, status])
   @@index([tenantId, caseNumber])
   @@index([tenantId, leadLawyerId])
+  @@index([tenantId, clientId, status])
 }
 
 model CaseMember {
@@ -369,6 +371,9 @@ model Payment {
 
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([tenantId, status, paidAt])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, invoiceId, status])
   @@index([clientId])
   @@index([caseId])
   @@index([invoiceId])
@@ -399,7 +404,9 @@ model Appointment {
 
   @@index([tenantId])
   @@index([tenantId, startTime])
+  @@index([tenantId, status, startTime])
   @@index([tenantId, assignedToId, startTime])
+  @@index([tenantId, caseId, startTime])
   @@index([createdById])
 }
 
@@ -428,6 +435,8 @@ model Document {
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, caseId, createdAt])
 }
 
 model Task {
@@ -457,6 +466,8 @@ model Task {
   @@index([tenantId, status])
   @@index([tenantId, assignedToId, status])
   @@index([tenantId, dueDate])
+  @@index([tenantId, completed, dueDate])
+  @@index([tenantId, caseId, dueDate])
   @@index([createdById])
 }
 
@@ -540,6 +551,7 @@ model Session {
   @@index([userId])
   @@index([tenantId])
   @@index([isActive])
+  @@index([userId, isActive, lastActivityAt])
 }
 
 model InvoiceSequence {
@@ -579,6 +591,9 @@ model Invoice {
 
   @@unique([tenantId, invoiceNumber])
   @@index([tenantId])
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, issueDate])
+  @@index([tenantId, clientId, issueDate])
   @@index([clientId])
   @@index([caseId])
 }
