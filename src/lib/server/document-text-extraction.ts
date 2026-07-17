@@ -20,6 +20,7 @@ type ExtractionFailure = {
   status: number;
   code: string;
   message: string;
+  aiUsageTokens?: number | null;
 };
 
 export type DocumentTextExtractionResult =
@@ -30,6 +31,7 @@ export type DocumentTextExtractionResult =
       pageCount: number | null;
       truncated: boolean;
       originalCharacterCount: number;
+      aiUsageTokens?: number | null;
     }
   | ExtractionFailure;
 
@@ -37,8 +39,9 @@ function extractionFailure(
   code: string,
   message: string,
   status = 422,
+  aiUsageTokens?: number | null,
 ): ExtractionFailure {
-  return { ok: false, code, message, status };
+  return { ok: false, code, message, status, aiUsageTokens };
 }
 
 function normalizeExtractedText(value: string) {
@@ -195,7 +198,10 @@ async function extractImageText(
   });
 
   const text = completion.choices[0]?.message?.content?.trim() || "";
-  return /^NO_TEXT[.!]?$/i.test(text) ? "" : text;
+  return {
+    text: /^NO_TEXT[.!]?$/i.test(text) ? "" : text,
+    aiUsageTokens: completion.usage?.total_tokens ?? null,
+  };
 }
 
 export async function readResponseBodyWithLimit(
@@ -289,6 +295,7 @@ export async function extractDocumentText(options: {
   let rawText = "";
   let source: ExtractionSource;
   let pageCount: number | null = null;
+  let aiUsageTokens: number | null = null;
 
   try {
     if (fileType === "application/pdf") {
@@ -304,7 +311,9 @@ export async function extractDocumentText(options: {
       rawText = await extractDocxText(buffer);
       source = "docx-text";
     } else if (fileType.startsWith("image/")) {
-      rawText = await extractImageText(buffer, fileType, openai);
+      const imageExtraction = await extractImageText(buffer, fileType, openai);
+      rawText = imageExtraction.text;
+      aiUsageTokens = imageExtraction.aiUsageTokens;
       source = "image-ocr";
       pageCount = 1;
     } else {
@@ -333,6 +342,8 @@ export async function extractDocumentText(options: {
       fileType === "application/pdf"
         ? "لم يتم العثور على نص كافٍ داخل PDF. قد يكون المستند ممسوحًا ضوئيًا؛ ارفعه كصورة واضحة أو استخدم PDF نصيًا."
         : "لم يتم العثور على نص واضح وكافٍ داخل المستند لتلخيصه.",
+      422,
+      aiUsageTokens,
     );
   }
 
@@ -343,6 +354,7 @@ export async function extractDocumentText(options: {
     pageCount,
     truncated: limited.truncated,
     originalCharacterCount: limited.originalCharacterCount,
+    aiUsageTokens,
   };
 }
 

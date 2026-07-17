@@ -28,6 +28,9 @@ interface UsageItem {
   used: number;
   limit: number | null;
   percent: number | null;
+  reserved?: number;
+  periodStart?: string;
+  periodEnd?: string;
 }
 
 interface BillingPlan {
@@ -45,6 +48,7 @@ interface BillingPlan {
     documents: number | null;
     storageMb?: number | null;
     aiEnabled?: boolean;
+    aiMonthlyTokens?: number;
   };
   aiEnabled: boolean;
   sortOrder?: number;
@@ -136,6 +140,8 @@ interface BillingData {
     clients: UsageItem;
     cases: UsageItem;
     documents: UsageItem;
+    storage: UsageItem;
+    ai: UsageItem;
     payments: UsageItem;
     invoices: UsageItem;
   };
@@ -512,6 +518,8 @@ export default function BillingPage() {
     clients: billing.clients,
     cases: billing.cases,
     documents: billing.documents,
+    storage: labels.storage,
+    ai: isArabic ? "استهلاك الذكاء الاصطناعي" : "AI token usage",
     payments: billing.payments,
     invoices: billing.invoices,
   };
@@ -903,7 +911,7 @@ export default function BillingPage() {
                     <div
                       className="h-full rounded-full bg-emerald-600 transition-all"
                       style={{
-                        width: item.limit
+                        width: item.limit !== null
                           ? `${Math.min(percent, 100)}%`
                           : "100%",
                       }}
@@ -911,7 +919,7 @@ export default function BillingPage() {
                   </div>
 
                   <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
-                    {item.limit
+                    {item.limit !== null
                       ? `${percent}% ${billing.used}`
                       : billing.noLimit}
                   </p>

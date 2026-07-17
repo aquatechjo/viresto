@@ -28,6 +28,7 @@ model Tenant {
   logoUrl       String?
   phone         String?
   activities    Activity[]
+  aiUsagePeriods AiUsagePeriod[]
   appointments  Appointment[]
   cases         Case[]
   caseMembers   CaseMember[]
@@ -181,6 +182,38 @@ model SubscriptionPayment {
   @@index([reviewedAt])
 }
 
+model AiUsagePeriod {
+  id             String   @id @default(cuid())
+  tenantId       String
+  periodStart    DateTime
+  usedTokens     Int      @default(0)
+  reservedTokens Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reservations AiUsageReservation[]
+
+  @@unique([tenantId, periodStart])
+  @@index([tenantId, updatedAt])
+}
+
+model AiUsageReservation {
+  id             String   @id
+  usagePeriodId  String
+  reservedTokens Int
+  actualTokens   Int?
+  status         String   @default("PENDING")
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  usagePeriod AiUsagePeriod @relation(fields: [usagePeriodId], references: [id], onDelete: Cascade)
+
+  @@index([usagePeriodId, status, expiresAt])
+  @@index([status, expiresAt])
+}
+
 model User {
   id                   String               @id @default(cuid())
   tenantId             String
@@ -210,8 +243,8 @@ model User {
   createdAppointments  Appointment[]        @relation("AppointmentCreator")
 
   @@unique([tenantId, email])
-  @@unique([id, tenantId])
   @@index([tenantId])
+  @@unique([id, tenantId])
 }
 
 model Client {
@@ -269,8 +302,8 @@ model Case {
   payments     Payment[]
   tasks        Task[]
 
-  @@index([tenantId])
   @@unique([id, tenantId])
+  @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, caseNumber])
   @@index([tenantId, leadLawyerId])

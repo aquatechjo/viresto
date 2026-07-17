@@ -15,6 +15,7 @@ import {
   buildPublicManualPaymentSettings,
   MANUAL_PAYMENT_SETTINGS_ID,
 } from "@/lib/manual-payment-settings";
+import { getAiUsagePeriod } from "@/lib/ai-usage-core";
 
 type DbPlanLike = {
   id: string;
@@ -315,8 +316,14 @@ export async function GET(req: NextRequest) {
       return err("المكتب غير موجود", 404);
     }
 
-    const [plans, usageCounts, storageAggregate, manualPaymentSettings] =
-      await Promise.all([
+    const aiPeriod = getAiUsagePeriod();
+    const [
+      plans,
+      usageCounts,
+      storageAggregate,
+      manualPaymentSettings,
+      aiUsagePeriod,
+    ] = await Promise.all([
       prisma.billingPlan.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: "asc" },
@@ -375,6 +382,18 @@ export async function GET(req: NextRequest) {
           id: MANUAL_PAYMENT_SETTINGS_ID,
         },
       }),
+      prisma.aiUsagePeriod.findUnique({
+        where: {
+          tenantId_periodStart: {
+            tenantId: tenant.id,
+            periodStart: aiPeriod.start,
+          },
+        },
+        select: {
+          usedTokens: true,
+          reservedTokens: true,
+        },
+      }),
     ]);
 
     type TenantSubscription = NonNullable<
@@ -408,6 +427,9 @@ export async function GET(req: NextRequest) {
     const [usersUsed, clientsUsed, casesUsed, documentsUsed] = usageCounts;
     const usedStorageBytes = storageAggregate._sum.fileSize || 0;
     const usedStorageMb = Math.ceil(usedStorageBytes / (1024 * 1024));
+    const usedAiTokens =
+      (aiUsagePeriod?.usedTokens ?? 0) +
+      (aiUsagePeriod?.reservedTokens ?? 0);
 
     const usage = {
       users: {
@@ -435,6 +457,17 @@ export async function GET(req: NextRequest) {
         usedBytes: usedStorageBytes,
         limit: effectiveLimits.storageMb,
         percent: getUsagePercent(usedStorageMb, effectiveLimits.storageMb),
+      },
+      ai: {
+        used: usedAiTokens,
+        reserved: aiUsagePeriod?.reservedTokens ?? 0,
+        limit: effectiveLimits.aiMonthlyTokens,
+        percent: getUsagePercent(
+          usedAiTokens,
+          effectiveLimits.aiMonthlyTokens,
+        ),
+        periodStart: aiPeriod.start,
+        periodEnd: aiPeriod.end,
       },
       payments: {
         used: tenant._count.payments,

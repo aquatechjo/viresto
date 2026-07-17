@@ -8,11 +8,20 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { sanitizeAiInput, detectPromptInjection } from "@/lib/ai-security";
 import { logActivity } from "@/lib/log-activity";
 import { verifySameOrigin } from "@/lib/csrf";
-import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { assertTenantCanUseAi } from "@/lib/billing-limits";
 import {
   AI_CONSENT_REQUIRED_CODE,
   hasCurrentAiConsent,
 } from "@/lib/ai-consent";
+import {
+  AI_QUOTA_EXCEEDED_CODE,
+  estimateAiTokenBudget,
+} from "@/lib/ai-usage-core";
+import {
+  commitAiUsage,
+  releaseAiUsage,
+  reserveAiUsage,
+} from "@/lib/server/ai-usage";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -45,15 +54,17 @@ export async function POST(req: NextRequest) {
       return err("المكتب موقوف", 403);
     }
 
-    const writeCheck = await assertTenantCanWrite(
+    const aiCheck = await assertTenantCanUseAi(
       auth.user.tenantId,
       "استخدام المساعد الذكي",
     );
 
-    if (!writeCheck.ok) {
-      return err(writeCheck.message, writeCheck.status, {
-        code: "SUBSCRIPTION_INACTIVE",
-        billing: writeCheck.billing ?? null,
+    if (!aiCheck.ok) {
+      return err(aiCheck.message, aiCheck.status, {
+        code: aiCheck.billing?.canCreate
+          ? "AI_NOT_INCLUDED"
+          : "SUBSCRIPTION_INACTIVE",
+        billing: aiCheck.billing ?? null,
       });
     }
     if (!tenant.aiEnabled) {
@@ -132,21 +143,63 @@ export async function POST(req: NextRequest) {
 - لا تقدم استشارة قانونية نهائية، فقط ساعد في التنظيم والشرح والمتابعة.
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
-      temperature: 0.2,
-      max_completion_tokens: 500,
-      store: false,
-      messages: [
+    const limitTokens = aiCheck.billing.limits.aiMonthlyTokens;
+    const requestedTokens = estimateAiTokenBudget(
+      [systemPrompt, message],
+      500,
+    );
+    const reservation = await reserveAiUsage({
+      tenantId: auth.user.tenantId,
+      limitTokens,
+      requestedTokens,
+    });
+
+    if (!reservation.ok) {
+      return err(
+        "تم استهلاك حصة الذكاء الاصطناعي الشهرية لهذه الخطة",
+        429,
         {
-          role: "system",
-          content: systemPrompt,
+          code: AI_QUOTA_EXCEEDED_CODE,
+          usage: reservation.usage,
         },
-        {
-          role: "user",
-          content: message,
-        },
-      ],
+      );
+    }
+
+    let completion;
+
+    try {
+      completion = await openai.chat.completions.create({
+        model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+        temperature: 0.2,
+        max_completion_tokens: 500,
+        store: false,
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+      });
+    } catch (error) {
+      await releaseAiUsage({
+        tenantId: auth.user.tenantId,
+        reservationId: reservation.reservation.id,
+      }).catch((releaseError) => {
+        console.error("Failed to release AI chat reservation:", releaseError);
+      });
+
+      throw error;
+    }
+
+    const usage = await commitAiUsage({
+      tenantId: auth.user.tenantId,
+      reservationId: reservation.reservation.id,
+      limitTokens,
+      actualTokens: completion.usage?.total_tokens,
     });
 
     const reply =
@@ -163,6 +216,6 @@ export async function POST(req: NextRequest) {
       entityId: auth.user.userId,
     });
 
-    return ok({ reply });
+    return ok({ reply, usage });
   });
 }
