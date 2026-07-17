@@ -55,7 +55,7 @@ const TEXT = {
     subtitle: "Smart legal workspace assistant",
     open: "Open AI legal assistant",
     close: "Close AI legal assistant",
-    placeholder: "Ask about drafting, organization, or follow-up...",
+    placeholder: "Ask about drafting, organization...",
     send: "Send",
     loading: "Analyzing...",
     noReply: "The assistant did not return a reply.",
