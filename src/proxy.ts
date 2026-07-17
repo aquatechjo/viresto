@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyToken } from "@/lib/auth";
+import {
+  buildContentSecurityPolicy,
+  createCspNonce,
+} from "@/lib/csp";
 
 const publicPaths = [
   "/",
@@ -56,7 +60,7 @@ function applyNoStoreHeaders(res: NextResponse) {
   return res;
 }
 
-function applySecurityHeaders(res: NextResponse) {
+function applySecurityHeaders(res: NextResponse, csp: string) {
   const isProd = process.env.NODE_ENV === "production";
 
   if (isProd) {
@@ -75,45 +79,25 @@ function applySecurityHeaders(res: NextResponse) {
     "camera=(), microphone=(), geolocation=()",
   );
 
-  const isDev = process.env.NODE_ENV !== "production";
-  const turnstileSrc = "https://challenges.cloudflare.com";
-
-  const scriptSrc = isDev
-    ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${turnstileSrc};`
-    : `script-src 'self' 'unsafe-inline' ${turnstileSrc};`;
-
-  const scriptSrcElem = `script-src-elem 'self' 'unsafe-inline' ${turnstileSrc};`;
-
-  res.headers.set(
-    "Content-Security-Policy",
-    `
-    default-src 'self';
-    worker-src 'self' blob:;
-    ${scriptSrc}
-    ${scriptSrcElem}
-    img-src 'self' data: blob: https://res.cloudinary.com;
-    connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://api.openai.com https://*.upstash.io https://*.vercel-insights.com https://*.vercel-analytics.com https://challenges.cloudflare.com;
-    frame-src 'self' https://res.cloudinary.com https://challenges.cloudflare.com;
-    frame-ancestors 'none';
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    font-src 'self' data: https://fonts.gstatic.com;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-  `
-      .replace(/\s{2,}/g, " ")
-      .trim(),
-  );
+  res.headers.set("Content-Security-Policy", csp);
 
   return res;
 }
 
-function finalizeResponse(res: NextResponse, pathname: string) {
+function finalizeResponse(res: NextResponse, pathname: string, csp: string) {
   if (shouldDisableCache(pathname)) {
     applyNoStoreHeaders(res);
   }
 
-  return applySecurityHeaders(res);
+  return applySecurityHeaders(res, csp);
+}
+
+function continueRequest(requestHeaders: Headers) {
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 function unauthenticatedResponse(req: NextRequest) {
@@ -132,6 +116,16 @@ function unauthenticatedResponse(req: NextRequest) {
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const nonce = createCspNonce();
+  const csp = buildContentSecurityPolicy(
+    nonce,
+    process.env.NODE_ENV !== "production",
+  );
+  const requestHeaders = new Headers(req.headers);
+
+  // Next.js reads the request CSP/nonce and adds it to framework scripts.
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
 
   const isAsset =
     pathname.startsWith("/_next") ||
@@ -141,11 +135,11 @@ export async function proxy(req: NextRequest) {
     pathname.includes(".");
 
   if (isAsset) {
-    return applySecurityHeaders(NextResponse.next());
+    return applySecurityHeaders(NextResponse.next(), csp);
   }
 
   if (machineAuthenticatedPaths.has(pathname)) {
-    return finalizeResponse(NextResponse.next(), pathname);
+    return finalizeResponse(continueRequest(requestHeaders), pathname, csp);
   }
 
   const publicRegisterEnabled =
@@ -156,6 +150,7 @@ export async function proxy(req: NextRequest) {
     return finalizeResponse(
       NextResponse.redirect(new URL("/login", req.url)),
       pathname,
+      csp,
     );
   }
 
@@ -163,11 +158,11 @@ export async function proxy(req: NextRequest) {
 
   if (!token && !isPublicPath(pathname)) {
     const res = unauthenticatedResponse(req);
-    return finalizeResponse(res, pathname);
+    return finalizeResponse(res, pathname, csp);
   }
 
   if (!token && isPublicPath(pathname)) {
-    return finalizeResponse(NextResponse.next(), pathname);
+    return finalizeResponse(continueRequest(requestHeaders), pathname, csp);
   }
 
   if (token) {
@@ -176,14 +171,13 @@ export async function proxy(req: NextRequest) {
 
       if (!payload) {
         const res = isPublicPath(pathname)
-          ? NextResponse.next()
+          ? continueRequest(requestHeaders)
           : unauthenticatedResponse(req);
 
         res.cookies.delete("ld_token");
-        return finalizeResponse(res, pathname);
+        return finalizeResponse(res, pathname, csp);
       }
 
-      const requestHeaders = new Headers(req.headers);
       requestHeaders.set("x-user-id", String(payload.userId));
       requestHeaders.set("x-tenant-id", String(payload.tenantId));
       requestHeaders.set("x-user-role", String(payload.role));
@@ -199,27 +193,24 @@ export async function proxy(req: NextRequest) {
         return finalizeResponse(
           NextResponse.redirect(new URL("/dashboard", req.url)),
           pathname,
+          csp,
         );
       }
 
-      const res = NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
+      const res = continueRequest(requestHeaders);
 
-      return finalizeResponse(res, pathname);
+      return finalizeResponse(res, pathname, csp);
     } catch {
       const res = isPublicPath(pathname)
-        ? NextResponse.next()
+        ? continueRequest(requestHeaders)
         : unauthenticatedResponse(req);
 
       res.cookies.delete("ld_token");
-      return finalizeResponse(res, pathname);
+      return finalizeResponse(res, pathname, csp);
     }
   }
 
-  return finalizeResponse(NextResponse.next(), pathname);
+  return finalizeResponse(continueRequest(requestHeaders), pathname, csp);
 }
 
 export const config = {

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import { headers } from 'next/headers'
 import { Toaster } from 'sonner'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
@@ -151,11 +152,18 @@ const websiteJsonLd = {
   ],
 }
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+// A per-request CSP nonce requires dynamic rendering so every response receives
+// matching nonces on the framework and application scripts.
+export const dynamic = 'force-dynamic'
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body>
         <script
+          nonce={nonce}
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(websiteJsonLd),
