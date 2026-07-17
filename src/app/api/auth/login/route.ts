@@ -42,6 +42,20 @@ export async function POST(req: NextRequest) {
     const email = parsed.data.email.trim().toLowerCase();
     const password = parsed.data.password;
 
+    /*
+     * حد مستقل لكل بريد يمنع توزيع التخمين على عدة عناوين شبكة.
+     * يطبق على البريد سواء كان مسجلًا أم لا لتجنب كشف وجود الحساب.
+     */
+    const accountLimit = await checkRateLimit(email, {
+      keyPrefix: "login-account",
+      max: 15,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!accountLimit.allowed) {
+      return err("محاولات كثيرة لتسجيل الدخول. حاول بعد 15 دقيقة.", 429);
+    }
+
     const user = await prisma.user.findFirst({
       where: { email },
       select: {

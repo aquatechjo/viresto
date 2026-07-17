@@ -10,7 +10,10 @@ import {
   hashRateLimitIdentifier,
 } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/turnstile";
-import { hashTeamInvitationToken } from "@/lib/team-invitations";
+import {
+  hashTeamInvitationToken,
+  isTeamInvitationActive,
+} from "@/lib/team-invitations";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import { strongPasswordSchema } from "@/lib/validations";
 
@@ -54,12 +57,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    if (
-      !invitation ||
-      invitation.acceptedAt ||
-      invitation.revokedAt ||
-      invitation.expiresAt <= new Date()
-    ) {
+    if (!invitation || !isTeamInvitationActive(invitation)) {
       return err("الدعوة غير صالحة أو منتهية", 404);
     }
 
@@ -103,12 +101,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (
-      !preview ||
-      preview.acceptedAt ||
-      preview.revokedAt ||
-      preview.expiresAt <= new Date()
-    ) {
+    if (!preview || !isTeamInvitationActive(preview)) {
       return err("الدعوة غير صالحة أو منتهية", 404);
     }
 
@@ -144,9 +137,7 @@ export async function POST(req: NextRequest) {
       if (
         !invitation ||
         invitation.tenantId !== preview.tenantId ||
-        invitation.acceptedAt ||
-        invitation.revokedAt ||
-        invitation.expiresAt <= new Date()
+        !isTeamInvitationActive(invitation)
       ) {
         return { error: "INVALID_INVITATION" as const };
       }

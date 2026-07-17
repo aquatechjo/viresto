@@ -2,6 +2,23 @@ import { createHash, randomBytes } from "node:crypto";
 
 export const TEAM_INVITATION_TTL_HOURS = 72;
 
+type TeamInvitationState = {
+  acceptedAt: Date | null;
+  revokedAt: Date | null;
+  expiresAt: Date;
+};
+
+export function isTeamInvitationActive(
+  invitation: TeamInvitationState,
+  now = new Date(),
+) {
+  return Boolean(
+    !invitation.acceptedAt &&
+      !invitation.revokedAt &&
+      invitation.expiresAt.getTime() > now.getTime(),
+  );
+}
+
 export function createTeamInvitationToken() {
   const token = randomBytes(32).toString("base64url");
 

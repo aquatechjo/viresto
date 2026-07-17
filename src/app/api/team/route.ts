@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { UserRole } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -9,6 +9,7 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { sendTeamInvitationEmail } from "@/lib/email";
 import {
   createTeamInvitationToken,
+  isTeamInvitationActive,
   teamInvitationExpiresAt,
 } from "@/lib/team-invitations";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
     const { token, tokenHash } = createTeamInvitationToken();
     const expiresAt = teamInvitationExpiresAt();
 
-    const result = await prisma.$transaction(async (tx) => {
+    const createInvitation = () => prisma.$transaction(async (tx) => {
       await lockTenantMutation(tx, auth.user.tenantId);
 
       const lockedLimitCheck = await assertTenantCanCreate(
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest) {
         };
       }
 
-      const [tenant, existingUser, existingInvitation] = await Promise.all([
+      const [tenant, existingUser, existingInvitationRecord] = await Promise.all([
         tx.tenant.findUnique({
           where: { id: auth.user.tenantId },
           select: { id: true, name: true, maxUsers: true },
@@ -166,18 +167,37 @@ export async function POST(req: NextRequest) {
         }),
         tx.teamInvitation.findUnique({
           where: { email },
-          select: { id: true, tenantId: true },
+          select: {
+            id: true,
+            tenantId: true,
+            acceptedAt: true,
+            revokedAt: true,
+            expiresAt: true,
+          },
         }),
       ]);
 
       if (!tenant) return { error: "TENANT_NOT_FOUND" as const };
       if (existingUser) return { error: "EMAIL_IN_USE" as const };
 
+      let existingInvitation = existingInvitationRecord;
+
       if (
         existingInvitation &&
         existingInvitation.tenantId !== auth.user.tenantId
       ) {
-        return { error: "EMAIL_INVITED_ELSEWHERE" as const };
+        if (isTeamInvitationActive(existingInvitation)) {
+          return { error: "EMAIL_INVITED_ELSEWHERE" as const };
+        }
+
+        /*
+         * الدعوة المنتهية/المقبولة/الملغاة لا يجب أن تحجز البريد عالميًا.
+         * نحذف السجل القديم داخل نفس المعاملة قبل إنشاء الدعوة الجديدة.
+         */
+        await tx.teamInvitation.delete({
+          where: { id: existingInvitation.id },
+        });
+        existingInvitation = null;
       }
 
       const [activeUsers, otherPendingInvitations] = await Promise.all([
@@ -260,6 +280,24 @@ export async function POST(req: NextRequest) {
 
       return { invitation, tenantName: tenant.name };
     });
+
+    let result: Awaited<ReturnType<typeof createInvitation>>;
+
+    try {
+      result = await createInvitation();
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === "P2002" || error.code === "P2025")
+      ) {
+        return err(
+          "تم إنشاء دعوة لهذا البريد بالتزامن. حدّث الصفحة ثم أعد المحاولة.",
+          409,
+        );
+      }
+
+      throw error;
+    }
 
     if ("error" in result) {
       if (result.error === "TENANT_NOT_FOUND") {
