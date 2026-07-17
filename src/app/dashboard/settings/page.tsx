@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { toast } from "sonner";
 
-import PageLoader from "@/components/ui/PageLoader";
 import FormField from "@/components/ui/FormField";
 import { initials } from "@/lib/utils";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
@@ -363,39 +362,6 @@ function getInitialLocale(): Locale {
   return "ar";
 }
 
-function Toggle({
-  on,
-  set,
-  disabled,
-  label,
-}: {
-  on: boolean;
-  set: (value: boolean) => void;
-  disabled?: boolean;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => set(!on)}
-      className="relative h-6 w-11 rounded-full transition-all duration-200 disabled:opacity-60"
-      style={{
-        background: on ? "var(--sidebar)" : "var(--border)",
-      }}
-      aria-label={label}
-    >
-      <span
-        className="absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
-        style={{
-          right: on ? 5 : "auto",
-          left: on ? "auto" : 5,
-        }}
-      />
-    </button>
-  );
-}
-
 function InfoLine({
   label,
   value,
@@ -452,11 +418,6 @@ export default function SettingsPage() {
   const direction = isArabic ? "rtl" : "ltr";
   const textAlign = isArabic ? "right" : "left";
 
-  const directionalInputStyle: CSSProperties = {
-    textAlign,
-    direction,
-  };
-
   const ltrInputStyle: CSSProperties = {
     textAlign: "left",
     direction: "ltr",
@@ -500,9 +461,6 @@ export default function SettingsPage() {
   });
 
   const [company, setCompany] = useState<CompanySettings>(INIT_COMPANY);
-
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
 
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -1634,7 +1592,7 @@ export default function SettingsPage() {
 
               {qrCode && (
                 <div className="mt-5 space-y-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  { }
                   <img
                     src={qrCode}
                     alt={copy.qrAlt}

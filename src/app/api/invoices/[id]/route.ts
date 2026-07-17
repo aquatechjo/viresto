@@ -12,7 +12,6 @@ import { decryptText } from "@/lib/encryption";
 import {
   buildCaseAccessWhere,
   buildClientAccessWhere,
-  buildInvoiceAccessWhere,
   buildInvoiceIdentifierAccessWhere,
 } from "@/lib/access-control";
 import { roundMoney } from "@/lib/finance";

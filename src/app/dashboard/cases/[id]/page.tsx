@@ -6,7 +6,6 @@ import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import AppLoader from "@/components/ui/AppLoader";
-import PageLoader from "@/components/ui/PageLoader";
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
 import { fileSizeLabel, formatDate, formatTime } from "@/lib/utils";
@@ -150,50 +149,6 @@ interface CaseDetail {
   activities: Activity[];
 }
 
-const STATUS_AR: Record<string, string> = {
-  OPEN: "نشطة",
-  IN_PROGRESS: "قيد المتابعة",
-  CLOSED: "مغلقة",
-  ARCHIVED: "مؤرشفة",
-};
-
-const STATUSES = [
-  ["OPEN", "نشطة"],
-  ["IN_PROGRESS", "قيد المتابعة"],
-  ["CLOSED", "مغلقة"],
-  ["ARCHIVED", "مؤرشفة"],
-] as const;
-
-const METHOD_AR: Record<string, string> = {
-  CASH: "نقدًا",
-  BANK_TRANSFER: "تحويل بنكي",
-  CHECK: "شيك",
-  ONLINE: "إلكتروني",
-};
-
-const PMT_AR: Record<string, string> = {
-  PAID: "مدفوع",
-  PENDING: "معلق",
-  OVERDUE: "متأخر",
-  CANCELLED: "ملغي",
-};
-
-const INVOICE_STATUS_AR: Record<string, string> = {
-  DRAFT: "مسودة",
-  UNPAID: "غير مدفوعة",
-  PAID: "مدفوعة",
-  OVERDUE: "متأخرة",
-  CANCELLED: "ملغاة",
-  PARTIALLY_PAID: "مدفوعة جزئيًا",
-};
-
-const TASK_PRIORITY_AR: Record<string, string> = {
-  URGENT: "عاجلة",
-  HIGH: "عالية",
-  MEDIUM: "متوسطة",
-  LOW: "منخفضة",
-};
-
 const BADGE_CLASS =
   "inline-flex items-center rounded-full border px-3 py-1 text-xs font-black";
 
@@ -236,20 +191,6 @@ function badgeVisualStyle(value: string): CSSProperties {
     borderColor: "var(--border)",
   };
 }
-
-const APPT_TYPE_AR: Record<string, string> = {
-  MEETING: "اجتماع",
-  COURT_SESSION: "جلسة محكمة",
-  PHONE_CALL: "مكالمة",
-  DEADLINE: "موعد نهائي",
-  OTHER: "أخرى",
-};
-
-const APPT_STATUS_AR: Record<string, string> = {
-  SCHEDULED: "مجدول",
-  COMPLETED: "مكتمل",
-  CANCELLED: "ملغي",
-};
 
 const ACTIVITY_ICON: Record<string, string> = {
   CLIENT_CREATED: "👤",
@@ -743,19 +684,6 @@ export default function CaseDetailPage() {
           new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
       )
       .slice(0, 5);
-  }, [c]);
-
-  const overdueTasks = useMemo(() => {
-    const now = Date.now();
-
-    return (c?.tasks ?? []).filter(
-      (task) =>
-        task.status !== "COMPLETED" &&
-        task.status !== "CANCELLED" &&
-        !task.completed &&
-        task.dueDate &&
-        new Date(task.dueDate).getTime() < now,
-    ).length;
   }, [c]);
 
   const caseArchived = Boolean(c?.client?.archivedAt);

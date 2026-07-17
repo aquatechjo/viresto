@@ -27,7 +27,6 @@ export async function GET(req: NextRequest) {
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
     if (auth.error || !auth.user) return auth.error;
 
-    const tenantId = auth.user.tenantId;
     const canViewFinance = canReadFinance(auth.user.role);
 
     /*

@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
     const createPayment = () => prisma.$transaction(async (tx) => {
       let clientId: string;
       let caseId: string | null = requestedCaseId;
-      let invoiceId: string | null = requestedInvoiceId;
+      const invoiceId: string | null = requestedInvoiceId;
 
       let caseTitle: string | null = null;
       let invoiceNumber: string | null = null;

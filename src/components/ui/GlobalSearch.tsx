@@ -102,7 +102,7 @@ export default function GlobalSearch() {
       {open && query.length >= 2 && (
         <div className="absolute z-50 top-full mt-2 w-80 bg-[#0b292a] border border-[#286061] rounded-xl shadow-2xl overflow-hidden">
           {!hasResults && !loading && (
-            <div className="p-4 text-center text-sm text-gray-500">لا توجد نتائج لـ "{query}"</div>
+            <div className="p-4 text-center text-sm text-gray-500">لا توجد نتائج لـ &quot;{query}&quot;</div>
           )}
 
           {/* Clients */}

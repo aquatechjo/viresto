@@ -1,0 +1,74 @@
+name: Quality checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/viresto
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/viresto
+      JWT_SECRET: ci-jwt-secret-value-0000000000000001
+      PASSWORD_RESET_SECRET: ci-password-reset-secret-000000001
+      VERIFICATION_SECRET: ci-verification-secret-000000000001
+      SEARCH_HASH_SECRET: ci-search-hash-secret-0000000000001
+      CRON_SECRET: ci-cron-secret-value-00000000000001
+      ENCRYPTION_KEY_ID: ci-primary
+      ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      CLOUDINARY_CLOUD_NAME: ci-cloud
+      CLOUDINARY_API_KEY: ci-api-key
+      CLOUDINARY_API_SECRET: ci-api-secret
+      UPSTASH_REDIS_REST_URL: https://example.upstash.io
+      UPSTASH_REDIS_REST_TOKEN: ci-upstash-token
+      RESEND_API_KEY: ci-resend-key
+      EMAIL_FROM: Viresto <noreply@example.com>
+      APP_URL: https://www.virestojo.com
+      NEXT_PUBLIC_APP_URL: https://www.virestojo.com
+      ALLOWED_SERVER_ACTION_ORIGINS: virestojo.com,www.virestojo.com
+      PUBLIC_REGISTER_ENABLED: "false"
+      NEXT_PUBLIC_REGISTER_ENABLED: "false"
+      TURNSTILE_ENABLED: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Pin npm version
+        run: npm install --global npm@11.16.0
+
+      - name: Show runtime versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Production build
+        run: npm run build

@@ -24,7 +24,6 @@ export default function DateTimePicker({
   locale,
   ariaLabel,
   timeZone = DEFAULT_TIME_ZONE,
-  required = false,
   disabled = false,
 }: DateTimePickerProps) {
   const isRtl = locale === "ar";
@@ -425,7 +424,6 @@ export default function DateTimePicker({
         aria-label={ariaLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-required={required}
       >
         <span
           className="truncate"

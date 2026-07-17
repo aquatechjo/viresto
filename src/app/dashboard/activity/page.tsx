@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import PageLoader from "@/components/ui/PageLoader";
 import EmptyState from "@/components/ui/EmptyState";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";

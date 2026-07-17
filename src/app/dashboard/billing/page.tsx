@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
@@ -666,7 +666,7 @@ export default function BillingPage() {
     await load();
   }
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
 
     const res = await fetch("/api/billing");
@@ -691,11 +691,11 @@ export default function BillingPage() {
 
     setData(json.data);
     setLoading(false);
-  }
+  }, [billing.adminOnly, billing.loadError]);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   const trialLabel = useMemo(() => {
     if (!data?.tenant.trialEndsAt && !data?.subscription?.trialEndsAt) {

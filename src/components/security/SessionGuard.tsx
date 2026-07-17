@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -19,11 +18,10 @@ const ACTIVITY_EVENTS = [
 ] as const;
 
 export default function SessionGuard() {
-  const router = useRouter();
   const loggingOutRef = useRef(false);
   const lastPingRef = useRef(0);
 
-  async function forceLogout(message?: string) {
+  const forceLogout = useCallback(async (message?: string) => {
     if (loggingOutRef.current) return;
 
     loggingOutRef.current = true;
@@ -39,9 +37,9 @@ export default function SessionGuard() {
     }
 
     window.location.replace("/login");
-  }
+  }, []);
 
-  async function pingSessionActivity() {
+  const pingSessionActivity = useCallback(async () => {
     const now = Date.now();
 
     if (now - lastPingRef.current < ACTIVITY_PING_INTERVAL_MS) return;
@@ -56,7 +54,7 @@ export default function SessionGuard() {
     if (res && res.status === 401) {
       await forceLogout("انتهت الجلسة. يرجى تسجيل الدخول مجددًا.");
     }
-  }
+  }, [forceLogout]);
 
   useEffect(() => {
     function markActivity() {
@@ -96,7 +94,7 @@ export default function SessionGuard() {
         window.removeEventListener(eventName, markActivity);
       }
     };
-  }, []);
+  }, [forceLogout, pingSessionActivity]);
 
   return null;
 }

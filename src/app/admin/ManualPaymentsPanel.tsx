@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 type ManualPayment = {
@@ -89,7 +89,7 @@ export default function ManualPaymentsPanel() {
   const [status, setStatus] = useState("PENDING");
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
 
     const res = await fetch(`/api/admin/manual-payments?status=${status}`, {
@@ -106,11 +106,11 @@ export default function ManualPaymentsPanel() {
 
     setData(json.data);
     setLoading(false);
-  }
+  }, [status]);
 
   useEffect(() => {
-    load();
-  }, [status]);
+    void load();
+  }, [load]);
 
   function openReceipt(paymentId: string) {
     window.open(

@@ -4,7 +4,6 @@ import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnl
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { toast } from 'sonner'
-import PageLoader from '@/components/ui/PageLoader'
 import { useLocale } from '@/lib/useLocale'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'

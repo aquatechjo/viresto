@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import EmptyState from "@/components/ui/EmptyState";
-import PageLoader from "@/components/ui/PageLoader";
 import DocumentPreviewModal from "@/components/documents/DocumentPreviewModal";
 import { fileSizeLabel, relativeTime } from "@/lib/utils";
 import {

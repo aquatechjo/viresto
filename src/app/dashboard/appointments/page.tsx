@@ -212,7 +212,6 @@ function DateTimePicker({
   locale,
   timeZone = TENANT_TIME_ZONE,
   ariaLabel,
-  required = false,
   disabled = false,
 }: DateTimePickerProps) {
   const isRtl = locale === "ar";
@@ -645,7 +644,6 @@ function DateTimePicker({
         aria-label={ariaLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-required={required}
       >
         <span
           className="truncate"
@@ -842,7 +840,7 @@ export default function AppointmentsPage() {
     } finally {
       if (!options?.silent) setLoading(false);
     }
-  }, []);
+  }, [a.messages.loadError]);
 
   useEffect(() => {
     load();

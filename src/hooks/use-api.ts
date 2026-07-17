@@ -19,7 +19,7 @@ export function useApi<T>(url: string) {
 
         setData(json.data)
         setError(null)
-      } catch (e) {
+      } catch (_e) {
         if (!active) return
         setError('حدث خطأ')
       } finally {

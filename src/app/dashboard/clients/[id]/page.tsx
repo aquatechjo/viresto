@@ -6,7 +6,6 @@ import type { CSSProperties, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getApiMessage } from "@/lib/plan-ui";
-import PageLoader from "@/components/ui/PageLoader";
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
@@ -294,7 +293,7 @@ function safeMessage(data: any, fallback: string) {
   return data?.message || data?.error || data?.data?.message || fallback;
 }
 
-function formatMoney(value: number, localeKey: "ar" | "en") {
+function formatMoney(value: number, _localeKey: "ar" | "en") {
   const amount = Number(value || 0).toLocaleString("en-US", {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
@@ -320,7 +319,7 @@ export default function ClientDetailPage() {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [, setConfirmDeleteOpen] = useState(false);
   const { locale, isRtl } = useLocale();
   const localeKey = locale === "ar" ? "ar" : "en";
   const text = COPY[localeKey];
@@ -633,9 +632,6 @@ export default function ClientDetailPage() {
     setSearch("");
     setStatusFilter("all");
   }
-
-  const currencyTextClass = (value: string) =>
-    value.length > 8 ? "text-lg" : "text-2xl";
 
   if (loading) {
     return <AppLoader fullScreen={false} />;

@@ -1686,7 +1686,7 @@ export default function InvoiceDetailsPage() {
               >
                 <div className="flex shrink-0 flex-col items-center justify-center gap-2 text-center">
                   {useVirestoLockup ? (
-                    // eslint-disable-next-line @next/next/no-img-element
+
                     <img
                       src={VIRESTO_BRAND_LOGO_PATH}
                       alt="Viresto"
@@ -1697,7 +1697,7 @@ export default function InvoiceDetailsPage() {
                       }}
                     />
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
+
                     <img
                       src={invoice.tenant?.logoUrl || "/icon.png"}
                       alt={tenantName}

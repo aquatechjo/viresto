@@ -279,13 +279,6 @@ function resolveLogoUrl(logoUrl?: string | null) {
   return clean;
 }
 
-function paymentStatusLabel(
-  status: string | null | undefined,
-  locale: InvoiceLocale,
-) {
-  if (!status) return "-";
-  return COPY[locale].paymentStatuses[status] || status;
-}
 
 function logoMarkup(
   invoice: PrintableInvoice,
@@ -393,8 +386,6 @@ export function buildInvoicePrintHtml(
   const useVirestoLockup =
     !tenant?.logoUrl && tenantName.trim().toLowerCase() === "viresto";
   const tenantEmail = tenant?.email || copy.legalPlatform;
-  const tenantPhone = tenant?.phone || "";
-  const tenantAddress = tenant?.address || "";
   const invoiceNo = formatInvoiceNumber(invoice.invoiceNumber);
   const caseText = invoice.case
     ? `${invoice.case.title || "-"}${

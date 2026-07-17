@@ -415,25 +415,6 @@ const INVOICE_ITEM_PRESETS: Record<
   ],
 };
 
-const statusLabels: Record<InvoiceStatus, string> = {
-  DRAFT: "مسودة",
-  UNPAID: "غير مدفوعة",
-  PAID: "مدفوعة",
-  OVERDUE: "متأخرة",
-  CANCELLED: "ملغاة",
-  PARTIALLY_PAID: "مدفوعة جزئيًا",
-};
-
-const STATUS_OPTIONS: Array<{ value: "" | InvoiceStatus; label: string }> = [
-  { value: "", label: "كل الحالات" },
-  { value: "DRAFT", label: "مسودة" },
-  { value: "UNPAID", label: "غير مدفوعة" },
-  { value: "PARTIALLY_PAID", label: "مدفوعة جزئيًا" },
-  { value: "PAID", label: "مدفوعة" },
-  { value: "OVERDUE", label: "متأخرة" },
-  { value: "CANCELLED", label: "ملغاة" },
-];
-
 function safeList(data: any) {
   const candidates = [
     data,
@@ -555,7 +536,6 @@ function DatePicker({
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [successInvoice, setSuccessInvoice] = useState<{ id: string; number?: string; status?: string } | null>(null);
   const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
 
   const selectedDate = useMemo(() => parseDateValue(value), [value]);
