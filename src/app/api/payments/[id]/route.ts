@@ -8,10 +8,15 @@ import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { roundMoney, syncInvoiceStatus } from "@/lib/finance";
+import { moneyExceeds, moneyIsSettled } from "@/lib/money";
 import {
   buildInvoiceAccessWhere,
   buildPaymentAccessWhere,
 } from "@/lib/access-control";
+import {
+  assertCaseCanAcceptAmount,
+  isCaseFinancialLimitError,
+} from "@/lib/server/case-finance-integrity";
 
 type Params = {
   params: Promise<{
@@ -54,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const tenantId = auth.user.tenantId;
     const meta = getRequestMeta(req);
 
-    const transactionResult = await prisma.$transaction(async (tx) => {
+    const updatePayment = () => prisma.$transaction(async (tx) => {
       /*
        * قفل الدفعة لمنع تعديلها من طلبين متزامنين.
        */
@@ -287,7 +292,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             Math.max(0, invoiceTotal - otherPaidTotal),
           );
 
-          if (availableBalance <= 0.005) {
+          if (moneyIsSettled(availableBalance)) {
             return {
               ok: false as const,
               message:
@@ -301,7 +306,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             };
           }
 
-          if (nextAmount > availableBalance + 0.005) {
+          if (moneyExceeds(nextAmount, availableBalance)) {
             return {
               ok: false as const,
               message: "قيمة الدفعة أكبر من الرصيد المتاح على الفاتورة",
@@ -315,6 +320,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             };
           }
         }
+      } else if (existing.caseId && nextStatus === "PAID") {
+        await assertCaseCanAcceptAmount(tx, {
+          tenantId,
+          caseId: existing.caseId,
+          excludeDirectPaymentId: existing.id,
+          amount: nextAmount,
+          label: "الدفعة",
+        });
       }
 
       const updated = await tx.payment.update({
@@ -370,6 +383,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         invoiceSummary,
       };
     });
+
+    let transactionResult: Awaited<ReturnType<typeof updatePayment>>;
+
+    try {
+      transactionResult = await updatePayment();
+    } catch (error) {
+      if (isCaseFinancialLimitError(error)) {
+        return err(error.message, error.status, error.details);
+      }
+
+      throw error;
+    }
 
     if (!transactionResult.ok) {
       return err(

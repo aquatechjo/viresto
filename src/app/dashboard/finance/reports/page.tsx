@@ -297,9 +297,12 @@ function formatDate(value: string | Date | null | undefined, locale: Locale) {
 function formatMoney(value: number, locale: Locale) {
   const amount = Number(value || 0)
 
-  return locale === 'ar'
-    ? `${amount.toLocaleString('ar-JO')} د.أ`
-    : `JOD ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const formatted = amount.toLocaleString(locale === 'ar' ? 'ar-JO' : 'en-US', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })
+
+  return locale === 'ar' ? `${formatted} د.أ` : `JOD ${formatted}`
 }
 
 function paymentStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {

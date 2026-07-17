@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasValidJodPrecision, MAX_JOD_AMOUNT } from "@/lib/money";
 
 export const strongPasswordSchema = z
   .string()
@@ -95,6 +96,36 @@ const optionalDateString = z
     return !Number.isNaN(new Date(value).getTime());
   }, "التاريخ غير صالح");
 
+const nonNegativeMoney = z.coerce
+  .number({ invalid_type_error: "القيمة يجب أن تكون رقمًا" })
+  .finite("القيمة يجب أن تكون رقمًا صالحًا")
+  .min(0, "القيمة لا يمكن أن تكون سالبة")
+  .max(MAX_JOD_AMOUNT, "القيمة أكبر من الحد المسموح")
+  .refine(
+    hasValidJodPrecision,
+    "القيمة يجب ألا تحتوي على أكثر من 3 منازل عشرية",
+  );
+
+const positiveMoney = z.coerce
+  .number({ invalid_type_error: "المبلغ يجب أن يكون رقمًا" })
+  .finite("المبلغ يجب أن يكون رقمًا صالحًا")
+  .positive("المبلغ يجب أن يكون موجبًا")
+  .max(MAX_JOD_AMOUNT, "المبلغ أكبر من الحد المسموح")
+  .refine(
+    hasValidJodPrecision,
+    "المبلغ يجب ألا يحتوي على أكثر من 3 منازل عشرية",
+  );
+
+const positiveQuantity = z.coerce
+  .number({ invalid_type_error: "الكمية يجب أن تكون رقمًا" })
+  .finite("الكمية يجب أن تكون رقمًا صالحًا")
+  .positive("الكمية يجب أن تكون أكبر من صفر")
+  .max(1_000_000, "الكمية أكبر من الحد المسموح")
+  .refine(
+    hasValidJodPrecision,
+    "الكمية يجب ألا تحتوي على أكثر من 3 منازل عشرية",
+  );
+
 export const caseSchema = z.object({
   clientId: z.string().min(1, "الموكل مطلوب"),
   leadLawyerId: optionalId,
@@ -112,17 +143,14 @@ export const caseSchema = z.object({
 
   description: optionalText,
   status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"]).optional(),
-  feeAgreed: z.number().min(0).optional(),
+  feeAgreed: nonNegativeMoney.optional(),
 });
 
 export const paymentSchema = z.object({
   caseId: optionalId,
   invoiceId: optionalId,
 
-  amount: z.coerce
-    .number({ invalid_type_error: "المبلغ يجب أن يكون رقمًا" })
-    .finite("المبلغ يجب أن يكون رقمًا صالحًا")
-    .positive("المبلغ يجب أن يكون موجبًا"),
+  amount: positiveMoney,
 
   method: z.enum(["CASH", "BANK_TRANSFER", "CHECK", "ONLINE"]).optional(),
 
@@ -188,23 +216,18 @@ export const updateProfileSchema = z.object({
   currentPassword: z.string().optional(),
   newPassword: strongPasswordSchema.optional(),
 });
-const money = z.coerce
-  .number({ invalid_type_error: "القيمة يجب أن تكون رقمًا" })
-  .finite("القيمة يجب أن تكون رقمًا صالحًا")
-  .min(0, "القيمة لا يمكن أن تكون سالبة");
-
 export const invoiceItemSchema = z.object({
   description: z.string().trim().min(1, "وصف البند مطلوب"),
-  quantity: money.gt(0, "الكمية يجب أن تكون أكبر من صفر"),
-  unitPrice: money,
+  quantity: positiveQuantity,
+  unitPrice: nonNegativeMoney,
 });
 
 export const invoiceCreateSchema = z.object({
   clientId: z.string().min(1, "يجب اختيار الموكل"),
   caseId: z.string().optional().nullable(),
   dueDate: optionalDateString,
-  tax: money.optional().default(0),
-  discount: money.optional().default(0),
+  tax: nonNegativeMoney.optional().default(0),
+  discount: nonNegativeMoney.optional().default(0),
   notes: z
     .string()
     .trim()
@@ -223,8 +246,8 @@ export const invoiceUpdateSchema = z.object({
   status: z
     .enum(["DRAFT", "UNPAID", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])
     .optional(),
-  tax: money.optional(),
-  discount: money.optional(),
+  tax: nonNegativeMoney.optional(),
+  discount: nonNegativeMoney.optional(),
   notes: z
     .string()
     .trim()

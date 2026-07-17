@@ -374,8 +374,8 @@ function safeNumber(value: string) {
 
 function formatMoney(value: number) {
   const amount = Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 
   return `JOD ${amount}`;
@@ -2664,7 +2664,7 @@ export default function CaseDetailPage() {
                 dir="ltr"
                 type="number"
                 min="0"
-                step="0.01"
+                step="0.001"
                 className={`input ${isRtl ? "text-right" : "text-left"}`}
                 value={caseEditForm.feeAgreed}
                 onChange={(event) =>

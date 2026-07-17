@@ -8,11 +8,16 @@ import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { roundMoney, syncInvoiceStatus } from "@/lib/finance";
+import { moneyExceeds, moneyIsSettled } from "@/lib/money";
 import {
   buildCaseAccessWhere,
   buildInvoiceAccessWhere,
   buildPaymentAccessWhere,
 } from "@/lib/access-control";
+import {
+  assertCaseCanAcceptAmount,
+  isCaseFinancialLimitError,
+} from "@/lib/server/case-finance-integrity";
 
 const allowedStatuses = [
   "PENDING",
@@ -149,7 +154,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const transactionResult = await prisma.$transaction(async (tx) => {
+    const createPayment = () => prisma.$transaction(async (tx) => {
       let clientId: string;
       let caseId: string | null = requestedCaseId;
       let invoiceId: string | null = requestedInvoiceId;
@@ -300,7 +305,7 @@ export async function POST(req: NextRequest) {
             Math.max(0, invoiceTotal - paidTotal),
           );
 
-          if (remaining <= 0.005) {
+          if (moneyIsSettled(remaining)) {
             return {
               ok: false as const,
               message: "الفاتورة مدفوعة بالكامل ولا تقبل دفعة إضافية",
@@ -313,7 +318,7 @@ export async function POST(req: NextRequest) {
             };
           }
 
-          if (roundMoney(parsed.data.amount) > remaining + 0.005) {
+          if (moneyExceeds(parsed.data.amount, remaining)) {
             return {
               ok: false as const,
               message: "قيمة الدفعة أكبر من الرصيد المتبقي على الفاتورة",
@@ -356,6 +361,15 @@ export async function POST(req: NextRequest) {
         clientId = selectedCase.clientId;
         caseId = selectedCase.id;
         caseTitle = selectedCase.title;
+
+        if (paymentStatus === "PAID") {
+          await assertCaseCanAcceptAmount(tx, {
+            tenantId,
+            caseId: selectedCase.id,
+            amount: parsed.data.amount,
+            label: "الدفعة",
+          });
+        }
       }
 
       const payment = await tx.payment.create({
@@ -413,6 +427,18 @@ export async function POST(req: NextRequest) {
         invoiceNumber,
       };
     });
+
+    let transactionResult: Awaited<ReturnType<typeof createPayment>>;
+
+    try {
+      transactionResult = await createPayment();
+    } catch (error) {
+      if (isCaseFinancialLimitError(error)) {
+        return err(error.message, error.status, error.details);
+      }
+
+      throw error;
+    }
 
     if (!transactionResult.ok) {
       return err(

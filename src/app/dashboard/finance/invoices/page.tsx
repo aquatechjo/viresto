@@ -468,14 +468,14 @@ function isArchivedInvoice(invoice: Invoice) {
 
 function money(value: number, locale: Locale) {
   if (!Number.isFinite(value) || value === 0) {
-    return locale === "ar" ? "0 د.أ" : "JOD 0.00";
+    return locale === "ar" ? "0.000 د.أ" : "JOD 0.000";
   }
 
   if (locale === "ar") return formatCurrency(value);
 
   return `JOD ${Number(value).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   })}`;
 }
 
@@ -2057,7 +2057,7 @@ export default function InvoicesPage() {
                           <input
                             type="number"
                             min="0.01"
-                            step="0.01"
+                            step="0.001"
                             value={item.quantity}
                             placeholder={copy.modal.quantityPlaceholder}
                             onChange={(event) =>
@@ -2080,7 +2080,7 @@ export default function InvoicesPage() {
                           <input
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="0.001"
                             value={item.unitPrice}
                             placeholder={copy.modal.unitPricePlaceholder}
                             onChange={(event) =>
@@ -2174,7 +2174,7 @@ export default function InvoicesPage() {
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.001"
                   value={tax}
                   placeholder={copy.modal.taxPlaceholder}
                   dir="ltr"
@@ -2192,7 +2192,7 @@ export default function InvoicesPage() {
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.001"
                   value={discount}
                   placeholder={copy.modal.discountPlaceholder}
                   dir="ltr"

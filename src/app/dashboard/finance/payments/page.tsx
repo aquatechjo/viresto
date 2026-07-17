@@ -376,8 +376,8 @@ function money(value: number, locale: Locale) {
   const formatted = Number(value || 0).toLocaleString(
     locale === 'ar' ? 'ar-JO' : 'en-JO',
     {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
     },
   )
 
@@ -1579,7 +1579,7 @@ export default function PaymentsPage() {
                   <input
                     type="number"
                     min="0.01"
-                    step="0.01"
+                    step="0.001"
                     inputMode="decimal"
                     value={paymentForm.amount}
                     onChange={(event) =>

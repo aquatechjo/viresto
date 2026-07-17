@@ -1,10 +1,7 @@
 import type { InvoiceStatus, Prisma } from "@prisma/client";
+import { MONEY_EPSILON, roundJod } from "@/lib/money";
 
-const MONEY_EPSILON = 0.005;
-
-export function roundMoney(value: number) {
-  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-}
+export const roundMoney = roundJod;
 
 interface CalculateInvoiceStatusInput {
   currentStatus: InvoiceStatus;

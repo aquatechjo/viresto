@@ -495,8 +495,8 @@ function formatInvoiceMoney(value: number, locale: Locale) {
   return new Intl.NumberFormat(locale === "ar" ? "ar-JO" : "en-US", {
     style: "currency",
     currency: "JOD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   }).format(Number(value || 0));
 }
 
@@ -538,7 +538,7 @@ function toDateInput(value?: string | null) {
 }
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round((value + Number.EPSILON) * 1000) / 1000;
 }
 
 function paymentStatusLabel(status?: string | null) {
@@ -2202,7 +2202,7 @@ export default function InvoiceDetailsPage() {
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.001"
                   value={editTax}
                   onChange={(e) => setEditTax(Number(e.target.value || 0))}
                   className="input"
@@ -2215,7 +2215,7 @@ export default function InvoiceDetailsPage() {
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.001"
                   value={editDiscount}
                   onChange={(e) => setEditDiscount(Number(e.target.value || 0))}
                   className="input"
@@ -2260,7 +2260,7 @@ export default function InvoiceDetailsPage() {
                     <input
                       type="number"
                       min="0.01"
-                      step="0.01"
+                      step="0.001"
                       value={item.quantity}
                       onChange={(e) =>
                         updateEditItem(index, "quantity", e.target.value)
@@ -2273,7 +2273,7 @@ export default function InvoiceDetailsPage() {
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="0.001"
                       value={item.unitPrice}
                       onChange={(e) =>
                         updateEditItem(index, "unitPrice", e.target.value)

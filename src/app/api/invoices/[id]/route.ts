@@ -15,6 +15,11 @@ import {
   buildInvoiceAccessWhere,
   buildInvoiceIdentifierAccessWhere,
 } from "@/lib/access-control";
+import { roundMoney } from "@/lib/finance";
+import {
+  assertCaseCanAcceptAmount,
+  isCaseFinancialLimitError,
+} from "@/lib/server/case-finance-integrity";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -35,10 +40,6 @@ type CalculatedItem = {
   unitPrice: number;
   total: number;
 };
-
-function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
 
 function calculateTotals(
   itemsInput: Array<{
@@ -302,8 +303,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const nextCaseId =
       data.caseId !== undefined ? data.caseId || null : invoice.caseId;
 
-    let nextCaseFee: number | null = null;
-
     if (data.clientId) {
       const client = await prisma.client.findFirst({
         where: buildClientAccessWhere(auth.user, { id: data.clientId }),
@@ -351,7 +350,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         nextClientId = selectedCase.clientId;
       }
 
-      nextCaseFee = roundMoney(Number(selectedCase.feeAgreed || 0));
     }
 
     const itemsForTotals =
@@ -379,55 +377,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const nextStatus = (statusRaw || invoice.status) as InvoiceStatusValue;
-    if (nextCaseId && nextStatus !== "CANCELLED") {
-      const caseFee = nextCaseFee ?? 0;
-
-      if (caseFee <= 0) {
-        return err(
-          "لا يمكن ربط الفاتورة بهذه القضية قبل تحديد قيمة الأتعاب المتفق عليها",
-          400,
-        );
-      }
-
-      const otherInvoices = await prisma.invoice.aggregate({
-        where: buildInvoiceAccessWhere(auth.user, {
-          caseId: nextCaseId,
-          id: {
-            not: invoice.id,
-          },
-          status: {
-            not: "CANCELLED",
-          },
-        }),
-        _sum: {
-          total: true,
-        },
-      });
-
-      const alreadyInvoiced = roundMoney(Number(otherInvoices._sum.total || 0));
-
-      const nextInvoiceTotal = roundMoney(
-        totals ? totals.total : Number(invoice.total),
-      );
-
-      const remaining = roundMoney(Math.max(caseFee - alreadyInvoiced, 0));
-
-      if (nextInvoiceTotal > remaining) {
-        return err(
-          `قيمة الفاتورة تتجاوز أتعاب القضية. قيمة الأتعاب ${caseFee.toFixed(
-            2,
-          )} د.أ، والمفوتر في الفواتير الأخرى ${alreadyInvoiced.toFixed(
-            2,
-          )} د.أ، والحد المتاح لهذه الفاتورة ${remaining.toFixed(2)} د.أ`,
-          400,
-        );
-      }
-    }
-
     const shouldUpdateClientRelation =
       data.clientId !== undefined || data.caseId !== undefined;
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updateInvoice = () => prisma.$transaction(async (tx) => {
+      const lockedInvoice = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Invoice"
+        WHERE "id" = ${invoice.id}
+          AND "tenantId" = ${auth.user!.tenantId}
+        FOR UPDATE
+      `;
+
+      if (lockedInvoice.length === 0) {
+        throw new Error("INVOICE_NOT_FOUND");
+      }
+
+      if (nextCaseId && nextStatus !== "CANCELLED") {
+        await assertCaseCanAcceptAmount(tx, {
+          tenantId: auth.user!.tenantId,
+          caseId: nextCaseId,
+          excludeInvoiceId: invoice.id,
+          amount: roundMoney(totals ? totals.total : Number(invoice.total)),
+          label: "الفاتورة",
+        });
+      }
+
       const updateData: Prisma.InvoiceUpdateInput = {
         ...(statusRaw !== undefined ? { status: nextStatus as any } : {}),
         ...(shouldUpdateClientRelation
@@ -504,6 +479,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       return updatedInvoice;
     });
+
+    let updated: Awaited<ReturnType<typeof updateInvoice>>;
+
+    try {
+      updated = await updateInvoice();
+    } catch (error) {
+      if (isCaseFinancialLimitError(error)) {
+        return err(error.message, error.status, error.details);
+      }
+
+      throw error;
+    }
 
     await logActivity({
       actorId: auth.user.userId,

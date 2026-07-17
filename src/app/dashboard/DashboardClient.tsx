@@ -862,19 +862,20 @@ function getActivityText(activity: ActivityItem, locale: Locale) {
 
 function formatMoney(value: number, locale: Locale) {
   const normalizedValue =
-    Math.abs(Number(value) || 0) < 0.005 ? 0 : Number(value);
+    Math.abs(Number(value) || 0) < 0.0005 ? 0 : Number(value);
 
   if (locale === "en") {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "JOD",
-      maximumFractionDigits: 2,
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
     }).format(normalizedValue);
   }
 
   return `${new Intl.NumberFormat("ar-JO", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   }).format(normalizedValue)} د.أ`;
 }
 

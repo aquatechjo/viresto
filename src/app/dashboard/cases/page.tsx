@@ -309,8 +309,8 @@ const EDIT_INIT: EditCaseFormState = {
 
 function formatMoney(value: number) {
   const amount = Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 
   return `JOD ${amount}`;
@@ -1327,6 +1327,7 @@ export default function CasesPage() {
                   direction: "ltr",
                 }}
                 min="0"
+                step="0.001"
               />
             </FormField>
           </div>
@@ -1508,6 +1509,7 @@ export default function CasesPage() {
                   direction: "ltr",
                 }}
                 min="0"
+                step="0.001"
               />
             </FormField>
           </div>

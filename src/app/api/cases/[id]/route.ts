@@ -10,6 +10,10 @@ import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import { buildCaseIdentifierAccessWhere } from "@/lib/access-control";
 import { canReadFinance } from "@/lib/permissions";
+import {
+  assertCaseFeeCoversCommitments,
+  isCaseFinancialLimitError,
+} from "@/lib/server/case-finance-integrity";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -362,7 +366,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...caseData
     } = parsed.data;
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updateCase = () => prisma.$transaction(async (tx) => {
+      if (parsed.data.feeAgreed !== undefined) {
+        await assertCaseFeeCoversCommitments(tx, {
+          tenantId: auth.user!.tenantId,
+          caseId: exists.id,
+          nextFeeAgreed: parsed.data.feeAgreed,
+        });
+      }
+
       if (memberIds !== undefined) {
         await tx.caseMember.deleteMany({
           where: {
@@ -422,6 +434,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       });
     });
+
+    let updated: Awaited<ReturnType<typeof updateCase>>;
+
+    try {
+      updated = await updateCase();
+    } catch (error) {
+      if (isCaseFinancialLimitError(error)) {
+        return err(error.message, error.status, error.details);
+      }
+
+      throw error;
+    }
 
     const statusChanged =
       parsed.data.status !== undefined && parsed.data.status !== exists.status;

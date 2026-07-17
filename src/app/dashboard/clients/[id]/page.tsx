@@ -296,8 +296,8 @@ function safeMessage(data: any, fallback: string) {
 
 function formatMoney(value: number, localeKey: "ar" | "en") {
   const amount = Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 
   return `JOD ${amount}`;

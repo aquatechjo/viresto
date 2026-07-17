@@ -14,6 +14,11 @@ import {
   buildClientAccessWhere,
   buildInvoiceAccessWhere,
 } from "@/lib/access-control";
+import { roundMoney } from "@/lib/finance";
+import {
+  assertCaseCanAcceptAmount,
+  isCaseFinancialLimitError,
+} from "@/lib/server/case-finance-integrity";
 
 const allowedStatuses = [
   "DRAFT",
@@ -30,10 +35,6 @@ type CalculatedItem = {
   unitPrice: number;
   total: number;
 };
-
-function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
 
 function calculateTotals(
   itemsInput: Array<{
@@ -285,34 +286,6 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const previousInvoices = await prisma.invoice.aggregate({
-        where: buildInvoiceAccessWhere(auth.user, {
-          caseId,
-          status: {
-            not: "CANCELLED",
-          },
-        }),
-        _sum: {
-          total: true,
-        },
-      });
-
-      const alreadyInvoiced = roundMoney(
-        Number(previousInvoices._sum.total || 0),
-      );
-
-      const remaining = roundMoney(Math.max(caseFee - alreadyInvoiced, 0));
-
-      if (totals.total > remaining) {
-        return err(
-          `قيمة الفاتورة تتجاوز أتعاب القضية. قيمة الأتعاب ${caseFee.toFixed(
-            2,
-          )} د.أ، والمفوتر سابقًا ${alreadyInvoiced.toFixed(
-            2,
-          )} د.أ، والمتبقي ${remaining.toFixed(2)} د.أ`,
-          400,
-        );
-      }
     }
 
     let invoice: Awaited<ReturnType<typeof prisma.invoice.create>> | null =
@@ -321,6 +294,15 @@ export async function POST(req: NextRequest) {
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
         invoice = await prisma.$transaction(async (tx) => {
+          if (caseId) {
+            await assertCaseCanAcceptAmount(tx, {
+              tenantId: auth.user!.tenantId,
+              caseId,
+              amount: totals.total,
+              label: "الفاتورة",
+            });
+          }
+
           const invoiceNumber = await generateInvoiceNumber(
             auth.user!.tenantId,
             tx,
@@ -377,6 +359,10 @@ export async function POST(req: NextRequest) {
         });
         break;
       } catch (error: any) {
+        if (isCaseFinancialLimitError(error)) {
+          return err(error.message, error.status, error.details);
+        }
+
         if (error?.code !== "P2002" || attempt === 5) {
           throw error;
         }

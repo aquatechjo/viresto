@@ -6,7 +6,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number, currency = 'د.أ') {
-  return `${amount.toLocaleString('ar-SA')} ${currency}`
+  return `${amount.toLocaleString('ar-JO', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })} ${currency}`
 }
 
 export function formatDate(iso: string | Date, opts?: Intl.DateTimeFormatOptions) {

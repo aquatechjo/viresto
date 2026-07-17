@@ -214,8 +214,8 @@ function money(value: number | null | undefined, locale: InvoiceLocale) {
   return new Intl.NumberFormat(locale === "ar" ? "ar-JO" : "en-US", {
     style: "currency",
     currency: "JOD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   }).format(Number(value || 0));
 }
 
