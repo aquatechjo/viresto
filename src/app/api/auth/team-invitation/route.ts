@@ -3,7 +3,10 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { assertTenantCanCreate } from "@/lib/billing-limits";
+import {
+  assertTenantCanCreate,
+  assertTenantHasFeature,
+} from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import {
   checkRateLimit,
@@ -119,6 +122,19 @@ export async function POST(req: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       await lockTenantMutation(tx, preview.tenantId);
 
+      const featureCheck = await assertTenantHasFeature(
+        preview.tenantId,
+        "teamManagement",
+        tx,
+      );
+
+      if (!featureCheck.ok) {
+        return {
+          error: "FEATURE" as const,
+          featureCheck,
+        };
+      }
+
       const invitation = await tx.teamInvitation.findUnique({
         where: { tokenHash },
         select: {
@@ -206,6 +222,12 @@ export async function POST(req: NextRequest) {
     });
 
     if ("error" in result) {
+      if (result.error === "FEATURE") {
+        return err(result.featureCheck.message, result.featureCheck.status, {
+          code: "PLAN_FEATURE_UNAVAILABLE",
+          feature: "teamManagement",
+        });
+      }
       if (result.error === "EMAIL_IN_USE") {
         return err("البريد الإلكتروني مستخدم مسبقًا", 409);
       }

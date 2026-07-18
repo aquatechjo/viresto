@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import {
   assertTenantCanCreate,
+  assertTenantHasFeature,
   assertTenantCanWrite,
 } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -98,6 +99,21 @@ export async function PATCH(
       const willReactivate =
         !targetUser.isActive && hasActiveUpdate && body.isActive === true;
 
+      if (hasRoleUpdate || willReactivate) {
+        const featureCheck = await assertTenantHasFeature(
+          auth.user.tenantId,
+          "teamManagement",
+          tx,
+        );
+
+        if (!featureCheck.ok) {
+          return {
+            error: "FEATURE" as const,
+            featureCheck,
+          };
+        }
+      }
+
       if (willReactivate) {
         const lockedLimitCheck = await assertTenantCanCreate(
           auth.user.tenantId,
@@ -170,6 +186,12 @@ export async function PATCH(
       }
       if (result.error === "LAST_ADMIN") {
         return err("لا يمكن إزالة آخر مدير نشط داخل المكتب", 400);
+      }
+      if (result.error === "FEATURE") {
+        return err(result.featureCheck.message, result.featureCheck.status, {
+          code: "PLAN_FEATURE_UNAVAILABLE",
+          feature: "teamManagement",
+        });
       }
       if (result.error === "LIMIT") {
         const lockedLimitCheck = result.limitCheck;

@@ -8,7 +8,7 @@ import { loginSchema } from "@/lib/validations";
 import { err } from "@/lib/api-response";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/log-activity";
-import { getLocationFromIp } from "@/lib/geo";
+import { getLocationFromHeaders } from "@/lib/geo";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const location = await getLocationFromIp(ip);
+    const location = getLocationFromHeaders(req.headers);
 
     const now = new Date();
 

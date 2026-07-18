@@ -7,7 +7,7 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { verifyCode } from "@/lib/verification";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { signToken, buildCookie } from "@/lib/auth";
-import { getLocationFromIp } from "@/lib/geo";
+import { getLocationFromHeaders } from "@/lib/geo";
 import { logActivity } from "@/lib/log-activity";
 
 export async function POST(req: NextRequest) {
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const location = await getLocationFromIp(ip);
+    const location = getLocationFromHeaders(req.headers);
 
     const session = await prisma.session.create({
       data: {

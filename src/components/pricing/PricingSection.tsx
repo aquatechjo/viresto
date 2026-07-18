@@ -1,4 +1,4 @@
-import { PLANS, PLAN_ADDONS, formatTokens, getDisplayPrice } from "@/config/plans";
+import { PLANS, formatTokens, getDisplayPrice } from "@/config/plans";
 
 export default function PricingSection() {
   return (
@@ -129,32 +129,6 @@ export default function PricingSection() {
               </article>
             );
           })}
-        </div>
-
-        <div className="mt-10 rounded-3xl border border-white/10 bg-slate-900/70 p-6">
-          <div className="mb-6">
-            <h3 className="text-xl font-bold">إضافات مرنة</h3>
-            <p className="mt-2 text-sm text-slate-300">
-              زد من قدرات خطتك حسب احتياج مكتبك.
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {PLAN_ADDONS.map((addon) => (
-              <div
-                key={addon.code}
-                className="rounded-2xl border border-white/10 bg-slate-950/60 p-5"
-              >
-                <p className="font-semibold">{addon.name}</p>
-                <p className="mt-3 text-2xl font-black text-copper-400">
-                  {addon.priceJod}{" "}
-                  <span className="text-sm font-medium text-slate-300">
-                    JOD / {addon.unit}
-                  </span>
-                </p>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div className="mt-8 grid gap-4 text-sm text-slate-300 md:grid-cols-4">

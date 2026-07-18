@@ -30,6 +30,10 @@ import {
   exceedsReportLimit,
   getReportDetailQueryLimit,
 } from "@/lib/report-limits";
+import {
+  assertTenantCanWrite,
+  assertTenantHasFeature,
+} from "@/lib/billing-limits";
 
 type ReportType = "monthly" | "yearly";
 type CaseStatus = "OPEN" | "IN_PROGRESS" | "CLOSED" | "ARCHIVED";
@@ -168,6 +172,18 @@ export async function GET(req: NextRequest) {
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
 
+    const reportAccess = await assertTenantHasFeature(
+      auth.user.tenantId,
+      "advancedReports",
+    );
+
+    if (!reportAccess.ok) {
+      return err(reportAccess.message, reportAccess.status, {
+        code: "PLAN_FEATURE_UNAVAILABLE",
+        feature: "advancedReports",
+      });
+    }
+
     const reportRateLimit = await checkRateLimit(
       `${auth.user.tenantId}:${auth.user.userId}`,
       {
@@ -184,6 +200,26 @@ export async function GET(req: NextRequest) {
     const params = parseReportParams(req);
     if ("error" in params) {
       return err(params.error || "بيانات التقرير غير صالحة", 400);
+    }
+
+    if (params.detailMode === "all") {
+      const [exportAccess, writeAccess] = await Promise.all([
+        assertTenantHasFeature(auth.user.tenantId, "fullExport"),
+        assertTenantCanWrite(auth.user.tenantId, "تصدير التقرير الكامل"),
+      ]);
+
+      if (!exportAccess.ok) {
+        return err(exportAccess.message, exportAccess.status, {
+          code: "PLAN_FEATURE_UNAVAILABLE",
+          feature: "fullExport",
+        });
+      }
+
+      if (!writeAccess.ok) {
+        return err(writeAccess.message, writeAccess.status, {
+          code: "SUBSCRIPTION_INACTIVE",
+        });
+      }
     }
 
     const now = new Date();

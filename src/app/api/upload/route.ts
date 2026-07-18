@@ -22,6 +22,7 @@ import {
 } from "@/lib/server/upload-file-security";
 import { buildCaseAccessWhere } from "@/lib/access-control";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import { externalFetch } from "@/lib/external-fetch";
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_INPUT_SIZE_BYTES = 25 * 1024 * 1024;
@@ -270,15 +271,23 @@ export async function POST(req: NextRequest) {
     fd.append("folder", folder);
     fd.append("type", uploadType);
 
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`,
-      {
-        method: "POST",
-        body: fd,
-      },
-    );
+    let res: Response;
 
-    const d = await res.json();
+    try {
+      res = await externalFetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`,
+        {
+          method: "POST",
+          body: fd,
+        },
+        30_000,
+      );
+    } catch (error) {
+      console.error("Cloudinary document upload failed:", error);
+      return err("تعذر الاتصال بخدمة رفع الملفات. حاول مرة أخرى.", 502);
+    }
+
+    const d = await res.json().catch(() => ({}));
 
     if (!res.ok) {
       return err(d.error?.message ?? "فشل رفع الملف", 500);

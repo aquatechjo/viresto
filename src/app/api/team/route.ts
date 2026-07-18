@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
-import { assertTenantCanCreate } from "@/lib/billing-limits";
+import {
+  assertTenantCanCreate,
+  assertTenantHasFeature,
+} from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import { sendTeamInvitationEmail } from "@/lib/email";
 import {
@@ -142,6 +145,19 @@ export async function POST(req: NextRequest) {
 
     const createInvitation = () => prisma.$transaction(async (tx) => {
       await lockTenantMutation(tx, auth.user.tenantId);
+
+      const featureCheck = await assertTenantHasFeature(
+        auth.user.tenantId,
+        "teamManagement",
+        tx,
+      );
+
+      if (!featureCheck.ok) {
+        return {
+          error: "FEATURE" as const,
+          featureCheck,
+        };
+      }
 
       const lockedLimitCheck = await assertTenantCanCreate(
         auth.user.tenantId,
@@ -300,6 +316,12 @@ export async function POST(req: NextRequest) {
     }
 
     if ("error" in result) {
+      if (result.error === "FEATURE") {
+        return err(result.featureCheck.message, result.featureCheck.status, {
+          code: "PLAN_FEATURE_UNAVAILABLE",
+          feature: "teamManagement",
+        });
+      }
       if (result.error === "TENANT_NOT_FOUND") {
         return err("المكتب غير موجود", 404);
       }

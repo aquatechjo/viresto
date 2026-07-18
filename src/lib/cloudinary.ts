@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
+import { externalFetch } from "@/lib/external-fetch";
 
 export type CloudinaryResourceType = "image" | "raw" | "video";
 
@@ -8,6 +9,7 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
+  timeout: 10_000,
 });
 
 export function generateSignedFileUrl(
@@ -85,10 +87,14 @@ export async function fetchAuthenticatedCloudinaryAsset(options: {
           : generateSignedFileUrl(publicId, resourceType);
 
       try {
-        const response = await fetch(url, {
-          cache: "no-store",
-          headers,
-        });
+        const response = await externalFetch(
+          url,
+          {
+            cache: "no-store",
+            headers,
+          },
+          10_000,
+        );
 
         const contentType = response.headers.get("content-type") || "";
         const rejectedContent =

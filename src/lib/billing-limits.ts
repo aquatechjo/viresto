@@ -1,5 +1,10 @@
 import type { Prisma } from "@prisma/client";
-import { PLANS, type PlanCode } from "@/config/plans";
+import {
+  PLANS,
+  type PlanCode,
+  type PlanEntitlement,
+  type PlanEntitlements,
+} from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { hasPlanCapacity } from "@/lib/plan-capacity";
 
@@ -24,6 +29,7 @@ export interface TenantBillingLimits {
     code: string;
     name: string;
     aiEnabled: boolean;
+    entitlements: PlanEntitlements;
   };
   limits: {
     users: number | null;
@@ -46,6 +52,12 @@ const BLOCKED_STATUSES = new Set([
 ]);
 
 const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
+
+const NO_ENTITLEMENTS: PlanEntitlements = {
+  teamManagement: false,
+  advancedReports: false,
+  fullExport: false,
+};
 
 export function getEffectiveSubscriptionStatus(
   status: string,
@@ -207,6 +219,7 @@ export async function getTenantBillingLimits(
         code: subscription.plan.code,
         name: configuredPlan?.name ?? subscription.plan.name,
         aiEnabled,
+        entitlements: configuredPlan?.entitlements ?? NO_ENTITLEMENTS,
       },
       limits: {
         users: usersLimit,
@@ -237,6 +250,7 @@ export async function getTenantBillingLimits(
       code: "NONE",
       name: "No active plan",
       aiEnabled: false,
+      entitlements: NO_ENTITLEMENTS,
     },
     limits: {
       users: 1,
@@ -248,6 +262,39 @@ export async function getTenantBillingLimits(
       aiMonthlyTokens: 0,
       activityRetentionDays: 0,
     },
+  };
+}
+
+function getFeatureLimitMessage(feature: PlanEntitlement) {
+  const featureLabel: Record<PlanEntitlement, string> = {
+    teamManagement: "إدارة الفريق وأدوار المستخدمين",
+    advancedReports: "التقارير المتقدمة",
+    fullExport: "التصدير الكامل بصيغة PDF أو Excel",
+  };
+
+  return `${featureLabel[feature]} غير متاحة في خطتك الحالية. قم بترقية الاشتراك للمتابعة.`;
+}
+
+export async function assertTenantHasFeature(
+  tenantId: string,
+  feature: PlanEntitlement,
+  db: BillingReadClient = prisma,
+) {
+  const billing = await getTenantBillingLimits(tenantId, db);
+
+  if (!billing.plan.entitlements[feature]) {
+    return {
+      ok: false as const,
+      status: 402,
+      message: getFeatureLimitMessage(feature),
+      billing,
+    };
+  }
+
+  return {
+    ok: true as const,
+    status: 200,
+    billing,
   };
 }
 

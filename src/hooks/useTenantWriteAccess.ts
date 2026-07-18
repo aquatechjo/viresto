@@ -9,6 +9,11 @@ interface TenantWriteAccessState {
   canWrite: boolean;
   message: string | null;
   subscriptionStatus: string | null;
+  entitlements: {
+    teamManagement: boolean;
+    advancedReports: boolean;
+    fullExport: boolean;
+  } | null;
   refresh: () => Promise<void>;
 }
 
@@ -30,6 +35,9 @@ export function useTenantWriteAccess(locale?: string): TenantWriteAccessState {
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(
     null,
   );
+  const [entitlements, setEntitlements] = useState<
+    TenantWriteAccessState["entitlements"]
+  >(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -46,6 +54,7 @@ export function useTenantWriteAccess(locale?: string): TenantWriteAccessState {
         setCanWrite(true);
         setMessage(null);
         setSubscriptionStatus(null);
+        setEntitlements(null);
         return;
       }
 
@@ -61,11 +70,13 @@ export function useTenantWriteAccess(locale?: string): TenantWriteAccessState {
               FALLBACK_MESSAGE[localeKey],
       );
       setSubscriptionStatus(payload.billing?.subscriptionStatus ?? null);
+      setEntitlements(payload.entitlements ?? null);
     } catch {
       // لا نمنع المستخدم بسبب خطأ شبكة مؤقت؛ الحماية الفعلية موجودة في API.
       setCanWrite(true);
       setMessage(null);
       setSubscriptionStatus(null);
+      setEntitlements(null);
     } finally {
       setLoading(false);
     }
@@ -80,6 +91,7 @@ export function useTenantWriteAccess(locale?: string): TenantWriteAccessState {
     canWrite,
     message,
     subscriptionStatus,
+    entitlements,
     refresh,
   };
 }

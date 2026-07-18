@@ -1,3 +1,5 @@
+import { externalFetch } from "@/lib/external-fetch";
+
 type SendVerificationEmailInput = {
   to: string;
   code: string;
@@ -50,7 +52,7 @@ export async function sendVerificationEmail({
     throw new Error("Missing RESEND_API_KEY");
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -95,7 +97,7 @@ export async function sendPasswordResetEmail({
     throw new Error("Missing RESEND_API_KEY");
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -155,7 +157,7 @@ export async function sendEmailChangeCode({
     throw new Error("Missing RESEND_API_KEY");
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -223,7 +225,7 @@ export async function sendEmailChangeCompletedEmail({
     throw new Error("Missing RESEND_API_KEY");
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -297,7 +299,7 @@ export async function sendTeamInvitationEmail({
     throw new Error("Missing RESEND_API_KEY");
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,

@@ -366,9 +366,14 @@ export default function ReportsPage() {
   const actionButtonClass = 'btn btn-ghost min-h-[44px] w-full justify-center whitespace-nowrap px-5'
   const primaryActionButtonClass = 'btn btn-primary min-h-[44px] w-full justify-center whitespace-nowrap px-6'
   const actionButtonStyle = { color: 'var(--text)' } as CSSProperties
-  const { canWrite, message: accessMessage } = useTenantWriteAccess(locale)
-  const exportDisabled = !canWrite
-  const exportDisabledTitle = accessMessage || copy.actions.exportLocked
+  const reportAccess = useTenantWriteAccess(locale)
+  const exportDisabled =
+    !reportAccess.canWrite || reportAccess.entitlements?.fullExport !== true
+  const exportDisabledTitle =
+    reportAccess.message ||
+    (locale === 'ar'
+      ? 'التصدير الكامل غير متاح في خطتك الحالية.'
+      : 'Full export is not available in your current plan.')
 
   const [reportType, setReportType] = useState<ReportType>('yearly')
   const [year, setYear] = useState(new Date().getFullYear())
@@ -836,7 +841,7 @@ if (loading) {
       <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger text-start">
         <SubscriptionReadOnlyBanner
           visible={exportDisabled}
-          message={accessMessage}
+          message={exportDisabledTitle}
           isRtl={isRtl}
         />
 

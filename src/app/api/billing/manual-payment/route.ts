@@ -25,6 +25,7 @@ import {
 } from "@/lib/subscription-consistency";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { externalFetch } from "@/lib/external-fetch";
 
 export const runtime = "nodejs";
 
@@ -73,12 +74,13 @@ async function uploadReceiptToCloudinary(
   fd.append("public_id", reservationId);
   fd.append("type", uploadType);
 
-  const res = await fetch(
+  const res = await externalFetch(
     `https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`,
     {
       method: "POST",
       body: fd,
     },
+    30_000,
   );
 
   const data = await res.json();

@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSystemAdmin } from "@/lib/system-admin";
-import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
+import {
+  assertTenantCanCreate,
+  getEffectiveSubscriptionStatus,
+} from "@/lib/billing-limits";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 export async function suspendTenant(id: string) {
   const admin = await requireSystemAdmin();
@@ -32,6 +36,8 @@ export async function suspendTenant(id: string) {
   }
 
   await prisma.$transaction(async (tx) => {
+    await lockTenantMutation(tx, id);
+
     await tx.tenant.update({
       where: { id },
       data: {
@@ -91,23 +97,33 @@ export async function activateTenant(id: string) {
     throw new Error("المكتب غير موجود");
   }
 
-  const activeSubscription = tenant.subscriptions.find((subscription) =>
-    ["ACTIVE", "TRIALING"].includes(
-      getEffectiveSubscriptionStatus(
-        subscription.status,
-        subscription.currentPeriodEnd,
-      ),
-    ),
-  );
-
-  const nextTenantStatus =
-    activeSubscription?.status === "TRIALING"
-      ? "TRIAL"
-      : activeSubscription
-        ? "ACTIVE"
-        : "EXPIRED";
-
   await prisma.$transaction(async (tx) => {
+    await lockTenantMutation(tx, id);
+
+    const subscriptions = await tx.subscription.findMany({
+      where: { tenantId: id },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        status: true,
+        currentPeriodEnd: true,
+      },
+    });
+    const activeSubscription = subscriptions.find((subscription) =>
+      ["ACTIVE", "TRIALING"].includes(
+        getEffectiveSubscriptionStatus(
+          subscription.status,
+          subscription.currentPeriodEnd,
+        ),
+      ),
+    );
+    const nextTenantStatus =
+      activeSubscription?.status === "TRIALING"
+        ? "TRIAL"
+        : activeSubscription
+          ? "ACTIVE"
+          : "EXPIRED";
+
     await tx.tenant.update({
       where: { id },
       data: {
@@ -155,6 +171,8 @@ export async function deactivateUser(id: string) {
   }
 
   await prisma.$transaction(async (tx) => {
+    await lockTenantMutation(tx, user.tenantId);
+
     await tx.user.update({
       where: { id },
       data: {
@@ -198,6 +216,7 @@ export async function activateUser(id: string) {
       tenantId: true,
       name: true,
       email: true,
+      isActive: true,
     },
   });
 
@@ -206,6 +225,33 @@ export async function activateUser(id: string) {
   }
 
   await prisma.$transaction(async (tx) => {
+    await lockTenantMutation(tx, user.tenantId);
+
+    const lockedUser = await tx.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        tenantId: true,
+        isActive: true,
+      },
+    });
+
+    if (!lockedUser || lockedUser.tenantId !== user.tenantId) {
+      throw new Error("المستخدم غير موجود");
+    }
+
+    if (lockedUser.isActive) return;
+
+    const limitCheck = await assertTenantCanCreate(
+      user.tenantId,
+      "users",
+      tx,
+    );
+
+    if (!limitCheck.ok) {
+      throw new Error(limitCheck.message);
+    }
+
     await tx.user.update({
       where: { id },
       data: {

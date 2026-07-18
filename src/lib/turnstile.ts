@@ -1,3 +1,5 @@
+import { externalFetch } from "@/lib/external-fetch"
+
 type TurnstileVerifyResponse = {
   success: boolean
   challenge_ts?: string
@@ -47,14 +49,25 @@ export async function verifyTurnstileToken(
     formData.append("remoteip", remoteIp)
   }
 
-  const response = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: formData,
-      cache: "no-store",
+  let response: Response
+
+  try {
+    response = await externalFetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+      },
+      7_000,
+    )
+  } catch (error) {
+    console.error("[TURNSTILE_ERROR] Verification request failed", error)
+    return {
+      success: false,
+      error: "turnstile_unavailable",
     }
-  )
+  }
 
   if (!response.ok) {
     console.error("[TURNSTILE_ERROR]", response.status)

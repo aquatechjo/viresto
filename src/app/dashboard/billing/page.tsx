@@ -409,10 +409,6 @@ function getPlanFeatures(plan: BillingPlan, isArabic: boolean): PlanFeatureItem[
         included: false,
       },
       {
-        label: isArabic ? "تخصيص شعار المكتب" : "Office logo customization",
-        included: false,
-      },
-      {
         label: isArabic ? "تقارير أساسية" : "Basic reports",
         included: true,
       },
@@ -447,10 +443,6 @@ function getPlanFeatures(plan: BillingPlan, isArabic: boolean): PlanFeatureItem[
         included: true,
       },
       {
-        label: isArabic ? "تخصيص شعار المكتب" : "Office logo customization",
-        included: true,
-      },
-      {
         label: isArabic ? "دعم أسرع" : "Faster support",
         included: true,
       },
@@ -477,10 +469,6 @@ function getPlanFeatures(plan: BillingPlan, isArabic: boolean): PlanFeatureItem[
     },
     {
       label: isArabic ? "تصدير PDF / Excel كامل" : "Full PDF / Excel export",
-      included: true,
-    },
-    {
-      label: isArabic ? "تخصيص شعار المكتب" : "Office logo customization",
       included: true,
     },
     {

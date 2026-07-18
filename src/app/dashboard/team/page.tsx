@@ -295,10 +295,10 @@ function PlanLimitBanner({
   );
 }
 
-function getBlockFallback(locale: Locale) {
+function getTeamFeatureFallback(locale: Locale) {
   return locale === "en"
-    ? "The subscription has ended. Team management is available in read-only mode until renewal."
-    : "انتهى الاشتراك. إدارة الفريق متاحة للقراءة فقط إلى حين التجديد.";
+    ? "Team management is not included in your current plan. Upgrade to Pro or Business to continue."
+    : "إدارة الفريق غير متاحة في خطتك الحالية. قم بالترقية إلى Pro أو Business للمتابعة.";
 }
 
 export default function TeamPage() {
@@ -307,6 +307,11 @@ export default function TeamPage() {
   const copy = TEAM_COPY[locale];
   const isRtl = locale === "ar";
   const writeAccess = useTenantWriteAccess(locale);
+  const canManageTeam =
+    writeAccess.canWrite &&
+    writeAccess.entitlements?.teamManagement === true;
+  const teamAccessMessage =
+    writeAccess.message || getTeamFeatureFallback(locale);
   const fieldStyle = {
     textAlign: isRtl ? "right" : "left",
     direction: isRtl ? "rtl" : "ltr",
@@ -401,8 +406,8 @@ export default function TeamPage() {
   async function addUser(event: FormEvent) {
     event.preventDefault();
 
-    if (!writeAccess.canWrite) {
-      toast.error(writeAccess.message || getBlockFallback(locale));
+    if (!canManageTeam) {
+      toast.error(teamAccessMessage);
       return;
     }
 
@@ -441,7 +446,7 @@ export default function TeamPage() {
   }
 
   async function revokeInvitation(id: string) {
-    if (!writeAccess.canWrite) return;
+    if (!canManageTeam) return;
 
     try {
       const response = await fetch(`/api/team/invitations/${id}`, {
@@ -462,8 +467,8 @@ export default function TeamPage() {
   }
 
   async function updateUser(id: string, payload: Partial<TeamUser>) {
-    if (!writeAccess.canWrite) {
-      toast.error(writeAccess.message || getBlockFallback(locale));
+    if (!canManageTeam) {
+      toast.error(teamAccessMessage);
       return;
     }
 
@@ -531,8 +536,8 @@ export default function TeamPage() {
   return (
     <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
       <SubscriptionReadOnlyBanner
-        visible={!writeAccess.canWrite}
-        message={writeAccess.message}
+        visible={!canManageTeam}
+        message={teamAccessMessage}
         isRtl={isRtl}
       />
       {planLimit && (
@@ -589,12 +594,12 @@ export default function TeamPage() {
           <button
             type="button"
             onClick={() => {
-              if (!writeAccess.canWrite) return;
+              if (!canManageTeam) return;
               const element = document.getElementById("add-team-user");
               element?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
-            disabled={!writeAccess.canWrite}
-            title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : copy.hero.addButton}
+            disabled={!canManageTeam}
+            title={!canManageTeam ? teamAccessMessage : copy.hero.addButton}
             className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               background: "#fff",
@@ -805,8 +810,8 @@ export default function TeamPage() {
 
             <button
               type="submit"
-              disabled={saving || !writeAccess.canWrite}
-              title={!writeAccess.canWrite ? writeAccess.message || getBlockFallback(locale) : copy.form.submit}
+              disabled={saving || !canManageTeam}
+              title={!canManageTeam ? teamAccessMessage : copy.form.submit}
               className="btn btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? copy.form.saving : copy.form.submit}
@@ -851,7 +856,7 @@ export default function TeamPage() {
                       <button
                         type="button"
                         onClick={() => revokeInvitation(invitation.id)}
-                        disabled={!writeAccess.canWrite}
+                        disabled={!canManageTeam}
                         className="text-xs font-black text-red-500 disabled:opacity-50"
                       >
                         {copy.form.revoke}
@@ -1005,10 +1010,10 @@ export default function TeamPage() {
                           className="input min-w-[150px] disabled:cursor-not-allowed disabled:opacity-60"
                           style={fieldStyle}
                           value={user.role}
-                          disabled={!writeAccess.canWrite}
+                          disabled={!canManageTeam}
                           title={
-                            !writeAccess.canWrite
-                              ? writeAccess.message || getBlockFallback(locale)
+                            !canManageTeam
+                              ? teamAccessMessage
                               : copy.list.roleChangeTitle
                           }
                           onChange={(event) =>
@@ -1024,10 +1029,10 @@ export default function TeamPage() {
 
                         <button
                           type="button"
-                          disabled={!writeAccess.canWrite}
+                          disabled={!canManageTeam}
                           title={
-                            !writeAccess.canWrite
-                              ? writeAccess.message || getBlockFallback(locale)
+                            !canManageTeam
+                              ? teamAccessMessage
                               : undefined
                           }
                           onClick={() =>

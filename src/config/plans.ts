@@ -6,6 +6,13 @@ export type PlanFeature = {
   value?: string;
 };
 
+export type PlanEntitlement =
+  | "teamManagement"
+  | "advancedReports"
+  | "fullExport";
+
+export type PlanEntitlements = Record<PlanEntitlement, boolean>;
+
 export type PlanConfig = {
   code: PlanCode;
   name: string;
@@ -25,6 +32,8 @@ export type PlanConfig = {
     aiMonthlyTokens: number;
     activityRetentionDays: number;
   };
+
+  entitlements: PlanEntitlements;
 
   features: PlanFeature[];
 };
@@ -47,6 +56,11 @@ export const PLANS: PlanConfig[] = [
       aiMonthlyTokens: 0,
       activityRetentionDays: 30,
     },
+    entitlements: {
+      teamManagement: false,
+      advancedReports: false,
+      fullExport: false,
+    },
     features: [
       { label: "إدارة الموكلين والقضايا", included: true },
       { label: "المواعيد والمهام", included: true },
@@ -56,7 +70,6 @@ export const PLANS: PlanConfig[] = [
       { label: "تصدير PDF / Excel كامل", included: false },
       { label: "المساعد الذكي AI", included: false },
       { label: "تلخيص المستندات بالذكاء الاصطناعي", included: false },
-      { label: "تخصيص شعار المكتب", included: false },
       { label: "الدعم", included: true, value: "عادي" },
     ],
   },
@@ -78,6 +91,11 @@ export const PLANS: PlanConfig[] = [
       aiMonthlyTokens: 1_000_000,
       activityRetentionDays: 180,
     },
+    entitlements: {
+      teamManagement: true,
+      advancedReports: true,
+      fullExport: true,
+    },
     features: [
       { label: "إدارة الموكلين والقضايا", included: true },
       { label: "المواعيد والمهام", included: true },
@@ -87,7 +105,6 @@ export const PLANS: PlanConfig[] = [
       { label: "إدارة الفريق وأدوار المستخدمين", included: true },
       { label: "المساعد الذكي AI", included: true, value: "1M tokens / شهر" },
       { label: "تلخيص المستندات بالذكاء الاصطناعي", included: true },
-      { label: "تخصيص شعار المكتب", included: true },
       { label: "الدعم", included: true, value: "أسرع" },
     ],
   },
@@ -108,6 +125,11 @@ export const PLANS: PlanConfig[] = [
       aiMonthlyTokens: 4_000_000,
       activityRetentionDays: 365,
     },
+    entitlements: {
+      teamManagement: true,
+      advancedReports: true,
+      fullExport: true,
+    },
     features: [
       { label: "إدارة الموكلين والقضايا", included: true },
       { label: "المواعيد والمهام", included: true },
@@ -117,35 +139,23 @@ export const PLANS: PlanConfig[] = [
       { label: "إدارة الفريق وأدوار المستخدمين", included: true },
       { label: "المساعد الذكي AI", included: true, value: "4M tokens / شهر" },
       { label: "تلخيص المستندات بالذكاء الاصطناعي", included: true },
-      { label: "تخصيص شعار المكتب", included: true },
       { label: "دعم أولوية ومخصص", included: true },
     ],
   },
 ];
 
-export const PLAN_ADDONS = [
-  {
-    code: "EXTRA_USER",
-    name: "مستخدم إضافي",
-    priceJod: 5,
-    unit: "شهر",
-  },
-  {
-    code: "EXTRA_STORAGE_10GB",
-    name: "10GB تخزين إضافي",
-    priceJod: 3,
-    unit: "شهر",
-  },
-  {
-    code: "EXTRA_AI_1M",
-    name: "1M AI tokens إضافية",
-    priceJod: 3,
-    unit: "شهر",
-  },
-] as const;
-
 export function getPlanByCode(code: PlanCode) {
   return PLANS.find((plan) => plan.code === code);
+}
+
+export function planHasEntitlement(
+  code: string | null | undefined,
+  entitlement: PlanEntitlement,
+) {
+  const normalized = code?.trim().toUpperCase();
+  const plan = PLANS.find((item) => item.code === normalized);
+
+  return plan?.entitlements[entitlement] === true;
 }
 
 export function getDisplayPrice(plan: PlanConfig) {

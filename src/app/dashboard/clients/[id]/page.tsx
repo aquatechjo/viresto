@@ -12,6 +12,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { initials } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
+import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 interface ClientCase {
   id: string;
   publicId?: number;
@@ -323,6 +324,14 @@ export default function ClientDetailPage() {
   const { locale, isRtl } = useLocale();
   const localeKey = locale === "ar" ? "ar" : "en";
   const text = COPY[localeKey];
+  const writeAccess = useTenantWriteAccess(localeKey);
+  const canExport =
+    writeAccess.canWrite && writeAccess.entitlements?.fullExport === true;
+  const exportBlockedMessage =
+    writeAccess.message ||
+    (localeKey === "ar"
+      ? "التصدير الكامل غير متاح في خطتك الحالية."
+      : "Full export is not available in your current plan.");
 
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
@@ -479,13 +488,27 @@ export default function ClientDetailPage() {
   async function exportClientPDF() {
     if (!client || exporting) return;
 
+    if (!canExport) {
+      toast.error(exportBlockedMessage);
+      return;
+    }
+
     try {
       setExporting(true);
 
+      const response = await fetch(`/api/clients/${id}/full`, {
+        cache: "no-store",
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success || !data.data) {
+        throw new Error(getApiMessage(data, text.exportError));
+      }
+
       const { exportClientFullPDF } = await import("@/lib/export");
-      exportClientFullPDF(client);
-    } catch {
-      toast.error(text.exportError);
+      exportClientFullPDF(data.data);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : text.exportError);
     } finally {
       setExporting(false);
     }
@@ -853,7 +876,8 @@ export default function ClientDetailPage() {
             <button
               type="button"
               onClick={exportClientPDF}
-              disabled={exporting}
+              disabled={exporting || !canExport}
+              title={!canExport ? exportBlockedMessage : text.pdf}
               className="btn h-11 px-5"
               style={{
                 background: "rgba(184, 115, 51,0.18)",

@@ -101,7 +101,11 @@ export async function POST(req: NextRequest) {
       return err("المساعد الذكي غير مُهيأ", 503);
     }
 
-    const openai = new OpenAI({ apiKey });
+    const openai = new OpenAI({
+      apiKey,
+      timeout: 45_000,
+      maxRetries: 1,
+    });
 
     const body = await req.json().catch(() => ({}));
     const rawMessage = String(body.message ?? "").trim();

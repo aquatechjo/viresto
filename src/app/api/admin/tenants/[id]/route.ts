@@ -8,6 +8,7 @@ import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
 import cloudinary from "@/lib/cloudinary";
+import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,8 @@ type RouteContext = {
 };
 
 type CloudinaryResourceType = "image" | "raw" | "video";
+
+const OPEN_MANUAL_PAYMENT_STATUSES = ["UPLOADING", "PENDING", "PROCESSING"];
 
 function documentResourceType(fileType: string): CloudinaryResourceType {
   if (fileType.startsWith("image/")) return "image";
@@ -144,12 +147,13 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       return err("يجب إنهاء الاشتراك الفعّال قبل حذف المكتب", 409);
     }
 
-    const pendingPaymentCount = tenant.subscriptionPayments.filter(
-      (payment) => payment.status.toUpperCase() === "PENDING",
+    const openPaymentCount = tenant.subscriptionPayments.filter(
+      (payment) =>
+        OPEN_MANUAL_PAYMENT_STATUSES.includes(payment.status.toUpperCase()),
     ).length;
 
-    if (pendingPaymentCount > 0) {
-      return err("يجب مراجعة طلبات الدفع المعلّقة قبل حذف المكتب", 409);
+    if (openPaymentCount > 0) {
+      return err("يجب إكمال أو مراجعة طلبات الدفع المفتوحة قبل حذف المكتب", 409);
     }
 
     const cloudResources = new Map<
@@ -189,7 +193,91 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       `المدفوعات: ${tenant._count.payments}`,
     ].join(" | ");
 
-    await prisma.$transaction(async (tx) => {
+    const deleteResult = await prisma.$transaction(async (tx) => {
+      await lockTenantMutation(tx, tenantId);
+
+      const lockedTenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: {
+          status: true,
+          isSuspended: true,
+          subscriptions: {
+            where: {
+              status: {
+                in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING],
+              },
+            },
+            select: {
+              status: true,
+              currentPeriodEnd: true,
+            },
+          },
+          subscriptionPayments: {
+            select: {
+              receiptPublicId: true,
+              raw: true,
+            },
+          },
+          documents: {
+            select: {
+              publicId: true,
+              fileType: true,
+            },
+          },
+        },
+      });
+
+      if (!lockedTenant) return { error: "NOT_FOUND" as const };
+
+      if (!lockedTenant.isSuspended && lockedTenant.status !== "SUSPENDED") {
+        return { error: "NOT_SUSPENDED" as const };
+      }
+
+      const lockedHasActiveSubscription = lockedTenant.subscriptions.some(
+        (subscription) =>
+          ["ACTIVE", "TRIALING"].includes(
+            getEffectiveSubscriptionStatus(
+              subscription.status,
+              subscription.currentPeriodEnd,
+            ),
+          ),
+      );
+
+      if (lockedHasActiveSubscription) {
+        return { error: "ACTIVE_SUBSCRIPTION" as const };
+      }
+
+      const lockedOpenPaymentCount = await tx.subscriptionPayment.count({
+        where: {
+          tenantId,
+          status: { in: OPEN_MANUAL_PAYMENT_STATUSES },
+        },
+      });
+
+      if (lockedOpenPaymentCount > 0) {
+        return { error: "OPEN_PAYMENT" as const };
+      }
+
+      for (const document of lockedTenant.documents) {
+        if (!document.publicId) continue;
+
+        const resourceType = documentResourceType(document.fileType);
+        cloudResources.set(`${resourceType}:${document.publicId}`, {
+          publicId: document.publicId,
+          resourceType,
+        });
+      }
+
+      for (const payment of lockedTenant.subscriptionPayments) {
+        if (!payment.receiptPublicId) continue;
+
+        const resourceType = receiptResourceType(payment.raw);
+        cloudResources.set(`${resourceType}:${payment.receiptPublicId}`, {
+          publicId: payment.receiptPublicId,
+          resourceType,
+        });
+      }
+
       // Delete restrictive relations first, then remove the tenant itself.
       await tx.subscriptionPayment.deleteMany({ where: { tenantId } });
       await tx.subscription.deleteMany({ where: { tenantId } });
@@ -221,7 +309,22 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
           userAgent: meta.userAgent,
         },
       });
+
+      return { error: null };
     });
+
+    if (deleteResult.error === "NOT_FOUND") {
+      return err("المكتب غير موجود", 404);
+    }
+    if (deleteResult.error === "NOT_SUSPENDED") {
+      return err("يجب تعليق المكتب قبل حذفه نهائيًا", 409);
+    }
+    if (deleteResult.error === "ACTIVE_SUBSCRIPTION") {
+      return err("يجب إنهاء الاشتراك الفعّال قبل حذف المكتب", 409);
+    }
+    if (deleteResult.error === "OPEN_PAYMENT") {
+      return err("يجب إكمال أو مراجعة طلبات الدفع المفتوحة قبل حذف المكتب", 409);
+    }
 
     const cleanupResults = await Promise.allSettled(
       Array.from(cloudResources.values()).map((resource) =>

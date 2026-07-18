@@ -17,6 +17,12 @@ export async function GET(req: NextRequest) {
     return ok({
       canWrite: writeCheck.ok,
       message: writeCheck.ok ? null : writeCheck.message,
+      entitlements:
+        writeCheck.billing?.plan.entitlements ?? {
+          teamManagement: false,
+          advancedReports: false,
+          fullExport: false,
+        },
       // Plan, limits, and subscription details are administrative data.
       billing:
         auth.user.role === "ADMIN"

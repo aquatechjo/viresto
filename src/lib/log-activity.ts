@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getLocationFromIp } from '@/lib/geo'
+import { getLocationFromHeaders } from '@/lib/geo'
 
 type LogActivityInput = {
   req?: NextRequest
@@ -26,7 +26,9 @@ function getIpAddress(req?: NextRequest) {
 export async function logActivity(input: LogActivityInput) {
   try {
     const ipAddress = getIpAddress(input.req)
-    const location = await getLocationFromIp(ipAddress)
+    const location = input.req
+      ? getLocationFromHeaders(input.req.headers)
+      : { country: null, city: null }
     await prisma.activity.create({
       data: {
         tenantId: input.tenantId,
