@@ -5,6 +5,7 @@ import {
   buildContentSecurityPolicy,
   createCspNonce,
 } from "@/lib/csp";
+import { isMachineAuthenticatedPath } from "@/lib/request-path-policy";
 
 const publicPaths = [
   "/",
@@ -25,13 +26,6 @@ const publicPaths = [
 ];
 
 const exactPublicPaths = new Set(["/api/perf/ping"]);
-
-// These routes authenticate machine-to-machine requests inside their handlers.
-// Keep this list exact so no sibling API route bypasses the user session check.
-const machineAuthenticatedPaths = new Set([
-  "/api/cron/prune-activity",
-  "/api/cron/generate-notifications",
-]);
 
 function isPublicPath(pathname: string) {
   return (
@@ -138,7 +132,7 @@ export async function proxy(req: NextRequest) {
     return applySecurityHeaders(NextResponse.next(), csp);
   }
 
-  if (machineAuthenticatedPaths.has(pathname)) {
+  if (isMachineAuthenticatedPath(pathname)) {
     return finalizeResponse(continueRequest(requestHeaders), pathname, csp);
   }
 
