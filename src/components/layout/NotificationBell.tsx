@@ -55,6 +55,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const ref = useRef<HTMLDivElement>(null);
+  const requestInFlightRef = useRef(false);
 
   const copy = isRtl
     ? {
@@ -75,6 +76,9 @@ export default function NotificationBell() {
       };
 
   const loadNotifications = useCallback(async () => {
+    if (requestInFlightRef.current) return;
+
+    requestInFlightRef.current = true;
     setLoading(true);
 
     try {
@@ -101,6 +105,7 @@ export default function NotificationBell() {
       setNotifications([]);
       setUnreadCount(0);
     } finally {
+      requestInFlightRef.current = false;
       setLoading(false);
     }
   }, []);
@@ -108,14 +113,24 @@ export default function NotificationBell() {
   useEffect(() => {
     loadNotifications();
 
-    const interval = window.setInterval(() => {
-      loadNotifications();
-    }, 60_000);
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") {
+        loadNotifications();
+      }
+    }
 
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [loadNotifications]);
 
   useEffect(() => {
+    if (!open) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
         setOpen(false);
@@ -124,7 +139,7 @@ export default function NotificationBell() {
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [open]);
 
   async function markAllAsRead() {
     if (unreadCount === 0) return;
@@ -179,6 +194,8 @@ export default function NotificationBell() {
       <button
         type="button"
         aria-label={copy.title}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         onClick={() => {
           const nextOpen = !open;
           setOpen(nextOpen);
@@ -186,6 +203,7 @@ export default function NotificationBell() {
         }}
         className="
     relative flex h-10 w-10 min-w-10 shrink-0 items-center justify-center rounded-2xl
+    sm:h-11 sm:w-11 sm:min-w-11
     border border-amber-400/35 bg-amber-400/10 text-amber-400 shadow-sm
     transition-all hover:border-amber-400/70 hover:bg-amber-400/15 hover:text-amber-300
     dark:border-amber-400/35 dark:bg-amber-400/10 dark:text-amber-300
@@ -218,6 +236,9 @@ export default function NotificationBell() {
             width: "min(24rem, calc(100vw - 1rem))",
             ...(isRtl ? { left: 0 } : { right: 0 }),
           }}
+          role="dialog"
+          aria-label={copy.title}
+          aria-live="polite"
         >
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-[#0f3d3e]">
             <div className="min-w-0">

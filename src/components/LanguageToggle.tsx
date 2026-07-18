@@ -1,33 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import type { Locale } from '@/lib/i18n'
-import { getCurrentLocale, setCurrentLocale } from '@/lib/locale'
+import { setCurrentLocale } from '@/lib/locale'
+import { useLocale } from '@/lib/useLocale'
 
 export default function LanguageToggle() {
-  const [locale, setLocale] = useState<Locale>('ar')
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    const current = getCurrentLocale()
-
-    setLocale(current)
-    setMounted(true)
-
-    document.documentElement.lang = current
-    document.documentElement.dir = current === 'ar' ? 'rtl' : 'ltr'
-  }, [])
+  const { locale, mounted } = useLocale()
 
   function toggleLocale() {
     const next: Locale = locale === 'ar' ? 'en' : 'ar'
 
-    setLocale(next)
     setCurrentLocale(next)
-
-    document.documentElement.lang = next
-    document.documentElement.dir = next === 'ar' ? 'rtl' : 'ltr'
-
-    window.location.reload()
   }
 
   return (

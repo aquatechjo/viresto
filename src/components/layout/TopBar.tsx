@@ -19,6 +19,9 @@ const TITLE_KEYS: Record<string, keyof typeof translations.ar.dashboard> = {
   "/dashboard/invoices": "invoices",
   "/dashboard/payments": "payments",
   "/dashboard/reports": "reports",
+  "/dashboard/finance/invoices": "invoices",
+  "/dashboard/finance/payments": "payments",
+  "/dashboard/finance/reports": "reports",
   "/dashboard/settings": "settings",
   "/dashboard/tasks": "tasks",
   "/dashboard/activity": "activity",
@@ -246,7 +249,7 @@ export default function TopBar() {
 
         {/* Notifications */}
         <div
-          className={`relative z-50 col-start-4 row-start-1 shrink-0 overflow-visible xl:col-start-5 ${COMPACT_CONTROL}`}
+          className="relative z-50 col-start-4 row-start-1 shrink-0 overflow-visible xl:col-start-5"
         >
           <NotificationBell />
         </div>
