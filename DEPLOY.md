@@ -94,6 +94,7 @@ git push -u origin main
 | `RESEND_API_KEY` | مفتاح Resend لإرسال التحقق والاسترجاع |
 | `EMAIL_FROM` | عنوان المرسل الموثق في Resend |
 | `CRON_SECRET` | سر عشوائي مستقل بطول 32 حرفًا على الأقل |
+| `HEALTHCHECK_SECRET` | سر مستقل لفحص Production readiness؛ لا تستخدم `CRON_SECRET` نفسه |
 | `APP_URL` | `https://www.virestojo.com` |
 | `ALLOWED_SERVER_ACTION_ORIGINS` | `virestojo.com,www.virestojo.com` بدون `https://` |
 | `PUBLIC_REGISTER_ENABLED` | `true` أو `false` ويجب أن يطابق متغير الواجهة |
@@ -134,6 +135,12 @@ ENCRYPTION_PREVIOUS_KEYS="key-2026-01=OLD_BASE64_KEY"
 ```
 
 البيانات الجديدة تستخدم المفتاح الجديد، وتبقى البيانات القديمة قابلة للقراءة. لا تغيّر `SEARCH_HASH_SECRET` من دون عملية backfill مخصصة لقيم البحث.
+
+### مراقبة Production والاسترجاع
+
+بعد إضافة `HEALTHCHECK_SECRET` إلى Vercel، أضف نفس القيمة كسر GitHub Actions باسم `PRODUCTION_HEALTHCHECK_SECRET`. يشغّل workflow باسم `Production smoke` فحوصات آمنة كل ساعة ويمكن تشغيله يدويًا.
+
+راجع `OPERATIONS.md` لإعداد المراقبة، تفسير الأعطال، Instant Rollback على Vercel، واسترجاع Neon بعد التحقق عبر Time Travel Assist.
 
 ---
 

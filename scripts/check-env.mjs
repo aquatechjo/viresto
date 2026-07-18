@@ -25,6 +25,8 @@ const SECRET_RULES = [
   ["CRON_SECRET", 32],
 ];
 
+const OPTIONAL_SECRET_RULES = [["HEALTHCHECK_SECRET", 32]];
+
 function isPlaceholder(value) {
   return /^(?:change-me|your[_-]|replace-me|example|test-secret)/i.test(
     value.trim(),
@@ -65,6 +67,16 @@ export function validateEnvironment(env) {
     } else if (value.length < minimumLength || isPlaceholder(value)) {
       errors.push(
         `${name} must be a non-placeholder secret of at least ${minimumLength} characters`,
+      );
+    }
+  }
+
+  for (const [name, minimumLength] of OPTIONAL_SECRET_RULES) {
+    const value = valueOf(name);
+
+    if (value && (value.length < minimumLength || isPlaceholder(value))) {
+      errors.push(
+        `${name} must be a non-placeholder secret of at least ${minimumLength} characters when configured`,
       );
     }
   }
@@ -167,7 +179,7 @@ export function validateEnvironment(env) {
     }
   }
 
-  const secretValues = SECRET_RULES
+  const secretValues = [...SECRET_RULES, ...OPTIONAL_SECRET_RULES]
     .map(([name]) => [name, valueOf(name)])
     .filter(([, value]) => value);
 
@@ -184,6 +196,12 @@ export function validateEnvironment(env) {
   if (!valueOf("OPENAI_API_KEY")) {
     warnings.push(
       "OPENAI_API_KEY is missing; AI features will remain unavailable",
+    );
+  }
+
+  if (!valueOf("HEALTHCHECK_SECRET")) {
+    warnings.push(
+      "HEALTHCHECK_SECRET is missing; authenticated production readiness checks will be unavailable",
     );
   }
 

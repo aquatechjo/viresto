@@ -58,3 +58,31 @@ test("environment validation verifies previous encryption keys", () => {
     ),
   );
 });
+
+test("environment validation accepts a separate health-check secret", () => {
+  const env = validEnvironment();
+  env.HEALTHCHECK_SECRET = "h".repeat(32);
+
+  const result = validateEnvironment(env);
+  assert.deepEqual(result.errors, []);
+  assert.equal(
+    result.warnings.some((message) => message.includes("HEALTHCHECK_SECRET")),
+    false,
+  );
+});
+
+test("environment validation rejects weak or reused health-check secrets", () => {
+  const weakEnv = validEnvironment();
+  weakEnv.HEALTHCHECK_SECRET = "short";
+  const weakResult = validateEnvironment(weakEnv);
+  assert.ok(
+    weakResult.errors.some((message) => message.includes("HEALTHCHECK_SECRET")),
+  );
+
+  const reusedEnv = validEnvironment();
+  reusedEnv.HEALTHCHECK_SECRET = reusedEnv.CRON_SECRET;
+  const reusedResult = validateEnvironment(reusedEnv);
+  assert.ok(
+    reusedResult.errors.some((message) => message.includes("must use different secrets")),
+  );
+});
