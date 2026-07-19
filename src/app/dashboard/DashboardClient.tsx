@@ -12,7 +12,6 @@ import {
   CalendarDays,
   CalendarPlus,
   CheckCircle2,
-  CircleDollarSign,
   Clock3,
   FilePlus2,
   FolderOpen,
@@ -26,7 +25,19 @@ import {
 import type { Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import { getCurrentUser } from "@/lib/client-session";
-import AppLoader from "@/components/ui/AppLoader";
+import {
+  PageTransition,
+  SlideUp,
+  Stagger,
+} from "@/components/motion";
+import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
+import SectionHeader from "@/components/dashboard/SectionHeader";
+import EmptyState from "@/components/dashboard/EmptyState";
+import MetricCard from "@/components/dashboard/MetricCard";
+import AttentionPanel from "@/components/dashboard/AttentionPanel";
+import TodayAppointments from "@/components/dashboard/TodayAppointments";
+import UpcomingTasks from "@/components/dashboard/UpcomingTasks";
+import OfficeSummary from "@/components/dashboard/OfficeSummary";
 
 const TENANT_TIME_ZONE = "Asia/Amman";
 
@@ -219,23 +230,6 @@ const PRIORITY_LABELS: Record<Locale, Record<string, string>> = {
     MEDIUM: "Medium",
     LOW: "Low",
   },
-};
-
-const PRIORITY_STYLES: Record<string, string> = {
-  URGENT:
-    "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
-  HIGH: "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300",
-  MEDIUM:
-    "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  LOW: "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-};
-
-const TYPE_COLOR: Record<string, string> = {
-  COURT_SESSION: "var(--sidebar)",
-  MEETING: "#2563eb",
-  PHONE_CALL: "var(--gold)",
-  DEADLINE: "#dc2626",
-  OTHER: "var(--text-3)",
 };
 
 const ACTIVITY_CONFIG: Record<
@@ -935,181 +929,6 @@ function formatAppointmentDateTime(date: string, locale: Locale) {
   ).format(new Date(date));
 }
 
-function formatAppointmentTime(date: string, locale: Locale) {
-  return new Intl.DateTimeFormat(
-    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
-    {
-      timeZone: TENANT_TIME_ZONE,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    },
-  ).format(new Date(date));
-}
-
-function isPastDate(date?: string | null) {
-  if (!date) return false;
-  return new Date(date).getTime() < Date.now();
-}
-
-function isTodayDate(date?: string | null) {
-  if (!date) return false;
-
-  const value = new Date(date);
-  const today = new Date();
-
-  return (
-    value.getFullYear() === today.getFullYear() &&
-    value.getMonth() === today.getMonth() &&
-    value.getDate() === today.getDate()
-  );
-}
-
-interface SectionHeaderProps {
-  title: string;
-  subtitle: string;
-  href?: string;
-  linkLabel?: string;
-  isRtl: boolean;
-}
-
-function SectionHeader({
-  title,
-  subtitle,
-  href,
-  linkLabel,
-  isRtl,
-}: SectionHeaderProps) {
-  const ArrowIcon = isRtl ? ArrowLeft : ArrowRight;
-
-  return (
-    <div className="mb-3 flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h2
-          className="text-base font-black sm:text-lg"
-          style={{ color: "var(--text)" }}
-        >
-          {title}
-        </h2>
-        <p
-          className="mt-1 text-xs leading-5 sm:text-sm"
-          style={{ color: "var(--text-3)" }}
-        >
-          {subtitle}
-        </p>
-      </div>
-
-      {href && linkLabel && (
-        <Link
-          href={href}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5"
-          style={{ color: "var(--sidebar)" }}
-        >
-          {linkLabel}
-          <ArrowIcon className="h-3.5 w-3.5" />
-        </Link>
-      )}
-    </div>
-  );
-}
-
-interface EmptyStateProps {
-  icon: ReactNode;
-  title: string;
-  actionLabel?: string;
-  href?: string;
-}
-
-function EmptyState({ icon, title, actionLabel, href }: EmptyStateProps) {
-  return (
-    <div
-      className="flex min-h-[122px] flex-col items-center justify-center rounded-2xl border border-dashed p-4 text-center"
-      style={{ borderColor: "var(--border)" }}
-    >
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/15 text-teal-700 dark:bg-teal-300/10 dark:text-teal-200">
-        {icon}
-      </div>
-
-      <p
-        className="mt-2.5 text-sm font-bold"
-        style={{ color: "var(--text-2)" }}
-      >
-        {title}
-      </p>
-
-      {href && actionLabel && (
-        <Link
-          href={href}
-          className="mt-2.5 rounded-xl px-3 py-2 text-xs font-black"
-          style={{ background: "var(--green-soft)", color: "var(--sidebar)" }}
-        >
-          {actionLabel}
-        </Link>
-      )}
-    </div>
-  );
-}
-
-interface MetricCardProps {
-  label: string;
-  value: string | number;
-  sub: string;
-  icon: ReactNode;
-  href: string;
-  alert?: boolean;
-}
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  icon,
-  href,
-  alert = false,
-}: MetricCardProps) {
-  return (
-    <Link
-      href={href}
-      className="group card min-w-0 p-3.5 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:p-4"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-            alert
-              ? "bg-red-500/15 text-red-600 dark:text-red-300"
-              : "bg-teal-500/15 text-teal-700 dark:bg-teal-300/10 dark:text-teal-200"
-          }`}
-        >
-          {icon}
-        </div>
-
-        <ArrowRight
-          className="h-4 w-4 opacity-0 transition group-hover:opacity-100 rtl:rotate-180"
-          style={{ color: "var(--text-3)" }}
-        />
-      </div>
-
-      <p className="mt-3 text-xs font-bold" style={{ color: "var(--text-3)" }}>
-        {label}
-      </p>
-
-      <p
-        className="mt-1 truncate text-2xl font-black"
-        style={{ color: alert ? "#dc2626" : "var(--text)" }}
-      >
-        {value}
-      </p>
-
-      <p
-        className="mt-1.5 line-clamp-2 text-xs leading-5"
-        style={{ color: "var(--text-3)" }}
-      >
-        {sub}
-      </p>
-    </Link>
-  );
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const { locale, isRtl } = useLocale();
@@ -1401,13 +1220,13 @@ export default function DashboardPage() {
   ]);
 
   if (loading) {
-    return <AppLoader fullScreen={false} />;
+    return <DashboardSkeleton isRtl={isRtl} />;
   }
 
   return (
-    <div
+    <PageTransition
       dir={isRtl ? "rtl" : "ltr"}
-      className="stagger w-full min-w-0 max-w-full space-y-4 overflow-x-hidden text-start sm:space-y-5"
+      className="w-full min-w-0 max-w-full space-y-4 overflow-x-hidden text-start sm:space-y-5"
     >
       {hasLoadError && (
         <div
@@ -1459,6 +1278,7 @@ export default function DashboardPage() {
       )}
 
       {/* Compact daily header */}
+      <SlideUp>
       <section
         className="relative min-w-0 overflow-hidden rounded-[24px] border p-4 sm:p-5"
         style={{
@@ -1559,9 +1379,10 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+      </SlideUp>
 
       {/* Primary metrics */}
-      <section className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <Stagger className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label={t.activeCases}
           value={stats?.activeCaseCount ?? 0}
@@ -1605,284 +1426,48 @@ export default function DashboardPage() {
             href="/dashboard/clients"
           />
         )}
-      </section>
+      </Stagger>
 
-      {/* Attention */}
-      {attentionItems.length === 0 ? (
-        <section
-          className="card flex min-w-0 items-center gap-3 p-3.5 sm:px-4"
-          aria-label={t.needsAttention}
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
-            <CheckCircle2 className="h-5 w-5" />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h2
-                className="text-sm font-black sm:text-base"
-                style={{ color: "var(--text)" }}
-              >
-                {t.noAttention}
-              </h2>
-              <span
-                className="hidden text-xs sm:inline"
-                style={{ color: "var(--text-3)" }}
-              >
-                · {t.noAttentionSub}
-              </span>
-            </div>
-
-            <p
-              className="mt-1 text-xs sm:hidden"
-              style={{ color: "var(--text-3)" }}
-            >
-              {t.noAttentionSub}
-            </p>
-          </div>
-        </section>
-      ) : (
-        <section className="card h-fit min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title={t.needsAttention}
-            subtitle={t.needsAttentionSub}
-            isRtl={isRtl}
-          />
-
-          <div className="grid min-w-0 gap-3 md:grid-cols-2">
-            {attentionItems.map((item) => {
-              const toneStyles = {
-                danger: {
-                  background: "rgba(220,38,38,0.08)",
-                  border: "rgba(220,38,38,0.22)",
-                  icon: "text-red-600 dark:text-red-300 bg-red-500/15",
-                },
-                warning: {
-                  background: "rgba(245,158,11,0.08)",
-                  border: "rgba(245,158,11,0.22)",
-                  icon: "text-amber-700 dark:text-amber-300 bg-amber-500/15",
-                },
-                info: {
-                  background: "var(--green-soft)",
-                  border: "var(--border)",
-                  icon: "text-emerald-700 dark:text-emerald-300 bg-emerald-500/15",
-                },
-              }[item.tone];
-
-              return (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  className="group flex min-w-0 items-center gap-3 rounded-2xl border p-3.5 transition hover:-translate-y-0.5"
-                  style={{
-                    background: toneStyles.background,
-                    borderColor: toneStyles.border,
-                  }}
-                >
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${toneStyles.icon}`}
-                  >
-                    {item.icon}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className="truncate text-sm font-black"
-                      style={{ color: "var(--text)" }}
-                    >
-                      {item.title}
-                    </p>
-                    <p
-                      className="mt-1 line-clamp-2 text-xs leading-5"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      {item.message}
-                    </p>
-                  </div>
-
-                  {isRtl ? (
-                    <ArrowLeft className="h-4 w-4 shrink-0 opacity-60 transition group-hover:-translate-x-0.5" />
-                  ) : (
-                    <ArrowRight className="h-4 w-4 shrink-0 opacity-60 transition group-hover:translate-x-0.5" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      <AttentionPanel
+        items={attentionItems}
+        isRtl={isRtl}
+        title={t.needsAttention}
+        subtitle={t.needsAttentionSub}
+        emptyTitle={t.noAttention}
+        emptySubtitle={t.noAttentionSub}
+      />
 
       {/* Daily operations */}
-      <section className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
-        {/* Today's appointments */}
-        <div className="card h-fit min-w-0 p-4 sm:p-5">
-          <SectionHeader
+      <SlideUp delay={0.08}>
+        <section className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
+          <TodayAppointments
+            appointments={stats?.todayAppts ?? []}
+            locale={locale}
+            isRtl={isRtl}
             title={t.todaySchedule}
             subtitle={t.todayScheduleSub}
-            href="/dashboard/appointments"
-            linkLabel={t.viewAll}
-            isRtl={isRtl}
+            viewAllLabel={t.viewAll}
+            emptyTitle={t.noAppointmentsToday}
+            actionLabel={t.addAppointmentAction}
           />
-
-          {!stats?.todayAppts?.length ? (
-            <EmptyState
-              icon={<CalendarDays className="h-5 w-5" />}
-              title={t.noAppointmentsToday}
-              href="/dashboard/appointments"
-              actionLabel={t.addAppointmentAction}
-            />
-          ) : (
-            <div className="space-y-3">
-              {stats.todayAppts.slice(0, 5).map((appointment) => (
-                <Link
-                  key={appointment.id}
-                  href="/dashboard/appointments"
-                  className="group flex min-w-0 gap-3 rounded-2xl border p-3 transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <div
-                    className="w-1 shrink-0 self-stretch rounded-full"
-                    style={{
-                      background:
-                        TYPE_COLOR[appointment.type] ?? "var(--text-3)",
-                      minHeight: 52,
-                    }}
-                  />
-
-                  <div
-                    className="flex h-11 min-w-[68px] shrink-0 items-center justify-center rounded-xl px-2 text-sm font-black"
-                    style={{
-                      background: "var(--green-soft)",
-                      color: "var(--sidebar)",
-                    }}
-                  >
-                    {formatAppointmentTime(appointment.startTime, locale)}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className="truncate text-sm font-black"
-                      style={{ color: "var(--text)" }}
-                    >
-                      {appointment.title}
-                    </p>
-
-                    <p
-                      className="mt-1 truncate text-xs"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      {appointment.client?.name ??
-                        appointment.case?.title ??
-                        appointment.location ??
-                        "—"}
-                    </p>
-                  </div>
-
-                  {isRtl ? (
-                    <ArrowLeft className="mt-1 h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
-                  ) : (
-                    <ArrowRight className="mt-1 h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
-                  )}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Upcoming tasks */}
-        <div className="card h-fit min-w-0 p-4 sm:p-5">
-          <SectionHeader
+          <UpcomingTasks
+            tasks={stats?.upcomingTasks ?? []}
+            locale={locale}
+            isRtl={isRtl}
+            priorityLabels={priorityLabels}
             title={t.upcomingTasks}
             subtitle={t.upcomingTasksSub}
-            href="/dashboard/tasks"
-            linkLabel={t.viewAll}
-            isRtl={isRtl}
+            viewAllLabel={t.viewAll}
+            emptyTitle={t.noUpcomingTasks}
+            actionLabel={t.addTaskAction}
+            overdueLabel={t.overdue}
+            todayLabel={t.dueToday}
           />
-
-          {!stats?.upcomingTasks?.length ? (
-            <EmptyState
-              icon={<ListTodo className="h-5 w-5" />}
-              title={t.noUpcomingTasks}
-              href="/dashboard/tasks"
-              actionLabel={t.addTaskAction}
-            />
-          ) : (
-            <div className="space-y-3">
-              {stats.upcomingTasks.slice(0, 5).map((task) => {
-                const overdue =
-                  isPastDate(task.dueDate) && !isTodayDate(task.dueDate);
-                const dueToday = isTodayDate(task.dueDate);
-
-                return (
-                  <Link
-                    key={task.id}
-                    href="/dashboard/tasks"
-                    className="group flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
-                    style={{ borderColor: "var(--border)" }}
-                  >
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                        overdue
-                          ? "bg-red-500/15 text-red-600 dark:text-red-300"
-                          : "bg-teal-500/15 text-teal-700 dark:bg-teal-300/10 dark:text-teal-200"
-                      }`}
-                    >
-                      {overdue ? (
-                        <AlertTriangle className="h-5 w-5" />
-                      ) : (
-                        <CheckCircle2 className="h-5 w-5" />
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="truncate text-sm font-black"
-                        style={{ color: "var(--text)" }}
-                      >
-                        {task.title}
-                      </p>
-
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                            PRIORITY_STYLES[task.priority] ??
-                            PRIORITY_STYLES.MEDIUM
-                          }`}
-                        >
-                          {priorityLabels[task.priority] ?? task.priority}
-                        </span>
-
-                        {task.dueDate && (
-                          <span
-                            className="text-[11px]"
-                            style={{
-                              color: overdue ? "#dc2626" : "var(--text-3)",
-                            }}
-                          >
-                            {overdue
-                              ? t.overdue
-                              : dueToday
-                                ? t.dueToday
-                                : formatDate(task.dueDate, locale)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {isRtl ? (
-                      <ArrowLeft className="h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
-                    ) : (
-                      <ArrowRight className="h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-60" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
+        </section>
+      </SlideUp>
 
       {/* Lower dashboard: independent columns prevent empty row gaps */}
+      <SlideUp delay={0.12}>
       <section className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
         <div className="min-w-0 space-y-4">
           <div className="card min-w-0 p-4 sm:p-5">
@@ -2102,136 +1687,30 @@ export default function DashboardPage() {
         </div>
 
         <aside className="min-w-0 space-y-4">
-          <div className="card min-w-0 p-4 sm:p-5">
-            <SectionHeader
-              title={t.officeSummary}
-              subtitle={t.officeSummarySub}
-              isRtl={isRtl}
-            />
-
-            <div className="grid grid-cols-2 gap-3">
-              <div
-                className="rounded-2xl border p-3.5"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <Users className="h-4 w-4 text-teal-700 dark:text-teal-200" />
-                <p
-                  className="mt-3 text-xs font-bold"
-                  style={{ color: "var(--text-3)" }}
-                >
-                  {t.clients}
-                </p>
-                <p
-                  className="mt-1 text-xl font-black"
-                  style={{ color: "var(--text)" }}
-                >
-                  {stats?.clientCount ?? 0}
-                </p>
-                <p
-                  className="mt-1 text-[10px]"
-                  style={{ color: "var(--text-3)" }}
-                >
-                  +{stats?.newClientsThisMonth ?? 0} {t.thisMonth}
-                </p>
-              </div>
-
-              <div
-                className="rounded-2xl border p-3.5"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <BriefcaseBusiness className="h-4 w-4 text-teal-700 dark:text-teal-200" />
-                <p
-                  className="mt-3 text-xs font-bold"
-                  style={{ color: "var(--text-3)" }}
-                >
-                  {t.totalCases}
-                </p>
-                <p
-                  className="mt-1 text-xl font-black"
-                  style={{ color: "var(--text)" }}
-                >
-                  {stats?.totalCasesCount ?? 0}
-                </p>
-              </div>
-
-              <div
-                className="rounded-2xl border p-3.5"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <CheckCircle2 className="h-4 w-4 text-teal-700 dark:text-teal-200" />
-                <p
-                  className="mt-3 text-xs font-bold"
-                  style={{ color: "var(--text-3)" }}
-                >
-                  {t.resolvedCases}
-                </p>
-                <div className="mt-1 flex items-end justify-between gap-2">
-                  <p
-                    className="text-xl font-black"
-                    style={{ color: "var(--text)" }}
-                  >
-                    {stats?.resolvedCasesCount ?? 0}
-                  </p>
-                  <span
-                    className="text-[10px] font-bold"
-                    style={{ color: "var(--text-3)" }}
-                  >
-                    {stats?.resolvedCaseRate ?? 0}%
-                  </span>
-                </div>
-              </div>
-
-              {canViewFinance && (
-                <div
-                  className="rounded-2xl border p-3.5"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <CircleDollarSign className="h-4 w-4 text-teal-700 dark:text-teal-200" />
-                  <p
-                    className="mt-3 text-xs font-bold"
-                    style={{ color: "var(--text-3)" }}
-                  >
-                    {t.monthlyRevenue}
-                  </p>
-                  <p
-                    className="mt-1 truncate text-base font-black"
-                    style={{ color: "var(--sidebar)" }}
-                  >
-                    {formatMoney(stats?.monthlyRevenue ?? 0, locale)}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {canViewFinance && (
-              <div
-                className="mt-3 flex items-center justify-between gap-3 rounded-2xl border p-3.5"
-                style={{
-                  borderColor: "var(--border)",
-                  background: "var(--green-soft)",
-                }}
-              >
-                <div>
-                  <p
-                    className="text-xs font-bold"
-                    style={{ color: "var(--text-3)" }}
-                  >
-                    {t.totalRevenue}
-                  </p>
-                  <p
-                    className="mt-1 text-lg font-black"
-                    style={{ color: "var(--sidebar)" }}
-                  >
-                    {formatMoney(stats?.totalRevenue ?? 0, locale)}
-                  </p>
-                </div>
-
-                <CircleDollarSign className="h-6 w-6 text-teal-700 dark:text-teal-200" />
-              </div>
-            )}
-          </div>
+          <OfficeSummary
+            isRtl={isRtl}
+            canViewFinance={canViewFinance}
+            clientCount={stats?.clientCount ?? 0}
+            newClientsThisMonth={stats?.newClientsThisMonth ?? 0}
+            totalCasesCount={stats?.totalCasesCount ?? 0}
+            resolvedCasesCount={stats?.resolvedCasesCount ?? 0}
+            resolvedCaseRate={stats?.resolvedCaseRate ?? 0}
+            monthlyRevenue={formatMoney(stats?.monthlyRevenue ?? 0, locale)}
+            totalRevenue={formatMoney(stats?.totalRevenue ?? 0, locale)}
+            labels={{
+              title: t.officeSummary,
+              subtitle: t.officeSummarySub,
+              clients: t.clients,
+              thisMonth: t.thisMonth,
+              totalCases: t.totalCases,
+              resolvedCases: t.resolvedCases,
+              monthlyRevenue: t.monthlyRevenue,
+              totalRevenue: t.totalRevenue,
+            }}
+          />
         </aside>
       </section>
-    </div>
+      </SlideUp>
+    </PageTransition>
   );
 }
