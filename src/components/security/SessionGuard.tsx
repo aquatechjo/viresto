@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { invalidateCurrentUser } from "@/lib/client-session";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 10 * 1000;
 const ACTIVITY_PING_INTERVAL_MS = 60 * 1000;
+const ACTIVITY_SAMPLE_INTERVAL_MS = 1_000;
+const ACTIVITY_STORAGE_INTERVAL_MS = 5_000;
 
 const LAST_ACTIVITY_KEY = "viresto_last_activity";
 
@@ -20,6 +23,9 @@ const ACTIVITY_EVENTS = [
 export default function SessionGuard() {
   const loggingOutRef = useRef(false);
   const lastPingRef = useRef(0);
+  const lastActivityRef = useRef(0);
+  const lastActivitySampleRef = useRef(0);
+  const lastActivityWriteRef = useRef(0);
 
   const forceLogout = useCallback(async (message?: string) => {
     if (loggingOutRef.current) return;
@@ -27,6 +33,7 @@ export default function SessionGuard() {
     loggingOutRef.current = true;
 
     localStorage.removeItem(LAST_ACTIVITY_KEY);
+    invalidateCurrentUser();
 
     await fetch("/api/auth/logout", {
       method: "POST",
@@ -57,18 +64,42 @@ export default function SessionGuard() {
   }, [forceLogout]);
 
   useEffect(() => {
-    function markActivity() {
-      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
-      pingSessionActivity();
+    function recordActivity(force = false) {
+      const now = Date.now();
+
+      if (
+        !force &&
+        now - lastActivitySampleRef.current < ACTIVITY_SAMPLE_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      lastActivitySampleRef.current = now;
+      lastActivityRef.current = now;
+
+      if (
+        force ||
+        now - lastActivityWriteRef.current >= ACTIVITY_STORAGE_INTERVAL_MS
+      ) {
+        localStorage.setItem(LAST_ACTIVITY_KEY, String(now));
+        lastActivityWriteRef.current = now;
+      }
+
+      void pingSessionActivity();
+    }
+
+    function handleActivity() {
+      recordActivity();
     }
 
     function checkIdleTimeout() {
-      const lastActivity = Number(
+      const storedActivity = Number(
         localStorage.getItem(LAST_ACTIVITY_KEY) || "0",
       );
+      const lastActivity = Math.max(lastActivityRef.current, storedActivity);
 
       if (!lastActivity) {
-        markActivity();
+        recordActivity(true);
         return;
       }
 
@@ -79,10 +110,10 @@ export default function SessionGuard() {
       }
     }
 
-    markActivity();
+    recordActivity(true);
 
     for (const eventName of ACTIVITY_EVENTS) {
-      window.addEventListener(eventName, markActivity, { passive: true });
+      window.addEventListener(eventName, handleActivity, { passive: true });
     }
 
     const interval = window.setInterval(checkIdleTimeout, CHECK_INTERVAL_MS);
@@ -91,7 +122,7 @@ export default function SessionGuard() {
       window.clearInterval(interval);
 
       for (const eventName of ACTIVITY_EVENTS) {
-        window.removeEventListener(eventName, markActivity);
+        window.removeEventListener(eventName, handleActivity);
       }
     };
   }, [forceLogout, pingSessionActivity]);

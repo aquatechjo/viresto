@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
+import { getCurrentUser } from "@/lib/client-session";
 import AppLoader from "@/components/ui/AppLoader";
 
 const TENANT_TIME_ZONE = "Asia/Amman";
@@ -1131,13 +1132,9 @@ export default function DashboardPage() {
 
     async function verifySession() {
       try {
-        const res = await fetch("/api/auth/me", {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-        });
+        const result = await getCurrentUser();
 
-        if (!res.ok) {
+        if (!result.ok || !result.user) {
           if (!cancelled) {
             router.replace("/login");
             router.refresh();
@@ -1145,11 +1142,9 @@ export default function DashboardPage() {
           return;
         }
 
-        const body = await res.json();
-
         if (!cancelled) {
-          setUserName(body?.data?.name ?? "");
-          setOfficeName(body?.data?.tenant?.name ?? "");
+          setUserName(result.user.name ?? "");
+          setOfficeName(result.user.tenant?.name ?? "");
         }
       } catch {
         if (!cancelled) {

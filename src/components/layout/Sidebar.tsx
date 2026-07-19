@@ -26,6 +26,10 @@ import {
 import { initials } from "@/lib/utils";
 import { translations } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
+import {
+  getCurrentUser,
+  invalidateCurrentUser,
+} from "@/lib/client-session";
 
 type Role = "ADMIN" | "LAWYER" | "STAFF";
 
@@ -170,12 +174,18 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data) => {
-        const userData = data?.data;
+    let cancelled = false;
 
-        if (data.success && userData && isRole(userData.role)) {
+    void getCurrentUser()
+      .then((result) => {
+        const userData = result.user;
+
+        if (
+          !cancelled &&
+          result.ok &&
+          userData &&
+          isRole(userData.role)
+        ) {
           setUser({
             name: userData.name,
             email: userData.email,
@@ -185,6 +195,10 @@ export default function Sidebar() {
         }
       })
       .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -213,6 +227,7 @@ export default function Sidebar() {
 
   async function logout() {
     localStorage.removeItem("viresto_last_activity");
+    invalidateCurrentUser();
 
     await fetch("/api/auth/logout", {
       method: "POST",

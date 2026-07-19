@@ -5,11 +5,11 @@ import Link from "next/link";
 import { ChevronDown, LogOut, Settings } from "lucide-react";
 
 import { useLocale } from "@/lib/useLocale";
-
-interface UserType {
-  name: string;
-  email: string;
-}
+import {
+  getCurrentUser,
+  invalidateCurrentUser,
+  type CurrentUser,
+} from "@/lib/client-session";
 
 const COPY = {
   ar: {
@@ -30,22 +30,31 @@ const COPY = {
 
 export default function ProfileMenu() {
   const [open, setOpen] = useState(false);
-  const [user, setUser] = useState<UserType | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
 
   const ref = useRef<HTMLDivElement>(null);
   const { locale, isRtl } = useLocale();
   const text = COPY[locale === "ar" ? "ar" : "en"];
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.success) setUser(data.data);
+    let cancelled = false;
+
+    void getCurrentUser()
+      .then((result) => {
+        if (!cancelled && result.ok && result.user) {
+          setUser(result.user);
+        }
       })
       .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
+    if (!open) return;
+
     function handler(event: MouseEvent) {
       if (ref.current && !ref.current.contains(event.target as Node)) {
         setOpen(false);
@@ -57,10 +66,11 @@ export default function ProfileMenu() {
     return () => {
       document.removeEventListener("mousedown", handler);
     };
-  }, []);
+  }, [open]);
 
   async function logout() {
     localStorage.removeItem("viresto_last_activity");
+    invalidateCurrentUser();
 
     await fetch("/api/auth/logout", {
       method: "POST",
