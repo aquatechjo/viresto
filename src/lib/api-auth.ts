@@ -18,6 +18,25 @@ import {
 // A distributed, versioned cache can be added later without weakening this rule.
 const AUTH_CACHE_TTL_MS = 0;
 
+export type AuthenticatedUserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isSystemAdmin: boolean;
+  twoFactorEnabled: boolean;
+  createdAt: Date;
+  tenant: {
+    id: string;
+    name: string;
+    slug: string;
+    plan: string;
+    status: string;
+    isSuspended: boolean;
+    trialEndsAt: Date | null;
+  };
+};
+
 export type AuthenticatedUser = {
   userId: string;
   tenantId: string;
@@ -26,6 +45,7 @@ export type AuthenticatedUser = {
   role: UserRole;
   isSystemAdmin: boolean;
   sessionId: string;
+  profile: AuthenticatedUserProfile;
 };
 
 type AuthCacheEntry = {
@@ -165,13 +185,19 @@ export async function validateSessionPayload(
         email: true,
         role: true,
         isSystemAdmin: true,
+        twoFactorEnabled: true,
+        createdAt: true,
         isActive: true,
         emailVerifiedAt: true,
         tenant: {
           select: {
             id: true,
+            name: true,
+            slug: true,
+            plan: true,
             isSuspended: true,
             status: true,
+            trialEndsAt: true,
           },
         },
       },
@@ -265,6 +291,24 @@ export async function validateSessionPayload(
     role: dbUser.role as UserRole,
     isSystemAdmin: dbUser.isSystemAdmin,
     sessionId: tokenUser.sessionId,
+    profile: {
+      id: dbUser.id,
+      name: dbUser.name,
+      email: dbUser.email,
+      role: dbUser.role as UserRole,
+      isSystemAdmin: dbUser.isSystemAdmin,
+      twoFactorEnabled: dbUser.twoFactorEnabled,
+      createdAt: dbUser.createdAt,
+      tenant: {
+        id: dbUser.tenant.id,
+        name: dbUser.tenant.name,
+        slug: dbUser.tenant.slug,
+        plan: dbUser.tenant.plan,
+        status: dbUser.tenant.status,
+        isSuspended: dbUser.tenant.isSuspended,
+        trialEndsAt: dbUser.tenant.trialEndsAt,
+      },
+    },
   };
 
   setCachedAuth(cacheKey, user, lastActivityAtForCache);
