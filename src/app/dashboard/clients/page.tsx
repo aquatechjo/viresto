@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 import AppLoader from "@/components/ui/AppLoader";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import EmptyState from "@/components/ui/EmptyState";
+import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
@@ -35,90 +35,98 @@ type LocaleKey = "ar" | "en";
 
 const pageText = {
   ar: {
-    heroBadge: "إدارة علاقات الموكلين",
-    title: "الموكلون",
+    heroBadge: "Ø¥Ø¯Ø§Ø±Ø© Ø¹Ù„Ø§Ù‚Ø§Øª Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ†",
+    title: "Ø§Ù„Ù…ÙˆÙƒÙ„ÙˆÙ†",
     subtitle:
-      "تابع بيانات الموكلين، معلومات التواصل، عدد القضايا والمواعيد المرتبطة بكل موكل من واجهة منظمة وسريعة.",
-    newClient: "+ موكل جديد",
+      "ØªØ§Ø¨Ø¹ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ†ØŒ Ù…Ø¹Ù„ÙˆÙ…Ø§Øª Ø§Ù„ØªÙˆØ§ØµÙ„ØŒ Ø¹Ø¯Ø¯ Ø§Ù„Ù‚Ø¶Ø§ÙŠØ§ ÙˆØ§Ù„Ù…ÙˆØ§Ø¹ÙŠØ¯ Ø§Ù„Ù…Ø±ØªØ¨Ø·Ø© Ø¨ÙƒÙ„ Ù…ÙˆÙƒÙ„ Ù…Ù† ÙˆØ§Ø¬Ù‡Ø© Ù…Ù†Ø¸Ù…Ø© ÙˆØ³Ø±ÙŠØ¹Ø©.",
+    newClient: "+ Ù…ÙˆÙƒÙ„ Ø¬Ø¯ÙŠØ¯",
     stats: {
-      total: "كل الموكلين",
-      thisMonth: "هذا الشهر",
-      withCases: "لديهم قضايا",
-      withoutCases: "بدون قضايا",
+      total: "ÙƒÙ„ Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ†",
+      thisMonth: "Ù‡Ø°Ø§ Ø§Ù„Ø´Ù‡Ø±",
+      withCases: "Ù„Ø¯ÙŠÙ‡Ù… Ù‚Ø¶Ø§ÙŠØ§",
+      withoutCases: "Ø¨Ø¯ÙˆÙ† Ù‚Ø¶Ø§ÙŠØ§",
     },
     filters: {
-      searchPlaceholder: "ابحث باسم الموكل، الهاتف، البريد أو الرقم الوطني...",
-      ariaCaseFilter: "فلترة حسب القضايا",
-      allClients: "جميع الموكلين",
-      withCases: "لديهم قضايا",
-      withoutCases: "بدون قضايا",
-      search: "بحث",
-      all: "الكل",
-      clear: "مسح الفلاتر",
-      activeClients: "النشطون",
-      archivedClients: "المؤرشفون",
+      searchPlaceholder:
+        "Ø§Ø¨Ø­Ø« Ø¨Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„ØŒ Ø§Ù„Ù‡Ø§ØªÙØŒ Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø£Ùˆ Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ...",
+      ariaCaseFilter: "ÙÙ„ØªØ±Ø© Ø­Ø³Ø¨ Ø§Ù„Ù‚Ø¶Ø§ÙŠØ§",
+      allClients: "Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ†",
+      withCases: "Ù„Ø¯ÙŠÙ‡Ù… Ù‚Ø¶Ø§ÙŠØ§",
+      withoutCases: "Ø¨Ø¯ÙˆÙ† Ù‚Ø¶Ø§ÙŠØ§",
+      search: "Ø¨Ø­Ø«",
+      all: "Ø§Ù„ÙƒÙ„",
+      clear: "Ù…Ø³Ø­ Ø§Ù„ÙÙ„Ø§ØªØ±",
+      activeClients: "Ø§Ù„Ù†Ø´Ø·ÙˆÙ†",
+      archivedClients: "Ø§Ù„Ù…Ø¤Ø±Ø´ÙÙˆÙ†",
     },
     empty: {
-      title: "لا يوجد موكلون",
-      noClients: "لم يتم إضافة أي موكل بعد. ابدأ بإضافة أول موكل داخل المكتب.",
-      noResults: "لا توجد نتائج مطابقة للفلاتر الحالية.",
-      addClient: "+ إضافة موكل",
+      title: "Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…ÙˆÙƒÙ„ÙˆÙ†",
+      noClients:
+        "Ù„Ù… ÙŠØªÙ… Ø¥Ø¶Ø§ÙØ© Ø£ÙŠ Ù…ÙˆÙƒÙ„ Ø¨Ø¹Ø¯. Ø§Ø¨Ø¯Ø£ Ø¨Ø¥Ø¶Ø§ÙØ© Ø£ÙˆÙ„ Ù…ÙˆÙƒÙ„ Ø¯Ø§Ø®Ù„ Ø§Ù„Ù…ÙƒØªØ¨.",
+      noResults:
+        "Ù„Ø§ ØªÙˆØ¬Ø¯ Ù†ØªØ§Ø¦Ø¬ Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù„ÙÙ„Ø§ØªØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ©.",
+      addClient: "+ Ø¥Ø¶Ø§ÙØ© Ù…ÙˆÙƒÙ„",
     },
     card: {
-      addedAt: "أضيف بتاريخ",
-      cases: "قضايا",
-      appointments: "مواعيد",
-      active: "نشط",
-      withoutCases: "بدون قضايا",
-      phone: "الهاتف",
-      email: "البريد الإلكتروني",
-      address: "العنوان",
+      addedAt: "Ø£Ø¶ÙŠÙ Ø¨ØªØ§Ø±ÙŠØ®",
+      cases: "Ù‚Ø¶Ø§ÙŠØ§",
+      appointments: "Ù…ÙˆØ§Ø¹ÙŠØ¯",
+      active: "Ù†Ø´Ø·",
+      withoutCases: "Ø¨Ø¯ÙˆÙ† Ù‚Ø¶Ø§ÙŠØ§",
+      phone: "Ø§Ù„Ù‡Ø§ØªÙ",
+      email: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
+      address: "Ø§Ù„Ø¹Ù†ÙˆØ§Ù†",
       dash: "-",
-      archived: "مؤرشف",
+      archived: "Ù…Ø¤Ø±Ø´Ù",
     },
     modal: {
-      title: "إضافة موكل",
-      subtitle: "إضافة بيانات موكل جديد داخل المكتب",
-      close: "إغلاق",
-      operationFailed: "تعذر تنفيذ العملية",
+      title: "Ø¥Ø¶Ø§ÙØ© Ù…ÙˆÙƒÙ„",
+      subtitle:
+        "Ø¥Ø¶Ø§ÙØ© Ø¨ÙŠØ§Ù†Ø§Øª Ù…ÙˆÙƒÙ„ Ø¬Ø¯ÙŠØ¯ Ø¯Ø§Ø®Ù„ Ø§Ù„Ù…ÙƒØªØ¨",
+      close: "Ø¥ØºÙ„Ø§Ù‚",
+      operationFailed: "ØªØ¹Ø°Ø± ØªÙ†ÙÙŠØ° Ø§Ù„Ø¹Ù…Ù„ÙŠØ©",
       labels: {
-        name: "اسم الموكل",
-        phone: "رقم الهاتف",
-        email: "البريد الإلكتروني",
-        nationalId: "الرقم الوطني",
-        address: "العنوان",
-        notes: "ملاحظات",
+        name: "Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„",
+        phone: "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ",
+        email: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
+        nationalId: "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ",
+        address: "Ø§Ù„Ø¹Ù†ÙˆØ§Ù†",
+        notes: "Ù…Ù„Ø§Ø­Ø¸Ø§Øª",
       },
       placeholders: {
-        name: "اسم الموكل",
-        phone: "رقم الهاتف",
-        email: "البريد الإلكتروني",
-        nationalId: "الرقم الوطني",
-        address: "العنوان",
-        notes: "ملاحظات",
+        name: "Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„",
+        phone: "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ",
+        email: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
+        nationalId: "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ",
+        address: "Ø§Ù„Ø¹Ù†ÙˆØ§Ù†",
+        notes: "Ù…Ù„Ø§Ø­Ø¸Ø§Øª",
       },
-      save: "حفظ الموكل",
-      saving: "جاري الحفظ...",
-      cancel: "إلغاء",
+      save: "Ø­ÙØ¸ Ø§Ù„Ù…ÙˆÙƒÙ„",
+      saving: "Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...",
+      cancel: "Ø¥Ù„ØºØ§Ø¡",
     },
     validation: {
-      nameRequired: "اسم الموكل مطلوب.",
-      phoneRequired: "رقم الهاتف مطلوب.",
-      nationalIdRequired: "الرقم الوطني مطلوب.",
-      phoneInvalid: "رقم الهاتف يجب أن يتكون من 10 أرقام فقط.",
-      nationalIdInvalid: "الرقم الوطني يجب أن يتكون من 10 أرقام فقط.",
-      nameTooLong: "اسم الموكل طويل جدًا.",
-      phoneTooLong: "رقم الهاتف طويل جدًا.",
-      emailTooLong: "البريد الإلكتروني طويل جدًا.",
-      nationalIdTooLong: "الرقم الوطني طويل جدًا.",
-      addressTooLong: "العنوان طويل جدًا.",
-      notesTooLong: "الملاحظات طويلة جدًا.",
-      invalidEmail: "البريد الإلكتروني غير صالح.",
+      nameRequired: "Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„ Ù…Ø·Ù„ÙˆØ¨.",
+      phoneRequired: "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ Ù…Ø·Ù„ÙˆØ¨.",
+      nationalIdRequired: "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ Ù…Ø·Ù„ÙˆØ¨.",
+      phoneInvalid:
+        "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ ÙŠØ¬Ø¨ Ø£Ù† ÙŠØªÙƒÙˆÙ† Ù…Ù† 10 Ø£Ø±Ù‚Ø§Ù… ÙÙ‚Ø·.",
+      nationalIdInvalid:
+        "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ ÙŠØ¬Ø¨ Ø£Ù† ÙŠØªÙƒÙˆÙ† Ù…Ù† 10 Ø£Ø±Ù‚Ø§Ù… ÙÙ‚Ø·.",
+      nameTooLong: "Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„ Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
+      phoneTooLong: "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
+      emailTooLong: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
+      nationalIdTooLong: "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
+      addressTooLong: "Ø§Ù„Ø¹Ù†ÙˆØ§Ù† Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
+      notesTooLong: "Ø§Ù„Ù…Ù„Ø§Ø­Ø¸Ø§Øª Ø·ÙˆÙŠÙ„Ø© Ø¬Ø¯Ù‹Ø§.",
+      invalidEmail: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ ØºÙŠØ± ØµØ§Ù„Ø­.",
       browserToken:
-        "يبدو أن المتصفح عبّأ أحد الحقول تلقائيًا بقيمة غير صحيحة. امسح الحقول وأدخل البيانات يدويًا.",
-      planLimit: "وصلت إلى حد الموكلين المسموح في خطتك الحالية.",
-      addFailed: "تعذر إضافة الموكل",
-      connectionFailed: "تعذر الاتصال بالخادم. حاول مرة أخرى.",
+        "ÙŠØ¨Ø¯Ùˆ Ø£Ù† Ø§Ù„Ù…ØªØµÙØ­ Ø¹Ø¨Ù‘Ø£ Ø£Ø­Ø¯ Ø§Ù„Ø­Ù‚ÙˆÙ„ ØªÙ„Ù‚Ø§Ø¦ÙŠÙ‹Ø§ Ø¨Ù‚ÙŠÙ…Ø© ØºÙŠØ± ØµØ­ÙŠØ­Ø©. Ø§Ù…Ø³Ø­ Ø§Ù„Ø­Ù‚ÙˆÙ„ ÙˆØ£Ø¯Ø®Ù„ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª ÙŠØ¯ÙˆÙŠÙ‹Ø§.",
+      planLimit:
+        "ÙˆØµÙ„Øª Ø¥Ù„Ù‰ Ø­Ø¯ Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ† Ø§Ù„Ù…Ø³Ù…ÙˆØ­ ÙÙŠ Ø®Ø·ØªÙƒ Ø§Ù„Ø­Ø§Ù„ÙŠØ©.",
+      addFailed: "ØªØ¹Ø°Ø± Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ù…ÙˆÙƒÙ„",
+      connectionFailed:
+        "ØªØ¹Ø°Ø± Ø§Ù„Ø§ØªØµØ§Ù„ Ø¨Ø§Ù„Ø®Ø§Ø¯Ù…. Ø­Ø§ÙˆÙ„ Ù…Ø±Ø© Ø£Ø®Ø±Ù‰.",
     },
   },
   en: {
@@ -391,7 +399,7 @@ function CreateClientModal({
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#082c2d] text-xl text-emerald-100 transition hover:bg-[#123f40]"
             aria-label={text.modal.close}
           >
-            ×
+            Ã—
           </button>
         </div>
 
@@ -646,10 +654,6 @@ export default function ClientsPage() {
     load();
   }, [load]);
 
-  function search(event: FormEvent) {
-    event.preventDefault();
-  }
-
   function clearFilters() {
     setQ("");
     setArchiveFilter("active");
@@ -687,6 +691,154 @@ export default function ClientsPage() {
       );
     });
   }, [clients, q]);
+
+  const columns = useMemo<VDSDataTableColumn<Client>[]>(
+    () => [
+      {
+        id: "name",
+        header: localeKey === "ar" ? "الموكل" : "Client",
+        accessor: "name",
+        sortable: true,
+        width: "28%",
+        cell: (client) => (
+          <div className="flex min-w-[220px] items-center gap-3">
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black"
+              style={{
+                background: "var(--green-soft)",
+                color: "var(--sidebar)",
+              }}
+            >
+              {client.name.slice(0, 1)}
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className="max-w-[220px] truncate font-black"
+                  style={{ color: "var(--text)" }}
+                >
+                  {client.name}
+                </span>
+
+                {client.archivedAt ? (
+                  <span
+                    className="rounded-full border px-2 py-0.5 text-[10px] font-black"
+                    style={{
+                      background: "rgba(245,158,11,0.16)",
+                      borderColor: "rgba(245,158,11,0.38)",
+                      color: "#f59e0b",
+                    }}
+                  >
+                    {text.card.archived}
+                  </span>
+                ) : null}
+              </div>
+
+              <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
+                {text.card.addedAt} {formatDate(client.createdAt, localeKey)}
+              </p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "phone",
+        header: text.card.phone,
+        accessor: "phone",
+        sortable: true,
+        cell: (client) => (
+          <span dir="ltr" className="whitespace-nowrap font-semibold">
+            {client.phone || text.card.dash}
+          </span>
+        ),
+      },
+      {
+        id: "email",
+        header: text.card.email,
+        accessor: "email",
+        sortable: true,
+        hideOnMobile: true,
+        cell: (client) => (
+          <span
+            dir="ltr"
+            className="block max-w-[220px] truncate font-semibold"
+          >
+            {client.email || text.card.dash}
+          </span>
+        ),
+      },
+      {
+        id: "nationalId",
+        header: localeKey === "ar" ? "الرقم الوطني" : "National ID",
+        accessor: "nationalId",
+        sortable: true,
+        hideOnMobile: true,
+        cell: (client) => (
+          <span dir="ltr" className="whitespace-nowrap font-semibold">
+            {client.nationalId || text.card.dash}
+          </span>
+        ),
+      },
+      {
+        id: "cases",
+        header: text.card.cases,
+        align: "center",
+        cell: (client) => (
+          <span
+            className="inline-flex min-w-10 items-center justify-center rounded-full border px-2.5 py-1 text-xs font-black"
+            style={{
+              background: "var(--green-soft)",
+              borderColor: "var(--border)",
+              color: "var(--sidebar)",
+            }}
+          >
+            {client._count?.cases ?? 0}
+          </span>
+        ),
+      },
+      {
+        id: "appointments",
+        header: text.card.appointments,
+        align: "center",
+        hideOnMobile: true,
+        cell: (client) => (
+          <span
+            className="inline-flex min-w-10 items-center justify-center rounded-full border px-2.5 py-1 text-xs font-black"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+              color: "var(--text-2)",
+            }}
+          >
+            {client._count?.appointments ?? 0}
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        header: localeKey === "ar" ? "الحالة" : "Status",
+        align: "center",
+        cell: (client) => {
+          const hasCases = (client._count?.cases ?? 0) > 0;
+
+          return (
+            <span
+              className="inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black"
+              style={{
+                background: hasCases ? "var(--green-soft)" : "var(--card)",
+                borderColor: "var(--border)",
+                color: hasCases ? "var(--sidebar)" : "var(--text-3)",
+              }}
+            >
+              {hasCases ? text.card.active : text.card.withoutCases}
+            </span>
+          );
+        },
+      },
+    ],
+    [localeKey, text],
+  );
 
   const totalClients = clients.length;
   const clientsWithCases = clients.filter(
@@ -830,274 +982,118 @@ export default function ClientsPage() {
           ))}
         </div>
 
-        {/* Filters */}
-        <div className="card p-4">
-          <form onSubmit={search} className="grid grid-cols-1 gap-3">
-            <input
+        {/* Clients table */}
+        <VDSDataTable<Client>
+          rows={filteredClients}
+          columns={columns}
+          getRowId={(client) => client.id}
+          isRtl={isRtl}
+          onRowClick={(client) =>
+            router.push(`/dashboard/clients/${client.publicId ?? client.id}`)
+          }
+          toolbar={
+            <div
               dir={isRtl ? "rtl" : "ltr"}
-              name="clientsSearch"
-              autoComplete="off"
-              value={q}
-              onChange={(event) => setQ(event.target.value)}
-              placeholder={text.filters.searchPlaceholder}
-              className={`input h-12 w-full ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: isRtl ? "rtl" : "ltr",
-              }}
-            />
-          </form>
-
-          <div
-            dir={isRtl ? "rtl" : "ltr"}
-            className="mt-4 flex w-full items-center gap-2 overflow-x-auto pb-1"
-          >
-            {(
-              [
-                ["active", text.filters.activeClients],
-                ["archived", text.filters.archivedClients],
-                ["all", text.filters.allClients],
-              ] as [ArchiveFilter, string][]
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setArchiveFilter(key)}
-                className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
-                style={
-                  archiveFilter === key
-                    ? {
-                        background: "rgba(184, 115, 51,0.18)",
-                        color: "var(--text-1)",
-                        border: "1px solid rgba(184, 115, 51,0.35)",
-                      }
-                    : {
-                        background: "var(--green-soft)",
-                        color: "var(--text-2)",
-                        border: "1px solid var(--border)",
-                      }
-                }
-              >
-                {label}
-              </button>
-            ))}
-
-            {(q || archiveFilter !== "active") && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
+              className="space-y-4 border-b p-4"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <input
+                dir={isRtl ? "rtl" : "ltr"}
+                name="clientsSearch"
+                autoComplete="off"
+                value={q}
+                onChange={(event) => setQ(event.target.value)}
+                placeholder={text.filters.searchPlaceholder}
+                className={`input h-12 w-full ${
+                  isRtl ? "!text-right" : "!text-left"
+                }`}
                 style={{
-                  background: "var(--card)",
-                  color: "var(--text-2)",
-                  border: "1px solid var(--border)",
+                  textAlign: isRtl ? "right" : "left",
+                  direction: isRtl ? "rtl" : "ltr",
                 }}
-              >
-                {text.filters.clear}
-              </button>
-            )}
-          </div>
-        </div>
-        {/* Content */}
-        {filteredClients.length === 0 ? (
-          <div className="card p-8">
-            <EmptyState
-              icon="👥"
-              title={text.empty.title}
-              sub={
-                clients.length === 0
-                  ? text.empty.noClients
-                  : text.empty.noResults
-              }
-              action={
-                clients.length === 0 ? (
+              />
+
+              <div className="flex w-full items-center gap-2 overflow-x-auto pb-1">
+                {(
+                  [
+                    ["active", text.filters.activeClients],
+                    ["archived", text.filters.archivedClients],
+                    ["all", text.filters.allClients],
+                  ] as [ArchiveFilter, string][]
+                ).map(([key, label]) => (
                   <button
+                    key={key}
                     type="button"
-                    onClick={openCreateModal}
-                    disabled={!writeAccess.canWrite}
-                    title={
-                      !writeAccess.canWrite
-                        ? writeAccess.message || text.validation.planLimit
-                        : text.empty.addClient
+                    onClick={() => setArchiveFilter(key)}
+                    className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
+                    style={
+                      archiveFilter === key
+                        ? {
+                            background: "rgba(184,115,51,0.18)",
+                            color: "var(--text-1)",
+                            border: "1px solid rgba(184,115,51,0.35)",
+                          }
+                        : {
+                            background: "var(--green-soft)",
+                            color: "var(--text-2)",
+                            border: "1px solid var(--border)",
+                          }
                     }
-                    className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {text.empty.addClient}
+                    {label}
                   </button>
-                ) : (
+                ))}
+
+                {q || archiveFilter !== "active" ? (
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="btn btn-ghost"
-                  >
-                    {text.filters.clear}
-                  </button>
-                )
-              }
-            />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {filteredClients.map((client) => (
-              <div
-                key={client.id}
-                onClick={() =>
-                  router.push(
-                    `/dashboard/clients/${client.publicId ?? client.id}`,
-                  )
-                }
-                className="card group cursor-pointer p-5 transition-all duration-200 hover:-translate-y-0.5"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black"
-                        style={{
-                          background: "var(--green-soft)",
-                          color: "var(--sidebar)",
-                        }}
-                      >
-                        {client.name.slice(0, 1)}
-                      </div>
-
-                      <div className="min-w-0">
-                        <h3
-                          className="truncate text-base font-black"
-                          style={{ color: "var(--text)" }}
-                        >
-                          {client.name}
-                        </h3>
-
-                        <p
-                          className="mt-1 text-xs"
-                          style={{ color: "var(--text-3)" }}
-                        >
-                          {text.card.addedAt}{" "}
-                          {formatDate(client.createdAt, localeKey)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {client.archivedAt && (
-                      <span
-                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black shadow-sm"
-                        style={{
-                          background: "rgba(245,158,11,0.16)",
-                          borderColor: "rgba(245,158,11,0.38)",
-                          color: "#f59e0b",
-                        }}
-                      >
-                        {text.card.archived}
-                      </span>
-                    )}
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#061b1c] dark:text-emerald-50">
-                        ⚖️ {client._count?.cases ?? 0} {text.card.cases}
-                      </span>
-
-                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#061b1c] dark:text-emerald-50">
-                        📅 {client._count?.appointments ?? 0}{" "}
-                        {text.card.appointments}
-                      </span>
-
-                      {client.nationalId && (
-                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:border-emerald-500/40 dark:bg-[#061b1c] dark:text-emerald-50">
-                          🪪{" "}
-                          <span className="truncate">{client.nationalId}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <span
-                    className="shrink-0 rounded-full px-3 py-1 text-xs font-black"
+                    className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
                     style={{
-                      background:
-                        (client._count?.cases ?? 0) > 0
-                          ? "var(--green-soft)"
-                          : "var(--card)",
-                      color:
-                        (client._count?.cases ?? 0) > 0
-                          ? "var(--sidebar)"
-                          : "var(--text-3)",
+                      background: "var(--card)",
+                      color: "var(--text-2)",
                       border: "1px solid var(--border)",
                     }}
                   >
-                    {(client._count?.cases ?? 0) > 0
-                      ? text.card.active
-                      : text.card.withoutCases}
-                  </span>
-                </div>
-
-                <div
-                  dir={isRtl ? "rtl" : "ltr"}
-                  className="mt-5 grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <div className="min-w-0">
-                    <p
-                      className="text-xs font-bold text-start"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      {text.card.phone}
-                    </p>
-
-                    <p
-                      dir="ltr"
-                      className={`
-        mt-1 truncate text-sm font-semibold
-        ${isRtl ? "text-right" : "text-left"}
-      `}
-                      style={{ color: "var(--text)" }}
-                    >
-                      {client.phone || text.card.dash}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p
-                      className="text-xs font-bold text-start"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      {text.card.email}
-                    </p>
-
-                    <p
-                      dir="ltr"
-                      className={`
-        mt-1 truncate text-sm font-semibold
-        ${isRtl ? "text-right" : "text-left"}
-      `}
-                      style={{ color: "var(--text)" }}
-                    >
-                      {client.email || text.card.dash}
-                    </p>
-                  </div>
-
-                  {client.address && (
-                    <div className="min-w-0 sm:col-span-2">
-                      <p
-                        className="text-xs font-bold text-start"
-                        style={{ color: "var(--text-3)" }}
-                      >
-                        {text.card.address}
-                      </p>
-
-                      <p
-                        className="mt-1 line-clamp-1 text-start text-sm font-semibold"
-                        style={{ color: "var(--text)" }}
-                      >
-                        {client.address}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                    {text.filters.clear}
+                  </button>
+                ) : null}
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          }
+          labels={{
+            emptyTitle: text.empty.title,
+            emptyDescription:
+              clients.length === 0
+                ? text.empty.noClients
+                : text.empty.noResults,
+          }}
+          emptyAction={
+            clients.length === 0 ? (
+              <button
+                type="button"
+                onClick={openCreateModal}
+                disabled={!writeAccess.canWrite}
+                title={
+                  !writeAccess.canWrite
+                    ? writeAccess.message || text.validation.planLimit
+                    : text.empty.addClient
+                }
+                className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {text.empty.addClient}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="btn btn-ghost"
+              >
+                {text.filters.clear}
+              </button>
+            )
+          }
+        />
       </div>
 
       {showCreateModal && (
