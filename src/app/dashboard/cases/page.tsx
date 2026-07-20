@@ -8,8 +8,7 @@ import { toast } from "sonner";
 
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
-import EmptyState from "@/components/ui/EmptyState";
-import TableSkeleton from "@/components/ui/TableSkeleton";
+import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -114,7 +113,8 @@ const COPY = {
     },
     filters: {
       searchAria: "البحث في القضايا",
-      searchPlaceholder: "ابحث في رقم القضية، العنوان، الموكل، المحكمة، القاضي أو الأطراف...",
+      searchPlaceholder:
+        "ابحث في رقم القضية، العنوان، الموكل، المحكمة، القاضي أو الأطراف...",
       clear: "مسح الفلاتر",
       statuses: {
         all: "الكل",
@@ -205,7 +205,8 @@ const COPY = {
     },
     filters: {
       searchAria: "Search cases",
-      searchPlaceholder: "Search by case number, title, client, court, judge, or parties...",
+      searchPlaceholder:
+        "Search by case number, title, client, court, judge, or parties...",
       clear: "Clear filters",
       statuses: {
         all: "All",
@@ -448,9 +449,7 @@ export default function CasesPage() {
         const data = await response.json().catch(() => ({ data: [] }));
         const rows = Array.isArray(data.data?.data) ? data.data.data : [];
 
-        setClients(
-          rows.filter((client: ClientOpt) => !client.archivedAt),
-        );
+        setClients(rows.filter((client: ClientOpt) => !client.archivedAt));
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
           setClients([]);
@@ -658,13 +657,16 @@ export default function CasesPage() {
   }
 
   function resetCreateCaseForm() {
-    const defaultLead = teamMembers.find(
-      (member) =>
-        member.id === currentUserId &&
-        (member.role === "ADMIN" || member.role === "LAWYER"),
-    )?.id || teamMembers.find(
-      (member) => member.role === "ADMIN" || member.role === "LAWYER",
-    )?.id || "";
+    const defaultLead =
+      teamMembers.find(
+        (member) =>
+          member.id === currentUserId &&
+          (member.role === "ADMIN" || member.role === "LAWYER"),
+      )?.id ||
+      teamMembers.find(
+        (member) => member.role === "ADMIN" || member.role === "LAWYER",
+      )?.id ||
+      "";
 
     setForm({ ...INIT, leadLawyerId: defaultLead });
     setClients([]);
@@ -731,6 +733,213 @@ export default function CasesPage() {
     });
     setEditOpen(true);
   }
+  const columns: VDSDataTableColumn<Case>[] = [
+    {
+      id: "title",
+      header: text.table.case,
+      accessor: "title",
+      sortable: true,
+      width: "19%",
+      cell: (item) => (
+        <div className="min-w-[190px]">
+          <p
+            className="max-w-[230px] truncate text-sm font-black"
+            style={{ color: "var(--text)" }}
+            title={item.title}
+          >
+            {item.title}
+          </p>
+
+          {item.court ? (
+            <p
+              className="mt-1 max-w-[230px] truncate text-xs font-semibold"
+              style={{ color: "var(--text-3)" }}
+              title={item.court}
+            >
+              {item.court}
+            </p>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      id: "status",
+      header: text.table.status,
+      accessor: "status",
+      sortable: true,
+      align: "center",
+      cell: (item) => {
+        const statusKey = CASE_STATUS_KEYS.find(
+          (status) => status === item.status,
+        );
+
+        const statusLabel = statusKey
+          ? text.filters.statuses[statusKey]
+          : item.status || "-";
+
+        return (
+          <span
+            className="inline-flex min-w-[88px] items-center justify-center whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-black"
+            style={getCaseStatusBadgeStyle(item.status)}
+          >
+            {statusLabel}
+          </span>
+        );
+      },
+    },
+    {
+      id: "caseNumber",
+      header: text.table.caseNumber,
+      accessor: "caseNumber",
+      sortable: true,
+      align: "center",
+      cell: (item) => (
+        <span
+          dir="ltr"
+          className="whitespace-nowrap font-mono text-sm font-black"
+        >
+          {item.caseNumber || "-"}
+        </span>
+      ),
+    },
+    {
+      id: "client",
+      header: text.table.client,
+      cell: (item) => (
+        <div className="min-w-[170px]">
+          <p
+            className="max-w-[200px] truncate text-sm font-black"
+            style={{ color: "var(--text)" }}
+            title={item.client?.name || "-"}
+          >
+            {item.client?.name || "-"}
+          </p>
+
+          {isArchivedClientCase(item) ? (
+            <span
+              className="mt-1 inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-black"
+              style={{
+                background: "#fff7ed",
+                borderColor: "rgba(180, 83, 9, 0.22)",
+                color: "#b45309",
+              }}
+            >
+              {text.archivedClientBadge}
+            </span>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      id: "leadLawyer",
+      header: text.table.leadLawyer,
+      cell: (item) => (
+        <div className="min-w-[160px]">
+          <p
+            className="max-w-[190px] truncate text-sm font-black"
+            style={{ color: "var(--text)" }}
+            title={item.leadLawyer?.name || "-"}
+          >
+            {item.leadLawyer?.name || "-"}
+          </p>
+
+          {(item.members?.length ?? 0) > 0 ? (
+            <p
+              className="mt-1 text-[11px] font-bold"
+              style={{ color: "var(--text-3)" }}
+            >
+              +{item.members?.length} {isRtl ? "مشاركين" : "participants"}
+            </p>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      id: "fees",
+      header: text.table.fees,
+      accessor: "feeAgreed",
+      sortable: true,
+      align: "center",
+      cell: (item) => (
+        <span dir="ltr" className="whitespace-nowrap text-sm font-black">
+          {formatMoney(item.feeAgreed)}
+        </span>
+      ),
+    },
+    {
+      id: "paid",
+      header: text.table.paid,
+      align: "center",
+      cell: (item) => (
+        <span
+          dir="ltr"
+          className="whitespace-nowrap text-sm font-black"
+          style={{ color: "var(--sidebar)" }}
+        >
+          {formatMoney(paid(item))}
+        </span>
+      ),
+    },
+    {
+      id: "remaining",
+      header: text.table.remaining,
+      align: "center",
+      cell: (item) => {
+        const amount = remaining(item);
+
+        return (
+          <span
+            dir="ltr"
+            className="whitespace-nowrap text-sm font-black"
+            style={{
+              color: amount > 0 ? "#dc2626" : "var(--text)",
+            }}
+          >
+            {formatMoney(amount)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "appointments",
+      header: text.table.appointments,
+      align: "center",
+      cell: (item) => item._count?.appointments ?? 0,
+    },
+    {
+      id: "documents",
+      header: text.table.documents,
+      align: "center",
+      cell: (item) => item._count?.documents ?? 0,
+    },
+    {
+      id: "actions",
+      header: text.table.actions,
+      align: "center",
+      cell: (item) => (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            openEditCaseModal(item);
+          }}
+          disabled={!writeAccess.canWrite}
+          title={
+            !writeAccess.canWrite
+              ? writeAccess.message || text.planLimitFallback
+              : text.editCase
+          }
+          className="inline-flex min-w-[88px] items-center justify-center rounded-2xl border px-4 py-2 text-xs font-black transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            borderColor: "rgba(53, 138, 136, 0.28)",
+            color: "var(--sidebar)",
+          }}
+        >
+          {text.editCase}
+        </button>
+      ),
+    },
+  ];
 
   return (
     <div
@@ -801,7 +1010,11 @@ export default function CasesPage() {
             type="button"
             onClick={openCreateCaseModal}
             disabled={!writeAccess.canWrite}
-            title={!writeAccess.canWrite ? writeAccess.message || text.planLimitFallback : text.hero.newCase}
+            title={
+              !writeAccess.canWrite
+                ? writeAccess.message || text.planLimitFallback
+                : text.hero.newCase
+            }
             className="btn h-11 shrink-0 px-5 disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               background: "#fff",
@@ -943,197 +1156,44 @@ export default function CasesPage() {
       </div>
 
       {/* Content */}
-      {loading ? (
-        <TableSkeleton rows={6} />
-      ) : filtered.length === 0 ? (
-        <div className="card p-8">
-          <EmptyState
-            icon="⚖️"
-            title={text.empty.title}
-            sub={cases.length === 0 ? text.empty.noCases : text.empty.noResults}
-            action={
-              cases.length === 0 ? (
-                <button
-                  onClick={openCreateCaseModal}
-                  disabled={!writeAccess.canWrite}
-                  title={!writeAccess.canWrite ? writeAccess.message || text.planLimitFallback : text.empty.add}
-                  className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {text.empty.add}
-                </button>
-              ) : (
-                <button onClick={clearFilters} className="btn btn-ghost">
-                  {text.filters.clear}
-                </button>
-              )
-            }
-          />
-        </div>
-      ) : (
-        <div className="card overflow-hidden p-0">
-          <div className="max-w-full overflow-x-auto">
-            <div className="w-full min-w-[1460px]">
-              <div
-                dir={isRtl ? "rtl" : "ltr"}
-                className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.05fr_1fr_0.82fr_0.82fr_0.88fr_0.68fr_0.68fr_0.7fr] items-center gap-x-4 border-b border-emerald-300/20 px-5 py-4 text-sm font-black text-[var(--text-2)]"
-              >
-                <div className="text-start">{text.table.case}</div>
-                <div className="text-center">{text.table.status}</div>
-                <div className="text-center">{text.table.caseNumber}</div>
-                <div className="text-start">{text.table.client}</div>
-                <div className="text-start">{text.table.leadLawyer}</div>
-                <div className="text-center">{text.table.fees}</div>
-                <div className="text-center">{text.table.paid}</div>
-                <div className="text-center">{text.table.remaining}</div>
-                <div className="text-center">{text.table.appointments}</div>
-                <div className="text-center">{text.table.documents}</div>
-                <div className="text-center">{text.table.actions}</div>
-              </div>
-
-              {filtered.map((item) => {
-                const paidAmount = paid(item);
-                const remainingAmount = remaining(item);
-                const archivedClient = isArchivedClientCase(item);
-                const statusKey = CASE_STATUS_KEYS.find(
-                  (status) => status === item.status,
-                );
-                const statusLabel = statusKey
-                  ? text.filters.statuses[statusKey]
-                  : item.status || "-";
-                const statusStyle = getCaseStatusBadgeStyle(item.status);
-
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => router.push(`/dashboard/cases/${item.id}`)}
-                    dir={isRtl ? "rtl" : "ltr"}
-                    className="grid cursor-pointer grid-cols-[1.2fr_0.8fr_0.8fr_1.05fr_1fr_0.82fr_0.82fr_0.88fr_0.68fr_0.68fr_0.7fr] items-center gap-x-4 border-b border-emerald-300/15 px-5 py-5 transition last:border-b-0 hover:bg-emerald-300/5"
-                  >
-                    <div className="min-w-0 text-start">
-                      <p
-                        dir={isRtl ? "rtl" : "ltr"}
-                        className={`max-w-[210px] truncate text-sm font-black text-[var(--text)] ${
-                          isRtl ? "text-right" : "text-left"
-                        }`}
-                        title={item.title}
-                      >
-                        {item.title}
-                      </p>
-                    </div>
-
-                    <div className="flex justify-center">
-                      <span
-                        className="inline-flex min-w-[88px] items-center justify-center whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-black"
-                        style={statusStyle}
-                      >
-                        {statusLabel}
-                      </span>
-                    </div>
-
-                    <div
-                      dir="ltr"
-                      className="min-w-0 truncate text-center font-mono text-sm font-black text-[var(--text)]"
-                      title={item.caseNumber || "-"}
-                    >
-                      {item.caseNumber || "-"}
-                    </div>
-
-                    <div className="min-w-0 text-start">
-                      <div className="flex flex-col items-start gap-1">
-                        <span
-                          dir={isRtl ? "rtl" : "ltr"}
-                          className={`max-w-[190px] truncate text-sm font-black text-[var(--text)] ${
-                            isRtl ? "text-right" : "text-left"
-                          }`}
-                        >
-                          {item.client?.name}
-                        </span>
-
-                        {archivedClient && (
-                          <span
-                            className="w-fit rounded-full border px-2 py-0.5 text-[11px] font-black"
-                            style={{
-                              background: "#fff7ed",
-                              borderColor: "rgba(180, 83, 9, 0.22)",
-                              color: "#b45309",
-                            }}
-                          >
-                            {text.archivedClientBadge}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 text-start">
-                      <p className="truncate text-sm font-black text-[var(--text)]">
-                        {item.leadLawyer?.name || "-"}
-                      </p>
-                      {(item.members?.length ?? 0) > 0 && (
-                        <p className="mt-1 text-[11px] font-bold text-[var(--text-3)]">
-                          +{item.members?.length} {isRtl ? "مشاركين" : "participants"}
-                        </p>
-                      )}
-                    </div>
-
-                    <div dir="ltr" className="text-center text-sm font-black text-[var(--text)]">
-                      {formatMoney(item.feeAgreed)}
-                    </div>
-
-                    <div
-                      dir="ltr"
-                      className="text-center text-sm font-black"
-                      style={{ color: "var(--sidebar)" }}
-                    >
-                      {formatMoney(paidAmount)}
-                    </div>
-
-                    <div
-                      dir="ltr"
-                      className="text-center text-sm font-black"
-                      style={{
-                        color: remainingAmount > 0 ? "#dc2626" : "var(--text)",
-                      }}
-                    >
-                      {formatMoney(remainingAmount)}
-                    </div>
-
-                    <div className="text-center text-sm font-black text-[var(--text)]">
-                      {item._count?.appointments ?? 0}
-                    </div>
-
-                    <div className="text-center text-sm font-black text-[var(--text)]">
-                      {item._count?.documents ?? 0}
-                    </div>
-
-                    <div
-                      className="flex justify-center"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => openEditCaseModal(item)}
-                        disabled={!writeAccess.canWrite}
-                        title={
-                          !writeAccess.canWrite
-                            ? writeAccess.message || text.planLimitFallback
-                            : text.editCase
-                        }
-                        className="inline-flex min-w-[88px] items-center justify-center rounded-2xl border px-4 py-2 text-xs font-black transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        style={{
-                          borderColor: "rgba(53, 138, 136,0.28)",
-                          color: "var(--sidebar)",
-                        }}
-                      >
-                        {text.editCase}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      <VDSDataTable<Case>
+        rows={filtered}
+        columns={columns}
+        getRowId={(item) => item.id}
+        loading={loading}
+        isRtl={isRtl}
+        onRowClick={(item) => router.push(`/dashboard/cases/${item.id}`)}
+        labels={{
+          emptyTitle: text.empty.title,
+          emptyDescription:
+            cases.length === 0 ? text.empty.noCases : text.empty.noResults,
+        }}
+        emptyAction={
+          cases.length === 0 ? (
+            <button
+              type="button"
+              onClick={openCreateCaseModal}
+              disabled={!writeAccess.canWrite}
+              title={
+                !writeAccess.canWrite
+                  ? writeAccess.message || text.planLimitFallback
+                  : text.empty.add
+              }
+              className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {text.empty.add}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="btn btn-ghost"
+            >
+              {text.filters.clear}
+            </button>
+          )
+        }
+      />
 
       {/* Add Modal */}
       <Modal
@@ -1332,8 +1392,17 @@ export default function CasesPage() {
             </FormField>
           </div>
 
-          <div className="rounded-3xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
-            <p className="mb-3 text-sm font-black" style={{ color: "var(--text)" }}>
+          <div
+            className="rounded-3xl border p-4"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--card-2)",
+            }}
+          >
+            <p
+              className="mb-3 text-sm font-black"
+              style={{ color: "var(--text)" }}
+            >
               {text.modal.officialData}
             </p>
 
@@ -1533,8 +1602,17 @@ export default function CasesPage() {
             </select>
           </FormField>
 
-          <div className="rounded-3xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
-            <p className="mb-3 text-sm font-black" style={{ color: "var(--text)" }}>
+          <div
+            className="rounded-3xl border p-4"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--card-2)",
+            }}
+          >
+            <p
+              className="mb-3 text-sm font-black"
+              style={{ color: "var(--text)" }}
+            >
               {text.modal.officialData}
             </p>
 
@@ -1659,12 +1737,13 @@ function CaseTeamFields({
   const eligibleLeads = members.filter(
     (member) => member.role === "ADMIN" || member.role === "LAWYER",
   );
-  const participants = members.filter(
-    (member) => member.id !== leadLawyerId,
-  );
+  const participants = members.filter((member) => member.id !== leadLawyerId);
 
   return (
-    <div className="rounded-3xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
+    <div
+      className="rounded-3xl border p-4"
+      style={{ borderColor: "var(--border)", background: "var(--card-2)" }}
+    >
       <FormField label={leadLabel} required>
         <select
           value={leadLawyerId}
@@ -1684,12 +1763,20 @@ function CaseTeamFields({
       </FormField>
 
       <div className="mt-3">
-        <p className="mb-2 text-xs font-black" style={{ color: "var(--text-2)" }}>
+        <p
+          className="mb-2 text-xs font-black"
+          style={{ color: "var(--text-2)" }}
+        >
           {membersLabel}
         </p>
         {participants.length === 0 ? (
-          <p className="text-xs font-semibold" style={{ color: "var(--text-3)" }}>
-            {isRtl ? "لا يوجد أعضاء إضافيون." : "No additional members available."}
+          <p
+            className="text-xs font-semibold"
+            style={{ color: "var(--text-3)" }}
+          >
+            {isRtl
+              ? "لا يوجد أعضاء إضافيون."
+              : "No additional members available."}
           </p>
         ) : (
           <div className="grid max-h-36 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
@@ -1697,7 +1784,10 @@ function CaseTeamFields({
               <label
                 key={member.id}
                 className="flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-bold"
-                style={{ borderColor: "var(--border)", background: "var(--card)" }}
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--card)",
+                }}
               >
                 <input
                   type="checkbox"
@@ -1705,12 +1795,21 @@ function CaseTeamFields({
                   onChange={() => onToggleMember(member.id)}
                 />
                 <span>{member.name}</span>
-                <span className="text-[10px]" style={{ color: "var(--text-3)" }}>
+                <span
+                  className="text-[10px]"
+                  style={{ color: "var(--text-3)" }}
+                >
                   {member.role === "ADMIN"
-                    ? isRtl ? "مدير" : "Admin"
+                    ? isRtl
+                      ? "مدير"
+                      : "Admin"
                     : member.role === "LAWYER"
-                      ? isRtl ? "محامٍ" : "Lawyer"
-                      : isRtl ? "موظف" : "Staff"}
+                      ? isRtl
+                        ? "محامٍ"
+                        : "Lawyer"
+                      : isRtl
+                        ? "موظف"
+                        : "Staff"}
                 </span>
               </label>
             ))}
@@ -1727,7 +1826,7 @@ function getCaseStatusBadgeStyle(status: string) {
       return {
         background: "var(--green-soft)",
         borderColor: "rgba(53, 138, 136, 0.28)",
-        color: "var(--sidebar)",
+        color: "var(--text)",
       };
 
     case "IN_PROGRESS":
@@ -1741,21 +1840,21 @@ function getCaseStatusBadgeStyle(status: string) {
       return {
         background: "var(--card-2)",
         borderColor: "var(--border)",
-        color: "var(--text-2)",
+        color: "var(--text)",
       };
 
     case "ARCHIVED":
       return {
         background: "var(--card)",
         borderColor: "var(--border)",
-        color: "var(--text-3)",
+        color: "var(--text)",
       };
 
     default:
       return {
         background: "var(--card-2)",
         borderColor: "var(--border)",
-        color: "var(--text-2)",
+        color: "var(--text)",
       };
   }
 }

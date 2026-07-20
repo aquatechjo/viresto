@@ -1210,6 +1210,8 @@ export default function DashboardPage() {
 
   const recentDocuments = useMemo(() => documents.slice(0, 5), [documents]);
   const recentActivityItems = useMemo<ActivityViewItem[]>(() => {
+    void clockTick;
+
     return activities.slice(0, 4).map((activity) => {
       const activityType = normalizeActivityType(activity);
       const config = ACTIVITY_CONFIG[activityType] ?? { icon: "✨", color: "" };
