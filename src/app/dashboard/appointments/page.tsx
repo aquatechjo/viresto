@@ -8,7 +8,12 @@ import AppLoader from "@/components/ui/AppLoader";
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
 import PageLoader from "@/components/ui/PageLoader";
-import EmptyState from "@/components/ui/EmptyState";
+import {
+  VDSBadge,
+  VDSCard,
+  VDSEmptyState,
+  type VDSTone,
+} from "@/components/ui/vds";
 import { DateTime } from "luxon";
 import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
@@ -75,6 +80,21 @@ const TYPE_COLOR: Record<string, string> = {
   DEADLINE: "#dc2626",
   OTHER: "var(--text-3)",
 };
+
+function getAppointmentTone(type: string): VDSTone {
+  switch (type) {
+    case "COURT_SESSION":
+      return "teal";
+    case "MEETING":
+      return "blue";
+    case "PHONE_CALL":
+      return "gold";
+    case "DEADLINE":
+      return "red";
+    default:
+      return "slate";
+  }
+}
 
 const TYPE_LABELS: Record<Locale, Record<string, string>> = {
   ar: {
@@ -776,71 +796,74 @@ export default function AppointmentsPage() {
   const [assigneeFilter, setAssigneeFilter] = useState("all");
   const writeAccess = useTenantWriteAccess(locale);
 
-  const load = useCallback(async (options?: { silent?: boolean }) => {
-    try {
-      if (!options?.silent) setLoading(true);
+  const load = useCallback(
+    async (options?: { silent?: boolean }) => {
+      try {
+        if (!options?.silent) setLoading(true);
 
-      const [appointmentsRes, clientsRes, teamRes] = await Promise.all([
-        fetch("/api/appointments?includeArchivedClients=true"),
-        fetch("/api/clients?limit=100&archive=active"),
-        fetch("/api/team?mode=assignees"),
-      ]);
+        const [appointmentsRes, clientsRes, teamRes] = await Promise.all([
+          fetch("/api/appointments?includeArchivedClients=true"),
+          fetch("/api/clients?limit=100&archive=active"),
+          fetch("/api/team?mode=assignees"),
+        ]);
 
-      const safeJson = async (response: Response) => {
-        if (!response.ok) return { data: [] };
+        const safeJson = async (response: Response) => {
+          if (!response.ok) return { data: [] };
 
-        try {
-          return await response.json();
-        } catch {
-          return { data: [] };
+          try {
+            return await response.json();
+          } catch {
+            return { data: [] };
+          }
+        };
+
+        const [appointmentsData, clientsData, teamData] = await Promise.all([
+          safeJson(appointmentsRes),
+          safeJson(clientsRes),
+          safeJson(teamRes),
+        ]);
+
+        setAppts(
+          Array.isArray(appointmentsData.data) ? appointmentsData.data : [],
+        );
+        setClients(
+          Array.isArray(clientsData.data?.data)
+            ? clientsData.data.data
+            : Array.isArray(clientsData.data)
+              ? clientsData.data
+              : [],
+        );
+        const loadedMembers = Array.isArray(teamData.data?.members)
+          ? teamData.data.members
+          : [];
+        const loadedCurrentUserId = String(teamData.data?.currentUserId || "");
+        const loadedRole = teamData.data?.currentRole;
+
+        setTeamMembers(loadedMembers);
+        setCurrentUserId(loadedCurrentUserId);
+        setCurrentRole(
+          loadedRole === "ADMIN" || loadedRole === "LAWYER"
+            ? loadedRole
+            : "STAFF",
+        );
+        setForm((previous) => ({
+          ...previous,
+          assignedToId: previous.assignedToId || loadedCurrentUserId,
+        }));
+      } catch {
+        toast.error(a.messages.loadError);
+
+        if (!options?.silent) {
+          setAppts([]);
+          setClients([]);
+          setTeamMembers([]);
         }
-      };
-
-      const [appointmentsData, clientsData, teamData] = await Promise.all([
-        safeJson(appointmentsRes),
-        safeJson(clientsRes),
-        safeJson(teamRes),
-      ]);
-
-      setAppts(
-        Array.isArray(appointmentsData.data) ? appointmentsData.data : [],
-      );
-      setClients(
-        Array.isArray(clientsData.data?.data)
-          ? clientsData.data.data
-          : Array.isArray(clientsData.data)
-            ? clientsData.data
-            : [],
-      );
-      const loadedMembers = Array.isArray(teamData.data?.members)
-        ? teamData.data.members
-        : [];
-      const loadedCurrentUserId = String(teamData.data?.currentUserId || "");
-      const loadedRole = teamData.data?.currentRole;
-
-      setTeamMembers(loadedMembers);
-      setCurrentUserId(loadedCurrentUserId);
-      setCurrentRole(
-        loadedRole === "ADMIN" || loadedRole === "LAWYER"
-          ? loadedRole
-          : "STAFF",
-      );
-      setForm((previous) => ({
-        ...previous,
-        assignedToId: previous.assignedToId || loadedCurrentUserId,
-      }));
-    } catch {
-      toast.error(a.messages.loadError);
-
-      if (!options?.silent) {
-        setAppts([]);
-        setClients([]);
-        setTeamMembers([]);
+      } finally {
+        if (!options?.silent) setLoading(false);
       }
-    } finally {
-      if (!options?.silent) setLoading(false);
-    }
-  }, [a.messages.loadError]);
+    },
+    [a.messages.loadError],
+  );
 
   useEffect(() => {
     load();
@@ -1547,7 +1570,7 @@ export default function AppointmentsPage() {
       </div>
 
       {/* Appointments Log */}
-      <div className="card overflow-hidden p-0 text-start">
+      <VDSCard padded={false} className="overflow-hidden text-start">
         <div
           className="flex flex-col gap-3 border-b p-5 md:flex-row md:items-center md:justify-between"
           style={{ borderColor: "var(--border)" }}
@@ -1581,28 +1604,23 @@ export default function AppointmentsPage() {
               </button>
             )}
 
-            <span
-              className="rounded-2xl px-4 py-2 text-xs font-black"
-              style={{
-                background: "var(--green-soft)",
-                color: "var(--sidebar)",
-              }}
-            >
+            <VDSBadge tone="teal" className="text-xs">
               {appointmentLog.length} {appointmentLogCopy.count}
-            </span>
+            </VDSBadge>
           </div>
         </div>
 
         {appointmentLog.length === 0 ? (
           <div className="p-5">
-            <EmptyState
-              icon="🗓️"
+            <VDSEmptyState
+              icon={<span aria-hidden="true">🗓️</span>}
               title={appointmentLogCopy.emptyTitle}
-              sub={
+              description={
                 hasActiveFilters
                   ? appointmentLogCopy.emptyFilteredSub
                   : appointmentLogCopy.emptySub
               }
+              tone="teal"
             />
           </div>
         ) : (
@@ -1617,12 +1635,9 @@ export default function AppointmentsPage() {
                     {group.label}
                   </h3>
 
-                  <span
-                    className="text-xs font-bold"
-                    style={{ color: "var(--text-3)" }}
-                  >
+                  <VDSBadge tone="slate">
                     {group.items.length} {appointmentLogCopy.count}
-                  </span>
+                  </VDSBadge>
                 </div>
 
                 <div className="space-y-3">
@@ -1630,145 +1645,137 @@ export default function AppointmentsPage() {
                     const archivedAppt = isArchivedAppt(appt);
 
                     return (
-                      <button
+                      <VDSCard
                         key={appt.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedAppt(appt);
-                          setDetailsOpen(true);
-                        }}
-                        className="w-full rounded-3xl border p-4 text-start transition-all hover:-translate-y-0.5"
-                        style={{
-                          borderColor: "var(--border)",
-                          background: "var(--card)",
-                        }}
+                        as="article"
+                        interactive
+                        padded={false}
+                        className="overflow-hidden"
                       >
-                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[160px_1fr_auto] lg:items-center">
-                          <div
-                            className="rounded-2xl border px-4 py-3"
-                            style={{
-                              borderColor: "var(--border)",
-                              background: "var(--green-soft)",
-                            }}
-                          >
-                            <p
-                              className="text-sm font-black"
-                              style={{ color: "var(--sidebar)" }}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAppt(appt);
+                            setDetailsOpen(true);
+                          }}
+                          className="w-full p-4 text-start"
+                        >
+                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[160px_1fr_auto] lg:items-center">
+                            <div
+                              className="rounded-2xl border px-4 py-3"
+                              style={{
+                                borderColor: "var(--border)",
+                                background: "var(--green-soft)",
+                              }}
                             >
-                              {formatTimeInZone(
-                                appt.startTime,
-                                locale,
-                                tenantTimeZone,
-                              )}
-                            </p>
-
-                            {appt.endTime && (
                               <p
-                                className="mt-1 text-[11px] font-bold"
-                                style={{ color: "var(--text-3)" }}
+                                className="text-sm font-black"
+                                style={{ color: "var(--sidebar)" }}
                               >
-                                {appointmentLogCopy.endTime}{" "}
                                 {formatTimeInZone(
-                                  appt.endTime,
+                                  appt.startTime,
                                   locale,
                                   tenantTimeZone,
                                 )}
                               </p>
-                            )}
-                          </div>
 
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                className="h-2.5 w-2.5 rounded-full"
-                                style={{
-                                  background:
-                                    TYPE_COLOR[appt.type] ?? "var(--text-3)",
-                                }}
-                              />
-
-                              <span
-                                className="rounded-full px-2.5 py-1 text-[11px] font-black"
-                                style={{
-                                  background: "var(--green-soft)",
-                                  color: "var(--sidebar)",
-                                }}
-                              >
-                                {typeLabels[appt.type] ?? appt.type}
-                              </span>
-
-                              {archivedAppt && (
-                                <span
-                                  className="rounded-full px-2.5 py-1 text-[11px] font-black"
-                                  style={{
-                                    background: "#fff7ed",
-                                    color: "#b45309",
-                                    border: "1px solid rgba(180, 83, 9, 0.18)",
-                                  }}
+                              {appt.endTime && (
+                                <p
+                                  className="mt-1 text-[11px] font-bold"
+                                  style={{ color: "var(--text-3)" }}
                                 >
-                                  {a.labels.archivedClient}
-                                </span>
+                                  {appointmentLogCopy.endTime}{" "}
+                                  {formatTimeInZone(
+                                    appt.endTime,
+                                    locale,
+                                    tenantTimeZone,
+                                  )}
+                                </p>
                               )}
                             </div>
 
-                            <p
-                              className="mt-2 truncate text-base font-black"
-                              style={{ color: "var(--text)" }}
-                            >
-                              {appt.title}
-                            </p>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full"
+                                  style={{
+                                    background:
+                                      TYPE_COLOR[appt.type] ?? "var(--text-3)",
+                                  }}
+                                />
 
-                            {appt.description ? (
+                                <VDSBadge tone={getAppointmentTone(appt.type)}>
+                                  {typeLabels[appt.type] ?? appt.type}
+                                </VDSBadge>
+
+                                {archivedAppt ? (
+                                  <VDSBadge tone="gold">
+                                    {a.labels.archivedClient}
+                                  </VDSBadge>
+                                ) : null}
+                              </div>
+
                               <p
-                                className="mt-1 line-clamp-2 text-xs font-semibold"
-                                style={{ color: "var(--text-3)" }}
+                                className="mt-2 truncate text-base font-black"
+                                style={{ color: "var(--text)" }}
                               >
-                                {appt.description}
+                                {appt.title}
                               </p>
-                            ) : (
-                              <p
-                                className="mt-1 text-xs font-semibold"
-                                style={{ color: "var(--text-3)" }}
+
+                              {appt.description ? (
+                                <p
+                                  className="mt-1 line-clamp-2 text-xs font-semibold"
+                                  style={{ color: "var(--text-3)" }}
+                                >
+                                  {appt.description}
+                                </p>
+                              ) : (
+                                <p
+                                  className="mt-1 text-xs font-semibold"
+                                  style={{ color: "var(--text-3)" }}
+                                >
+                                  {appointmentLogCopy.noDescription}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 text-xs font-bold lg:min-w-[220px]">
+                              <span
+                                className="truncate"
+                                style={{ color: "var(--text-2)" }}
                               >
-                                {appointmentLogCopy.noDescription}
-                              </p>
-                            )}
+                                👤{" "}
+                                {appt.client?.name ||
+                                  appointmentLogCopy.noClient}
+                              </span>
+
+                              <span
+                                className="truncate"
+                                style={{ color: "var(--text-2)" }}
+                              >
+                                ⚖️{" "}
+                                {appt.case?.title || appointmentLogCopy.noCase}
+                              </span>
+
+                              <span
+                                className="truncate"
+                                style={{ color: "var(--text-2)" }}
+                              >
+                                📍{" "}
+                                {appt.location || appointmentLogCopy.noLocation}
+                              </span>
+
+                              <span
+                                className="truncate"
+                                style={{ color: "var(--text-2)" }}
+                              >
+                                👤 {appointmentLogCopy.assignee}:{" "}
+                                {appt.assignedTo?.name || "-"}
+                              </span>
+                            </div>
                           </div>
-
-                          <div className="grid grid-cols-1 gap-2 text-xs font-bold lg:min-w-[220px]">
-                            <span
-                              className="truncate"
-                              style={{ color: "var(--text-2)" }}
-                            >
-                              👤{" "}
-                              {appt.client?.name || appointmentLogCopy.noClient}
-                            </span>
-
-                            <span
-                              className="truncate"
-                              style={{ color: "var(--text-2)" }}
-                            >
-                              ⚖️ {appt.case?.title || appointmentLogCopy.noCase}
-                            </span>
-
-                            <span
-                              className="truncate"
-                              style={{ color: "var(--text-2)" }}
-                            >
-                              📍{" "}
-                              {appt.location || appointmentLogCopy.noLocation}
-                            </span>
-
-                            <span
-                              className="truncate"
-                              style={{ color: "var(--text-2)" }}
-                            >
-                              👤 {appointmentLogCopy.assignee}:{" "}
-                              {appt.assignedTo?.name || "-"}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
+                        </button>
+                      </VDSCard>
                     );
                   })}
                 </div>
@@ -1776,7 +1783,7 @@ export default function AppointmentsPage() {
             ))}
           </div>
         )}
-      </div>
+      </VDSCard>
 
       {/* Add/Edit Modal */}
       <Modal
