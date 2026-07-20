@@ -5,6 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import EmptyState from "@/components/ui/EmptyState";
+import {
+  VDSBadge,
+  VDSCard,
+  VDSGrid,
+  VDSIcon,
+  type VDSTone,
+} from "@/components/ui/vds";
 import DocumentPreviewModal from "@/components/documents/DocumentPreviewModal";
 import { fileSizeLabel, relativeTime } from "@/lib/utils";
 import {
@@ -252,6 +259,25 @@ const AVAILABLE_TAGS = [
 function getIcon(type: string) {
   return FILE_ICON[type] ?? { label: "FILE", color: "#6b7280" };
 }
+function getDocumentTone(type: string): VDSTone {
+  if (type === "application/pdf") {
+    return "red";
+  }
+
+  if (type.startsWith("image/")) {
+    return "purple";
+  }
+
+  if (
+    type === "application/msword" ||
+    type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    return "blue";
+  }
+
+  return "slate";
+}
 
 function isImage(type: string) {
   return type.startsWith("image/");
@@ -363,7 +389,9 @@ export default function DocumentsPage() {
   const [preview, setPreview] = useState<Doc | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [modalFile, setModalFile] = useState<File | null>(null);
-  const [uploadSuccessFile, setUploadSuccessFile] = useState<string | null>(null);
+  const [uploadSuccessFile, setUploadSuccessFile] = useState<string | null>(
+    null,
+  );
   const writeAccess = useTenantWriteAccess(locale);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1269,7 +1297,7 @@ export default function DocumentsPage() {
       </div>
       {/* Content */}
       {filtered.length === 0 ? (
-        <div className="card p-8">
+        <VDSCard padded={false} className="p-8">
           <EmptyState
             icon="📄"
             title={d.empty.title}
@@ -1300,26 +1328,34 @@ export default function DocumentsPage() {
               )
             }
           />
-        </div>
+        </VDSCard>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <VDSGrid columns={3}>
           {filtered.map((doc) => {
             const icon = getIcon(doc.fileType);
             const archivedDoc = isArchivedDoc(doc);
+            const primaryTag = doc.tags?.[0];
+            const knownTag = AVAILABLE_TAGS.find(
+              (tag) => tag.value === primaryTag,
+            );
+            const tagLabel = knownTag ? d.tags[knownTag.key] : primaryTag;
 
             return (
-              <div
+              <VDSCard
                 key={doc.id}
-                className="card group flex flex-col p-5 text-start transition-all duration-200 hover:-translate-y-0.5"
+                as="article"
+                interactive
+                className="group flex h-full flex-col text-start"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-start gap-3">
-                    <div
-                      className="flex h-14 w-12 shrink-0 items-center justify-center rounded-xl text-xs font-black text-white"
-                      style={{ background: icon.color }}
+                    <VDSIcon
+                      tone={getDocumentTone(doc.fileType)}
+                      size="lg"
+                      className="text-[10px] font-black"
                     >
                       {icon.label}
-                    </div>
+                    </VDSIcon>
 
                     <div className="min-w-0">
                       <p
@@ -1339,23 +1375,11 @@ export default function DocumentsPage() {
                     </div>
                   </div>
 
-                  {!!doc.tags?.length && (
-                    <span
-                      className="shrink-0 rounded-full px-3 py-1 text-[11px] font-black"
-                      style={{
-                        background: "var(--green-soft)",
-                        color: "var(--sidebar)",
-                      }}
-                    >
-                      {AVAILABLE_TAGS.find((tag) => tag.value === doc.tags?.[0])
-                        ? d.tags[
-                            AVAILABLE_TAGS.find(
-                              (tag) => tag.value === doc.tags?.[0],
-                            )!.key
-                          ]
-                        : doc.tags[0]}
-                    </span>
-                  )}
+                  {tagLabel ? (
+                    <VDSBadge tone="teal" className="shrink-0">
+                      {tagLabel}
+                    </VDSBadge>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 space-y-2">
@@ -1368,18 +1392,11 @@ export default function DocumentsPage() {
                     </p>
                   )}
 
-                  {archivedDoc && (
-                    <span
-                      className="inline-flex w-fit rounded-full px-3 py-1 text-[11px] font-black"
-                      style={{
-                        background: "#fff7ed",
-                        color: "#b45309",
-                        border: "1px solid rgba(180, 83, 9, 0.18)",
-                      }}
-                    >
+                  {archivedDoc ? (
+                    <VDSBadge tone="gold" className="w-fit">
                       {d.card.archivedClient}
-                    </span>
-                  )}
+                    </VDSBadge>
+                  ) : null}
 
                   {doc.case?.title && (
                     <p
@@ -1467,10 +1484,10 @@ export default function DocumentsPage() {
                     {d.actions.delete}
                   </button>
                 </div>
-              </div>
+              </VDSCard>
             );
           })}
-        </div>
+        </VDSGrid>
       )}
 
       {uploadModalOpen && (
@@ -1731,7 +1748,6 @@ export default function DocumentsPage() {
         </div>
       )}
 
-
       <AnimatePresence>
         {uploadSuccessFile && (
           <motion.div
@@ -1756,7 +1772,10 @@ export default function DocumentsPage() {
             >
               <motion.div
                 className="absolute inset-x-0 top-0 h-1"
-                style={{ background: "linear-gradient(90deg, var(--sidebar), var(--accent))" }}
+                style={{
+                  background:
+                    "linear-gradient(90deg, var(--sidebar), var(--accent))",
+                }}
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
                 transition={{ duration: 1.25, ease: "easeOut" }}
@@ -1766,7 +1785,8 @@ export default function DocumentsPage() {
                 <motion.div
                   className="absolute bottom-1 left-1/2 h-20 w-28 -translate-x-1/2 rounded-2xl border shadow-xl"
                   style={{
-                    background: "linear-gradient(145deg, var(--sidebar), var(--sidebar-dark))",
+                    background:
+                      "linear-gradient(145deg, var(--sidebar), var(--sidebar-dark))",
                     borderColor: "rgba(255,255,255,.16)",
                   }}
                   initial={{ y: 18, rotate: -5 }}
