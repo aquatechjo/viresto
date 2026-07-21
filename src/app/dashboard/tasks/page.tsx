@@ -6,6 +6,7 @@ import Modal from "@/components/ui/Modal";
 import DateTimePicker from "@/components/ui/DateTimePicker";
 import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
+import { VDSBadge, VDSCard, VDSGrid, type VDSTone } from "@/components/ui/vds";
 import PageLoader from "@/components/ui/PageLoader";
 import { formatDate } from "@/lib/utils";
 import { translations, type Locale } from "@/lib/i18n";
@@ -75,13 +76,6 @@ interface EditTaskFormState {
   assignedToId: string;
 }
 
-const PB: Record<string, string> = {
-  URGENT: "badge badge-red",
-  HIGH: "badge badge-red",
-  MEDIUM: "badge badge-amber",
-  LOW: "badge badge-gray",
-};
-
 const PRIORITY_LABELS: Record<Locale, Record<string, string>> = {
   ar: {
     URGENT: "عاجلة",
@@ -143,6 +137,35 @@ function toDateTimeLocalValue(value?: string | null) {
 
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 16);
+}
+
+function priorityTone(priority: string): VDSTone {
+  switch (priority) {
+    case "URGENT":
+    case "HIGH":
+      return "red";
+    case "MEDIUM":
+      return "gold";
+    case "LOW":
+      return "slate";
+    default:
+      return "slate";
+  }
+}
+
+function taskStatusTone(status: TaskStatus): VDSTone {
+  switch (status) {
+    case "COMPLETED":
+      return "emerald";
+    case "IN_PROGRESS":
+      return "blue";
+    case "BLOCKED":
+      return "gold";
+    case "CANCELLED":
+      return "red";
+    default:
+      return "slate";
+  }
 }
 
 function statusBadgeStyle(status: TaskStatus) {
@@ -1086,7 +1109,7 @@ export default function TasksPage() {
       {loading ? (
         <PageLoader />
       ) : filtered.length === 0 ? (
-        <div className="card p-8">
+        <VDSCard padded={false} className="p-8">
           <EmptyState
             icon="✅"
             title={taskCopy.empty.title}
@@ -1116,9 +1139,9 @@ export default function TasksPage() {
               )
             }
           />
-        </div>
+        </VDSCard>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <VDSGrid columns={2}>
           {filtered.map((task) => {
             const archivedTask = isArchivedTask(task);
             const taskStatus = getTaskStatus(task);
@@ -1132,13 +1155,16 @@ export default function TasksPage() {
               writeAccess.canWrite && currentRole !== "STAFF" && !archivedTask;
 
             return (
-              <article
+              <VDSCard
                 key={task.id}
-                className={`card group overflow-hidden p-0 text-start transition-all duration-200 hover:-translate-y-0.5 ${
+                as="article"
+                interactive
+                padded={false}
+                className={`group flex h-full flex-col overflow-hidden text-start ${
                   taskStatus === "CANCELLED" ? "opacity-70" : ""
                 }`}
               >
-                <div className="p-5">
+                <div className="flex-1 p-5">
                   <div className="flex items-start gap-3">
                     <button
                       type="button"
@@ -1149,13 +1175,12 @@ export default function TasksPage() {
                         taskStatus === "COMPLETED"
                           ? taskCopy.messages.completedLocked
                           : !writeAccess.canWrite
-                          ? writeAccess.message || taskCopy.messages.updateError
-                          : taskCopy.card.toggleAria
+                            ? writeAccess.message ||
+                              taskCopy.messages.updateError
+                            : taskCopy.card.toggleAria
                       }
                       className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black transition-all disabled:cursor-not-allowed ${
-                        taskStatus === "COMPLETED"
-                          ? ""
-                          : "disabled:opacity-40"
+                        taskStatus === "COMPLETED" ? "" : "disabled:opacity-40"
                       }`}
                       style={{
                         borderColor:
@@ -1181,18 +1206,19 @@ export default function TasksPage() {
                           {task.title}
                         </h2>
 
-                        <span
-                          className={`${PB[task.priority] ?? "badge badge-gray"} shrink-0`}
+                        <VDSBadge
+                          tone={priorityTone(task.priority)}
+                          className="shrink-0"
                         >
                           {priorityLabels[task.priority] ?? task.priority}
-                        </span>
+                        </VDSBadge>
 
-                        <span
-                          className="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black"
-                          style={statusStyle}
+                        <VDSBadge
+                          tone={taskStatusTone(taskStatus)}
+                          className="shrink-0"
                         >
                           {statusLabels[taskStatus]}
-                        </span>
+                        </VDSBadge>
                       </div>
 
                       {task.description && (
@@ -1252,19 +1278,13 @@ export default function TasksPage() {
                     />
                   </div>
 
-                  {archivedTask && (
-                    <div
-                      className="mt-3 rounded-2xl border px-3 py-2 text-xs font-black"
-                      style={{
-                        background:
-                          "var(--amber-soft, rgba(245, 158, 11, 0.14))",
-                        color: "var(--text)",
-                        borderColor: "rgba(180, 83, 9, 0.18)",
-                      }}
-                    >
-                      {taskCopy.card.archivedClient}
+                  {archivedTask ? (
+                    <div className="mt-3">
+                      <VDSBadge tone="gold">
+                        {taskCopy.card.archivedClient}
+                      </VDSBadge>
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div
@@ -1362,10 +1382,10 @@ export default function TasksPage() {
                     )}
                   </div>
                 </div>
-              </article>
+              </VDSCard>
             );
           })}
-        </div>
+        </VDSGrid>
       )}
 
       {/* Add Modal */}
@@ -1639,8 +1659,7 @@ export default function TasksPage() {
             </FormField>
 
             <FormField label={locale === "ar" ? "الحالة" : "Status"}>
-              {editingTask &&
-              getTaskStatus(editingTask) === "COMPLETED" ? (
+              {editingTask && getTaskStatus(editingTask) === "COMPLETED" ? (
                 <div
                   className="input flex items-center font-black"
                   style={{
@@ -1864,8 +1883,7 @@ function TaskMeta({
       <p
         className="text-[10px] font-black"
         style={{
-          color:
-            danger || warning ? "var(--text-2)" : "var(--text-3)",
+          color: danger || warning ? "var(--text-2)" : "var(--text-3)",
         }}
       >
         {label}

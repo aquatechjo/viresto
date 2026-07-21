@@ -5,6 +5,7 @@ import type { CSSProperties, FormEvent } from "react";
 import { toast } from "sonner";
 
 import FormField from "@/components/ui/FormField";
+import { VDSBadge, VDSCard, type VDSTone } from "@/components/ui/vds";
 import { initials } from "@/lib/utils";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
@@ -138,8 +139,7 @@ const COPY = {
       "يتطلب تغيير البريد تأكيد البريد الحالي ثم تأكيد البريد الجديد.",
     changeEmail: "تغيير البريد الإلكتروني",
     emailChangeTitle: "تغيير بريد تسجيل الدخول",
-    emailChangeOldDescription:
-      "أرسلنا رمز تحقق إلى بريدك الإلكتروني الحالي.",
+    emailChangeOldDescription: "أرسلنا رمز تحقق إلى بريدك الإلكتروني الحالي.",
     emailChangeNewDescription:
       "أدخل البريد الجديد وسنرسل إليه رمز تحقق قبل اعتماد التغيير.",
     emailChangeConfirmDescription:
@@ -409,6 +409,13 @@ function getSettingsBlockFallback(locale: Locale) {
   return locale === "en"
     ? "The subscription has ended. Office and AI settings are available in read-only mode until renewal."
     : "انتهى الاشتراك. إعدادات المكتب والمساعد الذكي متاحة للقراءة فقط إلى حين التجديد.";
+}
+
+function getRoleTone(role: string): VDSTone {
+  if (role === "OWNER" || role === "ADMIN") return "gold";
+  if (role === "LAWYER") return "teal";
+  if (role === "STAFF") return "blue";
+  return "slate";
 }
 
 export default function SettingsPage() {
@@ -853,8 +860,7 @@ export default function SettingsPage() {
           ...previous,
           aiEnabled: !!data.data?.aiEnabled,
           aiConsentAt: data.data?.aiConsentAt || null,
-          aiConsentPolicyVersion:
-            data.data?.aiConsentPolicyVersion || null,
+          aiConsentPolicyVersion: data.data?.aiConsentPolicyVersion || null,
         }));
 
         toast.success(nextValue ? copy.aiEnabledToast : copy.aiDisabledToast);
@@ -973,7 +979,7 @@ export default function SettingsPage() {
   }
   if (!user) {
     return (
-      <div className="card p-10 text-center" dir={direction}>
+      <VDSCard padded={false} className="p-10 text-center" dir={direction}>
         <h1 className="text-2xl font-black" style={{ color: "var(--text)" }}>
           {copy.loadSettingsErrorTitle}
         </h1>
@@ -981,7 +987,7 @@ export default function SettingsPage() {
         <p className="mt-2 text-sm" style={{ color: "var(--text-3)" }}>
           {copy.loadSettingsErrorDescription}
         </p>
-      </div>
+      </VDSCard>
     );
   }
 
@@ -1054,27 +1060,11 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <span
-                className="rounded-full px-4 py-2 text-xs font-black"
-                style={{
-                  background: "rgba(255,255,255,0.14)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                }}
-              >
-                {roleLabel}
-              </span>
+              <VDSBadge tone={getRoleTone(user.role)}>{roleLabel}</VDSBadge>
 
-              <span
-                className="rounded-full px-4 py-2 text-xs font-black"
-                style={{
-                  background: "rgba(184, 115, 51,0.18)",
-                  color: "#fff",
-                  border: "1px solid rgba(184, 115, 51,0.35)",
-                }}
-              >
+              <VDSBadge tone="gold">
                 {copy.planPrefix} {planLabel}
-              </span>
+              </VDSBadge>
             </div>
           </div>
         </div>
@@ -1107,7 +1097,7 @@ export default function SettingsPage() {
               hint: "2FA",
             },
           ].map((item) => (
-            <div key={item.label} className="card p-5">
+            <VDSCard key={item.label} padded={false} className="p-5">
               <p
                 className="text-xs font-black"
                 style={{ color: "var(--text-3)" }}
@@ -1128,7 +1118,7 @@ export default function SettingsPage() {
               >
                 {item.hint || "-"}
               </p>
-            </div>
+            </VDSCard>
           ))}
         </div>
 
@@ -1136,7 +1126,7 @@ export default function SettingsPage() {
           {/* Left */}
           <div className="space-y-5 xl:col-span-5">
             {/* Personal Info */}
-            <div className="card p-5">
+            <VDSCard padded={false} className="p-5">
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="font-black" style={{ color: "var(--text)" }}>
@@ -1228,9 +1218,7 @@ export default function SettingsPage() {
                       disabled={emailChangeLoading}
                       className="btn btn-ghost mt-2 w-full"
                     >
-                      {emailChangeLoading
-                        ? copy.sendingCode
-                        : copy.changeEmail}
+                      {emailChangeLoading ? copy.sendingCode : copy.changeEmail}
                     </button>
                   </FormField>
 
@@ -1286,10 +1274,10 @@ export default function SettingsPage() {
                   />
                 </div>
               )}
-            </div>
+            </VDSCard>
 
             {/* Company Info */}
-            <div className="card p-5">
+            <VDSCard padded={false} className="p-5">
               <div className="mb-5">
                 <h2 className="font-black" style={{ color: "var(--text)" }}>
                   {copy.companyTitle}
@@ -1376,13 +1364,13 @@ export default function SettingsPage() {
                   {savingCompany ? copy.saving : copy.saveCompany}
                 </button>
               </form>
-            </div>
+            </VDSCard>
           </div>
 
           {/* Right */}
           <div className="space-y-5 xl:col-span-7">
             {/* AI */}
-            <div className="card p-5">
+            <VDSCard padded={false} className="p-5">
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                 <div>
                   <h2 className="font-black" style={{ color: "var(--text)" }}>
@@ -1397,13 +1385,9 @@ export default function SettingsPage() {
                   </p>
                 </div>
 
-                <span
-                  className={
-                    company.aiEnabled ? "badge badge-green" : "badge badge-gray"
-                  }
-                >
+                <VDSBadge tone={company.aiEnabled ? "teal" : "slate"}>
                   {company.aiEnabled ? enabledText : disabledText}
-                </span>
+                </VDSBadge>
               </div>
 
               <div
@@ -1421,9 +1405,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={toggleAi}
                 disabled={
-                  savingAi ||
-                  !writeAccess.canWrite ||
-                  user?.role !== "ADMIN"
+                  savingAi || !writeAccess.canWrite || user?.role !== "ADMIN"
                 }
                 title={
                   !writeAccess.canWrite
@@ -1449,10 +1431,10 @@ export default function SettingsPage() {
                   {copy.aiAdminOnly}
                 </p>
               ) : null}
-            </div>
+            </VDSCard>
 
             {/* Password */}
-            <div className="card p-5">
+            <VDSCard padded={false} className="p-5">
               <h2 className="font-black" style={{ color: "var(--text)" }}>
                 {copy.changePassword}
               </h2>
@@ -1532,10 +1514,10 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </form>
-            </div>
+            </VDSCard>
 
             {/* 2FA */}
-            <div className="card p-5">
+            <VDSCard padded={false} className="p-5">
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                 <div>
                   <h2 className="font-black" style={{ color: "var(--text)" }}>
@@ -1550,13 +1532,9 @@ export default function SettingsPage() {
                   </p>
                 </div>
 
-                <span
-                  className={
-                    twoFAEnabled ? "badge badge-green" : "badge badge-gray"
-                  }
-                >
+                <VDSBadge tone={twoFAEnabled ? "teal" : "slate"}>
                   {twoFAEnabled ? enabledText : disabledText}
-                </span>
+                </VDSBadge>
               </div>
 
               {!twoFAEnabled && !qrCode && (
@@ -1592,7 +1570,7 @@ export default function SettingsPage() {
 
               {qrCode && (
                 <div className="mt-5 space-y-4">
-                  { }
+                  {}
                   <img
                     src={qrCode}
                     alt={copy.qrAlt}
@@ -1604,7 +1582,7 @@ export default function SettingsPage() {
                     value={twoFACode}
                     onChange={(event) =>
                       setTwoFACode(
-                        event.target.value.replace(/\D/g, "").slice(0, 6)
+                        event.target.value.replace(/\D/g, "").slice(0, 6),
                       )
                     }
                     inputMode="numeric"
@@ -1637,7 +1615,7 @@ export default function SettingsPage() {
                   {copy.twoFAAlreadyEnabled}
                 </div>
               )}
-            </div>
+            </VDSCard>
           </div>
         </div>
       </div>
@@ -1894,9 +1872,7 @@ export default function SettingsPage() {
               <input
                 type="checkbox"
                 checked={aiConsentAccepted}
-                onChange={(event) =>
-                  setAiConsentAccepted(event.target.checked)
-                }
+                onChange={(event) => setAiConsentAccepted(event.target.checked)}
                 className="mt-1 h-5 w-5 shrink-0 accent-emerald-700"
               />
               <span>

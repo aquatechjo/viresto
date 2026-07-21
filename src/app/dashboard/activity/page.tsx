@@ -13,7 +13,12 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import EmptyState from "@/components/ui/EmptyState";
+import {
+  VDSBadge,
+  VDSDataTable,
+  type VDSDataTableColumn,
+  type VDSTone,
+} from "@/components/ui/vds";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
 type Locale = "ar" | "en";
@@ -530,6 +535,19 @@ function categoryOf(type: string, title?: string | null) {
   return "other";
 }
 
+function categoryTone(type: string, title?: string | null): VDSTone {
+  const category = categoryOf(type, title);
+
+  if (category === "security") return "purple";
+  if (category === "payments" || category === "invoices") return "gold";
+  if (category === "clients") return "blue";
+  if (category === "cases") return "teal";
+  if (category === "appointments") return "purple";
+  if (category === "documents") return "blue";
+
+  return "slate";
+}
+
 interface ActivityPagination {
   page: number;
   limit: number;
@@ -572,8 +590,12 @@ function safeActivityPayload(data: any): {
   const page = Number(rawPagination.page ?? 1);
   const limit = Number(rawPagination.limit ?? 10);
   const total = Number(rawPagination.total ?? items.length);
-  const totalPages = Number(rawPagination.totalPages ?? Math.ceil(total / limit));
-  const from = Number(rawPagination.from ?? (total === 0 ? 0 : (page - 1) * limit + 1));
+  const totalPages = Number(
+    rawPagination.totalPages ?? Math.ceil(total / limit),
+  );
+  const from = Number(
+    rawPagination.from ?? (total === 0 ? 0 : (page - 1) * limit + 1),
+  );
   const to = Number(rawPagination.to ?? Math.min(page * limit, total));
 
   return {
@@ -582,7 +604,8 @@ function safeActivityPayload(data: any): {
       page: Number.isFinite(page) && page > 0 ? page : 1,
       limit: Number.isFinite(limit) && limit > 0 ? limit : 10,
       total: Number.isFinite(total) && total > 0 ? total : 0,
-      totalPages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 0,
+      totalPages:
+        Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 0,
       from: Number.isFinite(from) && from > 0 ? from : 0,
       to: Number.isFinite(to) && to > 0 ? to : 0,
       hasPreviousPage: Boolean(rawPagination.hasPreviousPage ?? page > 1),
@@ -626,7 +649,8 @@ export default function ActivityPage() {
   const copy = COPY[locale];
 
   const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [pagination, setPagination] = useState<ActivityPagination>(EMPTY_PAGINATION);
+  const [pagination, setPagination] =
+    useState<ActivityPagination>(EMPTY_PAGINATION);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [loading, setLoading] = useState(true);
@@ -733,6 +757,150 @@ export default function ActivityPage() {
       ),
     ).length,
   };
+
+  const columns: VDSDataTableColumn<ActivityItem>[] = [
+    {
+      id: "activity",
+      header: copy.table.activity,
+      accessor: "title",
+      sortable: true,
+      width: "34%",
+      cell: (activity) => (
+        <div className="flex min-w-[280px] items-start gap-3 text-start">
+          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
+            <FileText
+              className="h-4 w-4"
+              style={{ color: "var(--text)" }}
+              aria-hidden="true"
+            />
+          </div>
+
+          <div className="min-w-0 text-start">
+            <p className="font-black" style={{ color: "var(--text)" }}>
+              {displayActivityTitle(activity, locale)}
+            </p>
+
+            <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
+              {displayActivityMessage(activity, locale)}
+            </p>
+
+            <VDSBadge
+              tone={categoryTone(activity.type, activity.title)}
+              className="mt-2"
+            >
+              {activityLabel(activity.type, locale)}
+            </VDSBadge>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "user",
+      header: copy.table.user,
+      width: "20%",
+      cell: (activity) => (
+        <div className="flex min-w-[180px] items-start gap-2 text-start">
+          <UserRound
+            className="h-4 w-4 shrink-0"
+            style={{ color: "var(--text-3)" }}
+            aria-hidden="true"
+          />
+
+          <div className="min-w-0 text-start">
+            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
+              {activity.actor?.name ?? copy.table.system}
+            </p>
+
+            <p
+              dir="ltr"
+              className="max-w-[200px] truncate text-[11px]"
+              style={{
+                color: "var(--text-3)",
+                textAlign: isRtl ? "right" : "left",
+              }}
+              title={activity.actor?.email ?? undefined}
+            >
+              {activity.actor?.email ?? "-"}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "entity",
+      header: copy.table.entity,
+      accessor: "entityType",
+      sortable: true,
+      width: "13%",
+      cell: (activity) => (
+        <VDSBadge tone={categoryTone(activity.entityType ?? "", null)}>
+          {entityLabel(activity.entityType, locale)}
+        </VDSBadge>
+      ),
+    },
+    {
+      id: "time",
+      header: copy.table.time,
+      accessor: "createdAt",
+      sortable: true,
+      width: "13%",
+      cell: (activity) => {
+        const dateTime = formatDateTime(activity.createdAt, locale);
+
+        return (
+          <div className="min-w-[120px]">
+            <div
+              className="whitespace-nowrap text-sm font-bold"
+              style={{ color: "var(--text)" }}
+            >
+              {dateTime.date}
+            </div>
+
+            <div className="text-xs" style={{ color: "var(--text-3)" }}>
+              {dateTime.time}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "ip",
+      header: copy.table.ip,
+      accessor: "ipAddress",
+      sortable: true,
+      width: "10%",
+      cell: (activity) => (
+        <span
+          dir="ltr"
+          className="whitespace-nowrap text-xs font-bold text-slate-600 dark:text-emerald-100/80"
+        >
+          {normalizeIp(activity.ipAddress, locale)}
+        </span>
+      ),
+    },
+    {
+      id: "action",
+      header: copy.table.action,
+      align: "center",
+      width: "10%",
+      cell: (activity) => {
+        const href = entityHref(activity);
+
+        return href ? (
+          <Link
+            href={href}
+            className="inline-flex items-center justify-center rounded-xl border border-emerald-500/30 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
+          >
+            {copy.table.view}
+          </Link>
+        ) : (
+          <span className="text-xs font-bold text-slate-600 dark:text-emerald-100/80">
+            {copy.table.unavailable}
+          </span>
+        );
+      },
+    },
+  ];
 
   if (loading) {
     return <AppLoader fullScreen={false} />;
@@ -910,186 +1078,22 @@ export default function ActivityPage() {
         </div>
       </form>
 
-      {activities.length === 0 ? (
-        <EmptyState icon="🧾" title={copy.empty.title} sub={copy.empty.sub} />
-      ) : (
-        <div className="card overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table
-              className="data-table w-full table-fixed text-sm [&_td]:!text-start [&_td]:align-middle [&_th]:!text-start"
-              dir={fieldDir}
-            >
-              <thead>
-                <tr>
-                  <th
-                    className="w-[34%] !text-start"
-                    style={{ textAlign: fieldTextAlign }}
-                  >
-                    {copy.table.activity}
-                  </th>
-                  <th
-                    className="w-[20%] !text-start"
-                    style={{ textAlign: fieldTextAlign }}
-                  >
-                    {copy.table.user}
-                  </th>
-                  <th
-                    className="w-[13%] !text-start"
-                    style={{ textAlign: fieldTextAlign }}
-                  >
-                    {copy.table.entity}
-                  </th>
-                  <th
-                    className="w-[13%] !text-start"
-                    style={{ textAlign: fieldTextAlign }}
-                  >
-                    {copy.table.time}
-                  </th>
-                  <th
-                    className="w-[10%] !text-start"
-                    style={{ textAlign: fieldTextAlign }}
-                  >
-                    {copy.table.ip}
-                  </th>
-                  <th
-                    className="w-[10%] !text-start"
-                    style={{ textAlign: fieldTextAlign }}
-                  >
-                    {copy.table.action}
-                  </th>
-                </tr>
-              </thead>
+      <div className="min-w-0 space-y-3">
+        <VDSDataTable<ActivityItem>
+          rows={activities}
+          columns={columns}
+          getRowId={(activity) => activity.id}
+          loading={false}
+          isRtl={isRtl}
+          labels={{
+            emptyTitle: copy.empty.title,
+            emptyDescription: copy.empty.sub,
+          }}
+        />
 
-              <tbody>
-                {activities.map((activity) => {
-                  const href = entityHref(activity);
-                  const dateTime = formatDateTime(activity.createdAt, locale);
-
-                  return (
-                    <tr key={activity.id}>
-                      <td
-                        className="!text-start align-middle"
-                        style={{ textAlign: fieldTextAlign }}
-                      >
-                        <div className="flex items-start justify-start gap-3 text-start">
-                          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
-                            <FileText
-                              className="h-4 w-4"
-                              style={{ color: "var(--text)" }}
-                              aria-hidden="true"
-                            />
-                          </div>
-                          <div className="min-w-0 text-start">
-                            <p
-                              className="font-black"
-                              style={{ color: "var(--text)" }}
-                            >
-                              {displayActivityTitle(activity, locale)}
-                            </p>
-                            <p
-                              className="mt-1 text-xs"
-                              style={{ color: "var(--text-3)" }}
-                            >
-                              {displayActivityMessage(activity, locale)}
-                            </p>
-                            <span className="mt-2 inline-flex rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-bold text-[var(--text-2)]">
-                              {activityLabel(activity.type, locale)}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td
-                        className="!text-start align-middle"
-                        style={{ textAlign: fieldTextAlign }}
-                      >
-                        <div className="flex items-start justify-start gap-2 text-start">
-                          <UserRound
-                            className="h-4 w-4"
-                            style={{ color: "var(--text-3)" }}
-                          />
-                          <div className="min-w-0 text-start">
-                            <p
-                              className="text-sm font-bold"
-                              style={{ color: "var(--text)" }}
-                            >
-                              {activity.actor?.name ?? copy.table.system}
-                            </p>
-                            <p
-                              className="text-[11px]"
-                              style={{ color: "var(--text-3)" }}
-                            >
-                              {activity.actor?.email ?? "-"}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td
-                        className="!text-start align-middle"
-                        style={{ textAlign: fieldTextAlign }}
-                      >
-                        <span className="rounded-full bg-black/5 px-2 py-1 text-xs font-bold text-[var(--text-2)]">
-                          {entityLabel(activity.entityType, locale)}
-                        </span>
-                      </td>
-
-                      <td
-                        className="!text-start align-middle"
-                        style={{ textAlign: fieldTextAlign }}
-                      >
-                        <div
-                          className="text-sm font-bold"
-                          style={{ color: "var(--text)" }}
-                        >
-                          {dateTime.date}
-                        </div>
-                        <div
-                          className="text-xs"
-                          style={{ color: "var(--text-3)" }}
-                        >
-                          {dateTime.time}
-                        </div>
-                      </td>
-
-                      <td
-                        className="!text-start align-middle"
-                        style={{ textAlign: fieldTextAlign }}
-                      >
-                        <span className="text-xs font-bold text-slate-600 dark:text-emerald-100/80">
-                          {normalizeIp(activity.ipAddress, locale)}
-                        </span>
-                      </td>
-
-                      <td
-                        className="!text-start align-middle"
-                        style={{ textAlign: fieldTextAlign }}
-                      >
-                        {href ? (
-                          <Link
-                            href={href}
-                            className="inline-flex items-center justify-center rounded-xl border border-emerald-500/30 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
-                          >
-                            {copy.table.view}
-                          </Link>
-                        ) : (
-                          <span className="text-xs font-bold text-slate-600 dark:text-emerald-100/80">
-                            {copy.table.unavailable}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-col gap-4 border-t border-black/5 p-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-            <p
-              className="text-sm font-bold"
-              style={{ color: "var(--text-3)" }}
-            >
+        {activities.length > 0 ? (
+          <div className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-bold" style={{ color: "var(--text-3)" }}>
               {pagination.total > 0
                 ? `${copy.table.showing} ${pagination.from} ${copy.table.to} ${pagination.to} ${copy.table.of} ${pagination.total} ${copy.table.activityRecord}`
                 : copy.table.noRecords}
@@ -1147,8 +1151,8 @@ export default function ActivityPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
     </div>
   );
 }

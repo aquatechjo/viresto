@@ -5,7 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { toast } from "sonner";
 
-import EmptyState from "@/components/ui/EmptyState";
+import {
+  VDSBadge,
+  VDSDataTable,
+  type VDSDataTableColumn,
+} from "@/components/ui/vds";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -99,6 +103,11 @@ const TEAM_COPY = {
     },
     list: {
       title: "أعضاء الفريق",
+      member: "العضو",
+      role: "الصلاحية",
+      status: "الحالة",
+      createdAtHeader: "تاريخ الإضافة",
+      actions: "الإجراءات",
       results: (count: number) => `${count} مستخدم ضمن النتائج الحالية`,
       lawyers: (count: number) => `${count} محامٍ`,
       staff: (count: number) => `${count} موظف`,
@@ -177,7 +186,8 @@ const TEAM_COPY = {
     },
     form: {
       title: "Invite a new member",
-      subtitle: "We will send a secure link so the member chooses their own password.",
+      subtitle:
+        "We will send a secure link so the member chooses their own password.",
       name: "Full name",
       email: "Email address",
       roleAria: "New user role",
@@ -193,6 +203,11 @@ const TEAM_COPY = {
     },
     list: {
       title: "Team members",
+      member: "Member",
+      role: "Role",
+      status: "Status",
+      createdAtHeader: "Created at",
+      actions: "Actions",
       results: (count: number) =>
         `${count} user${count === 1 ? "" : "s"} in the current results`,
       lawyers: (count: number) => `${count} lawyer${count === 1 ? "" : "s"}`,
@@ -236,14 +251,11 @@ interface SeatUsage {
   limit: number | null;
 }
 
-const ROLE_BADGE: Record<Role, string> = {
-  ADMIN:
-    "rounded-full border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-bold text-[var(--text-2)]",
-  LAWYER:
-    "rounded-full border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-bold text-[var(--text-2)]",
-  STAFF:
-    "rounded-full border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-bold text-[var(--text-2)]",
-};
+const ROLE_TONE = {
+  ADMIN: "gold",
+  LAWYER: "teal",
+  STAFF: "slate",
+} as const satisfies Record<Role, "gold" | "teal" | "slate">;
 
 const INIT_FORM = {
   name: "",
@@ -308,8 +320,7 @@ export default function TeamPage() {
   const isRtl = locale === "ar";
   const writeAccess = useTenantWriteAccess(locale);
   const canManageTeam =
-    writeAccess.canWrite &&
-    writeAccess.entitlements?.teamManagement === true;
+    writeAccess.canWrite && writeAccess.entitlements?.teamManagement === true;
   const teamAccessMessage =
     writeAccess.message || getTeamFeatureFallback(locale);
   const fieldStyle = {
@@ -322,8 +333,14 @@ export default function TeamPage() {
   } satisfies CSSProperties;
 
   const [users, setUsers] = useState<TeamUser[]>([]);
-  const [pendingInvitations, setPendingInvitations] = useState<TeamInvitation[]>([]);
-  const [seats, setSeats] = useState<SeatUsage>({ used: 0, pending: 0, limit: null });
+  const [pendingInvitations, setPendingInvitations] = useState<
+    TeamInvitation[]
+  >([]);
+  const [seats, setSeats] = useState<SeatUsage>({
+    used: 0,
+    pending: 0,
+    limit: null,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentRole, setCurrentRole] = useState("");
@@ -396,6 +413,143 @@ export default function TeamPage() {
       return first.isSystemAdmin ? -1 : 1;
     });
   }, [users, search, roleFilter, statusFilter]);
+
+  const columns: VDSDataTableColumn<TeamUser>[] = [
+    {
+      id: "member",
+      header: copy.list.member,
+      accessor: "name",
+      sortable: true,
+      width: "32%",
+      cell: (user) => (
+        <div className="flex min-w-[240px] items-center gap-3 text-start">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white"
+            style={{
+              background: user.isActive ? "var(--sidebar)" : "#9ca3af",
+            }}
+          >
+            {user.name?.charAt(0) || copy.list.unknownInitial}
+          </div>
+
+          <div className="min-w-0">
+            <p
+              className="max-w-[240px] truncate text-sm font-black"
+              style={{ color: "var(--text)" }}
+              title={user.name}
+            >
+              {user.name}
+            </p>
+
+            <p
+              dir="ltr"
+              className="mt-1 max-w-[240px] truncate text-xs"
+              style={{
+                color: "var(--text-3)",
+                textAlign: isRtl ? "right" : "left",
+              }}
+              title={user.email}
+            >
+              {user.email}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "role",
+      header: copy.list.role,
+      accessor: "role",
+      sortable: true,
+      align: "center",
+      cell: (user) => (
+        <VDSBadge tone={ROLE_TONE[user.role]}>{copy.roles[user.role]}</VDSBadge>
+      ),
+    },
+    {
+      id: "status",
+      header: copy.list.status,
+      accessor: "isActive",
+      sortable: true,
+      align: "center",
+      cell: (user) => (
+        <VDSBadge tone={user.isActive ? "teal" : "red"}>
+          {user.isActive ? copy.status.active : copy.status.inactive}
+        </VDSBadge>
+      ),
+    },
+    {
+      id: "createdAt",
+      header: copy.list.createdAtHeader,
+      accessor: "createdAt",
+      sortable: true,
+      align: "center",
+      cell: (user) => (
+        <span className="whitespace-nowrap text-xs font-bold">
+          {formatDate(user.createdAt, locale)}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: copy.list.actions,
+      align: "center",
+      width: "300px",
+      cell: (user) =>
+        user.isSystemAdmin ? (
+          <span title={copy.list.systemAdminFixed}>
+            <VDSBadge tone="gold">{copy.list.systemAdminFixed}</VDSBadge>
+          </span>
+        ) : (
+          <div className="flex min-w-[280px] items-center justify-center gap-2">
+            <select
+              aria-label={copy.list.roleChangeAria}
+              className="input min-w-[150px] disabled:cursor-not-allowed disabled:opacity-60"
+              style={fieldStyle}
+              value={user.role}
+              disabled={!canManageTeam}
+              title={
+                !canManageTeam ? teamAccessMessage : copy.list.roleChangeTitle
+              }
+              onChange={(event) =>
+                updateUser(user.id, {
+                  role: event.target.value as Role,
+                })
+              }
+            >
+              <option value="ADMIN">{copy.roles.ADMIN}</option>
+              <option value="LAWYER">{copy.roles.LAWYER}</option>
+              <option value="STAFF">{copy.roles.STAFF}</option>
+            </select>
+
+            <button
+              type="button"
+              disabled={!canManageTeam}
+              title={!canManageTeam ? teamAccessMessage : undefined}
+              onClick={() =>
+                updateUser(user.id, {
+                  isActive: !user.isActive,
+                })
+              }
+              className="btn whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+              style={
+                user.isActive
+                  ? {
+                      background: "var(--red-soft)",
+                      color: "#dc2626",
+                    }
+                  : {
+                      background: "var(--green-soft)",
+                      color: "var(--text)",
+                    }
+              }
+            >
+              {user.isActive ? copy.list.deactivate : copy.list.activate}
+            </button>
+          </div>
+        ),
+    },
+  ];
 
   function clearFilters() {
     setSearch("");
@@ -494,11 +648,9 @@ export default function TeamPage() {
     }
   }
 
- if (loading) {
-  return <AppLoader fullScreen={false} />
-}
-;
-
+  if (loading) {
+    return <AppLoader fullScreen={false} />;
+  }
   if (currentRole && currentRole !== "ADMIN") {
     return (
       <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
@@ -705,37 +857,21 @@ export default function TeamPage() {
           <button
             type="button"
             onClick={clearFilters}
-            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31]"
+            disabled={!search && roleFilter === "all" && statusFilter === "all"}
+            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31] disabled:cursor-not-allowed disabled:opacity-50"
             style={{
               background: "var(--card-2)",
               borderColor: "var(--border)",
               color: "var(--text)",
             }}
           >
-            {copy.filters.filter}
+            {copy.filters.clear}
           </button>
         </div>
-
-        {(search || roleFilter !== "all" || statusFilter !== "all") && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={{
-                background: "var(--card)",
-                color: "var(--text-2)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {copy.filters.clear}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Main */}
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
         {/* Add User */}
         <form
           id="add-team-user"
@@ -829,12 +965,21 @@ export default function TeamPage() {
             {copy.form.hint}
           </div>
 
-          <div className="mt-4 rounded-2xl border p-3" style={{ borderColor: "var(--border)" }}>
+          <div
+            className="mt-4 rounded-2xl border p-3"
+            style={{ borderColor: "var(--border)" }}
+          >
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-black" style={{ color: "var(--text)" }}>
+              <h3
+                className="text-sm font-black"
+                style={{ color: "var(--text)" }}
+              >
                 {copy.form.pendingTitle}
               </h3>
-              <span className="text-xs font-bold" style={{ color: "var(--text-3)" }}>
+              <span
+                className="text-xs font-bold"
+                style={{ color: "var(--text-3)" }}
+              >
                 {copy.form.seats(seats.used, seats.pending, seats.limit)}
               </span>
             </div>
@@ -846,12 +991,35 @@ export default function TeamPage() {
             ) : (
               <div className="mt-3 space-y-2">
                 {pendingInvitations.map((invitation) => (
-                  <div key={invitation.id} className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
-                    <p className="truncate text-sm font-black" style={{ color: "var(--text)" }}>{invitation.name}</p>
-                    <p dir="ltr" className="truncate text-start text-xs" style={{ color: "var(--text-3)" }}>{invitation.email}</p>
+                  <div
+                    key={invitation.id}
+                    className="rounded-xl border p-3"
+                    style={{
+                      borderColor: "var(--border)",
+                      background: "var(--card-2)",
+                    }}
+                  >
+                    <p
+                      className="truncate text-sm font-black"
+                      style={{ color: "var(--text)" }}
+                    >
+                      {invitation.name}
+                    </p>
+                    <p
+                      dir="ltr"
+                      className="truncate text-start text-xs"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {invitation.email}
+                    </p>
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="text-[11px]" style={{ color: "var(--text-3)" }}>
-                        {copy.form.expires(formatDate(invitation.expiresAt, locale))}
+                      <span
+                        className="text-[11px]"
+                        style={{ color: "var(--text-3)" }}
+                      >
+                        {copy.form.expires(
+                          formatDate(invitation.expiresAt, locale),
+                        )}
                       </span>
                       <button
                         type="button"
@@ -870,11 +1038,8 @@ export default function TeamPage() {
         </form>
 
         {/* Team List */}
-        <div className="card overflow-hidden p-0">
-          <div
-            className="flex items-center justify-between gap-4 border-b px-5 py-4"
-            style={{ borderColor: "var(--border)" }}
-          >
+        <div className="min-w-0 space-y-3">
+          <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-start">
               <h2 className="font-black" style={{ color: "var(--text)" }}>
                 {copy.list.title}
@@ -885,185 +1050,55 @@ export default function TeamPage() {
               </p>
             </div>
 
-            <div className="hidden gap-2 sm:flex">
-              <span className="rounded-full border border-white/10 bg-white/[.07] px-3 py-1 text-xs font-bold text-[var(--text-2)]">
-                {copy.list.lawyers(lawyersCount)}
-              </span>
+            <div className="flex flex-wrap gap-2">
+              <VDSBadge tone="teal">{copy.list.lawyers(lawyersCount)}</VDSBadge>
 
-              <span className="rounded-full border border-white/10 bg-white/[.07] px-3 py-1 text-xs font-bold text-[var(--text-2)]">
-                {copy.list.staff(staffCount)}
-              </span>
+              <VDSBadge tone="slate">{copy.list.staff(staffCount)}</VDSBadge>
             </div>
           </div>
 
-          {filteredUsers.length === 0 ? (
-            <div className="p-8">
-              <EmptyState
-                icon="👥"
-                title={copy.list.emptyTitle}
-                sub={
-                  users.length === 0
-                    ? copy.list.emptyNoUsers
-                    : copy.list.emptyFiltered
-                }
-                action={
-                  users.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={clearFilters}
-                      className="btn btn-ghost"
-                    >
-                      {copy.filters.clear}
-                    </button>
-                  ) : undefined
-                }
-              />
-            </div>
-          ) : (
-            <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-              {filteredUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between"
+          <VDSDataTable<TeamUser>
+            rows={filteredUsers}
+            columns={columns}
+            getRowId={(user) => user.id}
+            loading={false}
+            isRtl={isRtl}
+            labels={{
+              emptyTitle: copy.list.emptyTitle,
+              emptyDescription:
+                users.length === 0
+                  ? copy.list.emptyNoUsers
+                  : copy.list.emptyFiltered,
+            }}
+            emptyAction={
+              users.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canManageTeam) return;
+                    document
+                      .getElementById("add-team-user")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  disabled={!canManageTeam}
+                  title={
+                    !canManageTeam ? teamAccessMessage : copy.hero.addButton
+                  }
+                  className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <div className="flex min-w-0 items-start gap-3 text-start">
-                    <div
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-black text-white"
-                      style={{
-                        background: user.isActive
-                          ? "var(--sidebar)"
-                          : "#9ca3af",
-                      }}
-                    >
-                      {user.name?.charAt(0) || copy.list.unknownInitial}
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p
-                          className="truncate font-black"
-                          style={{ color: "var(--text)" }}
-                        >
-                          {user.name}
-                        </p>
-
-                        <span className={ROLE_BADGE[user.role]}>
-                          {copy.roles[user.role]}
-                        </span>
-
-                        <span
-                          className="rounded-full px-3 py-1 text-xs font-black"
-                          style={
-                            user.isActive
-                              ? {
-                                  background: "var(--green-soft)",
-                                  color: "var(--text)",
-                                }
-                              : {
-                                  background: "var(--red-soft)",
-                                  color: "#dc2626",
-                                }
-                          }
-                        >
-                          {user.isActive
-                            ? copy.status.active
-                            : copy.status.inactive}
-                        </span>
-                      </div>
-
-                      <p
-                        className="mt-1 truncate text-sm"
-                        dir="ltr"
-                        style={{
-                          color: "var(--text-3)",
-                          textAlign: isRtl ? "right" : "left",
-                        }}
-                      >
-                        {user.email}
-                      </p>
-
-                      <p className="mt-1 text-xs font-semibold text-[var(--text-2)]">
-                        {copy.list.createdAt(
-                          formatDate(user.createdAt, locale),
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    {user.isSystemAdmin ? (
-                      <span
-                        className="inline-flex min-h-12 min-w-[150px] items-center justify-center rounded-2xl border px-4 text-sm font-black"
-                        style={{
-                          background: "var(--card-2)",
-                          borderColor: "var(--border)",
-                          color: "var(--text)",
-                        }}
-                        title={copy.list.systemAdminFixed}
-                      >
-                        {copy.roles.ADMIN}
-                      </span>
-                    ) : (
-                      <>
-                        <select
-                          aria-label={copy.list.roleChangeAria}
-                          className="input min-w-[150px] disabled:cursor-not-allowed disabled:opacity-60"
-                          style={fieldStyle}
-                          value={user.role}
-                          disabled={!canManageTeam}
-                          title={
-                            !canManageTeam
-                              ? teamAccessMessage
-                              : copy.list.roleChangeTitle
-                          }
-                          onChange={(event) =>
-                            updateUser(user.id, {
-                              role: event.target.value as Role,
-                            })
-                          }
-                        >
-                          <option value="ADMIN">{copy.roles.ADMIN}</option>
-                          <option value="LAWYER">{copy.roles.LAWYER}</option>
-                          <option value="STAFF">{copy.roles.STAFF}</option>
-                        </select>
-
-                        <button
-                          type="button"
-                          disabled={!canManageTeam}
-                          title={
-                            !canManageTeam
-                              ? teamAccessMessage
-                              : undefined
-                          }
-                          onClick={() =>
-                            updateUser(user.id, {
-                              isActive: !user.isActive,
-                            })
-                          }
-                          className="btn whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
-                          style={
-                            user.isActive
-                              ? {
-                                  background: "var(--red-soft)",
-                                  color: "#dc2626",
-                                }
-                              : {
-                                  background: "var(--green-soft)",
-                                  color: "var(--text)",
-                                }
-                          }
-                        >
-                          {user.isActive
-                            ? copy.list.deactivate
-                            : copy.list.activate}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                  {copy.hero.addButton}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="btn btn-ghost"
+                >
+                  {copy.filters.clear}
+                </button>
+              )
+            }
+          />
         </div>
       </div>
     </div>
