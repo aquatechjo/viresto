@@ -10,6 +10,7 @@ import {
   VDSDataTable,
   type VDSDataTableColumn,
 } from "@/components/ui/vds";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -817,12 +818,12 @@ export default function TeamPage() {
       {/* Filters */}
       <div className="card p-4">
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_.8fr_.8fr_auto]">
-          <input
+          <VDSSearchInput
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={setSearch}
             placeholder={copy.filters.search}
-            className="input"
-            style={fieldStyle}
+            dir={isRtl ? "rtl" : "ltr"}
+            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
           />
 
           <select
@@ -831,7 +832,7 @@ export default function TeamPage() {
             onChange={(event) =>
               setRoleFilter(event.target.value as "all" | Role)
             }
-            className="input"
+            className="input h-12"
             style={fieldStyle}
           >
             <option value="all">{copy.filters.allRoles}</option>
@@ -846,7 +847,7 @@ export default function TeamPage() {
             onChange={(event) =>
               setStatusFilter(event.target.value as StatusFilter)
             }
-            className="input"
+            className="input h-12"
             style={fieldStyle}
           >
             <option value="all">{copy.filters.allStatuses}</option>

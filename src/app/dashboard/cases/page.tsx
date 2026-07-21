@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -1107,24 +1108,20 @@ export default function CasesPage() {
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px_auto]">
-          <input
+          <VDSSearchInput
             dir={isRtl ? "rtl" : "ltr"}
             aria-label={text.filters.searchAria}
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={setSearch}
             placeholder={text.filters.searchPlaceholder}
-            className={`input h-14 w-full ${isRtl ? "!text-right" : "!text-left"}`}
-            style={{
-              textAlign: isRtl ? "right" : "left",
-              direction: isRtl ? "rtl" : "ltr",
-            }}
+            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
           />
 
           <select
             dir={isRtl ? "rtl" : "ltr"}
             value={filter}
             onChange={(event) => setFilter(event.target.value as StatusFilter)}
-            className={`input h-14 w-full cursor-pointer ${isRtl ? "!text-right" : "!text-left"}`}
+            className={`input h-12 w-full cursor-pointer ${isRtl ? "!text-right" : "!text-left"}`}
             style={{
               textAlign: isRtl ? "right" : "left",
               direction: isRtl ? "rtl" : "ltr",
@@ -1142,7 +1139,7 @@ export default function CasesPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="h-14 rounded-2xl px-5 text-sm font-black transition-all"
+              className="h-12 rounded-2xl px-5 text-sm font-black transition-all"
               style={{
                 background: "var(--card)",
                 color: "var(--text-2)",

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import AppLoader from "@/components/ui/AppLoader";
 import EmptyState from "@/components/ui/EmptyState";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import { formatCurrency } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
@@ -1558,16 +1559,15 @@ export default function InvoicesPage() {
       {/* Filters */}
       <div className="card p-4">
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto_auto_auto]">
-          <input
+          <VDSSearchInput
             value={q}
-            onChange={(event) => {
-              setQ(event.target.value);
+            onChange={(value) => {
+              setQ(value);
               setPage(1);
             }}
             placeholder={copy.filters.searchPlaceholder}
             dir={isRtl ? "rtl" : "ltr"}
-            style={fieldStyle}
-            className="input"
+            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
           />
 
           <select
@@ -1579,7 +1579,7 @@ export default function InvoicesPage() {
               setStatus(event.target.value as "" | InvoiceStatus);
               setPage(1);
             }}
-            className="input"
+            className="input h-12"
           >
             {statusOptions.map((item) => (
               <option key={item.value || "all"} value={item.value}>
@@ -1591,7 +1591,7 @@ export default function InvoicesPage() {
           <button
             type="button"
             onClick={() => load()}
-            className="btn btn-primary whitespace-nowrap"
+            className="btn btn-primary h-12 whitespace-nowrap"
           >
             {copy.actions.search}
           </button>
@@ -1602,7 +1602,7 @@ export default function InvoicesPage() {
               setArchivedOnly((previous) => !previous);
               setPage(1);
             }}
-            className="btn whitespace-nowrap"
+            className="btn h-12 whitespace-nowrap"
             style={
               archivedOnly
                 ? {
@@ -1623,7 +1623,7 @@ export default function InvoicesPage() {
           <button
             type="button"
             onClick={clearFilters}
-            className="btn btn-ghost whitespace-nowrap"
+            className="btn btn-ghost h-12 whitespace-nowrap"
           >
             {copy.actions.clear}
           </button>

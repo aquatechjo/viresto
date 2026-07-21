@@ -12,6 +12,7 @@ import {
   VDSIcon,
   type VDSTone,
 } from "@/components/ui/vds";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import DocumentPreviewModal from "@/components/documents/DocumentPreviewModal";
 import { fileSizeLabel, relativeTime } from "@/lib/utils";
 import {
@@ -952,13 +953,12 @@ export default function DocumentsPage() {
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_.8fr_auto]">
-          <input
+          <VDSSearchInput
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={setSearch}
             placeholder={d.filters.searchPlaceholder}
             dir={isRtl ? "rtl" : "ltr"}
-            style={{ textAlign: isRtl ? "right" : "left" }}
-            className="input"
+            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
           />
 
           <select
@@ -970,7 +970,7 @@ export default function DocumentsPage() {
             }}
             dir={isRtl ? "rtl" : "ltr"}
             style={{ textAlign: isRtl ? "right" : "left" }}
-            className="input"
+            className="input h-12"
           >
             <option dir={isRtl ? "rtl" : "ltr"} value="">
               {d.filters.allCategories}
@@ -990,7 +990,7 @@ export default function DocumentsPage() {
           <button
             type="button"
             onClick={clearFilters}
-            className="btn btn-ghost whitespace-nowrap"
+            className="btn btn-ghost h-12 whitespace-nowrap"
           >
             {d.filters.apply}
           </button>

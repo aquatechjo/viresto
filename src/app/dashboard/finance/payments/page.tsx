@@ -9,6 +9,7 @@ import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnl
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import EmptyState from '@/components/ui/EmptyState'
 import AppLoader from '@/components/ui/AppLoader'
+import { VDSSearchInput } from '@/components/ui/vds/table'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 import { formatInvoiceNumber } from '@/lib/invoice-print'
@@ -1102,19 +1103,15 @@ export default function PaymentsPage() {
 
       <div className="card p-4">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,300px)_auto]">
-          <input
+          <VDSSearchInput
             value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
+            onChange={(value) => {
+              setSearch(value)
               setPage(1)
             }}
             placeholder={copy.filters.search}
-            className="input min-h-[48px] w-full text-start"
             dir={isRtl ? 'rtl' : 'ltr'}
-            style={{
-              direction: isRtl ? 'rtl' : 'ltr',
-              textAlign: isRtl ? 'right' : 'left',
-            }}
+            clearLabel={isRtl ? 'مسح البحث' : 'Clear search'}
           />
 
           <select

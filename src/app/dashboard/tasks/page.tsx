@@ -7,6 +7,7 @@ import DateTimePicker from "@/components/ui/DateTimePicker";
 import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
 import { VDSBadge, VDSCard, VDSGrid, type VDSTone } from "@/components/ui/vds";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import PageLoader from "@/components/ui/PageLoader";
 import { formatDate } from "@/lib/utils";
 import { translations, type Locale } from "@/lib/i18n";
@@ -927,12 +928,12 @@ export default function TasksPage() {
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.7fr_.7fr_.7fr_.7fr_auto]">
-          <input
+          <VDSSearchInput
             aria-label={taskCopy.filters.searchAria}
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={setSearch}
             placeholder={taskCopy.filters.searchPlaceholder}
-            className="input"
+            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
             {...fieldProps}
           />
 
@@ -940,7 +941,7 @@ export default function TasksPage() {
             aria-label={taskCopy.filters.priorityAria}
             value={priorityFilter}
             onChange={(event) => setPriorityFilter(event.target.value)}
-            className="input"
+            className="input h-12"
             {...fieldProps}
           >
             <option value="all" dir={isRtl ? "rtl" : "ltr"}>
@@ -966,7 +967,7 @@ export default function TasksPage() {
             }
             value={assigneeFilter}
             onChange={(event) => setAssigneeFilter(event.target.value)}
-            className="input"
+            className="input h-12"
             {...fieldProps}
           >
             <option value="all">
@@ -984,7 +985,7 @@ export default function TasksPage() {
             aria-label={taskCopy.filters.clientAria}
             value={clientFilter}
             onChange={(event) => setClientFilter(event.target.value)}
-            className="input"
+            className="input h-12"
             {...fieldProps}
           >
             <option value="all" dir={isRtl ? "rtl" : "ltr"}>
@@ -1005,7 +1006,7 @@ export default function TasksPage() {
             aria-label={taskCopy.filters.caseAria}
             value={caseFilter}
             onChange={(event) => setCaseFilter(event.target.value)}
-            className="input"
+            className="input h-12"
             {...fieldProps}
           >
             <option value="all" dir={isRtl ? "rtl" : "ltr"}>

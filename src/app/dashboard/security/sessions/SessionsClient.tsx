@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import PageLoader from "@/components/ui/PageLoader";
 import EmptyState from "@/components/ui/EmptyState";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import { formatDate } from "@/lib/utils";
 import { parseDevice } from "@/lib/device";
 
@@ -378,17 +379,19 @@ export default function SessionsClient() {
       {/* Filters */}
       <div className="card p-4">
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_auto]">
-          <input
+          <VDSSearchInput
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={setSearch}
             placeholder="ابحث بالجهاز، المتصفح، IP، الدولة أو المدينة..."
-            className="input"
+            aria-label="البحث في الجلسات"
+            dir="rtl"
+            clearLabel="مسح البحث"
           />
 
           <button
             type="button"
             onClick={() => setSearch("")}
-            className="btn btn-ghost whitespace-nowrap"
+            className="btn btn-ghost h-12 whitespace-nowrap"
           >
             مسح البحث
           </button>

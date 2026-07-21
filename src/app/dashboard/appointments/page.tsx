@@ -14,6 +14,7 @@ import {
   VDSEmptyState,
   type VDSTone,
 } from "@/components/ui/vds";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import { DateTime } from "luxon";
 import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
@@ -1467,18 +1468,18 @@ export default function AppointmentsPage() {
           className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px_260px]"
           dir={isRtl ? "rtl" : "ltr"}
         >
-          <input
+          <VDSSearchInput
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={setSearch}
             placeholder={a.filters.searchPlaceholder}
-            className="input h-14"
+            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
             {...fieldDir}
           />
 
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
-            className="input h-14"
+            className="input h-12"
             {...fieldDir}
             aria-label={
               locale === "ar"
@@ -1500,7 +1501,7 @@ export default function AppointmentsPage() {
           <select
             value={assigneeFilter}
             onChange={(event) => setAssigneeFilter(event.target.value)}
-            className="input h-14"
+            className="input h-12"
             {...fieldDir}
             aria-label={appointmentFormCopy.assignee}
           >

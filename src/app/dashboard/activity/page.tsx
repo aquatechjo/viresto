@@ -19,6 +19,7 @@ import {
   type VDSDataTableColumn,
   type VDSTone,
 } from "@/components/ui/vds";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
 type Locale = "ar" | "en";
@@ -1035,13 +1036,13 @@ export default function ActivityPage() {
         }}
       >
         <div className="grid gap-3 xl:grid-cols-[1fr_auto_260px] xl:items-center">
-          <input
+          <VDSSearchInput
             dir={fieldDir}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder={copy.filters.searchPlaceholder}
-            className="input h-12 w-full px-4 text-start text-slate-800 placeholder:text-slate-400 dark:text-emerald-50 dark:placeholder:text-emerald-100/60"
-            style={{ textAlign: fieldTextAlign }}
+            aria-label={copy.filters.search}
+            clearLabel={fieldDir === "rtl" ? "مسح البحث" : "Clear search"}
           />
 
           <button

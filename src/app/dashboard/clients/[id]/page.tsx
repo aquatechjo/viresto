@@ -12,6 +12,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { initials } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 interface ClientCase {
   id: string;
@@ -1144,17 +1145,13 @@ export default function ClientDetailPage() {
           {/* Filters */}
           <div className="card p-4">
             <div className="grid grid-cols-1 gap-3">
-              <input
+              <VDSSearchInput
                 dir={isRtl ? "rtl" : "ltr"}
                 aria-label={text.filters.placeholder}
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={setSearch}
                 placeholder={text.filters.placeholder}
-                className={`input h-12 w-full ${isRtl ? "!text-right" : "!text-left"}`}
-                style={{
-                  textAlign: isRtl ? "right" : "left",
-                  direction: isRtl ? "rtl" : "ltr",
-                }}
+                clearLabel={isRtl ? "مسح البحث" : "Clear search"}
               />
             </div>
 

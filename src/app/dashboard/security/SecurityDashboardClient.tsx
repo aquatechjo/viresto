@@ -5,6 +5,7 @@ import Link from 'next/link'
 
 import PageLoader from '@/components/ui/PageLoader'
 import EmptyState from '@/components/ui/EmptyState'
+import { VDSSearchInput } from '@/components/ui/vds/table'
 import { formatDate } from '@/lib/utils'
 
 interface Activity {
@@ -334,11 +335,13 @@ export default function SecurityDashboardClient() {
       {/* Filters */}
       <div className="card p-4">
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto]">
-          <input
+          <VDSSearchInput
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={setSearch}
             placeholder="ابحث بالنوع، العنوان، IP، أو المستخدم..."
-            className="input"
+            aria-label="البحث في سجلات الأمان"
+            dir="rtl"
+            clearLabel="مسح البحث"
           />
 
           <select
@@ -346,7 +349,7 @@ export default function SecurityDashboardClient() {
             title="فلترة سجلات الأمان"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            className="input"
+            className="input h-12"
           >
             {FILTERS.map((item) => (
               <option key={item.value || 'all'} value={item.value}>
@@ -361,7 +364,7 @@ export default function SecurityDashboardClient() {
               setSearch('')
               setFilter('')
             }}
-            className="btn btn-ghost whitespace-nowrap"
+            className="btn btn-ghost h-12 whitespace-nowrap"
           >
             مسح الفلاتر
           </button>

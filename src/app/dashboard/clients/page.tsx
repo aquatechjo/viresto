@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
+import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
@@ -998,20 +999,14 @@ export default function ClientsPage() {
               className="space-y-4 border-b p-4"
               style={{ borderColor: "var(--border)" }}
             >
-              <input
+              <VDSSearchInput
                 dir={isRtl ? "rtl" : "ltr"}
                 name="clientsSearch"
                 autoComplete="off"
                 value={q}
-                onChange={(event) => setQ(event.target.value)}
+                onChange={setQ}
                 placeholder={text.filters.searchPlaceholder}
-                className={`input h-12 w-full ${
-                  isRtl ? "!text-right" : "!text-left"
-                }`}
-                style={{
-                  textAlign: isRtl ? "right" : "left",
-                  direction: isRtl ? "rtl" : "ltr",
-                }}
+                clearLabel={isRtl ? "مسح البحث" : "Clear search"}
               />
 
               <div className="flex w-full items-center gap-2 overflow-x-auto pb-1">

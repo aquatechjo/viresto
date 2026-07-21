@@ -435,14 +435,14 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               <input
                 name="q"
                 defaultValue={params.q ?? ""}
-                className="input"
+                className="input h-12"
                 placeholder="اسم المكتب، الرابط أو البريد..."
               />
             </label>
 
             <label className="space-y-1 text-sm">
               <span className="font-bold">الخطة</span>
-              <select name="plan" defaultValue={planFilter} className="input">
+              <select name="plan" defaultValue={planFilter} className="input h-12">
                 <option value="ALL">كل الخطط</option>
                 <option value="BASIC">Basic</option>
                 <option value="PRO">Pro</option>
@@ -452,7 +452,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
             <label className="space-y-1 text-sm">
               <span className="font-bold">الحالة</span>
-              <select name="status" defaultValue={statusFilter} className="input">
+              <select name="status" defaultValue={statusFilter} className="input h-12">
                 <option value="ALL">كل الحالات</option>
                 <option value="ACTIVE">نشط</option>
                 <option value="EXPIRED">غير نشط</option>
@@ -461,11 +461,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             </label>
 
             <div className="flex items-end">
-              <button className="btn btn-primary w-full">تطبيق</button>
+              <button className="btn btn-primary h-12 w-full">تطبيق</button>
             </div>
 
             <div className="flex items-end">
-              <a href="/admin#offices" className="btn btn-ghost w-full">
+              <a href="/admin#offices" className="btn btn-ghost h-12 w-full">
                 مسح
               </a>
             </div>
