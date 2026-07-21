@@ -139,19 +139,29 @@ export async function GET(req: NextRequest) {
     const sp = new URL(req.url).searchParams;
     const status = sp.get("status") || "";
     const q = sp.get("q") || "";
+    const archivedOnly = sp.get("archivedOnly") === "true";
+    const pageRaw = Number(sp.get("page") || 1);
+    const page = Number.isNaN(pageRaw) ? 1 : Math.max(Math.floor(pageRaw), 1);
 
-    const limitRaw = Number(sp.get("limit") || 50);
+    const limitRaw = Number(sp.get("limit") || 20);
     const limit = Number.isNaN(limitRaw)
-      ? 50
+      ? 20
       : Math.min(Math.max(limitRaw, 1), 100);
 
     if (status && !allowedStatuses.includes(status as any)) {
       return err("حالة الفاتورة غير صالحة", 400);
     }
 
-    const invoices = await prisma.invoice.findMany({
-      where: buildInvoiceAccessWhere(auth.user, {
+    const where = buildInvoiceAccessWhere(auth.user, {
         ...(status ? { status: status as any } : {}),
+        ...(archivedOnly
+          ? {
+              OR: [
+                { client: { archivedAt: { not: null } } },
+                { case: { client: { archivedAt: { not: null } } } },
+              ],
+            }
+          : {}),
         ...(q
           ? {
               OR: [
@@ -161,7 +171,11 @@ export async function GET(req: NextRequest) {
               ],
             }
           : {}),
-      }),
+      });
+
+    const [invoices, total, statRows] = await prisma.$transaction([
+      prisma.invoice.findMany({
+      where,
       include: {
         client: {
           select: {
@@ -197,8 +211,24 @@ export async function GET(req: NextRequest) {
       orderBy: {
         createdAt: "desc",
       },
+      skip: (page - 1) * limit,
       take: limit,
-    });
+      }),
+      prisma.invoice.count({ where }),
+      prisma.invoice.findMany({
+        where,
+        select: {
+          total: true,
+          status: true,
+          client: { select: { archivedAt: true } },
+          case: { select: { client: { select: { archivedAt: true } } } },
+          payments: {
+            where: { status: "PAID" },
+            select: { amount: true },
+          },
+        },
+      }),
+    ]);
 
     const decryptedInvoices = invoices.map((invoice) => ({
       ...invoice,
@@ -211,7 +241,47 @@ export async function GET(req: NextRequest) {
         : invoice.client,
     }));
 
-    return ok(decryptedInvoices);
+    const stats = statRows.reduce(
+      (result, invoice) => {
+        const invoiceTotal = Number(invoice.total || 0);
+        const paid = invoice.payments.reduce(
+          (sum, payment) => sum + Number(payment.amount || 0),
+          0,
+        );
+
+        result.totalAmount += invoiceTotal;
+        result.paidAmount += paid;
+        if (["UNPAID", "PARTIALLY_PAID", "OVERDUE"].includes(invoice.status)) {
+          result.unpaidAmount += Math.max(0, invoiceTotal - paid);
+        }
+        if (invoice.status === "OVERDUE") result.overdueCount += 1;
+        if (invoice.status === "PAID") result.paidCount += 1;
+        if (invoice.client?.archivedAt || invoice.case?.client?.archivedAt) {
+          result.archivedCount += 1;
+        }
+        return result;
+      },
+      {
+        totalAmount: 0,
+        paidAmount: 0,
+        unpaidAmount: 0,
+        overdueCount: 0,
+        paidCount: 0,
+        archivedCount: 0,
+        totalCount: total,
+      },
+    );
+
+    return ok({
+      items: decryptedInvoices,
+      pagination: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+      stats,
+    });
   });
 }
 

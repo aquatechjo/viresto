@@ -54,12 +54,6 @@ interface Doc {
   tags?: string[];
 }
 
-interface ClientItem {
-  id: string;
-  name: string;
-  archivedAt?: string | null;
-}
-
 interface CaseItem {
   id: string;
   title: string;
@@ -279,14 +273,6 @@ function getDocumentTone(type: string): VDSTone {
   return "slate";
 }
 
-function isImage(type: string) {
-  return type.startsWith("image/");
-}
-
-function isWord(type: string) {
-  return type.includes("word");
-}
-
 function PlanLimitBanner({
   message,
   onClose,
@@ -371,10 +357,22 @@ export default function DocumentsPage() {
 
   const [docs, setDocs] = useState<Doc[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
-  const [clients, setClients] = useState<ClientItem[]>([]);
+  const [caseOptionSearch, setCaseOptionSearch] = useState("");
+  const [caseOptionsLoading, setCaseOptionsLoading] = useState(false);
 
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [loadError, setLoadError] = useState(false);
+  const [summary, setSummary] = useState({
+    total: 0,
+    pdf: 0,
+    images: 0,
+    word: 0,
+    totalSize: 0,
+  });
   const [selectedTag, setSelectedTag] = useState("");
   const [caseId, setCaseId] = useState("");
   const [clientId, setClientId] = useState("");
@@ -400,17 +398,12 @@ export default function DocumentsPage() {
     return Boolean(doc.client?.archivedAt || doc.case?.client?.archivedAt);
   }, []);
 
-  const selectedClient = useMemo(
-    () => clients.find((client) => client.id === clientId),
-    [clients, clientId],
-  );
-
   const selectedCase = useMemo(
     () => cases.find((caseItem) => caseItem.id === caseId),
     [cases, caseId],
   );
 
-  const selectedCaseClient = selectedCase?.client ?? selectedClient ?? null;
+  const selectedCaseClient = selectedCase?.client ?? null;
   const selectedArchivedContext = Boolean(selectedCaseClient?.archivedAt);
 
   const modalCopy = {
@@ -463,60 +456,76 @@ export default function DocumentsPage() {
     setUploadModalOpen(true);
   }
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
+      setLoadError(false);
 
-      const [documentsRes, casesRes, clientsRes] = await Promise.all([
-        fetch("/api/documents"),
-        fetch("/api/cases?limit=100"),
-        fetch("/api/clients?limit=100"),
-      ]);
+      const params = new URLSearchParams({ page: String(page), limit: "20" });
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      if (filter !== "all") params.set("type", filter);
+      if (selectedTag) params.set("tag", selectedTag);
 
-      const safeJson = async (response: Response) => {
-        if (!response.ok) return { data: [] };
+      const documentsRes = await fetch(`/api/documents?${params}`, { signal });
+      const documentsData = await documentsRes.json().catch(() => ({}));
 
-        try {
-          return await response.json();
-        } catch {
-          return { data: [] };
-        }
-      };
-
-      const [documentsData, casesData, clientsData] = await Promise.all([
-        safeJson(documentsRes),
-        safeJson(casesRes),
-        safeJson(clientsRes),
-      ]);
-
-      setDocs(Array.isArray(documentsData.data) ? documentsData.data : []);
-      setCases(
-        Array.isArray(casesData.data?.data)
-          ? casesData.data.data
-          : Array.isArray(casesData.data)
-            ? casesData.data
-            : [],
+      if (!documentsRes.ok) throw new Error("documents-load-failed");
+      setDocs(
+        Array.isArray(documentsData.data?.data) ? documentsData.data.data : [],
       );
-      setClients(
-        Array.isArray(clientsData.data?.data)
-          ? clientsData.data.data
-          : Array.isArray(clientsData.data)
-            ? clientsData.data
-            : [],
-      );
-    } catch {
+      const meta = documentsData.data?.meta;
+      setPages(Math.max(1, Number(meta?.pages) || 1));
+      if (meta?.summary) setSummary(meta.summary);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       toast.error(d.messages.loadError);
-      setDocs([]);
-      setCases([]);
-      setClients([]);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [d.messages.loadError]);
+  }, [d.messages.loadError, debouncedSearch, filter, page, selectedTag]);
 
   useEffect(() => {
-    load();
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
   }, [load]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setCaseOptionsLoading(true);
+      try {
+        const params = new URLSearchParams({ limit: "20" });
+        if (caseOptionSearch.trim()) params.set("q", caseOptionSearch.trim());
+        const response = await fetch(`/api/cases?${params}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error("options-load-failed");
+        setCases(Array.isArray(payload.data?.data) ? payload.data.data : []);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          toast.error(d.messages.loadError);
+        }
+      } finally {
+        if (!controller.signal.aborted) setCaseOptionsLoading(false);
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [caseOptionSearch, d.messages.loadError]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     if (!caseId) {
@@ -533,44 +542,19 @@ export default function DocumentsPage() {
     }
   }, [caseId, cases, clientId]);
 
-  const totalDocs = docs.length;
-  const pdfCount = docs.filter(
-    (doc) => doc.fileType === "application/pdf",
-  ).length;
-  const imageCount = docs.filter((doc) => isImage(doc.fileType)).length;
-  const wordCount = docs.filter((doc) => isWord(doc.fileType)).length;
+  const totalDocs = summary.total;
+  const pdfCount = summary.pdf;
+  const imageCount = summary.images;
+  const wordCount = summary.word;
+  const totalSize = summary.totalSize;
 
-  const totalSize = useMemo(
-    () => docs.reduce((sum, doc) => sum + (doc.fileSize ?? 0), 0),
-    [docs],
-  );
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    return docs.filter((doc) => {
-      const matchesSearch =
-        !q ||
-        doc.fileName.toLowerCase().includes(q) ||
-        doc.client?.name?.toLowerCase().includes(q) ||
-        doc.case?.title?.toLowerCase().includes(q);
-
-      const matchesTag = !selectedTag || doc.tags?.includes(selectedTag);
-
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "pdf" && doc.fileType === "application/pdf") ||
-        (filter === "image" && isImage(doc.fileType)) ||
-        (filter === "doc" && isWord(doc.fileType));
-
-      return matchesSearch && matchesFilter && matchesTag;
-    });
-  }, [docs, filter, search, selectedTag]);
+  const filtered = docs;
 
   function clearFilters() {
     setSearch("");
     setFilter("all");
     setSelectedTag("");
+    setPage(1);
   }
 
   async function upload(file: File, context: UploadContext = {}) {
@@ -980,7 +964,10 @@ export default function DocumentsPage() {
           <select
             aria-label={d.filters.categoryAria}
             value={selectedTag}
-            onChange={(event) => setSelectedTag(event.target.value)}
+            onChange={(event) => {
+              setSelectedTag(event.target.value);
+              setPage(1);
+            }}
             dir={isRtl ? "rtl" : "ltr"}
             style={{ textAlign: isRtl ? "right" : "left" }}
             className="input"
@@ -1014,7 +1001,10 @@ export default function DocumentsPage() {
             <button
               key={key}
               type="button"
-              onClick={() => setFilter(key)}
+              onClick={() => {
+                setFilter(key);
+                setPage(1);
+              }}
               className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
               style={
                 filter === key
@@ -1180,6 +1170,14 @@ export default function DocumentsPage() {
           </div>
 
           <div className="space-y-3">
+            <input
+              value={caseOptionSearch}
+              onChange={(event) => setCaseOptionSearch(event.target.value)}
+              dir={isRtl ? "rtl" : "ltr"}
+              className="input"
+              placeholder={isRtl ? "ابحث عن قضية..." : "Search cases..."}
+            />
+
             <select
               aria-label={d.linkPanel.caseAria}
               value={caseId}
@@ -1296,7 +1294,25 @@ export default function DocumentsPage() {
         </div>
       </div>
       {/* Content */}
-      {filtered.length === 0 ? (
+      {loadError ? (
+        <VDSCard padded={false} className="p-8 text-center">
+          <p className="font-black" style={{ color: "var(--text)" }}>
+            {isRtl ? "تعذر تحميل المستندات" : "Could not load documents"}
+          </p>
+          <p className="mt-2 text-sm" style={{ color: "var(--text-3)" }}>
+            {isRtl
+              ? "بياناتك لم تختفِ. تحقق من الاتصال ثم أعد المحاولة."
+              : "Your data is safe. Check the connection and try again."}
+          </p>
+          <button type="button" className="btn btn-primary mt-4" onClick={() => load()}>
+            {isRtl ? "إعادة المحاولة" : "Retry"}
+          </button>
+        </VDSCard>
+      ) : loading ? (
+        <VDSCard padded={false} className="p-8">
+          <AppLoader />
+        </VDSCard>
+      ) : filtered.length === 0 ? (
         <VDSCard padded={false} className="p-8">
           <EmptyState
             icon="📄"
@@ -1489,6 +1505,29 @@ export default function DocumentsPage() {
           })}
         </VDSGrid>
       )}
+      {!loadError && !loading && pages > 1 ? (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={page <= 1}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+          >
+            {isRtl ? "السابق" : "Previous"}
+          </button>
+          <span className="text-sm font-bold" style={{ color: "var(--text-2)" }}>
+            {isRtl ? `صفحة ${page} من ${pages}` : `Page ${page} of ${pages}`}
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={page >= pages}
+            onClick={() => setPage((current) => Math.min(pages, current + 1))}
+          >
+            {isRtl ? "التالي" : "Next"}
+          </button>
+        </div>
+      ) : null}
 
       {uploadModalOpen && (
         <div
@@ -1552,12 +1591,21 @@ export default function DocumentsPage() {
                   {modalCopy.caseLabel}
                 </label>
 
+                <input
+                  value={caseOptionSearch}
+                  onChange={(event) => setCaseOptionSearch(event.target.value)}
+                  disabled={uploadBusy}
+                  dir={isRtl ? "rtl" : "ltr"}
+                  className="input mb-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  placeholder={isRtl ? "ابحث عن قضية..." : "Search cases..."}
+                />
+
                 <select
                   id="document-upload-case"
                   aria-label={d.linkPanel.caseAria}
                   value={caseId}
                   onChange={(event) => handleCaseChange(event.target.value)}
-                  disabled={uploadBusy || cases.length === 0}
+                  disabled={uploadBusy || caseOptionsLoading || cases.length === 0}
                   dir={isRtl ? "rtl" : "ltr"}
                   style={{ textAlign: isRtl ? "right" : "left" }}
                   className="input disabled:cursor-not-allowed disabled:opacity-60"

@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
     const clientId = sp.get("clientId");
     const q = sp.get("q")?.trim();
     const includeArchivedClients = sp.get("includeArchivedClients") === "true";
+    const archivedClientOnly = sp.get("archivedClientOnly") === "true";
     const sort = sp.get("sort") === "updated" ? "updated" : "created";
 
     const pageRaw = Number(sp.get("page") || 1);
@@ -70,6 +71,9 @@ export async function GET(req: NextRequest) {
               archivedAt: null,
             },
           }),
+      ...(archivedClientOnly
+        ? { client: { archivedAt: { not: null } } }
+        : {}),
 
       ...(status ? { status: status as any } : {}),
       ...(clientId ? { clientId } : {}),
@@ -136,7 +140,12 @@ export async function GET(req: NextRequest) {
 
     const where = buildCaseAccessWhere(auth.user, requestedWhere);
 
-    const [data, total] = await Promise.all([
+    const summaryWhere = buildCaseAccessWhere(auth.user, {
+      ...(includeArchivedClients ? {} : { client: { archivedAt: null } }),
+    });
+
+    const [data, total, statusCounts, feeAggregate, paidAggregate, archivedClientCount] =
+      await Promise.all([
       prisma.case.findMany({
         where,
         include: {
@@ -183,7 +192,31 @@ export async function GET(req: NextRequest) {
       }),
 
       prisma.case.count({ where }),
+      prisma.case.groupBy({
+        by: ["status"],
+        where: summaryWhere,
+        _count: { _all: true },
+      }),
+      prisma.case.aggregate({
+        where: summaryWhere,
+        _sum: { feeAgreed: true },
+      }),
+      prisma.payment.aggregate({
+        where: { status: "PAID", case: summaryWhere },
+        _sum: { amount: true },
+      }),
+      prisma.case.count({
+        where: buildCaseAccessWhere(auth.user, {
+          client: { archivedAt: { not: null } },
+        }),
+      }),
     ]);
+
+    const counts = Object.fromEntries(
+      statusCounts.map((item) => [item.status, item._count._all]),
+    );
+    const totalFees = Number(feeAggregate._sum.feeAgreed || 0);
+    const totalPaid = Number(paidAggregate._sum.amount || 0);
 
     return ok({
       data,
@@ -192,6 +225,13 @@ export async function GET(req: NextRequest) {
         limit,
         total,
         pages: Math.ceil(total / limit),
+        summary: {
+          counts,
+          archivedClientCount,
+          totalFees,
+          totalPaid,
+          totalRemaining: Math.max(0, totalFees - totalPaid),
+        },
       },
     });
   });

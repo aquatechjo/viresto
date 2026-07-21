@@ -364,6 +364,17 @@ export default function CasesPage() {
   const [currentUserId, setCurrentUserId] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadError, setLoadError] = useState(false);
+  const [summary, setSummary] = useState({
+    counts: {} as Record<string, number>,
+    archivedClientCount: 0,
+    totalFees: 0,
+    totalPaid: 0,
+    totalRemaining: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -381,39 +392,76 @@ export default function CasesPage() {
 
   const selectedClientArchived = Boolean(selectedClient?.archivedAt);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      300,
+    );
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => setPage(1), [filter, debouncedSearch]);
+
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
+      setLoadError(false);
 
-      const [casesRes, teamRes] = await Promise.all([
-        fetch("/api/cases?page=1&limit=100&includeArchivedClients=true"),
-        fetch("/api/team?mode=assignees"),
-      ]);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "20",
+        includeArchivedClients: "true",
+      });
+      if (filter !== "all" && filter !== "ARCHIVED_CLIENT") {
+        params.set("status", filter);
+      }
+      if (filter === "ARCHIVED_CLIENT") params.set("archivedClientOnly", "true");
+      if (debouncedSearch) params.set("q", debouncedSearch);
+
+      const casesRes = await fetch(`/api/cases?${params.toString()}`, { signal });
 
       if (!casesRes.ok) {
-        setCases([]);
-        return;
+        throw new Error("CASES_LOAD_FAILED");
       }
 
       const casesData = await casesRes.json().catch(() => ({ data: [] }));
-      const teamData = await teamRes.json().catch(() => ({ data: {} }));
 
       setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : []);
-      setTeamMembers(
-        Array.isArray(teamData.data?.members) ? teamData.data.members : [],
-      );
-      setCurrentUserId(String(teamData.data?.currentUserId || ""));
-    } catch {
-      toast.error(text.loadError);
-      setCases([]);
+      const meta = casesData.data?.meta;
+      setTotalPages(Math.max(1, Number(meta?.pages) || 1));
+      if (meta?.summary) setSummary(meta.summary);
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") {
+        toast.error(text.loadError);
+        setLoadError(true);
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [text.loadError]);
+  }, [debouncedSearch, filter, page, text.loadError]);
 
   useEffect(() => {
-    load();
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
   }, [load]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/team?mode=assignees", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((teamData) => {
+        if (!teamData) return;
+        setTeamMembers(
+          Array.isArray(teamData.data?.members) ? teamData.data.members : [],
+        );
+        setCurrentUserId(String(teamData.data?.currentUserId || ""));
+      })
+      .catch((error) => {
+        if ((error as Error).name !== "AbortError") setTeamMembers([]);
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -467,15 +515,11 @@ export default function CasesPage() {
     };
   }, [clientSearch, open]);
 
-  const activeCount = cases.filter((item) => item.status === "OPEN").length;
-  const progressCount = cases.filter(
-    (item) => item.status === "IN_PROGRESS",
-  ).length;
-  const closedCount = cases.filter((item) => item.status === "CLOSED").length;
-  const archivedCount = cases.filter(
-    (item) => item.status === "ARCHIVED",
-  ).length;
-  const archivedClientCount = cases.filter(isArchivedClientCase).length;
+  const activeCount = summary.counts.OPEN || 0;
+  const progressCount = summary.counts.IN_PROGRESS || 0;
+  const closedCount = summary.counts.CLOSED || 0;
+  const archivedCount = summary.counts.ARCHIVED || 0;
+  const archivedClientCount = summary.archivedClientCount;
 
   function paid(item: Case) {
     return item.payments
@@ -487,40 +531,17 @@ export default function CasesPage() {
     return Math.max(0, Number(item.feeAgreed || 0) - paid(item));
   }
 
-  const totalFees = cases.reduce(
-    (sum, item) => sum + Number(item.feeAgreed || 0),
-    0,
+  const totalFees = summary.totalFees;
+  const totalPaid = summary.totalPaid;
+  const totalRemaining = summary.totalRemaining;
+
+  const filtered = useMemo(
+    () =>
+      filter === "ARCHIVED_CLIENT"
+        ? cases.filter(isArchivedClientCase)
+        : cases,
+    [cases, filter],
   );
-  const totalPaid = cases.reduce((sum, item) => sum + paid(item), 0);
-  const totalRemaining = Math.max(0, totalFees - totalPaid);
-
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return cases.filter((item) => {
-      const matchesStatus =
-        filter === "all" ||
-        (filter === "ARCHIVED_CLIENT"
-          ? isArchivedClientCase(item)
-          : item.status === filter);
-
-      const matchesSearch =
-        !query ||
-        item.title?.toLowerCase().includes(query) ||
-        item.caseNumber?.toLowerCase().includes(query) ||
-        item.court?.toLowerCase().includes(query) ||
-        item.judgeName?.toLowerCase().includes(query) ||
-        item.plaintiffName?.toLowerCase().includes(query) ||
-        item.defendantName?.toLowerCase().includes(query) ||
-        item.leadLawyer?.name?.toLowerCase().includes(query) ||
-        item.members?.some((member) =>
-          member.user.name.toLowerCase().includes(query),
-        ) ||
-        item.client?.name?.toLowerCase().includes(query);
-
-      return matchesStatus && matchesSearch;
-    });
-  }, [cases, filter, search]);
 
   async function handleAdd(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -874,7 +895,7 @@ export default function CasesPage() {
         <span
           dir="ltr"
           className="whitespace-nowrap text-sm font-black"
-          style={{ color: "var(--sidebar)" }}
+          style={{ color: "var(--brand-text)" }}
         >
           {formatMoney(paid(item))}
         </span>
@@ -932,7 +953,7 @@ export default function CasesPage() {
           className="inline-flex min-w-[88px] items-center justify-center rounded-2xl border px-4 py-2 text-xs font-black transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
           style={{
             borderColor: "rgba(53, 138, 136, 0.28)",
-            color: "var(--sidebar)",
+            color: "var(--brand-text)",
           }}
         >
           {text.editCase}
@@ -1033,13 +1054,13 @@ export default function CasesPage() {
           {
             label: text.stats.active,
             value: activeCount,
-            color: "var(--sidebar)",
+            color: "var(--brand-text)",
             bg: "var(--green-soft)",
           },
           {
             label: text.stats.inProgress,
             value: progressCount,
-            color: "#92400e",
+            color: "var(--warning-text)",
             bg: "var(--amber-soft)",
           },
           {
@@ -1161,15 +1182,28 @@ export default function CasesPage() {
         columns={columns}
         getRowId={(item) => item.id}
         loading={loading}
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
         isRtl={isRtl}
         onRowClick={(item) => router.push(`/dashboard/cases/${item.id}`)}
         labels={{
-          emptyTitle: text.empty.title,
+          emptyTitle: loadError ? text.loadError : text.empty.title,
           emptyDescription:
-            cases.length === 0 ? text.empty.noCases : text.empty.noResults,
+            loadError
+              ? localeKey === "ar" ? "تحقق من الاتصال ثم أعد المحاولة." : "Check your connection and try again."
+              : cases.length === 0 ? text.empty.noCases : text.empty.noResults,
+          previousPage: localeKey === "ar" ? "السابق" : "Previous",
+          nextPage: localeKey === "ar" ? "التالي" : "Next",
+          pageLabel: (current, total) =>
+            localeKey === "ar" ? `صفحة ${current} من ${total}` : `Page ${current} of ${total}`,
         }}
         emptyAction={
-          cases.length === 0 ? (
+          loadError ? (
+            <button type="button" onClick={() => load()} className="btn btn-primary">
+              {localeKey === "ar" ? "إعادة المحاولة" : "Try again"}
+            </button>
+          ) : cases.length === 0 && !search && filter === "all" ? (
             <button
               type="button"
               onClick={openCreateCaseModal}
@@ -1833,7 +1867,7 @@ function getCaseStatusBadgeStyle(status: string) {
       return {
         background: "var(--amber-soft)",
         borderColor: "rgba(245, 158, 11, 0.28)",
-        color: "#92400e",
+        color: "var(--warning-text)",
       };
 
     case "CLOSED":

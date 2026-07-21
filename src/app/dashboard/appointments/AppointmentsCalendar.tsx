@@ -20,6 +20,7 @@ interface AppointmentsCalendarProps {
   onEventResize: (info: any) => void | Promise<void>;
   onDateClick: (info: any) => void;
   onEventClick: (info: any) => void;
+  onRangeChange?: (range: { from: string; to: string }) => void;
 }
 
 export default function AppointmentsCalendar({
@@ -30,6 +31,7 @@ export default function AppointmentsCalendar({
   onEventResize,
   onDateClick,
   onEventClick,
+  onRangeChange,
 }: AppointmentsCalendarProps) {
   const isRtl = locale === "ar";
 
@@ -50,6 +52,12 @@ export default function AppointmentsCalendar({
         eventResize={onEventResize}
         dateClick={onDateClick}
         eventClick={onEventClick}
+        datesSet={(info) =>
+          onRangeChange?.({
+            from: info.start.toISOString(),
+            to: info.end.toISOString(),
+          })
+        }
         eventMinHeight={34}
         eventShortHeight={34}
         eventContent={(info) => (

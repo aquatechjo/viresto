@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import AppLoader from "@/components/ui/AppLoader";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -35,98 +35,98 @@ type LocaleKey = "ar" | "en";
 
 const pageText = {
   ar: {
-    heroBadge: "Ø¥Ø¯Ø§Ø±Ø© Ø¹Ù„Ø§Ù‚Ø§Øª Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ†",
-    title: "Ø§Ù„Ù…ÙˆÙƒÙ„ÙˆÙ†",
+    heroBadge: "إدارة علاقات الموكلين",
+    title: "الموكلون",
     subtitle:
-      "ØªØ§Ø¨Ø¹ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ†ØŒ Ù…Ø¹Ù„ÙˆÙ…Ø§Øª Ø§Ù„ØªÙˆØ§ØµÙ„ØŒ Ø¹Ø¯Ø¯ Ø§Ù„Ù‚Ø¶Ø§ÙŠØ§ ÙˆØ§Ù„Ù…ÙˆØ§Ø¹ÙŠØ¯ Ø§Ù„Ù…Ø±ØªØ¨Ø·Ø© Ø¨ÙƒÙ„ Ù…ÙˆÙƒÙ„ Ù…Ù† ÙˆØ§Ø¬Ù‡Ø© Ù…Ù†Ø¸Ù…Ø© ÙˆØ³Ø±ÙŠØ¹Ø©.",
-    newClient: "+ Ù…ÙˆÙƒÙ„ Ø¬Ø¯ÙŠØ¯",
+      "تابع بيانات الموكلين، معلومات التواصل، عدد القضايا والمواعيد المرتبطة بكل موكل من واجهة منظمة وسريعة.",
+    newClient: "+ موكل جديد",
     stats: {
-      total: "ÙƒÙ„ Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ†",
-      thisMonth: "Ù‡Ø°Ø§ Ø§Ù„Ø´Ù‡Ø±",
-      withCases: "Ù„Ø¯ÙŠÙ‡Ù… Ù‚Ø¶Ø§ÙŠØ§",
-      withoutCases: "Ø¨Ø¯ÙˆÙ† Ù‚Ø¶Ø§ÙŠØ§",
+      total: "كل الموكلين",
+      thisMonth: "هذا الشهر",
+      withCases: "لديهم قضايا",
+      withoutCases: "بدون قضايا",
     },
     filters: {
       searchPlaceholder:
-        "Ø§Ø¨Ø­Ø« Ø¨Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„ØŒ Ø§Ù„Ù‡Ø§ØªÙØŒ Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø£Ùˆ Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ...",
-      ariaCaseFilter: "ÙÙ„ØªØ±Ø© Ø­Ø³Ø¨ Ø§Ù„Ù‚Ø¶Ø§ÙŠØ§",
-      allClients: "Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ†",
-      withCases: "Ù„Ø¯ÙŠÙ‡Ù… Ù‚Ø¶Ø§ÙŠØ§",
-      withoutCases: "Ø¨Ø¯ÙˆÙ† Ù‚Ø¶Ø§ÙŠØ§",
-      search: "Ø¨Ø­Ø«",
-      all: "Ø§Ù„ÙƒÙ„",
-      clear: "Ù…Ø³Ø­ Ø§Ù„ÙÙ„Ø§ØªØ±",
-      activeClients: "Ø§Ù„Ù†Ø´Ø·ÙˆÙ†",
-      archivedClients: "Ø§Ù„Ù…Ø¤Ø±Ø´ÙÙˆÙ†",
+        "ابحث باسم الموكل، الهاتف، البريد أو الرقم الوطني...",
+      ariaCaseFilter: "فلترة حسب القضايا",
+      allClients: "جميع الموكلين",
+      withCases: "لديهم قضايا",
+      withoutCases: "بدون قضايا",
+      search: "بحث",
+      all: "الكل",
+      clear: "مسح الفلاتر",
+      activeClients: "النشطون",
+      archivedClients: "المؤرشفون",
     },
     empty: {
-      title: "Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…ÙˆÙƒÙ„ÙˆÙ†",
+      title: "لا يوجد موكلون",
       noClients:
-        "Ù„Ù… ÙŠØªÙ… Ø¥Ø¶Ø§ÙØ© Ø£ÙŠ Ù…ÙˆÙƒÙ„ Ø¨Ø¹Ø¯. Ø§Ø¨Ø¯Ø£ Ø¨Ø¥Ø¶Ø§ÙØ© Ø£ÙˆÙ„ Ù…ÙˆÙƒÙ„ Ø¯Ø§Ø®Ù„ Ø§Ù„Ù…ÙƒØªØ¨.",
+        "لم يتم إضافة أي موكل بعد. ابدأ بإضافة أول موكل داخل المكتب.",
       noResults:
-        "Ù„Ø§ ØªÙˆØ¬Ø¯ Ù†ØªØ§Ø¦Ø¬ Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù„ÙÙ„Ø§ØªØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ©.",
-      addClient: "+ Ø¥Ø¶Ø§ÙØ© Ù…ÙˆÙƒÙ„",
+        "لا توجد نتائج مطابقة للفلاتر الحالية.",
+      addClient: "+ إضافة موكل",
     },
     card: {
-      addedAt: "Ø£Ø¶ÙŠÙ Ø¨ØªØ§Ø±ÙŠØ®",
-      cases: "Ù‚Ø¶Ø§ÙŠØ§",
-      appointments: "Ù…ÙˆØ§Ø¹ÙŠØ¯",
-      active: "Ù†Ø´Ø·",
-      withoutCases: "Ø¨Ø¯ÙˆÙ† Ù‚Ø¶Ø§ÙŠØ§",
-      phone: "Ø§Ù„Ù‡Ø§ØªÙ",
-      email: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
-      address: "Ø§Ù„Ø¹Ù†ÙˆØ§Ù†",
+      addedAt: "أضيف بتاريخ",
+      cases: "قضايا",
+      appointments: "مواعيد",
+      active: "نشط",
+      withoutCases: "بدون قضايا",
+      phone: "الهاتف",
+      email: "البريد الإلكتروني",
+      address: "العنوان",
       dash: "-",
-      archived: "Ù…Ø¤Ø±Ø´Ù",
+      archived: "مؤرشف",
     },
     modal: {
-      title: "Ø¥Ø¶Ø§ÙØ© Ù…ÙˆÙƒÙ„",
+      title: "إضافة موكل",
       subtitle:
-        "Ø¥Ø¶Ø§ÙØ© Ø¨ÙŠØ§Ù†Ø§Øª Ù…ÙˆÙƒÙ„ Ø¬Ø¯ÙŠØ¯ Ø¯Ø§Ø®Ù„ Ø§Ù„Ù…ÙƒØªØ¨",
-      close: "Ø¥ØºÙ„Ø§Ù‚",
-      operationFailed: "ØªØ¹Ø°Ø± ØªÙ†ÙÙŠØ° Ø§Ù„Ø¹Ù…Ù„ÙŠØ©",
+        "إضافة بيانات موكل جديد داخل المكتب",
+      close: "إغلاق",
+      operationFailed: "تعذر تنفيذ العملية",
       labels: {
-        name: "Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„",
-        phone: "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ",
-        email: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
-        nationalId: "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ",
-        address: "Ø§Ù„Ø¹Ù†ÙˆØ§Ù†",
-        notes: "Ù…Ù„Ø§Ø­Ø¸Ø§Øª",
+        name: "اسم الموكل",
+        phone: "رقم الهاتف",
+        email: "البريد الإلكتروني",
+        nationalId: "الرقم الوطني",
+        address: "العنوان",
+        notes: "ملاحظات",
       },
       placeholders: {
-        name: "Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„",
-        phone: "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ",
-        email: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
-        nationalId: "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ",
-        address: "Ø§Ù„Ø¹Ù†ÙˆØ§Ù†",
-        notes: "Ù…Ù„Ø§Ø­Ø¸Ø§Øª",
+        name: "اسم الموكل",
+        phone: "رقم الهاتف",
+        email: "البريد الإلكتروني",
+        nationalId: "الرقم الوطني",
+        address: "العنوان",
+        notes: "ملاحظات",
       },
-      save: "Ø­ÙØ¸ Ø§Ù„Ù…ÙˆÙƒÙ„",
-      saving: "Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...",
-      cancel: "Ø¥Ù„ØºØ§Ø¡",
+      save: "حفظ الموكل",
+      saving: "جاري الحفظ...",
+      cancel: "إلغاء",
     },
     validation: {
-      nameRequired: "Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„ Ù…Ø·Ù„ÙˆØ¨.",
-      phoneRequired: "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ Ù…Ø·Ù„ÙˆØ¨.",
-      nationalIdRequired: "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ Ù…Ø·Ù„ÙˆØ¨.",
+      nameRequired: "اسم الموكل مطلوب.",
+      phoneRequired: "رقم الهاتف مطلوب.",
+      nationalIdRequired: "الرقم الوطني مطلوب.",
       phoneInvalid:
-        "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ ÙŠØ¬Ø¨ Ø£Ù† ÙŠØªÙƒÙˆÙ† Ù…Ù† 10 Ø£Ø±Ù‚Ø§Ù… ÙÙ‚Ø·.",
+        "رقم الهاتف يجب أن يتكون من 10 أرقام فقط.",
       nationalIdInvalid:
-        "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ ÙŠØ¬Ø¨ Ø£Ù† ÙŠØªÙƒÙˆÙ† Ù…Ù† 10 Ø£Ø±Ù‚Ø§Ù… ÙÙ‚Ø·.",
-      nameTooLong: "Ø§Ø³Ù… Ø§Ù„Ù…ÙˆÙƒÙ„ Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
-      phoneTooLong: "Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
-      emailTooLong: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
-      nationalIdTooLong: "Ø§Ù„Ø±Ù‚Ù… Ø§Ù„ÙˆØ·Ù†ÙŠ Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
-      addressTooLong: "Ø§Ù„Ø¹Ù†ÙˆØ§Ù† Ø·ÙˆÙŠÙ„ Ø¬Ø¯Ù‹Ø§.",
-      notesTooLong: "Ø§Ù„Ù…Ù„Ø§Ø­Ø¸Ø§Øª Ø·ÙˆÙŠÙ„Ø© Ø¬Ø¯Ù‹Ø§.",
-      invalidEmail: "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ ØºÙŠØ± ØµØ§Ù„Ø­.",
+        "الرقم الوطني يجب أن يتكون من 10 أرقام فقط.",
+      nameTooLong: "اسم الموكل طويل جدًا.",
+      phoneTooLong: "رقم الهاتف طويل جدًا.",
+      emailTooLong: "البريد الإلكتروني طويل جدًا.",
+      nationalIdTooLong: "الرقم الوطني طويل جدًا.",
+      addressTooLong: "العنوان طويل جدًا.",
+      notesTooLong: "الملاحظات طويلة جدًا.",
+      invalidEmail: "البريد الإلكتروني غير صالح.",
       browserToken:
-        "ÙŠØ¨Ø¯Ùˆ Ø£Ù† Ø§Ù„Ù…ØªØµÙØ­ Ø¹Ø¨Ù‘Ø£ Ø£Ø­Ø¯ Ø§Ù„Ø­Ù‚ÙˆÙ„ ØªÙ„Ù‚Ø§Ø¦ÙŠÙ‹Ø§ Ø¨Ù‚ÙŠÙ…Ø© ØºÙŠØ± ØµØ­ÙŠØ­Ø©. Ø§Ù…Ø³Ø­ Ø§Ù„Ø­Ù‚ÙˆÙ„ ÙˆØ£Ø¯Ø®Ù„ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª ÙŠØ¯ÙˆÙŠÙ‹Ø§.",
+        "يبدو أن المتصفح عبّأ أحد الحقول تلقائيًا بقيمة غير صحيحة. امسح الحقول وأدخل البيانات يدويًا.",
       planLimit:
-        "ÙˆØµÙ„Øª Ø¥Ù„Ù‰ Ø­Ø¯ Ø§Ù„Ù…ÙˆÙƒÙ„ÙŠÙ† Ø§Ù„Ù…Ø³Ù…ÙˆØ­ ÙÙŠ Ø®Ø·ØªÙƒ Ø§Ù„Ø­Ø§Ù„ÙŠØ©.",
-      addFailed: "ØªØ¹Ø°Ø± Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ù…ÙˆÙƒÙ„",
+        "وصلت إلى حد الموكلين المسموح في خطتك الحالية.",
+      addFailed: "تعذر إضافة الموكل",
       connectionFailed:
-        "ØªØ¹Ø°Ø± Ø§Ù„Ø§ØªØµØ§Ù„ Ø¨Ø§Ù„Ø®Ø§Ø¯Ù…. Ø­Ø§ÙˆÙ„ Ù…Ø±Ø© Ø£Ø®Ø±Ù‰.",
+        "تعذر الاتصال بالخادم. حاول مرة أخرى.",
     },
   },
   en: {
@@ -399,7 +399,7 @@ function CreateClientModal({
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#082c2d] text-xl text-emerald-100 transition hover:bg-[#123f40]"
             aria-label={text.modal.close}
           >
-            Ã—
+            ×
           </button>
         </div>
 
@@ -620,20 +620,45 @@ export default function ClientsPage() {
 
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [summary, setSummary] = useState({
+    total: 0,
+    withCases: 0,
+    withoutCases: 0,
+    newThisMonth: 0,
+  });
   const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const writeAccess = useTenantWriteAccess(localeKey);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQ(q.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [archiveFilter, debouncedQ]);
+
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
+      setLoadError(false);
 
       const params = new URLSearchParams();
-      params.set("limit", "100");
+      params.set("page", String(page));
+      params.set("limit", "20");
       params.set("archive", archiveFilter);
+      if (debouncedQ) params.set("q", debouncedQ);
 
-      const response = await fetch(`/api/clients?${params.toString()}`);
+      const response = await fetch(`/api/clients?${params.toString()}`, {
+        signal,
+      });
+      if (!response.ok) throw new Error("CLIENTS_LOAD_FAILED");
       const data = await response.json().catch(() => ({}));
 
       setClients(
@@ -643,15 +668,20 @@ export default function ClientsPage() {
             ? data.data
             : [],
       );
-    } catch {
-      setClients([]);
+      const meta = data.data?.meta;
+      setTotalPages(Math.max(1, Number(meta?.pages) || 1));
+      if (meta?.summary) setSummary(meta.summary);
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") setLoadError(true);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [archiveFilter]);
+  }, [archiveFilter, debouncedQ, page]);
 
   useEffect(() => {
-    load();
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   function clearFilters() {
@@ -677,21 +707,6 @@ export default function ClientsPage() {
     load();
   }
 
-  const filteredClients = useMemo(() => {
-    const query = q.trim().toLowerCase();
-
-    return clients.filter((client) => {
-      return (
-        !query ||
-        client.name?.toLowerCase().includes(query) ||
-        client.phone?.toLowerCase().includes(query) ||
-        client.email?.toLowerCase().includes(query) ||
-        client.nationalId?.toLowerCase().includes(query) ||
-        client.address?.toLowerCase().includes(query)
-      );
-    });
-  }, [clients, q]);
-
   const columns = useMemo<VDSDataTableColumn<Client>[]>(
     () => [
       {
@@ -706,7 +721,7 @@ export default function ClientsPage() {
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black"
               style={{
                 background: "var(--green-soft)",
-                color: "var(--sidebar)",
+                color: "var(--brand-text)",
               }}
             >
               {client.name.slice(0, 1)}
@@ -790,7 +805,7 @@ export default function ClientsPage() {
             style={{
               background: "var(--green-soft)",
               borderColor: "var(--border)",
-              color: "var(--sidebar)",
+              color: "var(--brand-text)",
             }}
           >
             {client._count?.cases ?? 0}
@@ -828,7 +843,7 @@ export default function ClientsPage() {
               style={{
                 background: hasCases ? "var(--green-soft)" : "var(--card)",
                 borderColor: "var(--border)",
-                color: hasCases ? "var(--sidebar)" : "var(--text-3)",
+                color: hasCases ? "var(--brand-text)" : "var(--text-2)",
               }}
             >
               {hasCases ? text.card.active : text.card.withoutCases}
@@ -840,25 +855,7 @@ export default function ClientsPage() {
     [localeKey, text],
   );
 
-  const totalClients = clients.length;
-  const clientsWithCases = clients.filter(
-    (client) => (client._count?.cases ?? 0) > 0,
-  ).length;
-  const clientsWithoutCases = clients.filter(
-    (client) => (client._count?.cases ?? 0) === 0,
-  ).length;
-
-  const newThisMonth = clients.filter((client) => {
-    const created = new Date(client.createdAt);
-    const now = new Date();
-
-    return (
-      created.getFullYear() === now.getFullYear() &&
-      created.getMonth() === now.getMonth()
-    );
-  }).length;
-
-  if (loading) {
+  if (loading && clients.length === 0) {
     return <AppLoader fullScreen={false} />;
   }
 
@@ -937,25 +934,25 @@ export default function ClientsPage() {
           {[
             {
               label: text.stats.total,
-              value: totalClients,
+              value: summary.total,
               color: "var(--text)",
               bg: "var(--card)",
             },
             {
               label: text.stats.thisMonth,
-              value: newThisMonth,
-              color: "var(--sidebar)",
+              value: summary.newThisMonth,
+              color: "var(--brand-text)",
               bg: "var(--green-soft)",
             },
             {
               label: text.stats.withCases,
-              value: clientsWithCases,
-              color: "#92400e",
+              value: summary.withCases,
+              color: "var(--warning-text)",
               bg: "var(--amber-soft)",
             },
             {
               label: text.stats.withoutCases,
-              value: clientsWithoutCases,
+              value: summary.withoutCases,
               color: "#6b7280",
               bg: "var(--card)",
             },
@@ -984,10 +981,14 @@ export default function ClientsPage() {
 
         {/* Clients table */}
         <VDSDataTable<Client>
-          rows={filteredClients}
+          rows={clients}
           columns={columns}
           getRowId={(client) => client.id}
           isRtl={isRtl}
+          loading={loading}
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
           onRowClick={(client) =>
             router.push(`/dashboard/clients/${client.publicId ?? client.id}`)
           }
@@ -1062,14 +1063,28 @@ export default function ClientsPage() {
             </div>
           }
           labels={{
-            emptyTitle: text.empty.title,
+            emptyTitle: loadError
+              ? localeKey === "ar" ? "تعذر تحميل الموكلين" : "Could not load clients"
+              : text.empty.title,
             emptyDescription:
-              clients.length === 0
+              loadError
+                ? localeKey === "ar" ? "تحقق من الاتصال ثم أعد المحاولة." : "Check your connection and try again."
+                : clients.length === 0
                 ? text.empty.noClients
                 : text.empty.noResults,
+            previousPage: localeKey === "ar" ? "السابق" : "Previous",
+            nextPage: localeKey === "ar" ? "التالي" : "Next",
+            pageLabel: (current, total) =>
+              localeKey === "ar"
+                ? `صفحة ${current} من ${total}`
+                : `Page ${current} of ${total}`,
           }}
           emptyAction={
-            clients.length === 0 ? (
+            loadError ? (
+              <button type="button" onClick={() => load()} className="btn btn-primary">
+                {localeKey === "ar" ? "إعادة المحاولة" : "Try again"}
+              </button>
+            ) : clients.length === 0 && !q ? (
               <button
                 type="button"
                 onClick={openCreateModal}

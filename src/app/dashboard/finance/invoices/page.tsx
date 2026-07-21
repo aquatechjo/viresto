@@ -1056,6 +1056,13 @@ export default function InvoicesPage() {
   const [cases, setCases] = useState<CaseOption[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
+  const [serverStats, setServerStats] = useState({
+    totalAmount: 0, paidAmount: 0, unpaidAmount: 0, overdueCount: 0,
+    paidCount: 0, archivedCount: 0, totalCount: 0,
+  });
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [successInvoice, setSuccessInvoice] = useState<{ id: string; number?: string; status?: string } | null>(null);
@@ -1067,6 +1074,9 @@ export default function InvoicesPage() {
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState("");
   const [caseId, setCaseId] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const [caseSearch, setCaseSearch] = useState("");
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [tax, setTax] = useState("");
   const [discount, setDiscount] = useState("");
@@ -1105,84 +1115,28 @@ export default function InvoicesPage() {
     0,
   );
 
-  const visibleInvoices = useMemo(() => {
-    if (!archivedOnly) return invoices;
+  const visibleInvoices = invoices;
+  const stats = serverStats;
 
-    return invoices.filter(isArchivedInvoice);
-  }, [invoices, archivedOnly]);
-
-  const stats = useMemo(() => {
-    const totalAmount = invoices.reduce((sum, invoice) => {
-      return sum + Number(invoice.total || 0);
-    }, 0);
-
-    const paidAmount = invoices.reduce((sum, invoice) => {
-      const invoicePaid = invoice.payments
-        .filter((payment) => payment.status === "PAID")
-        .reduce((paymentSum, payment) => {
-          return paymentSum + Number(payment.amount || 0);
-        }, 0);
-
-      return sum + invoicePaid;
-    }, 0);
-
-    const unpaidAmount = invoices
-      .filter((invoice) =>
-        ["UNPAID", "PARTIALLY_PAID", "OVERDUE"].includes(invoice.status),
-      )
-      .reduce((sum, invoice) => {
-        const invoicePaid = invoice.payments
-          .filter((payment) => payment.status === "PAID")
-          .reduce((paymentSum, payment) => {
-            return paymentSum + Number(payment.amount || 0);
-          }, 0);
-
-        return sum + Math.max(0, Number(invoice.total || 0) - invoicePaid);
-      }, 0);
-
-    const overdueCount = invoices.filter(
-      (invoice) => invoice.status === "OVERDUE",
-    ).length;
-    const paidCount = invoices.filter(
-      (invoice) => invoice.status === "PAID",
-    ).length;
-    const archivedCount = invoices.filter(isArchivedInvoice).length;
-
-    return {
-      totalAmount,
-      paidAmount,
-      unpaidAmount,
-      overdueCount,
-      paidCount,
-      archivedCount,
-      totalCount: invoices.length,
-    };
-  }, [invoices]);
-
-  async function load() {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
+    setLoadError("");
 
     try {
       const params = new URLSearchParams();
 
       if (q.trim()) params.set("q", q.trim());
       if (status) params.set("status", status);
+      if (archivedOnly) params.set("archivedOnly", "true");
+      params.set("page", String(page));
+      params.set("limit", "20");
 
-      const [invoiceRes, clientRes, caseRes] = await Promise.all([
-        fetch(`/api/invoices?${params.toString()}`, { cache: "no-store" }),
-        fetch("/api/clients?limit=100&includeArchivedClients=true", {
-          cache: "no-store",
-        }),
-        fetch("/api/cases?limit=100&includeArchivedClients=true", {
-          cache: "no-store",
-        }),
-      ]);
+      const invoiceRes = await fetch(`/api/invoices?${params.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
 
-      if (
-        invoiceRes.status === 401 ||
-        clientRes.status === 401 ||
-        caseRes.status === 401
-      ) {
+      if (invoiceRes.status === 401) {
         window.location.href = "/login";
         return;
       }
@@ -1190,42 +1144,112 @@ export default function InvoicesPage() {
       const invoiceData = invoiceRes.ok
         ? await invoiceRes.json().catch(() => ({}))
         : {};
-      const clientData = clientRes.ok
-        ? await clientRes.json().catch(() => ({}))
-        : {};
-      const caseData = caseRes.ok ? await caseRes.json().catch(() => ({})) : {};
-
-      if (!invoiceRes.ok)
-        console.error("Invoices request failed:", invoiceRes.status);
-      if (!clientRes.ok)
-        console.error("Clients request failed:", clientRes.status);
-      if (!caseRes.ok) console.error("Cases request failed:", caseRes.status);
+      if (!invoiceRes.ok) throw new Error(copy.empty.filtered);
 
       setInvoices(safeList(invoiceData));
-      setClients(safeList(clientData));
-      setCases(safeList(caseData));
+      const invoicePayload = invoiceData?.data?.data ?? invoiceData?.data ?? invoiceData;
+      if (invoicePayload?.pagination) setPagination(invoicePayload.pagination);
+      if (invoicePayload?.stats) setServerStats(invoicePayload.stats);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Invoices load failed:", error);
       setInvoices([]);
-      setClients([]);
-      setCases([]);
+      setLoadError(locale === "ar" ? "تعذر تحميل الفواتير. حاول مرة أخرى." : "Unable to load invoices. Please try again.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [archivedOnly, copy.empty.filtered, locale, page, q, status]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => load(controller.signal), 300);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [load]);
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setOptionsLoading(true);
+      try {
+        const params = new URLSearchParams({
+          limit: "20",
+          includeArchivedClients: "true",
+        });
+        if (clientSearch.trim()) params.set("q", clientSearch.trim());
+        const response = await fetch(`/api/clients?${params}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (response.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error("client-options-load-failed");
+        setClients(safeList(payload));
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          toast.error(copy.empty.filtered);
+        }
+      } finally {
+        if (!controller.signal.aborted) setOptionsLoading(false);
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [clientSearch, copy.empty.filtered, open]);
+
+  useEffect(() => {
+    if (!open || !clientId) {
+      setCases([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setOptionsLoading(true);
+      try {
+        const params = new URLSearchParams({
+          limit: "20",
+          clientId,
+          includeArchivedClients: "true",
+        });
+        if (caseSearch.trim()) params.set("q", caseSearch.trim());
+        const response = await fetch(`/api/cases?${params}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error("case-options-load-failed");
+        setCases(safeList(payload));
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          toast.error(copy.empty.filtered);
+        }
+      } finally {
+        if (!controller.signal.aborted) setOptionsLoading(false);
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [caseSearch, clientId, copy.empty.filtered, open]);
 
   function resetForm() {
     setClientId("");
     setCaseId("");
+    setClientSearch("");
+    setCaseSearch("");
     setDueDate("");
     setTax("");
     setDiscount("");
@@ -1361,7 +1385,7 @@ export default function InvoicesPage() {
     setQ("");
     setStatus("");
     setArchivedOnly(false);
-    setTimeout(load, 0);
+    setPage(1);
   }
 
   if (!mounted || loading) {
@@ -1439,7 +1463,7 @@ export default function InvoicesPage() {
 
             <button
               type="button"
-              onClick={load}
+              onClick={() => load()}
               className="btn"
               style={{
                 background: "rgba(255,255,255,0.14)",
@@ -1536,7 +1560,10 @@ export default function InvoicesPage() {
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto_auto_auto]">
           <input
             value={q}
-            onChange={(event) => setQ(event.target.value)}
+            onChange={(event) => {
+              setQ(event.target.value);
+              setPage(1);
+            }}
             placeholder={copy.filters.searchPlaceholder}
             dir={isRtl ? "rtl" : "ltr"}
             style={fieldStyle}
@@ -1548,9 +1575,10 @@ export default function InvoicesPage() {
             dir={isRtl ? "rtl" : "ltr"}
             style={fieldStyle}
             value={status}
-            onChange={(event) =>
-              setStatus(event.target.value as "" | InvoiceStatus)
-            }
+            onChange={(event) => {
+              setStatus(event.target.value as "" | InvoiceStatus);
+              setPage(1);
+            }}
             className="input"
           >
             {statusOptions.map((item) => (
@@ -1562,7 +1590,7 @@ export default function InvoicesPage() {
 
           <button
             type="button"
-            onClick={load}
+            onClick={() => load()}
             className="btn btn-primary whitespace-nowrap"
           >
             {copy.actions.search}
@@ -1570,7 +1598,10 @@ export default function InvoicesPage() {
 
           <button
             type="button"
-            onClick={() => setArchivedOnly((previous) => !previous)}
+            onClick={() => {
+              setArchivedOnly((previous) => !previous);
+              setPage(1);
+            }}
             className="btn whitespace-nowrap"
             style={
               archivedOnly
@@ -1600,7 +1631,14 @@ export default function InvoicesPage() {
       </div>
 
       {/* Content */}
-      {visibleInvoices.length === 0 ? (
+      {loadError ? (
+        <div className="card p-6 text-start">
+          <p className="font-bold text-red-600">{loadError}</p>
+          <button type="button" onClick={() => load()} className="btn btn-primary mt-4">
+            {locale === "ar" ? "إعادة المحاولة" : "Retry"}
+          </button>
+        </div>
+      ) : visibleInvoices.length === 0 ? (
         <div className="card p-8">
           <EmptyState
             icon="🧾"
@@ -1838,6 +1876,19 @@ export default function InvoicesPage() {
               </tbody>
             </table>
           </div>
+          {pagination.totalPages > 1 ? (
+            <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: "var(--border)" }}>
+              <button type="button" className="btn btn-ghost" disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+                {locale === "ar" ? "السابق" : "Previous"}
+              </button>
+              <span className="text-sm font-bold" style={{ color: "var(--text-3)" }}>
+                {locale === "ar" ? `صفحة ${pagination.page} من ${pagination.totalPages}` : `Page ${pagination.page} of ${pagination.totalPages}`}
+              </span>
+              <button type="button" className="btn btn-ghost" disabled={page >= pagination.totalPages || loading} onClick={() => setPage((value) => Math.min(pagination.totalPages, value + 1))}>
+                {locale === "ar" ? "التالي" : "Next"}
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -1880,11 +1931,21 @@ export default function InvoicesPage() {
               <label className="space-y-2">
                 <span className="text-sm font-bold">{copy.modal.client}</span>
 
+                <input
+                  value={clientSearch}
+                  onChange={(event) => setClientSearch(event.target.value)}
+                  className="input"
+                  dir={isRtl ? "rtl" : "ltr"}
+                  style={fieldStyle}
+                  placeholder={isRtl ? "ابحث عن موكل..." : "Search clients..."}
+                />
+
                 <select
                   value={clientId}
                   onChange={(event) => {
                     setClientId(event.target.value);
                     setCaseId("");
+                    setCaseSearch("");
                   }}
                   className="input"
                   dir={isRtl ? "rtl" : "ltr"}
@@ -1904,13 +1965,23 @@ export default function InvoicesPage() {
               <label className="space-y-2">
                 <span className="text-sm font-bold">{copy.modal.case}</span>
 
+                <input
+                  value={caseSearch}
+                  onChange={(event) => setCaseSearch(event.target.value)}
+                  className="input"
+                  dir={isRtl ? "rtl" : "ltr"}
+                  style={fieldStyle}
+                  disabled={!clientId}
+                  placeholder={isRtl ? "ابحث عن قضية..." : "Search cases..."}
+                />
+
                 <select
                   value={caseId}
                   onChange={(event) => setCaseId(event.target.value)}
                   className="input"
                   dir={isRtl ? "rtl" : "ltr"}
                   style={fieldStyle}
-                  disabled={!clientId}
+                  disabled={!clientId || optionsLoading}
                 >
                   <option value="">{copy.modal.noCase}</option>
 

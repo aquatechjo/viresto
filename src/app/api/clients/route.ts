@@ -76,7 +76,19 @@ export async function GET(req: NextRequest) {
     };
     const where = buildClientAccessWhere(auth.user, requestedWhere);
 
-    const [data, total] = await Promise.all([
+    const archiveWhere: Prisma.ClientWhereInput = {
+      ...(archive === "active"
+        ? { archivedAt: null }
+        : archive === "archived"
+          ? { archivedAt: { not: null } }
+          : {}),
+    };
+    const summaryWhere = buildClientAccessWhere(auth.user, archiveWhere);
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const [data, total, withCases, newThisMonth] = await Promise.all([
       prisma.client.findMany({
         where,
         include: {
@@ -97,7 +109,18 @@ export async function GET(req: NextRequest) {
       }),
 
       prisma.client.count({ where }),
+      prisma.client.count({
+        where: {
+          ...summaryWhere,
+          cases: { some: buildCaseAccessWhere(auth.user) },
+        },
+      }),
+      prisma.client.count({
+        where: { ...summaryWhere, createdAt: { gte: monthStart } },
+      }),
     ]);
+
+    const summaryTotal = await prisma.client.count({ where: summaryWhere });
 
     const decryptedData = data.map((client) => {
       const {
@@ -125,6 +148,12 @@ export async function GET(req: NextRequest) {
         limit,
         total,
         pages: Math.ceil(total / limit),
+        summary: {
+          total: summaryTotal,
+          withCases,
+          withoutCases: Math.max(0, summaryTotal - withCases),
+          newThisMonth,
+        },
       },
     });
   });

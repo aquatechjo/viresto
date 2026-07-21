@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
+import { DateTime } from "luxon";
 import { prisma } from "@/lib/prisma";
 import { ok } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
@@ -165,7 +166,32 @@ export async function GET(req: NextRequest) {
 
     const takePlusOne = limit + 1;
 
-    const [activitiesPlusOne, total] = await Promise.all([
+    const statsWhere: Prisma.ActivityWhereInput = {
+      tenantId: auth.user.tenantId,
+      ...(auth.user.role !== "ADMIN" ? { actorId: auth.user.userId } : {}),
+    };
+
+    if (!canReadFinance(auth.user.role)) {
+      const paymentCondition = categoryCondition("payments");
+      const invoiceCondition = categoryCondition("invoices");
+      addAndCondition(statsWhere, {
+        NOT: [
+          ...(paymentCondition ? [paymentCondition] : []),
+          ...(invoiceCondition ? [invoiceCondition] : []),
+        ],
+      });
+    }
+
+    const startOfToday = DateTime.now()
+      .setZone("Asia/Amman")
+      .startOf("day")
+      .toUTC()
+      .toJSDate();
+    const securityCondition = categoryCondition("security");
+    const paymentCondition = categoryCondition("payments");
+    const invoiceCondition = categoryCondition("invoices");
+
+    const [activitiesPlusOne, total, statsTotal, statsToday, statsSecurity, statsFinance] = await Promise.all([
       prisma.activity.findMany({
         where,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -175,6 +201,21 @@ export async function GET(req: NextRequest) {
       }),
 
       withTotal ? prisma.activity.count({ where }) : Promise.resolve(null),
+      prisma.activity.count({ where: statsWhere }),
+      prisma.activity.count({
+        where: { AND: [statsWhere, { createdAt: { gte: startOfToday } }] },
+      }),
+      securityCondition
+        ? prisma.activity.count({ where: { AND: [statsWhere, securityCondition] } })
+        : Promise.resolve(0),
+      prisma.activity.count({
+        where: {
+          AND: [
+            statsWhere,
+            { OR: [paymentCondition, invoiceCondition].filter(Boolean) as Prisma.ActivityWhereInput[] },
+          ],
+        },
+      }),
     ]);
 
     const hasNextPage = activitiesPlusOne.length > limit;
@@ -234,6 +275,12 @@ export async function GET(req: NextRequest) {
         to: Math.min(skip + pageActivities.length, estimatedTotal),
         hasPreviousPage: page > 1,
         hasNextPage,
+      },
+      stats: {
+        total: statsTotal,
+        today: statsToday,
+        security: statsSecurity,
+        finance: statsFinance,
       },
     });
   });

@@ -108,10 +108,19 @@ export async function GET(req: NextRequest) {
 
         ...(fromDate || toDate
           ? {
-              startTime: {
-                ...(fromDate ? { gte: fromDate } : {}),
-                ...(toDate ? { lte: toDate } : {}),
-              },
+              AND: [
+                ...(toDate ? [{ startTime: { lt: toDate } }] : []),
+                ...(fromDate
+                  ? [
+                      {
+                        OR: [
+                          { endTime: { gt: fromDate } },
+                          { endTime: null, startTime: { gte: fromDate } },
+                        ],
+                      },
+                    ]
+                  : []),
+              ],
             }
           : {}),
       }),

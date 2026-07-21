@@ -311,6 +311,7 @@ function unwrapPayments(payload: unknown): Payment[] {
     data?.payments,
     nested?.data,
     nested?.payments,
+    (data?.data as { items?: unknown } | null)?.items,
   ]
 
   for (const candidate of candidates) {
@@ -609,6 +610,9 @@ export default function PaymentsPage() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | PaymentStatus>('')
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 })
+  const [serverStats, setServerStats] = useState({ collected: 0, pending: 0, overdue: 0, direct: 0 })
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null)
   const [draftStatuses, setDraftStatuses] = useState<
     Record<string, PaymentStatus>
@@ -623,16 +627,18 @@ export default function PaymentsPage() {
   const [invoiceOptions, setInvoiceOptions] = useState<PaymentInvoiceOption[]>([])
   const [caseOptions, setCaseOptions] = useState<PaymentCaseOption[]>([])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     setError('')
 
     try {
-      const params = new URLSearchParams({ limit: '100' })
+      const params = new URLSearchParams({ limit: '20', page: String(page) })
       if (status) params.set('status', status)
+      if (search.trim()) params.set('q', search.trim())
 
       const response = await fetch(`/api/payments?${params.toString()}`, {
         cache: 'no-store',
+        signal,
       })
 
       if (response.status === 401) {
@@ -653,16 +659,28 @@ export default function PaymentsPage() {
       }
 
       setPayments(unwrapPayments(payload))
-    } catch {
+      const result = (payload as { data?: unknown })?.data as {
+        pagination?: { page: number; total: number; totalPages: number }
+        stats?: { collected: number; pending: number; overdue: number; direct: number }
+      } | null
+      if (result?.pagination) setPagination(result.pagination)
+      if (result?.stats) setServerStats(result.stats)
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === 'AbortError') return
       setPayments([])
       setError(copy.labels.loadError)
     } finally {
       setLoading(false)
     }
-  }, [status, copy.labels.loadError])
+  }, [status, search, page, copy.labels.loadError])
 
   useEffect(() => {
-    load()
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => load(controller.signal), 300)
+    return () => {
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
   }, [load])
 
   const loadPaymentTargets = useCallback(
@@ -757,40 +775,8 @@ export default function PaymentsPage() {
     targetSearch,
   ])
 
-  const filteredPayments = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
-    if (!query) return payments
-
-    return payments.filter((payment) => {
-      const values = [
-        payment.reference,
-        payment.client?.name,
-        payment.case?.title,
-        payment.case?.caseNumber,
-        payment.invoice?.invoiceNumber,
-        payment.method,
-      ]
-
-      return values.some((value) => value?.toLowerCase().includes(query))
-    })
-  }, [payments, search])
-
-  const stats = useMemo(() => {
-    return payments.reduce(
-      (result, payment) => {
-        const amount = amountOf(payment)
-
-        if (payment.status === 'PAID') result.collected += amount
-        if (payment.status === 'PENDING') result.pending += amount
-        if (payment.status === 'OVERDUE') result.overdue += amount
-        if (!payment.invoice) result.direct += 1
-
-        return result
-      },
-      { collected: 0, pending: 0, overdue: 0, direct: 0 },
-    )
-  }, [payments])
+  const filteredPayments = payments
+  const stats = serverStats
 
   const selectedInvoice = useMemo(
     () =>
@@ -802,6 +788,7 @@ export default function PaymentsPage() {
   function clearFilters() {
     setSearch('')
     setStatus('')
+    setPage(1)
   }
 
   function closePaymentModal() {
@@ -1057,7 +1044,7 @@ export default function PaymentsPage() {
 
             <button
               type="button"
-              onClick={load}
+              onClick={() => load()}
               className="btn min-h-[46px] px-6"
               style={{
                 background: '#fff',
@@ -1117,7 +1104,10 @@ export default function PaymentsPage() {
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,300px)_auto]">
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
             placeholder={copy.filters.search}
             className="input min-h-[48px] w-full text-start"
             dir={isRtl ? 'rtl' : 'ltr'}
@@ -1129,9 +1119,10 @@ export default function PaymentsPage() {
 
           <select
             value={status}
-            onChange={(event) =>
+            onChange={(event) => {
               setStatus(event.target.value as '' | PaymentStatus)
-            }
+              setPage(1)
+            }}
             className="input min-h-[48px] w-full text-start"
             aria-label={copy.filters.status}
             dir={isRtl ? 'rtl' : 'ltr'}
@@ -1168,7 +1159,7 @@ export default function PaymentsPage() {
           <p className="font-bold" style={{ color: '#dc2626' }}>
             {error}
           </p>
-          <button type="button" onClick={load} className="btn btn-primary mt-4">
+          <button type="button" onClick={() => load()} className="btn btn-primary mt-4">
             {copy.actions.retry}
           </button>
         </div>
@@ -1439,6 +1430,19 @@ export default function PaymentsPage() {
               </tbody>
             </table>
           </div>
+          {pagination.totalPages > 1 ? (
+            <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--border)' }}>
+              <button type="button" className="btn btn-ghost" disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+                {locale === 'ar' ? 'السابق' : 'Previous'}
+              </button>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-3)' }}>
+                {locale === 'ar' ? `صفحة ${pagination.page} من ${pagination.totalPages}` : `Page ${pagination.page} of ${pagination.totalPages}`}
+              </span>
+              <button type="button" className="btn btn-ghost" disabled={page >= pagination.totalPages || loading} onClick={() => setPage((value) => Math.min(pagination.totalPages, value + 1))}>
+                {locale === 'ar' ? 'التالي' : 'Next'}
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 

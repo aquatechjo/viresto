@@ -794,6 +794,10 @@ export default function AppointmentsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
+  const [calendarRange, setCalendarRange] = useState<{
+    from: string;
+    to: string;
+  } | null>(null);
   const writeAccess = useTenantWriteAccess(locale);
 
   const load = useCallback(
@@ -802,7 +806,13 @@ export default function AppointmentsPage() {
         if (!options?.silent) setLoading(true);
 
         const [appointmentsRes, clientsRes, teamRes] = await Promise.all([
-          fetch("/api/appointments?includeArchivedClients=true"),
+          fetch(
+            `/api/appointments?includeArchivedClients=true${
+              calendarRange
+                ? `&from=${encodeURIComponent(calendarRange.from)}&to=${encodeURIComponent(calendarRange.to)}`
+                : ""
+            }`,
+          ),
           fetch("/api/clients?limit=100&archive=active"),
           fetch("/api/team?mode=assignees"),
         ]);
@@ -862,7 +872,7 @@ export default function AppointmentsPage() {
         if (!options?.silent) setLoading(false);
       }
     },
-    [a.messages.loadError],
+    [a.messages.loadError, calendarRange],
   );
 
   useEffect(() => {
@@ -1511,6 +1521,13 @@ export default function AppointmentsPage() {
           locale={locale}
           timeZone={tenantTimeZone}
           events={calendarEvents}
+          onRangeChange={(range) => {
+            setCalendarRange((current) =>
+              current?.from === range.from && current?.to === range.to
+                ? current
+                : range,
+            );
+          }}
           onEventDrop={async (info) => {
             const appt = info.event.extendedProps as Appt;
 

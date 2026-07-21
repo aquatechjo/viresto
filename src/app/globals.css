@@ -18,6 +18,8 @@
   --sidebar-hover: #185354;
   --sidebar-text: #f8fbfa;
   --sidebar-muted: rgba(226, 241, 239, 0.74);
+  --brand-text: #0f3d3e;
+  --warning-text: #92400e;
 
   /* --- Backgrounds --- */
   --bg: #f2f5f3;
@@ -89,6 +91,8 @@
   --text-2: #a7c7c4;
   --text-3: #789c99;
   --muted: #789c99;
+  --brand-text: #8dd8cf;
+  --warning-text: #fbbf24;
 
   --green-soft: #123b3c;
   --amber-soft: #3a2818;

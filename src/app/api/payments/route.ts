@@ -40,23 +40,40 @@ export async function GET(req: NextRequest) {
     const clientId = sp.get("clientId");
     const invoiceId = sp.get("invoiceId");
     const status = sp.get("status");
+    const q = sp.get("q")?.trim() || "";
+    const pageRaw = Number(sp.get("page") || 1);
+    const page = Number.isNaN(pageRaw) ? 1 : Math.max(Math.floor(pageRaw), 1);
 
-    const limitRaw = Number(sp.get("limit") || 50);
+    const limitRaw = Number(sp.get("limit") || 20);
     const limit = Number.isNaN(limitRaw)
-      ? 50
+      ? 20
       : Math.min(Math.max(limitRaw, 1), 100);
 
     if (status && !allowedStatuses.includes(status as any)) {
       return err("حالة الدفعة غير صالحة", 400);
     }
 
-    const payments = await prisma.payment.findMany({
-      where: buildPaymentAccessWhere(auth.user, {
+    const where = buildPaymentAccessWhere(auth.user, {
         ...(caseId ? { caseId } : {}),
         ...(clientId ? { clientId } : {}),
         ...(invoiceId ? { invoiceId } : {}),
         ...(status ? { status: status as any } : {}),
-      }),
+        ...(q
+          ? {
+              OR: [
+                { reference: { contains: q, mode: "insensitive" as const } },
+                { client: { name: { contains: q, mode: "insensitive" as const } } },
+                { case: { title: { contains: q, mode: "insensitive" as const } } },
+                { case: { caseNumber: { contains: q, mode: "insensitive" as const } } },
+                { invoice: { invoiceNumber: { contains: q, mode: "insensitive" as const } } },
+              ],
+            }
+          : {}),
+      });
+
+    const [payments, total, grouped, direct] = await prisma.$transaction([
+      prisma.payment.findMany({
+      where,
       include: {
         client: {
           select: {
@@ -90,10 +107,38 @@ export async function GET(req: NextRequest) {
           createdAt: "desc",
         },
       ],
+      skip: (page - 1) * limit,
       take: limit,
-    });
+      }),
+      prisma.payment.count({ where }),
+      prisma.payment.groupBy({
+        by: ["status"],
+        where,
+        orderBy: { status: "asc" },
+        _sum: { amount: true },
+      }),
+      prisma.payment.count({ where: { AND: [where, { invoiceId: null }] } }),
+    ]);
 
-    return ok(payments);
+    const amountByStatus = Object.fromEntries(
+      grouped.map((item) => [item.status, Number(item._sum?.amount || 0)]),
+    );
+
+    return ok({
+      items: payments,
+      pagination: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+      stats: {
+        collected: amountByStatus.PAID || 0,
+        pending: amountByStatus.PENDING || 0,
+        overdue: amountByStatus.OVERDUE || 0,
+        direct,
+      },
+    });
   });
 }
 

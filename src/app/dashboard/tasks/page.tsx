@@ -399,11 +399,13 @@ export default function TasksPage() {
   const [clientFilter, setClientFilter] = useState("all");
   const [caseFilter, setCaseFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, done: 0, overdue: 0 });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const writeAccess = useTenantWriteAccess(locale);
-
-  const now = useMemo(() => new Date(), []);
 
   const isArchivedTask = useCallback((task: Task) => {
     return Boolean(task.client?.archivedAt || task.case?.client?.archivedAt);
@@ -415,26 +417,25 @@ export default function TasksPage() {
     [],
   );
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
-      const [tasksRes, clientsRes, casesRes, membersRes] = await Promise.all([
-        fetch("/api/tasks"),
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, priorityFilter, clientFilter, caseFilter, assigneeFilter, filter]);
+
+  const loadOptions = useCallback(async () => {
+    try {
+      const [clientsRes, casesRes, membersRes] = await Promise.all([
         fetch("/api/clients?limit=100"),
         fetch("/api/cases?limit=100"),
         fetch("/api/team?mode=assignees"),
       ]);
-
-      const [tasksData, clientsData, casesData, membersData] =
-        await Promise.all([
-          tasksRes.json(),
-          clientsRes.json(),
-          casesRes.json(),
-          membersRes.json(),
-        ]);
-
-      setTasks(Array.isArray(tasksData.data) ? tasksData.data : []);
+      const [clientsData, casesData, membersData] = await Promise.all([
+        clientsRes.json(), casesRes.json(), membersRes.json(),
+      ]);
       setClients(
         Array.isArray(clientsData.data?.data) ? clientsData.data.data : [],
       );
@@ -457,98 +458,61 @@ export default function TasksPage() {
         assignedToId: previous.assignedToId || loadedCurrentUserId,
       }));
     } catch {
-      toast.error(taskCopy.messages.loadError);
-      setTasks([]);
       setClients([]);
       setCases([]);
       setMembers([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOptions();
+  }, [loadOptions]);
+
+  const load = useCallback(async () => {
+    const controller = new AbortController();
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({ page: String(page), limit: "20", scope: filter });
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      if (priorityFilter !== "all") params.set("priority", priorityFilter);
+      if (clientFilter !== "all") params.set("clientId", clientFilter);
+      if (caseFilter !== "all") params.set("caseId", caseFilter);
+      if (assigneeFilter !== "all") params.set("assignedToId", assigneeFilter);
+      const response = await fetch(`/api/tasks?${params}`, { signal: controller.signal });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.success) throw new Error();
+      setTasks(Array.isArray(payload.data?.data) ? payload.data.data : []);
+      setPagination(payload.data?.pagination ?? { page, total: 0, totalPages: 1 });
+      setStats(payload.data?.stats ?? { total: 0, pending: 0, done: 0, overdue: 0 });
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") {
+        toast.error(taskCopy.messages.loadError);
+        setTasks([]);
+      }
     } finally {
       setLoading(false);
     }
-  }, [taskCopy.messages.loadError]);
+    return () => controller.abort();
+  }, [assigneeFilter, caseFilter, clientFilter, debouncedSearch, filter, page, priorityFilter, taskCopy.messages.loadError]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  const isOverdue = useCallback(
-    (task: Task) => {
-      const status = getTaskStatus(task);
-      return (
-        status !== "COMPLETED" &&
-        status !== "CANCELLED" &&
-        !!task.dueDate &&
-        new Date(task.dueDate) < now
-      );
-    },
-    [getTaskStatus, now],
-  );
-
-  const isSoon = useCallback(
-    (task: Task) => {
-      const status = getTaskStatus(task);
-
-      if (status === "COMPLETED" || status === "CANCELLED") {
-        return false;
-      }
-
-      if (isOverdue(task) || !task.dueDate) return false;
-      return new Date(task.dueDate).getTime() - now.getTime() < 3 * 86400000;
-    },
-    [getTaskStatus, isOverdue, now],
-  );
-
-  const total = tasks.length;
-  const done = tasks.filter(
-    (task) => getTaskStatus(task) === "COMPLETED",
-  ).length;
-  const pending = tasks.filter((task) => {
+  const now = useMemo(() => new Date(), []);
+  const isOverdue = useCallback((task: Task) => {
     const status = getTaskStatus(task);
-    return status !== "COMPLETED" && status !== "CANCELLED";
-  }).length;
-  const overdue = tasks.filter((task) => isOverdue(task)).length;
+    return status !== "COMPLETED" && status !== "CANCELLED" && !!task.dueDate && new Date(task.dueDate) < now;
+  }, [getTaskStatus, now]);
 
-  const filtered = tasks.filter((task) => {
-    const query = search.trim().toLowerCase();
+  const isSoon = useCallback((task: Task) => {
+    const status = getTaskStatus(task);
+    if (status === "COMPLETED" || status === "CANCELLED") return false;
+    if (isOverdue(task) || !task.dueDate) return false;
+    return new Date(task.dueDate).getTime() - now.getTime() < 3 * 86400000;
+  }, [getTaskStatus, isOverdue, now]);
 
-    const matchesStatus =
-      filter === "all" ||
-      (filter === "pending" &&
-        getTaskStatus(task) !== "COMPLETED" &&
-        getTaskStatus(task) !== "CANCELLED") ||
-      (filter === "done" && getTaskStatus(task) === "COMPLETED");
-
-    const matchesSearch =
-      !query ||
-      task.title?.toLowerCase().includes(query) ||
-      task.description?.toLowerCase().includes(query) ||
-      task.assignedTo?.name?.toLowerCase().includes(query) ||
-      task.client?.name?.toLowerCase().includes(query) ||
-      task.case?.title?.toLowerCase().includes(query);
-
-    const matchesPriority =
-      priorityFilter === "all" || task.priority === priorityFilter;
-
-    const matchesClient =
-      clientFilter === "all" || task.client?.name === clientFilter;
-
-    const matchesCase = caseFilter === "all" || task.case?.title === caseFilter;
-
-    const matchesAssignee =
-      assigneeFilter === "all" ||
-      (assigneeFilter === "me"
-        ? task.assignedTo?.id === currentUserId
-        : task.assignedTo?.id === assigneeFilter);
-
-    return (
-      matchesStatus &&
-      matchesSearch &&
-      matchesPriority &&
-      matchesClient &&
-      matchesCase &&
-      matchesAssignee
-    );
-  });
+  const { total, pending, done, overdue } = stats;
 
   async function updateStatus(id: string, status: TaskStatus) {
     if (!writeAccess.canWrite) {
@@ -581,9 +545,7 @@ export default function TasksPage() {
         return;
       }
 
-      setTasks((current) =>
-        current.map((task) => (task.id === id ? data.data : task)),
-      );
+      await load();
 
       toast.success(
         status === "COMPLETED"
@@ -702,6 +664,7 @@ export default function TasksPage() {
     setCaseFilter("all");
     setAssigneeFilter("all");
     setFilter("all");
+    setPage(1);
   }
 
   function openCreateTaskModal() {
@@ -824,9 +787,7 @@ export default function TasksPage() {
         return;
       }
 
-      setTasks((current) =>
-        current.map((task) => (task.id === editingTask.id ? data.data : task)),
-      );
+      await load();
       toast.success(locale === "ar" ? "تم تعديل المهمة" : "Task updated");
       closeEditTaskModal();
     } catch {
@@ -1032,7 +993,7 @@ export default function TasksPage() {
             {clients.map((client) => (
               <option
                 key={client.id}
-                value={client.name}
+                value={client.id}
                 dir={isRtl ? "rtl" : "ltr"}
               >
                 {client.name}
@@ -1053,7 +1014,7 @@ export default function TasksPage() {
             {cases.map((caseItem) => (
               <option
                 key={caseItem.id}
-                value={caseItem.title}
+                value={caseItem.id}
                 dir={isRtl ? "rtl" : "ltr"}
               >
                 {caseItem.title}
@@ -1071,7 +1032,7 @@ export default function TasksPage() {
               color: "var(--text)",
             }}
           >
-            {taskCopy.filters.apply}
+            {taskCopy.filters.clear}
           </button>
         </div>
 
@@ -1108,18 +1069,18 @@ export default function TasksPage() {
       {/* Content */}
       {loading ? (
         <PageLoader />
-      ) : filtered.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <VDSCard padded={false} className="p-8">
           <EmptyState
             icon="✅"
             title={taskCopy.empty.title}
             sub={
-              tasks.length === 0
+              stats.total === 0
                 ? taskCopy.empty.first
                 : taskCopy.empty.filtered
             }
             action={
-              tasks.length === 0 ? (
+              stats.total === 0 ? (
                 <button
                   onClick={openCreateTaskModal}
                   disabled={!writeAccess.canWrite}
@@ -1142,7 +1103,7 @@ export default function TasksPage() {
         </VDSCard>
       ) : (
         <VDSGrid columns={2}>
-          {filtered.map((task) => {
+          {tasks.map((task) => {
             const archivedTask = isArchivedTask(task);
             const taskStatus = getTaskStatus(task);
             const statusStyle = statusBadgeStyle(taskStatus);
@@ -1387,6 +1348,34 @@ export default function TasksPage() {
           })}
         </VDSGrid>
       )}
+
+      {!loading && pagination.totalPages > 1 ? (
+        <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-bold" style={{ color: "var(--text-3)" }}>
+            {locale === "ar"
+              ? `صفحة ${pagination.page} من ${pagination.totalPages} — ${pagination.total} مهمة`
+              : `Page ${pagination.page} of ${pagination.totalPages} — ${pagination.total} tasks`}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={page <= 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              {locale === "ar" ? "السابق" : "Previous"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={page >= pagination.totalPages}
+              onClick={() => setPage((value) => Math.min(pagination.totalPages, value + 1))}
+            >
+              {locale === "ar" ? "التالي" : "Next"}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Add Modal */}
       <Modal

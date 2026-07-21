@@ -13,6 +13,9 @@ import {
   buildTaskAccessWhere,
 } from "@/lib/access-control";
 
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
+
 const allowedStatuses = [
   "TODO",
   "IN_PROGRESS",
@@ -37,6 +40,18 @@ export async function GET(req: NextRequest) {
     const completed = sp.get("completed");
     const status = sp.get("status")?.trim().toUpperCase() || "";
     const assignedToId = sp.get("assignedToId")?.trim() || "";
+    const scope = sp.get("scope")?.trim().toLowerCase() || "all";
+    const priority = sp.get("priority")?.trim().toUpperCase() || "";
+    const clientId = sp.get("clientId")?.trim() || "";
+    const caseId = sp.get("caseId")?.trim() || "";
+    const query = sp.get("q")?.trim().slice(0, 100) || "";
+    const pageInput = Number(sp.get("page") || "1");
+    const limitInput = Number(sp.get("limit") || DEFAULT_PAGE_SIZE);
+    const page = Number.isInteger(pageInput) && pageInput > 0 ? pageInput : 1;
+    const limit =
+      Number.isInteger(limitInput) && limitInput > 0
+        ? Math.min(limitInput, MAX_PAGE_SIZE)
+        : DEFAULT_PAGE_SIZE;
 
     if (completed !== null && completed !== "true" && completed !== "false") {
       return err("قيمة completed غير صالحة", 400);
@@ -46,9 +61,22 @@ export async function GET(req: NextRequest) {
       return err("حالة المهمة غير صالحة", 400);
     }
 
-    const data = await prisma.task.findMany({
-      where: buildTaskAccessWhere(auth.user, {
+    if (priority && !["URGENT", "HIGH", "MEDIUM", "LOW"].includes(priority)) {
+      return err("أولوية المهمة غير صالحة", 400);
+    }
+
+    if (!["all", "pending", "done"].includes(scope)) {
+      return err("فلتر المهام غير صالح", 400);
+    }
+
+    const accessWhere = buildTaskAccessWhere(auth.user);
+    const where = buildTaskAccessWhere(auth.user, {
         ...(status ? { status: status as any } : {}),
+        ...(scope === "pending"
+          ? { status: { notIn: ["COMPLETED", "CANCELLED"] as any } }
+          : scope === "done"
+            ? { status: "COMPLETED" as any }
+            : {}),
         ...(assignedToId === "me"
           ? { assignedToId: auth.user.userId }
           : assignedToId
@@ -59,7 +87,32 @@ export async function GET(req: NextRequest) {
               completed: completed === "true",
             }
           : {}),
-      }),
+        ...(priority ? { priority: priority as any } : {}),
+        ...(clientId ? { clientId } : {}),
+        ...(caseId ? { caseId } : {}),
+        ...(query
+          ? {
+              OR: [
+                { title: { contains: query, mode: "insensitive" as const } },
+                { description: { contains: query, mode: "insensitive" as const } },
+                { assignedTo: { name: { contains: query, mode: "insensitive" as const } } },
+                { client: { name: { contains: query, mode: "insensitive" as const } } },
+                { case: { title: { contains: query, mode: "insensitive" as const } } },
+              ],
+            }
+          : {}),
+      });
+
+    const now = new Date();
+    const pendingWhere = {
+      ...accessWhere,
+      status: { notIn: ["COMPLETED", "CANCELLED"] as any },
+    };
+
+    const [data, total, all, pending, completedCount, overdue] =
+      await prisma.$transaction([
+        prisma.task.findMany({
+      where,
       include: {
         client: {
           select: {
@@ -93,9 +146,31 @@ export async function GET(req: NextRequest) {
         { dueDate: "asc" },
         { createdAt: "desc" },
       ],
-    });
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+        prisma.task.count({ where }),
+        prisma.task.count({ where: accessWhere }),
+        prisma.task.count({ where: pendingWhere }),
+        prisma.task.count({ where: { ...accessWhere, status: "COMPLETED" } }),
+        prisma.task.count({
+          where: {
+            ...pendingWhere,
+            dueDate: { lt: now },
+          },
+        }),
+      ]);
 
-    return ok(data);
+    return ok({
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+      stats: { total: all, pending, done: completedCount, overdue },
+    });
   });
 }
 

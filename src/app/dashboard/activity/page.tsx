@@ -559,6 +559,13 @@ interface ActivityPagination {
   hasNextPage: boolean;
 }
 
+interface ActivityStats {
+  total: number;
+  today: number;
+  security: number;
+  finance: number;
+}
+
 const EMPTY_PAGINATION: ActivityPagination = {
   page: 1,
   limit: 10,
@@ -651,6 +658,12 @@ export default function ActivityPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [pagination, setPagination] =
     useState<ActivityPagination>(EMPTY_PAGINATION);
+  const [stats, setStats] = useState<ActivityStats>({
+    total: 0,
+    today: 0,
+    security: 0,
+    finance: 0,
+  });
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [loading, setLoading] = useState(true);
@@ -686,6 +699,7 @@ export default function ActivityPage() {
 
       setActivities(payload.items);
       setPagination(payload.pagination);
+      if (data?.data?.stats) setStats(data.data.stats);
 
       if (showToast) toast.success(copy.messages.refreshed);
     } catch {
@@ -741,22 +755,6 @@ export default function ActivityPage() {
 
     return Array.from(pages).sort((a, b) => a - b);
   }, [page, pagination.page, pagination.totalPages]);
-
-  const today = new Date().toDateString();
-  const stats = {
-    total: pagination.total,
-    today: activities.filter(
-      (activity) => new Date(activity.createdAt).toDateString() === today,
-    ).length,
-    security: activities.filter(
-      (activity) => categoryOf(activity.type, activity.title) === "security",
-    ).length,
-    finance: activities.filter((activity) =>
-      ["payments", "invoices"].includes(
-        categoryOf(activity.type, activity.title),
-      ),
-    ).length,
-  };
 
   const columns: VDSDataTableColumn<ActivityItem>[] = [
     {
