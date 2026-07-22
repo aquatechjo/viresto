@@ -233,7 +233,9 @@ interface CreateClientModalProps {
 }
 
 function formatDate(date: string, locale: LocaleKey) {
-  return new Date(date).toLocaleDateString(locale === "ar" ? "ar-JO" : "en-US");
+  return new Date(date).toLocaleDateString(
+    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
+  );
 }
 
 function cleanValue(value: string) {

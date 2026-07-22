@@ -121,9 +121,27 @@
 html {
   direction: rtl;
   font-family: "Cairo", sans-serif;
+  font-variant-numeric: lining-nums;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+:where(
+    input[type="number"],
+    input[type="tel"],
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[type="month"],
+    input[type="week"],
+    input[inputmode="numeric"],
+    input[inputmode="decimal"],
+    input[inputmode="tel"]
+  ) {
+  direction: ltr;
+  unicode-bidi: plaintext;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 body {

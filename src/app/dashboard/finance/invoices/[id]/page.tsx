@@ -484,7 +484,7 @@ function formatInvoiceDate(value: string | null | undefined, locale: Locale) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "-";
 
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -492,7 +492,7 @@ function formatInvoiceDate(value: string | null | undefined, locale: Locale) {
 }
 
 function formatInvoiceMoney(value: number, locale: Locale) {
-  return new Intl.NumberFormat(locale === "ar" ? "ar-JO" : "en-US", {
+  return new Intl.NumberFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
     style: "currency",
     currency: "JOD",
     minimumFractionDigits: 3,

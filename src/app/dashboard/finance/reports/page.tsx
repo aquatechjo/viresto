@@ -290,13 +290,13 @@ function formatDate(value: string | Date | null | undefined, locale: Locale) {
 
   if (Number.isNaN(date.getTime())) return '-'
 
-  return date.toLocaleDateString(locale === 'ar' ? 'ar-JO' : 'en-US')
+  return date.toLocaleDateString(locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US')
 }
 
 function formatMoney(value: number, locale: Locale) {
   const amount = Number(value || 0)
 
-  const formatted = amount.toLocaleString(locale === 'ar' ? 'ar-JO' : 'en-US', {
+  const formatted = amount.toLocaleString(locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   })

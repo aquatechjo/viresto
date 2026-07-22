@@ -309,7 +309,7 @@ function formatClientDate(value: string, localeKey: "ar" | "en") {
 
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat(localeKey === "ar" ? "ar-JO" : "en-US", {
+  return new Intl.DateTimeFormat(localeKey === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

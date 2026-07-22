@@ -72,7 +72,7 @@ function formatRemainingTime(targetDate: Date, fromDate: Date) {
 }
 
 function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("ar-JO", {
+  return new Intl.DateTimeFormat("ar-JO-u-nu-latn", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "Asia/Amman",

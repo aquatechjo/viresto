@@ -72,7 +72,7 @@ const roleLabels: Record<string, string> = {
 
 function formatDate(value?: Date | null) {
   if (!value) return "-";
-  return value.toLocaleDateString("ar-JO");
+  return value.toLocaleDateString("ar-JO-u-nu-latn");
 }
 
 type AdminPageProps = {

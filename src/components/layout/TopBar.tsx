@@ -156,7 +156,7 @@ export default function TopBar() {
   useEffect(() => {
     const formatter =
       locale === "ar"
-        ? new Intl.DateTimeFormat("ar-JO", {
+        ? new Intl.DateTimeFormat("ar-JO-u-nu-latn", {
             day: "numeric",
             month: "long",
             year: "numeric",

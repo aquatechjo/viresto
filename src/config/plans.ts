@@ -181,7 +181,7 @@ export function formatLimit(
     return locale === "ar" ? "غير محدود" : "Unlimited";
   }
 
-  return `${value.toLocaleString(locale === "ar" ? "ar-JO" : "en-US")}${
+  return `${value.toLocaleString(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")}${
     unit ? ` ${unit}` : ""
   }`;
 }

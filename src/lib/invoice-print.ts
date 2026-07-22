@@ -211,7 +211,7 @@ export function normalizeWhatsAppPhone(phone?: string | null) {
 }
 
 function money(value: number | null | undefined, locale: InvoiceLocale) {
-  return new Intl.NumberFormat(locale === "ar" ? "ar-JO" : "en-US", {
+  return new Intl.NumberFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
     style: "currency",
     currency: "JOD",
     minimumFractionDigits: 3,
@@ -225,7 +225,7 @@ function date(value: string | Date | null | undefined, locale: InvoiceLocale) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "-";
 
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

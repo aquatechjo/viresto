@@ -269,7 +269,9 @@ function formatDate(value: string, locale: Locale) {
 
   if (Number.isNaN(date.getTime())) return "-";
 
-  return date.toLocaleDateString(locale === "ar" ? "ar-JO" : "en-US");
+  return date.toLocaleDateString(
+    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
+  );
 }
 
 function PlanLimitBanner({

@@ -626,7 +626,7 @@ function formatDateTime(value: string, locale: Locale) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return { date: "-", time: "-" };
 
-  const formatterLocale = locale === "ar" ? "ar-JO" : "en-US";
+  const formatterLocale = locale === "ar" ? "ar-JO-u-nu-latn" : "en-US";
 
   return {
     date: new Intl.DateTimeFormat(formatterLocale, {

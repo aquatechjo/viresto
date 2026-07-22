@@ -160,7 +160,7 @@ export default function GlobalSearch() {
                   <div className="min-w-0">
                     <p className="text-sm text-white truncate">{a.title}</p>
                     <p className="text-xs text-gray-500">
-                      {new Date(a.startTime).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' })}
+                      {new Date(a.startTime).toLocaleDateString('ar-SA-u-nu-latn', { day: 'numeric', month: 'short' })}
                     </p>
                   </div>
                 </button>
@@ -182,7 +182,7 @@ export default function GlobalSearch() {
                     <p className={`text-sm truncate ${t.completed ? 'line-through text-gray-500' : 'text-white'}`}>{t.title}</p>
                     {t.dueDate && (
                       <p className="text-xs text-gray-500">
-                        {new Date(t.dueDate).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' })}
+                        {new Date(t.dueDate).toLocaleDateString('ar-SA-u-nu-latn', { day: 'numeric', month: 'short' })}
                       </p>
                     )}
                   </div>

@@ -916,7 +916,7 @@ function formatMoney(value: number, locale: Locale) {
     }).format(normalizedValue);
   }
 
-  return `${new Intl.NumberFormat("ar-JO", {
+  return `${new Intl.NumberFormat("ar-JO-u-nu-latn", {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   }).format(normalizedValue)} د.أ`;
@@ -957,7 +957,9 @@ function getDocumentIcon(fileType?: string) {
 }
 
 function formatDate(date: string, locale: Locale) {
-  return new Date(date).toLocaleDateString(locale === "ar" ? "ar-JO" : "en-US");
+  return new Date(date).toLocaleDateString(
+    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
+  );
 }
 
 function formatActivityDateTime(date: string, locale: Locale) {
@@ -975,9 +977,12 @@ function formatRelativeTime(date: string, locale: Locale) {
   const elapsedSeconds = Math.round(
     (new Date(date).getTime() - Date.now()) / 1000,
   );
-  const formatter = new Intl.RelativeTimeFormat(locale === "ar" ? "ar" : "en", {
-    numeric: "auto",
-  });
+  const formatter = new Intl.RelativeTimeFormat(
+    locale === "ar" ? "ar-u-nu-latn" : "en",
+    {
+      numeric: "auto",
+    },
+  );
 
   if (Math.abs(elapsedSeconds) < 60)
     return formatter.format(elapsedSeconds, "second");

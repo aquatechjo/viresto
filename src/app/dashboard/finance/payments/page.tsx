@@ -389,7 +389,7 @@ function amountOf(payment: Payment) {
 
 function money(value: number, locale: Locale) {
   const formatted = Number(value || 0).toLocaleString(
-    locale === 'ar' ? 'ar-JO' : 'en-JO',
+    locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-JO',
     {
       minimumFractionDigits: 3,
       maximumFractionDigits: 3,
@@ -405,7 +405,7 @@ function formatPaymentDate(value: string | null | undefined, locale: Locale) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
 
-  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-JO' : 'en-JO', {
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-JO', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

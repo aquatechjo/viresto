@@ -466,7 +466,7 @@ function localizedDate(value: string | Date, locale: Locale) {
 
   if (Number.isNaN(date.getTime())) return "-";
 
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -671,7 +671,7 @@ function DatePicker({
   }, [viewMonth]);
 
   const monthLabel = new Intl.DateTimeFormat(
-    locale === "ar" ? "ar-JO" : "en-US",
+    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
     {
       month: "long",
       year: "numeric",
@@ -679,7 +679,7 @@ function DatePicker({
   ).format(viewMonth);
 
   const displayValue = selectedDate
-    ? new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+    ? new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
         year: "numeric",
         month: "long",
         day: "numeric",

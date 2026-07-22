@@ -128,6 +128,12 @@ const INIT = {
 
 const TENANT_TIME_ZONE = "Asia/Amman";
 
+function toLatinDateTimeValue(value: DateTime) {
+  return value
+    .reconfigure({ locale: "en-US", numberingSystem: "latn" })
+    .toFormat("yyyy-MM-dd'T'HH:mm");
+}
+
 function toDateTimeLocal(value?: string, timeZone = TENANT_TIME_ZONE) {
   if (!value) return "";
 
@@ -135,7 +141,7 @@ function toDateTimeLocal(value?: string, timeZone = TENANT_TIME_ZONE) {
 
   if (!date.isValid) return "";
 
-  return date.toFormat("yyyy-MM-dd'T'HH:mm");
+  return toLatinDateTimeValue(date);
 }
 
 function dateTimeLocalToIso(value?: string, timeZone = TENANT_TIME_ZONE) {
@@ -157,7 +163,9 @@ function formatDateInZone(
 
   if (!date.isValid) return "-";
 
-  return date.setLocale(locale === "ar" ? "ar-JO" : "en-US").toLocaleString({
+  return date
+    .setLocale(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")
+    .toLocaleString({
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -175,7 +183,7 @@ function formatShortDateInZone(
   if (!date.isValid) return "-";
 
   return date
-    .setLocale(locale === "ar" ? "ar-JO" : "en-US")
+    .setLocale(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")
     .toLocaleString(DateTime.DATE_MED);
 }
 
@@ -214,7 +222,7 @@ function getCreateStartValue(startTime?: string, timeZone = TENANT_TIME_ZONE) {
 
   if (!date.isValid) return "";
 
-  return date.toFormat("yyyy-MM-dd'T'HH:mm");
+  return toLatinDateTimeValue(date);
 }
 
 interface DateTimePickerProps {
@@ -378,7 +386,7 @@ function DateTimePicker({
 
   const displayValue = selectedDate
     ? `${selectedDate
-        .setLocale(locale === "ar" ? "ar-JO" : "en-US")
+        .setLocale(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")
         .toLocaleString({
           year: "numeric",
           month: "short",
@@ -399,7 +407,7 @@ function DateTimePicker({
       millisecond: 0,
     });
 
-    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+    onChange(toLatinDateTimeValue(next));
   };
 
   const selectedHour24 = selectedDate?.hour ?? 9;
@@ -430,7 +438,7 @@ function DateTimePicker({
       return base.set({ hour });
     })();
 
-    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+    onChange(toLatinDateTimeValue(next));
     setViewMonth(next.startOf("month"));
   };
 
@@ -443,7 +451,7 @@ function DateTimePicker({
       millisecond: 0,
     });
 
-    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+    onChange(toLatinDateTimeValue(next));
     setViewMonth(next.startOf("month"));
   };
 
@@ -482,7 +490,7 @@ function DateTimePicker({
 
               <p className="text-sm font-black">
                 {viewMonth
-                  .setLocale(locale === "ar" ? "ar-JO" : "en-US")
+                  .setLocale(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")
                   .toFormat("LLLL yyyy")}
               </p>
 

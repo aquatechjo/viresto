@@ -63,7 +63,7 @@ const statusClasses: Record<string, string> = {
 function formatDate(value?: string | null) {
   if (!value) return "-";
 
-  return new Intl.DateTimeFormat("ar-JO", {
+  return new Intl.DateTimeFormat("ar-JO-u-nu-latn", {
     year: "numeric",
     month: "short",
     day: "numeric",

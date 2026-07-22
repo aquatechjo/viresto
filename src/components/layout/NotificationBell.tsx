@@ -34,7 +34,7 @@ const TYPE_ICON: Record<string, string> = {
 
 function formatDate(value: string, locale: "ar" | "en") {
   try {
-    return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+    return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
       day: "numeric",
       month: "short",
       hour: "2-digit",

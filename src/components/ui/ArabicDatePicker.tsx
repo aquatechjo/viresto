@@ -20,7 +20,7 @@ function toHijri(isoDate: string): string {
   if (!isoDate) return ''
   try {
     const d = new Date(isoDate)
-    return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura', {
+    return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', {
       day:   'numeric',
       month: 'long',
       year:  'numeric',
@@ -34,7 +34,7 @@ function toGregorianDisplay(isoDate: string): string {
   if (!isoDate) return ''
   try {
     const d = new Date(isoDate)
-    return new Intl.DateTimeFormat('ar-EG', {
+    return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
       day:   'numeric',
       month: 'long',
       year:  'numeric',
@@ -120,6 +120,8 @@ export default function ArabicDatePicker({
           {/* Native date input */}
           <input
             type="date"
+            lang="en"
+            dir="ltr"
             value={draft}
             min={min}
             max={max}

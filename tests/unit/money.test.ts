@@ -7,6 +7,7 @@ import {
   jodToFils,
   moneyExceeds,
 } from "@/lib/money";
+import { toLatinDigits, withLatinDigits } from "@/lib/locale";
 import {
   appointmentSchema,
   caseSchema,
@@ -24,6 +25,23 @@ test("rounds Jordanian dinar values to the nearest fils", () => {
 test("formats JOD consistently with three decimal places", () => {
   assert.equal(formatJodNumber(25), "25.000");
   assert.equal(formatJodNumber(25.5), "25.500");
+  assert.equal(formatJodNumber(25.5, "ar-JO"), "25.500");
+});
+
+test("uses Latin digits in Arabic locales and numeric input", () => {
+  assert.equal(withLatinDigits("ar-JO"), "ar-JO-u-nu-latn");
+  assert.equal(
+    toLatinDigits(
+      "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669",
+    ),
+    "0123456789",
+  );
+  assert.equal(
+    toLatinDigits(
+      "\u06f0\u06f1\u06f2\u06f3\u06f4\u06f5\u06f6\u06f7\u06f8\u06f9",
+    ),
+    "0123456789",
+  );
 });
 
 test("validates monetary precision at API boundaries", () => {

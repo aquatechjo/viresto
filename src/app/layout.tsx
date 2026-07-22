@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
 import DynamicDocumentTitle from "@/components/DynamicDocumentTitle";
+import LatinDigitsInputBoundary from "@/components/LatinDigitsInputBoundary";
 
 const siteUrl = "https://www.virestojo.com";
 
@@ -180,8 +181,10 @@ export default async function RootLayout({
         />
 
         <ThemeProvider>
-          <DynamicDocumentTitle />
-          {children}
+          <LatinDigitsInputBoundary>
+            <DynamicDocumentTitle />
+            {children}
+          </LatinDigitsInputBoundary>
         </ThemeProvider>
 
         <Toaster

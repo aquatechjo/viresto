@@ -180,7 +180,7 @@ const statusClasses: Record<StatusTone, string> = {
 function formatDate(value: string | null | undefined, locale: string) {
   if (!value) return locale === "ar" ? "غير محدد" : "Not set";
 
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-US", {
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -890,7 +890,7 @@ export default function BillingPage() {
                       className="text-xs font-bold"
                       style={{ color: "var(--muted)" }}
                     >
-                      {item.used.toLocaleString(isArabic ? "ar-JO" : "en-US")} /{" "}
+                      {item.used.toLocaleString(isArabic ? "ar-JO-u-nu-latn" : "en-US")} /{" "}
                       {formatLimit(item.limit, locale)}
                     </p>
                   </div>

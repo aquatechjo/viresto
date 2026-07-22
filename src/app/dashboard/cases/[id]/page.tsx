@@ -241,7 +241,7 @@ function activityDate(value: string, isArabic: boolean) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat(isArabic ? "ar-JO" : "en-US", {
+  return new Intl.DateTimeFormat(isArabic ? "ar-JO-u-nu-latn" : "en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -335,7 +335,7 @@ function displayDate(value?: string | null, isArabic = true) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
 
-  return new Intl.DateTimeFormat(isArabic ? "ar-JO" : "en-US", {
+  return new Intl.DateTimeFormat(isArabic ? "ar-JO-u-nu-latn" : "en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",

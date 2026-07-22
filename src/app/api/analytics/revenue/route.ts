@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
 
       return {
         key: bucket.key,
-        month: new Intl.DateTimeFormat('ar', {
+        month: new Intl.DateTimeFormat('ar-u-nu-latn', {
           month: 'short',
           timeZone: DEFAULT_REPORT_TIME_ZONE,
         }).format(monthDate.toJSDate()),

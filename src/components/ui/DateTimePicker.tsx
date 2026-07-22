@@ -18,6 +18,12 @@ interface DateTimePickerProps {
 
 const DEFAULT_TIME_ZONE = "Asia/Amman";
 
+function toLatinDateTimeValue(value: DateTime) {
+  return value
+    .reconfigure({ locale: "en-US", numberingSystem: "latn" })
+    .toFormat("yyyy-MM-dd'T'HH:mm");
+}
+
 export default function DateTimePicker({
   value,
   onChange,
@@ -157,7 +163,7 @@ export default function DateTimePicker({
 
   const displayValue = selectedDate
     ? `${selectedDate
-        .setLocale(locale === "ar" ? "ar-JO" : "en-US")
+        .setLocale(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")
         .toLocaleString({
           year: "numeric",
           month: "short",
@@ -178,7 +184,7 @@ export default function DateTimePicker({
       millisecond: 0,
     });
 
-    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+    onChange(toLatinDateTimeValue(next));
   }
 
   const selectedHour = selectedDate?.hour ?? 9;
@@ -204,7 +210,7 @@ export default function DateTimePicker({
       });
     })();
 
-    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+    onChange(toLatinDateTimeValue(next));
     setViewMonth(next.startOf("month"));
   }
 
@@ -217,7 +223,7 @@ export default function DateTimePicker({
       millisecond: 0,
     });
 
-    onChange(next.toFormat("yyyy-MM-dd'T'HH:mm"));
+    onChange(toLatinDateTimeValue(next));
     setViewMonth(next.startOf("month"));
   }
 
@@ -256,7 +262,7 @@ export default function DateTimePicker({
 
               <p className="text-sm font-black">
                 {viewMonth
-                  .setLocale(locale === "ar" ? "ar-JO" : "en-US")
+                  .setLocale(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")
                   .toFormat("LLLL yyyy")}
               </p>
 

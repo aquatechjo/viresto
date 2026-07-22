@@ -1,3 +1,5 @@
+import { withLatinDigits } from "@/lib/locale";
+
 export const FILS_PER_JOD = 1000;
 export const JOD_DECIMAL_PLACES = 3;
 export const MONEY_EPSILON = 1 / (FILS_PER_JOD * 2);
@@ -35,10 +37,13 @@ export function formatJodNumber(
   amountJod: number | null | undefined,
   locale = "en-US",
 ) {
-  return roundJod(Number(amountJod || 0)).toLocaleString(locale, {
-    minimumFractionDigits: JOD_DECIMAL_PLACES,
-    maximumFractionDigits: JOD_DECIMAL_PLACES,
-  });
+  return roundJod(Number(amountJod || 0)).toLocaleString(
+    withLatinDigits(locale),
+    {
+      minimumFractionDigits: JOD_DECIMAL_PLACES,
+      maximumFractionDigits: JOD_DECIMAL_PLACES,
+    },
+  );
 }
 
 export function formatJodFromFils(amountFils: number | null | undefined) {

@@ -6,27 +6,27 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number, currency = 'د.أ') {
-  return `${amount.toLocaleString('ar-JO', {
+  return `${amount.toLocaleString('ar-JO-u-nu-latn', {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   })} ${currency}`
 }
 
 export function formatDate(iso: string | Date, opts?: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat('ar-SA', opts ?? {
+  return new Intl.DateTimeFormat('ar-SA-u-nu-latn', opts ?? {
     day: 'numeric', month: 'long', year: 'numeric',
   }).format(new Date(iso))
 }
 
 export function formatTime(iso: string | Date) {
-  return new Intl.DateTimeFormat('ar-SA', {
+  return new Intl.DateTimeFormat('ar-SA-u-nu-latn', {
     hour: 'numeric', minute: '2-digit', hour12: true,
   }).format(new Date(iso))
 }
 
 export function toHijri(iso: string | Date): string {
   try {
-    return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura', {
+    return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', {
       day: 'numeric', month: 'long', year: 'numeric',
     }).format(new Date(iso))
   } catch { return '' }
