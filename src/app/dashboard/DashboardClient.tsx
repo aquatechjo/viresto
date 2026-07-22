@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,7 +24,6 @@ import {
 import type { Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import { getCurrentUser } from "@/lib/client-session";
-import { PageTransition, SlideUp, Stagger } from "@/components/motion";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 import MetricCard from "@/components/dashboard/MetricCard";
 import AttentionPanel from "@/components/dashboard/AttentionPanel";
@@ -126,6 +126,9 @@ interface Stats {
   upcomingAppointments: AppointmentItem[];
   upcomingTasks: TaskItem[];
   overdueInvoices: InvoiceAlertItem[];
+  recentCases: CaseItem[];
+  recentActivities: ActivityItem[];
+  recentDocuments: DocumentItem[];
 }
 
 interface AccountAccess {
@@ -143,17 +146,17 @@ interface CaseItem {
   id: string;
   publicId?: number;
   title: string;
-  caseNumber?: string;
+  caseNumber?: string | null;
   status: string;
   client?: {
     name: string;
-  };
+  } | null;
 }
 
 interface DocumentItem {
   id: string;
   fileName: string;
-  fileType?: string;
+  fileType?: string | null;
   createdAt: string;
   tags?: string[];
 }
@@ -162,7 +165,7 @@ interface ActivityItem {
   id: string;
   type: string;
   title: string;
-  message?: string;
+  message?: string | null;
   createdAt: string;
 }
 
@@ -916,87 +919,20 @@ function formatMoney(value: number, locale: Locale) {
     }).format(normalizedValue);
   }
 
-  return `${new Intl.NumberFormat("ar-JO-u-nu-latn", {
+  return `${new Intl.NumberFormat("ar-JO", {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   }).format(normalizedValue)} د.أ`;
 }
 
-function extractItems<T>(payload: unknown): T[] {
-  if (!payload || typeof payload !== "object") return [];
-
-  const root = payload as {
-    data?: unknown;
-    items?: unknown;
-    results?: unknown;
-  };
-
-  if (Array.isArray(root.data)) return root.data as T[];
-  if (Array.isArray(root.items)) return root.items as T[];
-  if (Array.isArray(root.results)) return root.results as T[];
-
-  if (root.data && typeof root.data === "object") {
-    const nested = root.data as {
-      data?: unknown;
-      items?: unknown;
-      results?: unknown;
-    };
-
-    if (Array.isArray(nested.data)) return nested.data as T[];
-    if (Array.isArray(nested.items)) return nested.items as T[];
-    if (Array.isArray(nested.results)) return nested.results as T[];
-  }
-
-  return [];
-}
-
-function getDocumentIcon(fileType?: string) {
+function getDocumentIcon(fileType?: string | null) {
   if (fileType === "application/pdf") return "📄";
   if (fileType?.startsWith("image/")) return "🖼️";
   return "📁";
 }
 
 function formatDate(date: string, locale: Locale) {
-  return new Date(date).toLocaleDateString(
-    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
-  );
-}
-
-function formatActivityDateTime(date: string, locale: Locale) {
-  return new Intl.DateTimeFormat(
-    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
-    {
-      timeZone: TENANT_TIME_ZONE,
-      dateStyle: "medium",
-      timeStyle: "short",
-    },
-  ).format(new Date(date));
-}
-
-function formatRelativeTime(date: string, locale: Locale) {
-  const elapsedSeconds = Math.round(
-    (new Date(date).getTime() - Date.now()) / 1000,
-  );
-  const formatter = new Intl.RelativeTimeFormat(
-    locale === "ar" ? "ar-u-nu-latn" : "en",
-    {
-      numeric: "auto",
-    },
-  );
-
-  if (Math.abs(elapsedSeconds) < 60)
-    return formatter.format(elapsedSeconds, "second");
-
-  const elapsedMinutes = Math.round(elapsedSeconds / 60);
-  if (Math.abs(elapsedMinutes) < 60)
-    return formatter.format(elapsedMinutes, "minute");
-
-  const elapsedHours = Math.round(elapsedMinutes / 60);
-  if (Math.abs(elapsedHours) < 24)
-    return formatter.format(elapsedHours, "hour");
-
-  const elapsedDays = Math.round(elapsedHours / 24);
-  return formatter.format(elapsedDays, "day");
+  return new Date(date).toLocaleDateString(locale === "ar" ? "ar-JO" : "en-US");
 }
 
 function formatAppointmentDateTime(date: string, locale: Locale) {
@@ -1020,9 +956,6 @@ export default function DashboardPage() {
   const priorityLabels = PRIORITY_LABELS[locale];
 
   const [stats, setStats] = useState<Stats | null>(null);
-  const [cases, setCases] = useState<CaseItem[]>([]);
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [accountAccess, setAccountAccess] = useState<AccountAccess | null>(
     null,
   );
@@ -1035,7 +968,7 @@ export default function DashboardPage() {
     "idle" | "success" | "error"
   >("idle");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const [clockTick, setClockTick] = useState(0);
+  const loadAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1087,6 +1020,10 @@ export default function DashboardPage() {
   }, [router]);
 
   const loadDashboard = useCallback(async (manualRefresh = false) => {
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+
     if (manualRefresh) {
       setIsRefreshing(true);
       setRefreshStatus("idle");
@@ -1095,82 +1032,53 @@ export default function DashboardPage() {
     try {
       setHasLoadError(false);
 
-      const responses = await Promise.all([
-        fetch(
-          `/api/dashboard-stats?tz=${encodeURIComponent(TENANT_TIME_ZONE)}`,
-          {
-            cache: "no-store",
-            credentials: "include",
-          },
-        ),
-        fetch("/api/cases?limit=4&sort=updated", {
+      const response = await fetch(
+        `/api/dashboard-stats?tz=${encodeURIComponent(TENANT_TIME_ZONE)}`,
+        {
           cache: "no-store",
           credentials: "include",
-        }),
-        fetch("/api/activity?limit=4", {
-          cache: "no-store",
-          credentials: "include",
-        }),
-        fetch("/api/documents?limit=5", {
-          cache: "no-store",
-          credentials: "include",
-        }),
-      ]);
-
-      const hadFailure = responses.some((response) => !response.ok);
-      const json = await Promise.all(
-        responses.map(async (response) => {
-          if (!response.ok) {
-            console.warn(
-              "Dashboard API failed:",
-              response.url,
-              response.status,
-            );
-            return { data: [] };
-          }
-
-          try {
-            return await response.json();
-          } catch {
-            return { data: [] };
-          }
-        }),
+          signal: controller.signal,
+        },
       );
 
-      const [statsData, casesData, activitiesData, documentsData] = json;
+      const body = await response.json().catch(() => null);
+      const nextStats =
+        response.ok && body?.data && !Array.isArray(body.data)
+          ? (body.data as Stats)
+          : null;
 
-      setStats(
-        statsData?.data && !Array.isArray(statsData.data)
-          ? statsData.data
-          : null,
-      );
-      setCases(extractItems<CaseItem>(casesData).slice(0, 4));
-      setActivities(extractItems<ActivityItem>(activitiesData).slice(0, 4));
-      setDocuments(extractItems<DocumentItem>(documentsData).slice(0, 5));
-      setHasLoadError(hadFailure);
+      if (!nextStats) {
+        throw new Error(`Dashboard API failed with status ${response.status}`);
+      }
+
+      if (controller.signal.aborted) return;
+
+      setStats(nextStats);
+      setHasLoadError(false);
       setLastUpdatedAt(new Date());
-      if (manualRefresh) setRefreshStatus(hadFailure ? "error" : "success");
+      if (manualRefresh) setRefreshStatus("success");
     } catch (error) {
+      if (controller.signal.aborted) return;
+
       console.error("Dashboard load failed:", error);
       setHasLoadError(true);
       if (manualRefresh) setRefreshStatus("error");
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      if (loadAbortRef.current === controller) {
+        setLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void loadDashboard();
+
+    return () => {
+      loadAbortRef.current?.abort();
+      loadAbortRef.current = null;
+    };
   }, [loadDashboard]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setClockTick((value) => value + 1);
-    }, 15000);
-
-    return () => window.clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (refreshStatus === "idle") return;
@@ -1213,11 +1121,9 @@ export default function DashboardPage() {
     };
   }, [stats?.role]);
 
-  const recentDocuments = useMemo(() => documents.slice(0, 5), [documents]);
+  const recentDocuments = stats?.recentDocuments ?? [];
   const recentActivityItems = useMemo<ActivityViewItem[]>(() => {
-    void clockTick;
-
-    return activities.slice(0, 4).map((activity) => {
+    return (stats?.recentActivities ?? []).map((activity) => {
       const activityType = normalizeActivityType(activity);
       const config = ACTIVITY_CONFIG[activityType] ?? { icon: "✨", color: "" };
       const activityText = getActivityText(activity, locale);
@@ -1228,8 +1134,7 @@ export default function DashboardPage() {
         color: config.color,
         title: activityText.title,
         message: activityText.message,
-        createdAtLabel: formatRelativeTime(activity.createdAt, locale),
-        createdAtFullLabel: formatActivityDateTime(activity.createdAt, locale),
+        createdAt: activity.createdAt,
         href: "/dashboard/activity",
         isSecurity: [
           "LOGIN_NEW_IP",
@@ -1240,7 +1145,7 @@ export default function DashboardPage() {
         ].includes(activityType),
       };
     });
-  }, [activities, clockTick, locale]);
+  }, [locale, stats?.recentActivities]);
 
   const firstAppointment = useMemo(() => {
     const upcoming = stats?.upcomingAppointments ?? [];
@@ -1274,19 +1179,6 @@ export default function DashboardPage() {
       : t.dailySummary(stats?.todayApptCount ?? 0, stats?.dueTasksCount ?? 0);
 
   const canViewFinance = stats?.permissions?.canViewFinance === true;
-
-  const lastUpdatedLabel = useMemo(() => {
-    void clockTick;
-    if (!lastUpdatedAt) return t.updatedNow;
-
-    const elapsedSeconds = Math.max(
-      0,
-      Math.floor((Date.now() - lastUpdatedAt.getTime()) / 1000),
-    );
-    if (elapsedSeconds < 10) return t.updatedNow;
-    if (elapsedSeconds < 60) return t.updatedSeconds(elapsedSeconds);
-    return t.updatedMinutes(Math.floor(elapsedSeconds / 60));
-  }, [clockTick, lastUpdatedAt, t]);
 
   const attentionItems = useMemo(() => {
     const items: Array<{
@@ -1383,9 +1275,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <PageTransition
+    <main
       dir={isRtl ? "rtl" : "ltr"}
-      className="w-full min-w-0 max-w-full space-y-4 overflow-x-hidden text-start sm:space-y-5"
+      className="animate-fade w-full min-w-0 max-w-full space-y-4 overflow-x-hidden text-start sm:space-y-5"
     >
       {hasLoadError && (
         <div
@@ -1446,7 +1338,10 @@ export default function DashboardPage() {
         greetingName={greetingName}
         summaryText={summaryText}
         canViewFinance={canViewFinance}
-        lastUpdatedLabel={lastUpdatedLabel}
+        lastUpdatedAt={lastUpdatedAt}
+        updatedNowLabel={t.updatedNow}
+        formatUpdatedSeconds={t.updatedSeconds}
+        formatUpdatedMinutes={t.updatedMinutes}
         refreshLabel={t.refresh}
         refreshingLabel={t.refreshing}
         refreshSuccessLabel={t.refreshSuccess}
@@ -1466,7 +1361,7 @@ export default function DashboardPage() {
       />
 
       {/* Primary metrics */}
-      <Stagger className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label={t.activeCases}
           value={stats?.activeCaseCount ?? 0}
@@ -1531,7 +1426,7 @@ export default function DashboardPage() {
             trend={(stats?.newClientsThisMonth ?? 0) > 0 ? "up" : "neutral"}
           />
         )}
-      </Stagger>
+      </div>
 
       <AttentionPanel
         items={attentionItems}
@@ -1543,7 +1438,7 @@ export default function DashboardPage() {
       />
 
       {/* Daily operations */}
-      <SlideUp delay={0.08}>
+      <div className="animate-slide">
         <section className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
           <TodayAppointments
             appointments={stats?.todayAppts ?? []}
@@ -1569,14 +1464,14 @@ export default function DashboardPage() {
             todayLabel={t.dueToday}
           />
         </section>
-      </SlideUp>
+      </div>
 
       {/* Lower dashboard: independent columns prevent empty row gaps */}
-      <SlideUp delay={0.12}>
+      <div className="animate-slide">
         <section className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
           <div className="min-w-0 space-y-4">
             <RecentCases
-              cases={cases}
+              cases={stats?.recentCases ?? []}
               isRtl={isRtl}
               statusLabels={statusLabels}
               statusBadgeClasses={STATUS_BADGE}
@@ -1607,6 +1502,7 @@ export default function DashboardPage() {
             <ActivityFeed
               activities={recentActivityItems}
               isRtl={isRtl}
+              locale={locale}
               labels={{
                 title: t.recentActivities,
                 subtitle: t.recentActivitiesSub,
@@ -1641,7 +1537,7 @@ export default function DashboardPage() {
             />
           </aside>
         </section>
-      </SlideUp>
-    </PageTransition>
+      </div>
+    </main>
   );
 }

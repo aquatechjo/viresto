@@ -8,11 +8,13 @@ import {
   buildAppointmentAccessWhere,
   buildCaseAccessWhere,
   buildClientAccessWhere,
+  buildDocumentAccessWhere,
   buildInvoiceAccessWhere,
   buildPaymentAccessWhere,
   buildTaskAccessWhere,
 } from "@/lib/access-control";
 import { canReadFinance } from "@/lib/permissions";
+import { buildVisibleActivityWhere } from "@/lib/activity-query";
 
 const DEFAULT_TIME_ZONE = "Asia/Amman";
 
@@ -44,6 +46,10 @@ export async function GET(req: NextRequest) {
       : DEFAULT_TIME_ZONE;
 
     const nowInZone = DateTime.now().setZone(timeZone);
+    const recentActivityWhere = buildVisibleActivityWhere(
+      auth.user,
+      canViewFinance,
+    );
 
     const now = nowInZone.toUTC().toJSDate();
     const todayStart = nowInZone.startOf("day").toUTC().toJSDate();
@@ -83,6 +89,9 @@ export async function GET(req: NextRequest) {
       upcomingTasks,
       openInvoices,
       openInvoicePaidGroups,
+      recentCases,
+      recentActivities,
+      recentDocuments,
     ] = await Promise.all([
       /*
        * الموكلون غير المؤرشفين فقط.
@@ -372,6 +381,52 @@ export async function GET(req: NextRequest) {
             _sum: { amount: true },
           })
         : Promise.resolve([]),
+
+      prisma.case.findMany({
+        where: buildCaseAccessWhere(auth.user, {
+          client: { archivedAt: null },
+        }),
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        take: 4,
+        select: {
+          id: true,
+          publicId: true,
+          title: true,
+          caseNumber: true,
+          status: true,
+          client: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+
+      prisma.activity.findMany({
+        where: recentActivityWhere,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 4,
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          message: true,
+          createdAt: true,
+        },
+      }),
+
+      prisma.document.findMany({
+        where: buildDocumentAccessWhere(auth.user),
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          fileName: true,
+          fileType: true,
+          createdAt: true,
+          tags: true,
+        },
+      }),
     ]);
 
     const paidAmountByInvoice = new Map<string, number>();
@@ -545,6 +600,10 @@ export async function GET(req: NextRequest) {
        * نرسل أول خمس فواتير متأخرة لقسم "يحتاج انتباهك".
        */
       overdueInvoices: canViewFinance ? overdueInvoicePreview : [],
+
+      recentCases,
+      recentActivities,
+      recentDocuments,
     });
   });
 }

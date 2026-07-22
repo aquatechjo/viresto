@@ -3,7 +3,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import SessionGuard from "@/components/security/SessionGuard";
-import AIAssistant from "@/components/dashboard/AIAssistant";
+import DeferredAIAssistant from "@/components/dashboard/DeferredAIAssistant";
 import { useLocale } from "@/lib/useLocale";
 
 export default function DashboardLayout({
@@ -34,7 +34,7 @@ export default function DashboardLayout({
         </main>
       </div>
 
-      <AIAssistant />
+      <DeferredAIAssistant />
     </div>
   );
 }

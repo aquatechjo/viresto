@@ -2,9 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
-import { SlideUp, Stagger, staggerItem } from "@/components/motion";
 import SectionHeader from "./SectionHeader";
 
 export interface AttentionItem {
@@ -59,7 +57,7 @@ export default function AttentionPanel({
 }: AttentionPanelProps) {
   if (items.length === 0) {
     return (
-      <SlideUp delay={0.06}>
+      <div className="animate-slide">
         <section className="card flex min-w-0 items-center gap-3 p-3.5 sm:px-4" aria-label={title}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
             <CheckCircle2 className="h-5 w-5" />
@@ -78,20 +76,20 @@ export default function AttentionPanel({
             </p>
           </div>
         </section>
-      </SlideUp>
+      </div>
     );
   }
 
   return (
-    <SlideUp delay={0.06}>
+    <div className="animate-slide">
       <section className="card h-fit min-w-0 p-4 sm:p-5">
         <SectionHeader title={title} subtitle={subtitle} isRtl={isRtl} />
-        <Stagger className="grid min-w-0 gap-3 md:grid-cols-2" stagger={0.05}>
+        <div className="stagger grid min-w-0 gap-3 md:grid-cols-2">
           {items.map((item) => {
             const toneStyles = TONE_STYLES[item.tone];
 
             return (
-              <motion.div key={item.key} variants={staggerItem} className="min-w-0">
+              <div key={item.key} className="min-w-0">
                 <Link
                   href={item.href}
                   className="group flex min-h-full min-w-0 items-start gap-3 rounded-2xl border p-3.5 transition hover:-translate-y-0.5 hover:shadow-sm"
@@ -125,11 +123,11 @@ export default function AttentionPanel({
                     </span>
                   </div>
                 </Link>
-              </motion.div>
+              </div>
             );
           })}
-        </Stagger>
+        </div>
       </section>
-    </SlideUp>
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   CalendarPlus,
@@ -12,8 +13,6 @@ import {
   TriangleAlert,
   UserPlus,
 } from "lucide-react";
-import { motion } from "framer-motion";
-import { SlideUp, Stagger, staggerItem } from "@/components/motion";
 
 type RefreshStatus = "idle" | "success" | "error";
 
@@ -23,7 +22,10 @@ interface DashboardHeaderProps {
   summaryText: string;
   canViewFinance: boolean;
 
-  lastUpdatedLabel: string;
+  lastUpdatedAt: Date | null;
+  updatedNowLabel: string;
+  formatUpdatedSeconds: (seconds: number) => string;
+  formatUpdatedMinutes: (minutes: number) => string;
   refreshLabel: string;
   refreshingLabel: string;
   refreshSuccessLabel: string;
@@ -43,12 +45,45 @@ interface DashboardHeaderProps {
   };
 }
 
+function LastUpdatedText({
+  updatedAt,
+  nowLabel,
+  formatSeconds,
+  formatMinutes,
+}: {
+  updatedAt: Date | null;
+  nowLabel: string;
+  formatSeconds: (seconds: number) => string;
+  formatMinutes: (minutes: number) => string;
+}) {
+  const [now, setNow] = useState(() => updatedAt?.getTime() ?? 0);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  if (!updatedAt) return nowLabel;
+
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor((now - updatedAt.getTime()) / 1000),
+  );
+
+  if (elapsedSeconds < 10) return nowLabel;
+  if (elapsedSeconds < 60) return formatSeconds(elapsedSeconds);
+  return formatMinutes(Math.floor(elapsedSeconds / 60));
+}
+
 export default function DashboardHeader({
   greeting,
   greetingName,
   summaryText,
   canViewFinance,
-  lastUpdatedLabel,
+  lastUpdatedAt,
+  updatedNowLabel,
+  formatUpdatedSeconds,
+  formatUpdatedMinutes,
   refreshLabel,
   refreshingLabel,
   refreshSuccessLabel,
@@ -59,7 +94,7 @@ export default function DashboardHeader({
   labels,
 }: DashboardHeaderProps) {
   return (
-    <SlideUp>
+    <div className="animate-slide">
       <section
         className="relative min-w-0 overflow-hidden rounded-[24px] border p-4 sm:p-5"
         style={{
@@ -114,7 +149,12 @@ export default function DashboardHeader({
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
 
                 <span className="truncate text-[11px] font-bold text-white/75 sm:text-xs">
-                  {lastUpdatedLabel}
+                  <LastUpdatedText
+                    updatedAt={lastUpdatedAt}
+                    nowLabel={updatedNowLabel}
+                    formatSeconds={formatUpdatedSeconds}
+                    formatMinutes={formatUpdatedMinutes}
+                  />
                 </span>
               </div>
 
@@ -163,8 +203,8 @@ export default function DashboardHeader({
               {labels.quickActions}
             </p>
 
-            <Stagger className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-              <motion.div variants={staggerItem}>
+            <div className="stagger grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+              <div>
                 <Link
                   href="/dashboard/clients"
                   className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
@@ -176,9 +216,9 @@ export default function DashboardHeader({
                   <UserPlus className="h-4 w-4" />
                   {labels.addClient}
                 </Link>
-              </motion.div>
+              </div>
 
-              <motion.div variants={staggerItem}>
+              <div>
                 <Link
                   href="/dashboard/cases"
                   className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl px-3 py-2 text-xs font-black transition hover:brightness-105"
@@ -190,9 +230,9 @@ export default function DashboardHeader({
                   <FilePlus2 className="h-4 w-4" />
                   {labels.addCase}
                 </Link>
-              </motion.div>
+              </div>
 
-              <motion.div variants={staggerItem}>
+              <div>
                 <Link
                   href="/dashboard/appointments"
                   className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
@@ -204,9 +244,9 @@ export default function DashboardHeader({
                   <CalendarPlus className="h-4 w-4" />
                   {labels.addAppointment}
                 </Link>
-              </motion.div>
+              </div>
 
-              <motion.div variants={staggerItem}>
+              <div>
                 <Link
                   href="/dashboard/documents"
                   className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
@@ -218,10 +258,10 @@ export default function DashboardHeader({
                   <FileUp className="h-4 w-4" />
                   {labels.uploadDocument}
                 </Link>
-              </motion.div>
+              </div>
 
               {canViewFinance && (
-                <motion.div variants={staggerItem}>
+                <div>
                   <Link
                     href="/dashboard/invoices"
                     className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
@@ -233,12 +273,12 @@ export default function DashboardHeader({
                     <ReceiptText className="h-4 w-4" />
                     {labels.createInvoice}
                   </Link>
-                </motion.div>
+                </div>
               )}
-            </Stagger>
+            </div>
           </div>
         </div>
       </section>
-    </SlideUp>
+    </div>
   );
 }

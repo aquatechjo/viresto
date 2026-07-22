@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AnimatedCounter } from "@/components/motion";
 import VDSIcon from "./VDSIcon";
 import type { VDSTone } from "./tokens";
 
@@ -35,7 +34,7 @@ export default function VDSStat({
       </p>
       <div className="mt-1 flex min-w-0 items-end justify-between gap-2">
         <p className="truncate text-xl font-black" style={{ color: "var(--text)" }}>
-          {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
+          {typeof value === "number" ? value.toLocaleString("en-US") : value}
         </p>
         {meta ? <div className="shrink-0 text-[10px] font-bold">{meta}</div> : null}
       </div>

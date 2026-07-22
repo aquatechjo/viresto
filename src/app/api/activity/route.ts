@@ -6,71 +6,11 @@ import { ok } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { canReadFinance } from "@/lib/permissions";
-
-function addAndCondition(
-  where: Prisma.ActivityWhereInput,
-  condition: Prisma.ActivityWhereInput,
-) {
-  const currentAnd = where.AND;
-
-  if (!currentAnd) {
-    where.AND = [condition];
-    return;
-  }
-
-  where.AND = Array.isArray(currentAnd)
-    ? [...currentAnd, condition]
-    : [currentAnd, condition];
-}
-
-function categoryCondition(category: string): Prisma.ActivityWhereInput | null {
-  const contains = (value: string): Prisma.StringFilter<"Activity"> => ({
-    contains: value,
-    mode: "insensitive",
-  });
-
-  const fields = (values: string[]): Prisma.ActivityWhereInput => ({
-    OR: values.flatMap((value) => [
-      { type: contains(value) },
-      { title: contains(value) },
-      { message: contains(value) },
-      { entityType: contains(value) },
-    ]),
-  });
-
-  switch (category) {
-    case "clients":
-      return fields(["CLIENT", "موكل"]);
-    case "cases":
-      return fields(["CASE", "قضية"]);
-    case "appointments":
-      return fields(["APPOINTMENT", "موعد"]);
-    case "tasks":
-      return fields(["TASK", "مهمة"]);
-    case "documents":
-      return fields(["DOCUMENT", "مستند"]);
-    case "payments":
-      return fields(["PAYMENT", "دفعة"]);
-    case "invoices":
-      return fields(["INVOICE", "فاتورة"]);
-    case "security":
-      return fields([
-        "LOGIN",
-        "LOGOUT",
-        "SESSION",
-        "PASSWORD",
-        "2FA",
-        "TWO_FACTOR",
-        "AUTH",
-        "تسجيل دخول",
-        "تسجيل خروج",
-        "كلمة المرور",
-        "التحقق الثنائي",
-      ]);
-    default:
-      return null;
-  }
-}
+import {
+  addActivityAndCondition,
+  buildActivityCategoryCondition,
+  buildVisibleActivityWhere,
+} from "@/lib/activity-query";
 
 const activitySelect = {
   id: true,
@@ -115,46 +55,23 @@ export async function GET(req: NextRequest) {
 
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ActivityWhereInput = {
-      tenantId: auth.user.tenantId,
-    };
-
-    /*
-     * سجل النشاط العام قد يحتوي عناوين قضايا وموكلين وبيانات مالية.
-     * لا توجد علاقة مباشرة من Activity بالقضية تسمح بتطبيق صلاحيات التكليف
-     * بأمان على كل أنواع السجلات، لذلك يرى غير المدير نشاطه الشخصي فقط.
-     * نشاط القضية المشترك يبقى متاحًا من صفحة القضية بعد فحص صلاحية الوصول.
-     */
-    if (auth.user.role !== "ADMIN") {
-      where.actorId = auth.user.userId;
-    }
-
-    if (!canReadFinance(auth.user.role)) {
-      const paymentCondition = categoryCondition("payments");
-      const invoiceCondition = categoryCondition("invoices");
-
-      addAndCondition(where, {
-        NOT: [
-          ...(paymentCondition ? [paymentCondition] : []),
-          ...(invoiceCondition ? [invoiceCondition] : []),
-        ],
-      });
-    }
+    const canViewFinance = canReadFinance(auth.user.role);
+    const where = buildVisibleActivityWhere(auth.user, canViewFinance);
 
     if (type) {
       where.type = type;
     }
 
     if (category && category !== "all") {
-      const condition = categoryCondition(category);
+      const condition = buildActivityCategoryCondition(category);
 
       if (condition) {
-        addAndCondition(where, condition);
+        addActivityAndCondition(where, condition);
       }
     }
 
     if (q) {
-      addAndCondition(where, {
+      addActivityAndCondition(where, {
         OR: [
           { title: { contains: q, mode: "insensitive" } },
           { message: { contains: q, mode: "insensitive" } },
@@ -166,30 +83,16 @@ export async function GET(req: NextRequest) {
 
     const takePlusOne = limit + 1;
 
-    const statsWhere: Prisma.ActivityWhereInput = {
-      tenantId: auth.user.tenantId,
-      ...(auth.user.role !== "ADMIN" ? { actorId: auth.user.userId } : {}),
-    };
-
-    if (!canReadFinance(auth.user.role)) {
-      const paymentCondition = categoryCondition("payments");
-      const invoiceCondition = categoryCondition("invoices");
-      addAndCondition(statsWhere, {
-        NOT: [
-          ...(paymentCondition ? [paymentCondition] : []),
-          ...(invoiceCondition ? [invoiceCondition] : []),
-        ],
-      });
-    }
+    const statsWhere = buildVisibleActivityWhere(auth.user, canViewFinance);
 
     const startOfToday = DateTime.now()
       .setZone("Asia/Amman")
       .startOf("day")
       .toUTC()
       .toJSDate();
-    const securityCondition = categoryCondition("security");
-    const paymentCondition = categoryCondition("payments");
-    const invoiceCondition = categoryCondition("invoices");
+    const securityCondition = buildActivityCategoryCondition("security");
+    const paymentCondition = buildActivityCategoryCondition("payments");
+    const invoiceCondition = buildActivityCategoryCondition("invoices");
 
     const [activitiesPlusOne, total, statsTotal, statsToday, statsSecurity, statsFinance] = await Promise.all([
       prisma.activity.findMany({

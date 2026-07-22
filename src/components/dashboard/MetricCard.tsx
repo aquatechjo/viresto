@@ -8,8 +8,6 @@ import {
   ArrowUpRight,
   Minus,
 } from "lucide-react";
-import { motion } from "framer-motion";
-import { AnimatedCounter, staggerItem } from "@/components/motion";
 
 interface MetricCardProps {
   label: string;
@@ -102,7 +100,7 @@ export default function MetricCard({
   const styles = TONE_STYLES[tone];
 
   return (
-    <motion.div variants={staggerItem} className="min-w-0">
+    <div className="min-w-0">
       <Link
         href={href}
         className="group relative block min-h-[190px] min-w-0 overflow-hidden rounded-[24px] border p-4 transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_55px_rgba(15,61,62,0.14)] sm:p-5"
@@ -151,7 +149,11 @@ export default function MetricCard({
           <p
             className={`mt-1.5 truncate text-[2rem] font-black leading-none tracking-[-0.04em] sm:text-[2.2rem] ${styles.value}`}
           >
-            {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
+            {typeof value === "number"
+              ? new Intl.NumberFormat("en-US", {
+                  maximumFractionDigits: 0,
+                }).format(value)
+              : value}
           </p>
 
           <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
@@ -173,6 +175,6 @@ export default function MetricCard({
           </p>
         </div>
       </Link>
-    </motion.div>
+    </div>
   );
 }

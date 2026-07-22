@@ -1,8 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { BriefcaseBusiness, CheckCircle2, CircleDollarSign, Users } from "lucide-react";
-import { AnimatedCounter, Stagger, staggerItem } from "@/components/motion";
 import { VDSBadge, VDSCard, VDSProgressRing, VDSStat } from "@/components/ui/vds";
 import SectionHeader from "./SectionHeader";
 
@@ -33,29 +31,29 @@ export default function OfficeSummary(props: OfficeSummaryProps) {
         <div className="min-w-0">
           <p className="text-xs font-bold" style={{ color: "var(--text-3)" }}>{labels.resolvedCases}</p>
           <p className="mt-1 text-xl font-black" style={{ color: "var(--text)" }}>
-            <AnimatedCounter value={resolvedCasesCount} /> / <AnimatedCounter value={totalCasesCount} />
+            {resolvedCasesCount.toLocaleString("en-US")} / {totalCasesCount.toLocaleString("en-US")}
           </p>
           <VDSBadge tone="emerald" className="mt-2">{Math.round(resolvedCaseRate)}%</VDSBadge>
         </div>
         <VDSProgressRing value={resolvedCaseRate} tone="emerald" />
       </div>
 
-      <Stagger className="grid grid-cols-2 gap-3" stagger={0.05}>
-        <motion.div variants={staggerItem}>
-          <VDSStat label={labels.clients} value={clientCount} icon={<Users className="h-4 w-4" />} tone="blue" meta={<span style={{ color: "var(--text-3)" }}>+<AnimatedCounter value={newClientsThisMonth} /> {labels.thisMonth}</span>} />
-        </motion.div>
-        <motion.div variants={staggerItem}>
+      <div className="stagger grid grid-cols-2 gap-3">
+        <div>
+          <VDSStat label={labels.clients} value={clientCount} icon={<Users className="h-4 w-4" />} tone="blue" meta={<span style={{ color: "var(--text-3)" }}>+{newClientsThisMonth.toLocaleString("en-US")} {labels.thisMonth}</span>} />
+        </div>
+        <div>
           <VDSStat label={labels.totalCases} value={totalCasesCount} icon={<BriefcaseBusiness className="h-4 w-4" />} tone="teal" />
-        </motion.div>
-        <motion.div variants={staggerItem}>
+        </div>
+        <div>
           <VDSStat label={labels.resolvedCases} value={resolvedCasesCount} icon={<CheckCircle2 className="h-4 w-4" />} tone="emerald" meta={<span style={{ color: "var(--text-3)" }}>{Math.round(resolvedCaseRate)}%</span>} />
-        </motion.div>
+        </div>
         {canViewFinance ? (
-          <motion.div variants={staggerItem}>
+          <div>
             <VDSStat label={labels.monthlyRevenue} value={monthlyRevenue} icon={<CircleDollarSign className="h-4 w-4" />} tone="gold" />
-          </motion.div>
+          </div>
         ) : null}
-      </Stagger>
+      </div>
 
       {canViewFinance ? (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-[20px] border p-3.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>

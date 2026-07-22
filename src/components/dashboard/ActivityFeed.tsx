@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -14,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { VDSBadge, VDSCard, VDSIcon, VDSSectionHeader, VDSTimeline, VDSTimelineItem, type VDSTone } from "@/components/ui/vds";
+import type { Locale } from "@/lib/i18n";
 
 export interface ActivityViewItem {
   id: string;
@@ -21,8 +23,7 @@ export interface ActivityViewItem {
   color: string;
   title: string;
   message?: string;
-  createdAtLabel: string;
-  createdAtFullLabel: string;
+  createdAt: string;
   href?: string;
   isSecurity?: boolean;
 }
@@ -30,6 +31,7 @@ export interface ActivityViewItem {
 interface ActivityFeedProps {
   activities: ActivityViewItem[];
   isRtl: boolean;
+  locale: Locale;
   labels: {
     title: string;
     subtitle: string;
@@ -37,6 +39,34 @@ interface ActivityFeedProps {
     empty: string;
     security: string;
   };
+}
+
+function formatRelativeTime(date: string, locale: Locale, now: number) {
+  const elapsedSeconds = Math.round((new Date(date).getTime() - now) / 1000);
+  const formatter = new Intl.RelativeTimeFormat(locale === "ar" ? "ar" : "en", {
+    numeric: "auto",
+  });
+
+  if (Math.abs(elapsedSeconds) < 60) return formatter.format(elapsedSeconds, "second");
+
+  const elapsedMinutes = Math.round(elapsedSeconds / 60);
+  if (Math.abs(elapsedMinutes) < 60) return formatter.format(elapsedMinutes, "minute");
+
+  const elapsedHours = Math.round(elapsedMinutes / 60);
+  if (Math.abs(elapsedHours) < 24) return formatter.format(elapsedHours, "hour");
+
+  return formatter.format(Math.round(elapsedHours / 24), "day");
+}
+
+function formatActivityDateTime(date: string, locale: Locale) {
+  return new Intl.DateTimeFormat(
+    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
+    {
+      timeZone: "Asia/Amman",
+      dateStyle: "medium",
+      timeStyle: "short",
+    },
+  ).format(new Date(date));
 }
 
 const ICON_MAP = {
@@ -67,7 +97,18 @@ function resolveTone(activity: ActivityViewItem): VDSTone {
   return "slate";
 }
 
-export default function ActivityFeed({ activities, isRtl, labels }: ActivityFeedProps) {
+export default function ActivityFeed({ activities, isRtl, locale, labels }: ActivityFeedProps) {
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    const initialTimeout = window.setTimeout(() => setNow(Date.now()), 0);
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => {
+      window.clearTimeout(initialTimeout);
+      window.clearInterval(interval);
+    };
+  }, []);
+
   return (
     <VDSCard className="overflow-hidden">
       <VDSSectionHeader
@@ -112,8 +153,12 @@ export default function ActivityFeed({ activities, isRtl, labels }: ActivityFeed
                           {activity.isSecurity && <VDSBadge tone="red"><ShieldAlert className="h-3 w-3" />{labels.security}</VDSBadge>}
                         </div>
                       </div>
-                      <time dateTime={activity.createdAtFullLabel} title={activity.createdAtFullLabel} className="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-bold" style={{ color: "var(--text-3)", background: "var(--green-soft)" }}>
-                        {activity.createdAtLabel}
+                      <time dateTime={activity.createdAt} title={formatActivityDateTime(activity.createdAt, locale)} className="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-bold" style={{ color: "var(--text-3)", background: "var(--green-soft)" }}>
+                        {formatRelativeTime(
+                          activity.createdAt,
+                          locale,
+                          now || new Date(activity.createdAt).getTime(),
+                        )}
                       </time>
                     </div>
                     {activity.message && <p className="mt-1.5 line-clamp-2 text-xs leading-5" style={{ color: "var(--text-3)" }}>{activity.message}</p>}

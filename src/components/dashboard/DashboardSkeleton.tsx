@@ -1,6 +1,6 @@
 "use client";
 
-import { SkeletonCard } from "@/components/motion";
+import { SkeletonCard } from "@/components/motion/SkeletonCard";
 
 type DashboardSkeletonProps = {
   isRtl: boolean;
