@@ -138,7 +138,10 @@ export async function GET(req: NextRequest) {
 
     const sp = new URL(req.url).searchParams;
     const status = sp.get("status") || "";
-    const q = sp.get("q") || "";
+    const q = sp.get("q")?.trim().slice(0, 100) || "";
+    const options = sp.get("options")?.trim().toLowerCase() || "";
+    const includeStats = sp.get("includeStats") !== "false";
+    const clientId = sp.get("clientId")?.trim() || "";
     const archivedOnly = sp.get("archivedOnly") === "true";
     const pageRaw = Number(sp.get("page") || 1);
     const page = Number.isNaN(pageRaw) ? 1 : Math.max(Math.floor(pageRaw), 1);
@@ -150,6 +153,85 @@ export async function GET(req: NextRequest) {
 
     if (status && !allowedStatuses.includes(status as any)) {
       return err("حالة الفاتورة غير صالحة", 400);
+    }
+
+    if (options && options !== "client" && options !== "case") {
+      return err("نوع خيارات الفاتورة غير صالح", 400);
+    }
+
+    if (options === "client") {
+      const clients = await prisma.client.findMany({
+        where: buildClientAccessWhere(auth.user, {
+          ...(q
+            ? {
+                name: {
+                  contains: q,
+                  mode: "insensitive" as const,
+                },
+              }
+            : {}),
+        }),
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 50,
+        select: {
+          id: true,
+          name: true,
+          archivedAt: true,
+        },
+      });
+
+      return ok(clients);
+    }
+
+    if (options === "case") {
+      if (!clientId) {
+        return err("الموكل مطلوب لتحميل خيارات القضايا", 400);
+      }
+
+      const cases = await prisma.case.findMany({
+        where: buildCaseAccessWhere(auth.user, {
+          clientId,
+          ...(q
+            ? {
+                OR: [
+                  {
+                    title: {
+                      contains: q,
+                      mode: "insensitive" as const,
+                    },
+                  },
+                  {
+                    caseNumber: {
+                      contains: q,
+                      mode: "insensitive" as const,
+                    },
+                  },
+                ],
+              }
+            : {}),
+        }),
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 50,
+        select: {
+          id: true,
+          title: true,
+          caseNumber: true,
+          clientId: true,
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+        },
+      });
+
+      return ok(cases);
     }
 
     const where = buildInvoiceAccessWhere(auth.user, {
@@ -172,9 +254,9 @@ export async function GET(req: NextRequest) {
             }
           : {}),
       });
+    const statsWhere = buildInvoiceAccessWhere(auth.user);
 
-    const [invoices, total, statRows] = await prisma.$transaction([
-      prisma.invoice.findMany({
+    const invoicesQuery = prisma.invoice.findMany({
       where,
       include: {
         client: {
@@ -213,10 +295,43 @@ export async function GET(req: NextRequest) {
       },
       skip: (page - 1) * limit,
       take: limit,
-      }),
-      prisma.invoice.count({ where }),
+    });
+    const totalQuery = prisma.invoice.count({ where });
+
+    if (!includeStats) {
+      const [invoices, total] = await prisma.$transaction([
+        invoicesQuery,
+        totalQuery,
+      ]);
+
+      const decryptedInvoices = invoices.map((invoice) => ({
+        ...invoice,
+        client: invoice.client
+          ? {
+              ...invoice.client,
+              phone: decryptText(invoice.client.phone),
+              email: decryptText(invoice.client.email),
+            }
+          : invoice.client,
+      }));
+
+      return ok({
+        items: decryptedInvoices,
+        pagination: {
+          page,
+          pageSize: limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+        stats: null,
+      });
+    }
+
+    const [invoices, total, statRows] = await prisma.$transaction([
+      invoicesQuery,
+      totalQuery,
       prisma.invoice.findMany({
-        where,
+        where: statsWhere,
         select: {
           total: true,
           status: true,
@@ -268,7 +383,7 @@ export async function GET(req: NextRequest) {
         overdueCount: 0,
         paidCount: 0,
         archivedCount: 0,
-        totalCount: total,
+        totalCount: statRows.length,
       },
     );
 
