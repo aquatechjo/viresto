@@ -121,27 +121,9 @@
 html {
   direction: rtl;
   font-family: "Cairo", sans-serif;
-  font-variant-numeric: lining-nums;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-}
-
-:where(
-    input[type="number"],
-    input[type="tel"],
-    input[type="date"],
-    input[type="time"],
-    input[type="datetime-local"],
-    input[type="month"],
-    input[type="week"],
-    input[inputmode="numeric"],
-    input[inputmode="decimal"],
-    input[inputmode="tel"]
-  ) {
-  direction: ltr;
-  unicode-bidi: plaintext;
-  font-variant-numeric: tabular-nums lining-nums;
 }
 
 body {
@@ -2180,6 +2162,17 @@ select.input {
   }
 }
 
+@keyframes financeSuccessIconIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) rotate(-5deg) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0) scale(1);
+  }
+}
+
 @keyframes documentSuccessGrowX {
   from {
     transform: scaleX(0);
@@ -2207,16 +2200,19 @@ select.input {
   }
 }
 
-.document-success-overlay {
+.document-success-overlay,
+.finance-success-overlay {
   animation: fadeIn 0.18s ease-out both;
 }
 
-.document-success-card {
+.document-success-card,
+.finance-success-card {
   animation: documentSuccessCardIn 0.38s
     cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.document-success-topline {
+.document-success-topline,
+.finance-success-topline {
   transform-origin: left;
   animation: documentSuccessGrowX 1.25s ease-out both;
 }
@@ -2231,17 +2227,29 @@ select.input {
   animation: documentSuccessGrowY 0.28s 0.22s ease-out both;
 }
 
-.document-success-check {
+.document-success-check,
+.finance-success-check {
   animation: documentSuccessCheckIn 0.42s 0.38s
     cubic-bezier(0.22, 1.4, 0.36, 1) both;
 }
 
-.document-success-copy {
+.document-success-copy,
+.finance-success-copy {
   animation: slideUp 0.28s 0.3s ease-out both;
 }
 
-.document-success-progress {
+.document-success-progress,
+.finance-success-progress {
   animation: documentSuccessProgress 1.5s linear both;
+}
+
+.finance-success-icon {
+  animation: financeSuccessIconIn 0.5s 0.08s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.finance-success-progress {
+  animation-duration: 1.15s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2252,11 +2260,19 @@ select.input {
   .document-success-sheet,
   .document-success-check,
   .document-success-copy,
-  .document-success-progress {
+  .document-success-progress,
+  .finance-success-overlay,
+  .finance-success-card,
+  .finance-success-topline,
+  .finance-success-icon,
+  .finance-success-check,
+  .finance-success-copy,
+  .finance-success-progress {
     animation: none !important;
   }
 
-  .document-success-progress {
+  .document-success-progress,
+  .finance-success-progress {
     width: 100%;
   }
 }
