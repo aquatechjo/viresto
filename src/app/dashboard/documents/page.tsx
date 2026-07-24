@@ -1,8 +1,8 @@
 "use client";
 import AppLoader from "@/components/ui/AppLoader";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import EmptyState from "@/components/ui/EmptyState";
 import {
@@ -13,7 +13,6 @@ import {
   type VDSTone,
 } from "@/components/ui/vds";
 import { VDSSearchInput } from "@/components/ui/vds/table";
-import DocumentPreviewModal from "@/components/documents/DocumentPreviewModal";
 import { fileSizeLabel, relativeTime } from "@/lib/utils";
 import {
   getApiMessage,
@@ -24,6 +23,11 @@ import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+
+const DocumentPreviewModal = dynamic(
+  () => import("@/components/documents/DocumentPreviewModal"),
+  { ssr: false },
+);
 
 interface Doc {
   id: string;
@@ -394,6 +398,7 @@ export default function DocumentsPage() {
   const writeAccess = useTenantWriteAccess(locale);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const summaryLoadedRef = useRef(false);
 
   const isArchivedDoc = useCallback((doc: Doc) => {
     return Boolean(doc.client?.archivedAt || doc.case?.client?.archivedAt);
@@ -457,7 +462,10 @@ export default function DocumentsPage() {
     setUploadModalOpen(true);
   }
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (
+    signal?: AbortSignal,
+    refreshSummary = false,
+  ) => {
     try {
       setLoading(true);
       setLoadError(false);
@@ -466,6 +474,10 @@ export default function DocumentsPage() {
       if (debouncedSearch) params.set("q", debouncedSearch);
       if (filter !== "all") params.set("type", filter);
       if (selectedTag) params.set("tag", selectedTag);
+      params.set(
+        "includeSummary",
+        String(refreshSummary || !summaryLoadedRef.current),
+      );
 
       const documentsRes = await fetch(`/api/documents?${params}`, { signal });
       const documentsData = await documentsRes.json().catch(() => ({}));
@@ -476,7 +488,10 @@ export default function DocumentsPage() {
       );
       const meta = documentsData.data?.meta;
       setPages(Math.max(1, Number(meta?.pages) || 1));
-      if (meta?.summary) setSummary(meta.summary);
+      if (meta?.summary) {
+        setSummary(meta.summary);
+        summaryLoadedRef.current = true;
+      }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       toast.error(d.messages.loadError);
@@ -659,7 +674,7 @@ export default function DocumentsPage() {
 
       toast.success(d.messages.uploadSuccess);
       setUploadSuccessFile(file.name);
-      await load();
+      await load(undefined, true);
       window.setTimeout(() => setUploadSuccessFile(null), 1800);
       return true;
     } catch {
@@ -1796,109 +1811,73 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <AnimatePresence>
-        {uploadSuccessFile && (
-          <motion.div
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            role="status"
-            aria-live="polite"
+      {uploadSuccessFile && (
+        <div
+          className="document-success-overlay fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className="document-success-card relative w-full max-w-sm overflow-hidden rounded-[30px] border p-7 text-center shadow-2xl"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border-dark)",
+              color: "var(--text)",
+            }}
           >
-            <motion.div
-              initial={{ opacity: 0, y: 24, scale: 0.92, rotateX: -12 }}
-              animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
-              exit={{ opacity: 0, y: -12, scale: 0.96 }}
-              transition={{ type: "spring", stiffness: 260, damping: 22 }}
-              className="relative w-full max-w-sm overflow-hidden rounded-[30px] border p-7 text-center shadow-2xl"
+            <div
+              className="document-success-topline absolute inset-x-0 top-0 h-1"
               style={{
-                background: "var(--card)",
-                borderColor: "var(--border-dark)",
-                color: "var(--text)",
+                background:
+                  "linear-gradient(90deg, var(--sidebar), var(--accent))",
               }}
-            >
-              <motion.div
-                className="absolute inset-x-0 top-0 h-1"
+            />
+
+            <div className="relative mx-auto h-28 w-32" aria-hidden="true">
+              <div
+                className="document-success-folder absolute bottom-1 left-1/2 h-20 w-28 -translate-x-1/2 rounded-2xl border shadow-xl"
                 style={{
                   background:
-                    "linear-gradient(90deg, var(--sidebar), var(--accent))",
+                    "linear-gradient(145deg, var(--sidebar), var(--sidebar-dark))",
+                  borderColor: "rgba(255,255,255,.16)",
                 }}
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 1.25, ease: "easeOut" }}
-              />
-
-              <div className="relative mx-auto h-28 w-32" aria-hidden="true">
-                <motion.div
-                  className="absolute bottom-1 left-1/2 h-20 w-28 -translate-x-1/2 rounded-2xl border shadow-xl"
-                  style={{
-                    background:
-                      "linear-gradient(145deg, var(--sidebar), var(--sidebar-dark))",
-                    borderColor: "rgba(255,255,255,.16)",
-                  }}
-                  initial={{ y: 18, rotate: -5 }}
-                  animate={{ y: 0, rotate: 0 }}
-                  transition={{ delay: 0.08, type: "spring", stiffness: 240 }}
-                >
-                  <div
-                    className="absolute -top-3 left-3 h-5 w-12 rounded-t-xl"
-                    style={{ background: "var(--accent)" }}
-                  />
-                  <motion.div
-                    className="absolute inset-x-3 bottom-3 h-10 rounded-xl bg-white/10"
-                    initial={{ scaleY: 0 }}
-                    animate={{ scaleY: 1 }}
-                    transition={{ delay: 0.22 }}
-                  />
-                </motion.div>
-
-                <motion.div
-                  className="absolute right-0 top-0 grid h-12 w-12 place-items-center rounded-full border-4 border-[var(--card)] bg-emerald-500 text-2xl font-black text-white shadow-lg"
-                  initial={{ scale: 0, rotate: -35 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ delay: 0.38, type: "spring", stiffness: 340 }}
-                >
-                  ✓
-                </motion.div>
-              </div>
-
-              <motion.h3
-                className="mt-3 text-xl font-black"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
               >
-                {isRtl ? "تم حفظ المستند بنجاح" : "Document saved successfully"}
-              </motion.h3>
-
-              <motion.p
-                className="mx-auto mt-2 max-w-[280px] truncate text-sm font-bold"
-                style={{ color: "var(--text-3)" }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.42 }}
-                title={uploadSuccessFile}
-              >
-                {uploadSuccessFile}
-              </motion.p>
-
-              <div
-                className="mt-5 h-1.5 overflow-hidden rounded-full"
-                style={{ background: "var(--green-soft)" }}
-              >
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: "var(--sidebar)" }}
-                  initial={{ width: "0%" }}
-                  animate={{ width: "100%" }}
-                  transition={{ duration: 1.5, ease: "linear" }}
+                <div
+                  className="absolute -top-3 left-3 h-5 w-12 rounded-t-xl"
+                  style={{ background: "var(--accent)" }}
                 />
+                <div className="document-success-sheet absolute inset-x-3 bottom-3 h-10 rounded-xl bg-white/10" />
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+              <div className="document-success-check absolute right-0 top-0 grid h-12 w-12 place-items-center rounded-full border-4 border-[var(--card)] bg-emerald-500 text-2xl font-black text-white shadow-lg">
+                ✓
+              </div>
+            </div>
+
+            <h3 className="document-success-copy mt-3 text-xl font-black">
+              {isRtl ? "تم حفظ المستند بنجاح" : "Document saved successfully"}
+            </h3>
+
+            <p
+              className="document-success-copy mx-auto mt-2 max-w-[280px] truncate text-sm font-bold"
+              style={{ color: "var(--text-3)" }}
+              title={uploadSuccessFile}
+            >
+              {uploadSuccessFile}
+            </p>
+
+            <div
+              className="mt-5 h-1.5 overflow-hidden rounded-full"
+              style={{ background: "var(--green-soft)" }}
+            >
+              <div
+                className="document-success-progress h-full rounded-full"
+                style={{ background: "var(--sidebar)" }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {preview && (
         <DocumentPreviewModal

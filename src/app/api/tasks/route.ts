@@ -45,6 +45,8 @@ export async function GET(req: NextRequest) {
     const clientId = sp.get("clientId")?.trim() || "";
     const caseId = sp.get("caseId")?.trim() || "";
     const query = sp.get("q")?.trim().slice(0, 100) || "";
+    const includeStats = sp.get("includeStats") !== "false";
+    const includeOptions = sp.get("includeOptions") === "true";
     const pageInput = Number(sp.get("page") || "1");
     const limitInput = Number(sp.get("limit") || DEFAULT_PAGE_SIZE);
     const page = Number.isInteger(pageInput) && pageInput > 0 ? pageInput : 1;
@@ -109,22 +111,10 @@ export async function GET(req: NextRequest) {
       status: { notIn: ["COMPLETED", "CANCELLED"] as any },
     };
 
-    const [data, total, all, pending, completedCount, overdue] =
-      await prisma.$transaction([
+    const taskRowsPromise = prisma.$transaction([
         prisma.task.findMany({
-      where,
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            archivedAt: true,
-          },
-        },
-        case: {
-          select: {
-            id: true,
-            title: true,
+          where,
+          include: {
             client: {
               select: {
                 id: true,
@@ -132,24 +122,39 @@ export async function GET(req: NextRequest) {
                 archivedAt: true,
               },
             },
+            case: {
+              select: {
+                id: true,
+                title: true,
+                client: {
+                  select: {
+                    id: true,
+                    name: true,
+                    archivedAt: true,
+                  },
+                },
+              },
+            },
+            assignedTo: {
+              select: taskUserSelect,
+            },
+            createdBy: {
+              select: taskUserSelect,
+            },
           },
-        },
-        assignedTo: {
-          select: taskUserSelect,
-        },
-        createdBy: {
-          select: taskUserSelect,
-        },
-      },
-      orderBy: [
-        { completed: "asc" },
-        { dueDate: "asc" },
-        { createdAt: "desc" },
-      ],
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
+          orderBy: [
+            { completed: "asc" },
+            { dueDate: "asc" },
+            { createdAt: "desc" },
+          ],
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
         prisma.task.count({ where }),
+      ]);
+
+    const statsPromise = includeStats
+      ? prisma.$transaction([
         prisma.task.count({ where: accessWhere }),
         prisma.task.count({ where: pendingWhere }),
         prisma.task.count({ where: { ...accessWhere, status: "COMPLETED" } }),
@@ -159,7 +164,86 @@ export async function GET(req: NextRequest) {
             dueDate: { lt: now },
           },
         }),
-      ]);
+        ])
+      : Promise.resolve(null);
+
+    const optionsPromise = includeOptions
+      ? prisma.$transaction([
+          prisma.client.findMany({
+            where: buildClientAccessWhere(auth.user, { archivedAt: null }),
+            orderBy: { name: "asc" },
+            take: 100,
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          }),
+          prisma.case.findMany({
+            where: buildCaseAccessWhere(auth.user, {
+              client: { archivedAt: null },
+            }),
+            orderBy: { createdAt: "desc" },
+            take: 100,
+            select: {
+              id: true,
+              title: true,
+              caseNumber: true,
+              clientId: true,
+              status: true,
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                  archivedAt: true,
+                },
+              },
+            },
+          }),
+          prisma.user.findMany({
+            where: {
+              tenantId: auth.user.tenantId,
+              isActive: true,
+            },
+            orderBy: [
+              { isSystemAdmin: "desc" },
+              { role: "asc" },
+              { name: "asc" },
+            ],
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              isSystemAdmin: true,
+            },
+          }),
+        ])
+      : Promise.resolve(null);
+
+    const [[data, total], statsResult, optionsResult] = await Promise.all([
+      taskRowsPromise,
+      statsPromise,
+      optionsPromise,
+    ]);
+
+    const stats = statsResult
+      ? {
+          total: statsResult[0],
+          pending: statsResult[1],
+          done: statsResult[2],
+          overdue: statsResult[3],
+        }
+      : null;
+
+    const options = optionsResult
+      ? {
+          clients: optionsResult[0],
+          cases: optionsResult[1],
+          members: optionsResult[2],
+          currentUserId: auth.user.userId,
+          currentRole: auth.user.role,
+        }
+      : null;
 
     return ok({
       data,
@@ -169,7 +253,8 @@ export async function GET(req: NextRequest) {
         total,
         totalPages: Math.max(1, Math.ceil(total / limit)),
       },
-      stats: { total: all, pending, done: completedCount, overdue },
+      ...(stats ? { stats } : {}),
+      ...(options ? { options } : {}),
     });
   });
 }

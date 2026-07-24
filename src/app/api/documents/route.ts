@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const q = sp.get("q")?.trim();
     const type = sp.get("type");
     const tag = sp.get("tag")?.trim();
+    const includeSummary = sp.get("includeSummary") !== "false";
 
     const pageRaw = Number(sp.get("page") || 1);
     const page = Number.isNaN(pageRaw) ? 1 : Math.max(pageRaw, 1);
@@ -83,33 +84,21 @@ export async function GET(req: NextRequest) {
     const where = buildDocumentAccessWhere(auth.user, requestedWhere);
     const summaryWhere = buildDocumentAccessWhere(auth.user);
 
-    const [data, total, summaryTotal, pdfCount, imageCount, wordCount, size] =
-      await Promise.all([
+    const rowsPromise = prisma.$transaction([
         prisma.document.findMany({
-      where,
-      skip,
-      take: limit,
-      select: {
-        id: true,
-        fileName: true,
-        fileType: true,
-        fileSize: true,
-        notes: true,
-        tags: true,
-        createdAt: true,
-        clientId: true,
-        caseId: true,
-        client: {
+          where,
+          skip,
+          take: limit,
           select: {
             id: true,
-            name: true,
-            archivedAt: true,
-          },
-        },
-        case: {
-          select: {
-            id: true,
-            title: true,
+            fileName: true,
+            fileType: true,
+            fileSize: true,
+            notes: true,
+            tags: true,
+            createdAt: true,
+            clientId: true,
+            caseId: true,
             client: {
               select: {
                 id: true,
@@ -117,18 +106,49 @@ export async function GET(req: NextRequest) {
                 archivedAt: true,
               },
             },
+            case: {
+              select: {
+                id: true,
+                title: true,
+                client: {
+                  select: {
+                    id: true,
+                    name: true,
+                    archivedAt: true,
+                  },
+                },
+              },
+            },
           },
-        },
-      },
-      orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: "desc" },
         }),
         prisma.document.count({ where }),
+      ]);
+
+    const summaryPromise = includeSummary
+      ? prisma.$transaction([
         prisma.document.count({ where: summaryWhere }),
         prisma.document.count({ where: { AND: [summaryWhere, { fileType: "application/pdf" }] } }),
         prisma.document.count({ where: { AND: [summaryWhere, { fileType: { startsWith: "image/" } }] } }),
         prisma.document.count({ where: { AND: [summaryWhere, { OR: [{ fileType: { contains: "word" } }, { fileType: { contains: "officedocument" } }] }] } }),
         prisma.document.aggregate({ where: summaryWhere, _sum: { fileSize: true } }),
-      ]);
+        ])
+      : Promise.resolve(null);
+
+    const [[data, total], summaryResult] = await Promise.all([
+      rowsPromise,
+      summaryPromise,
+    ]);
+
+    const summary = summaryResult
+      ? {
+          total: summaryResult[0],
+          pdf: summaryResult[1],
+          images: summaryResult[2],
+          word: summaryResult[3],
+          totalSize: summaryResult[4]._sum.fileSize ?? 0,
+        }
+      : null;
 
     return ok({
       data,
@@ -137,13 +157,7 @@ export async function GET(req: NextRequest) {
         limit,
         total,
         pages: Math.ceil(total / limit),
-        summary: {
-          total: summaryTotal,
-          pdf: pdfCount,
-          images: imageCount,
-          word: wordCount,
-          totalSize: size._sum.fileSize ?? 0,
-        },
+        ...(summary ? { summary } : {}),
       },
     });
   });

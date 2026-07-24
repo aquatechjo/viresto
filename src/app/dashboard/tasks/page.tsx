@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import Modal from "@/components/ui/Modal";
 import DateTimePicker from "@/components/ui/DateTimePicker";
@@ -406,6 +406,8 @@ export default function TasksPage() {
   const [stats, setStats] = useState({ total: 0, pending: 0, done: 0, overdue: 0 });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const optionsLoadedRef = useRef(false);
+  const statsLoadedRef = useRef(false);
   const writeAccess = useTenantWriteAccess(locale);
 
   const isArchivedTask = useCallback((task: Task) => {
@@ -427,77 +429,76 @@ export default function TasksPage() {
     setPage(1);
   }, [debouncedSearch, priorityFilter, clientFilter, caseFilter, assigneeFilter, filter]);
 
-  const loadOptions = useCallback(async () => {
-    try {
-      const [clientsRes, casesRes, membersRes] = await Promise.all([
-        fetch("/api/clients?limit=100"),
-        fetch("/api/cases?limit=100"),
-        fetch("/api/team?mode=assignees"),
-      ]);
-      const [clientsData, casesData, membersData] = await Promise.all([
-        clientsRes.json(), casesRes.json(), membersRes.json(),
-      ]);
-      setClients(
-        Array.isArray(clientsData.data?.data) ? clientsData.data.data : [],
-      );
-      setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : []);
-      const loadedMembers = Array.isArray(membersData.data?.members)
-        ? membersData.data.members
-        : [];
-      const loadedCurrentUserId = String(membersData.data?.currentUserId ?? "");
-      const loadedCurrentRole = membersData.data?.currentRole;
-
-      setMembers(loadedMembers);
-      setCurrentUserId(loadedCurrentUserId);
-      setCurrentRole(
-        loadedCurrentRole === "ADMIN" || loadedCurrentRole === "LAWYER"
-          ? loadedCurrentRole
-          : "STAFF",
-      );
-      setForm((previous) => ({
-        ...previous,
-        assignedToId: previous.assignedToId || loadedCurrentUserId,
-      }));
-    } catch {
-      setClients([]);
-      setCases([]);
-      setMembers([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadOptions();
-  }, [loadOptions]);
-
-  const load = useCallback(async () => {
-    const controller = new AbortController();
+  const load = useCallback(async (
+    refreshStats = false,
+    signal?: AbortSignal,
+  ) => {
     try {
       setLoading(true);
+      const shouldLoadOptions = !optionsLoadedRef.current;
+      const shouldLoadStats = refreshStats || !statsLoadedRef.current;
       const params = new URLSearchParams({ page: String(page), limit: "20", scope: filter });
       if (debouncedSearch) params.set("q", debouncedSearch);
       if (priorityFilter !== "all") params.set("priority", priorityFilter);
       if (clientFilter !== "all") params.set("clientId", clientFilter);
       if (caseFilter !== "all") params.set("caseId", caseFilter);
       if (assigneeFilter !== "all") params.set("assignedToId", assigneeFilter);
-      const response = await fetch(`/api/tasks?${params}`, { signal: controller.signal });
+      params.set("includeOptions", String(shouldLoadOptions));
+      params.set("includeStats", String(shouldLoadStats));
+      const response = await fetch(`/api/tasks?${params}`, { signal });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.success) throw new Error();
       setTasks(Array.isArray(payload.data?.data) ? payload.data.data : []);
       setPagination(payload.data?.pagination ?? { page, total: 0, totalPages: 1 });
-      setStats(payload.data?.stats ?? { total: 0, pending: 0, done: 0, overdue: 0 });
+
+      if (payload.data?.stats) {
+        setStats(payload.data.stats);
+        statsLoadedRef.current = true;
+      }
+
+      if (payload.data?.options) {
+        const loadedOptions = payload.data.options;
+        const loadedMembers = Array.isArray(loadedOptions.members)
+          ? loadedOptions.members
+          : [];
+        const loadedCurrentUserId = String(
+          loadedOptions.currentUserId ?? "",
+        );
+        const loadedCurrentRole = loadedOptions.currentRole;
+
+        setClients(
+          Array.isArray(loadedOptions.clients) ? loadedOptions.clients : [],
+        );
+        setCases(
+          Array.isArray(loadedOptions.cases) ? loadedOptions.cases : [],
+        );
+        setMembers(loadedMembers);
+        setCurrentUserId(loadedCurrentUserId);
+        setCurrentRole(
+          loadedCurrentRole === "ADMIN" || loadedCurrentRole === "LAWYER"
+            ? loadedCurrentRole
+            : "STAFF",
+        );
+        setForm((previous) => ({
+          ...previous,
+          assignedToId: previous.assignedToId || loadedCurrentUserId,
+        }));
+        optionsLoadedRef.current = true;
+      }
     } catch (error) {
       if ((error as Error).name !== "AbortError") {
         toast.error(taskCopy.messages.loadError);
         setTasks([]);
       }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-    return () => controller.abort();
   }, [assigneeFilter, caseFilter, clientFilter, debouncedSearch, filter, page, priorityFilter, taskCopy.messages.loadError]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(false, controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   const now = useMemo(() => new Date(), []);
@@ -546,7 +547,7 @@ export default function TasksPage() {
         return;
       }
 
-      await load();
+      await load(true);
 
       toast.success(
         status === "COMPLETED"
@@ -602,7 +603,7 @@ export default function TasksPage() {
 
       toast.success(taskCopy.messages.deleteSuccess);
       setDeleteId(null);
-      load();
+      void load(true);
     } catch {
       toast.error(taskCopy.messages.deleteUnexpectedError);
     } finally {
@@ -650,7 +651,7 @@ export default function TasksPage() {
       toast.success(taskCopy.messages.createSuccess);
       setOpen(false);
       setForm({ ...INIT, assignedToId: currentUserId });
-      load();
+      void load(true);
     } catch {
       toast.error(taskCopy.messages.createUnexpectedError);
     } finally {
@@ -788,7 +789,7 @@ export default function TasksPage() {
         return;
       }
 
-      await load();
+      await load(true);
       toast.success(locale === "ar" ? "تم تعديل المهمة" : "Task updated");
       closeEditTaskModal();
     } catch {

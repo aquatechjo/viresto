@@ -2147,6 +2147,120 @@ select.input {
   animation: pulse 2s ease-in-out infinite;
 }
 
+@keyframes documentSuccessCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes documentSuccessFolderIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(18px) rotate(-5deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) rotate(0);
+  }
+}
+
+@keyframes documentSuccessCheckIn {
+  from {
+    opacity: 0;
+    transform: scale(0) rotate(-35deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes documentSuccessGrowX {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes documentSuccessGrowY {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes documentSuccessProgress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.document-success-overlay {
+  animation: fadeIn 0.18s ease-out both;
+}
+
+.document-success-card {
+  animation: documentSuccessCardIn 0.38s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.document-success-topline {
+  transform-origin: left;
+  animation: documentSuccessGrowX 1.25s ease-out both;
+}
+
+.document-success-folder {
+  animation: documentSuccessFolderIn 0.5s 0.08s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.document-success-sheet {
+  transform-origin: bottom;
+  animation: documentSuccessGrowY 0.28s 0.22s ease-out both;
+}
+
+.document-success-check {
+  animation: documentSuccessCheckIn 0.42s 0.38s
+    cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+
+.document-success-copy {
+  animation: slideUp 0.28s 0.3s ease-out both;
+}
+
+.document-success-progress {
+  animation: documentSuccessProgress 1.5s linear both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .document-success-overlay,
+  .document-success-card,
+  .document-success-topline,
+  .document-success-folder,
+  .document-success-sheet,
+  .document-success-check,
+  .document-success-copy,
+  .document-success-progress {
+    animation: none !important;
+  }
+
+  .document-success-progress {
+    width: 100%;
+  }
+}
+
 /* ============================================================
    24. PRINT STYLES — طباعة التقارير
    ============================================================ */
