@@ -218,21 +218,25 @@ model AiUsageReservation {
 }
 
 model User {
-  id                   String               @id @default(cuid())
-  tenantId             String
-  name                 String
-  email                String               @unique
-  phone                String?
-  emailVerifiedAt      DateTime?
-  phoneVerifiedAt      DateTime?
-  passwordHash         String
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  isActive             Boolean              @default(true)
-  role                 UserRole             @default(LAWYER)
-  twoFactorEnabled     Boolean              @default(false)
-  twoFactorSecret      String?
-  isSystemAdmin        Boolean              @default(false)
+  id                String   @id @default(cuid())
+  tenantId          String
+  name              String
+  email             String   @unique
+  phone             String?
+  emailVerifiedAt   DateTime?
+  phoneVerifiedAt   DateTime?
+  passwordHash      String
+  termsAcceptedAt   DateTime?
+  termsVersion      String?
+  privacyAcceptedAt DateTime?
+  privacyVersion    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  isActive          Boolean  @default(true)
+  role              UserRole @default(LAWYER)
+  twoFactorEnabled  Boolean  @default(false)
+  twoFactorSecret   String?
+  isSystemAdmin     Boolean  @default(false)
   sessions             Session[]
   tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   verificationCodes    VerificationCode[]
@@ -442,6 +446,7 @@ model Document {
   @@index([tenantId])
   @@index([tenantId, createdAt])
   @@index([tenantId, caseId, createdAt])
+  @@unique([tenantId, publicId])
 }
 
 model Task {

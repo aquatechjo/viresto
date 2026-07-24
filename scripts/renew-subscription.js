@@ -131,7 +131,6 @@ async function main() {
         where: { id: lastSubscription.id },
         data: {
           planId: plan.id,
-          provider: 'MANUAL',
           status: 'ACTIVE',
           interval,
           currency: plan.currency,
@@ -148,7 +147,6 @@ async function main() {
         data: {
           tenantId: tenant.id,
           planId: plan.id,
-          provider: 'MANUAL',
           status: 'ACTIVE',
           interval,
           currency: plan.currency,
@@ -163,7 +161,6 @@ async function main() {
       data: {
         tenantId: tenant.id,
         subscriptionId: subscription.id,
-        provider: 'MANUAL',
         amount,
         currency: plan.currency,
         status: 'PAID',

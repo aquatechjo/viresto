@@ -43,6 +43,12 @@ export const registerSchema = z.object({
     ),
 
   password: strongPasswordSchema,
+  acceptTerms: z.literal(true, {
+    errorMap: () => ({ message: "يجب الموافقة على الشروط والأحكام" }),
+  }),
+  acceptPrivacy: z.literal(true, {
+    errorMap: () => ({ message: "يجب الإقرار بسياسة الخصوصية" }),
+  }),
 });
 
 export const clientSchema = z.object({

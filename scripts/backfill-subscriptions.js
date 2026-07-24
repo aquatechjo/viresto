@@ -55,7 +55,6 @@ async function main() {
       data: {
         tenantId: tenant.id,
         planId: billingPlan.id,
-        provider: 'MANUAL',
         status: 'TRIALING',
         interval: 'MONTHLY',
         currency: billingPlan.currency,

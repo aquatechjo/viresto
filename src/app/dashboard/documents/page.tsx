@@ -23,6 +23,11 @@ import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+import { uploadDocumentDirect } from "@/lib/client-document-upload";
+import {
+  DOCUMENT_MAX_IMAGE_INPUT_BYTES,
+  DOCUMENT_MAX_STORED_BYTES,
+} from "@/lib/document-upload";
 
 const DocumentPreviewModal = dynamic(
   () => import("@/components/documents/DocumentPreviewModal"),
@@ -87,8 +92,6 @@ type CompressionResult = {
   compressed: boolean;
 };
 
-const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
-const MAX_IMAGE_INPUT_SIZE_BYTES = 25 * 1024 * 1024;
 const IMAGE_COMPRESSION_MIN_SIZE_BYTES = 450 * 1024;
 const IMAGE_COMPRESSION_MAX_SIDE = 2200;
 const IMAGE_COMPRESSION_QUALITY = 0.86;
@@ -607,13 +610,16 @@ export default function DocumentsPage() {
 
     if (
       isCompressibleImageFile(file) &&
-      file.size > MAX_IMAGE_INPUT_SIZE_BYTES
+      file.size > DOCUMENT_MAX_IMAGE_INPUT_BYTES
     ) {
       toast.error(d.messages.fileTooLarge);
       return false;
     }
 
-    if (!isCompressibleImageFile(file) && file.size > MAX_UPLOAD_SIZE_BYTES) {
+    if (
+      !isCompressibleImageFile(file) &&
+      file.size > DOCUMENT_MAX_STORED_BYTES
+    ) {
       toast.error(d.messages.fileTooLarge);
       return false;
     }
@@ -630,33 +636,21 @@ export default function DocumentsPage() {
         fileToUpload = compression.file;
       }
 
-      if (fileToUpload.size > MAX_UPLOAD_SIZE_BYTES) {
+      if (fileToUpload.size > DOCUMENT_MAX_STORED_BYTES) {
         toast.error(d.messages.fileTooLarge);
         return false;
       }
 
       setUploadStatus("uploading");
 
-      const formData = new FormData();
-      formData.append("file", fileToUpload);
-      formData.append("caseId", effectiveCaseId);
-      formData.append("clientId", effectiveClientId);
-      formData.append(
-        "tags",
-        JSON.stringify(effectiveTag ? [effectiveTag] : []),
-      );
-      formData.append("originalSizeBytes", String(file.size));
-      formData.append("storedSizeBytes", String(fileToUpload.size));
-      formData.append("compressed", compression?.compressed ? "true" : "false");
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      const result = await uploadDocumentDirect({
+        file: fileToUpload,
+        caseId: effectiveCaseId,
+        tags: effectiveTag ? [effectiveTag] : [],
       });
+      const data = result.data;
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || !data.success) {
+      if (!result.ok) {
         if (isPlanLimitResponse(data)) {
           setPlanLimit(planLimitMessage(data, d.messages.planLimitFallback));
           return false;

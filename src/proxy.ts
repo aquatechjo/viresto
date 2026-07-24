@@ -10,6 +10,10 @@ import { isMachineAuthenticatedPath } from "@/lib/request-path-policy";
 const publicPaths = [
   "/",
   "/login",
+  "/pricing",
+  "/privacy",
+  "/terms",
+  "/subscription-policy",
   "/register",
   "/verify-email",
   "/api/auth/login",

@@ -3,8 +3,18 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 function addMonths(date, months) {
-  const next = new Date(date);
+  const source = new Date(date);
+  const next = new Date(source);
+  const originalDay = source.getDate();
+
+  next.setDate(1);
   next.setMonth(next.getMonth() + months);
+  const lastDay = new Date(
+    next.getFullYear(),
+    next.getMonth() + 1,
+    0,
+  ).getDate();
+  next.setDate(Math.min(originalDay, lastDay));
   return next;
 }
 
@@ -17,6 +27,10 @@ async function main() {
     throw new Error(
       "Usage: node scripts/activate-subscription.js tenant@email.com PRO 1",
     );
+  }
+
+  if (!Number.isInteger(months) || months < 1) {
+    throw new Error("Months must be a positive integer");
   }
 
   const tenant = await prisma.tenant.findFirst({
@@ -53,7 +67,6 @@ async function main() {
       where: { id: existing.id },
       data: {
         planId: plan.id,
-        provider: "MANUAL",
         status: "ACTIVE",
         interval: "MONTHLY",
         currency: plan.currency,
@@ -69,7 +82,6 @@ async function main() {
       data: {
         tenantId: tenant.id,
         planId: plan.id,
-        provider: "MANUAL",
         status: "ACTIVE",
         interval: "MONTHLY",
         currency: plan.currency,

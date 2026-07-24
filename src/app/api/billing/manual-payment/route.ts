@@ -29,7 +29,7 @@ import { externalFetch } from "@/lib/external-fetch";
 
 export const runtime = "nodejs";
 
-const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
+const MAX_RECEIPT_SIZE = 4 * 1024 * 1024;
 const STALE_UPLOAD_MINUTES = 15;
 const OPEN_PAYMENT_STATUSES = ["UPLOADING", "PENDING", "PROCESSING"];
 
@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (receipt.size > MAX_RECEIPT_SIZE) {
-      return err("حجم الإيصال يجب ألا يتجاوز 5MB", 400);
+      return err("حجم الإيصال يجب ألا يتجاوز 4MB", 400);
     }
 
     if (!RECEIPT_UPLOAD_MIME_TYPES.has(receipt.type)) {

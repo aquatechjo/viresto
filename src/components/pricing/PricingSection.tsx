@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PLANS, formatTokens, getDisplayPrice } from "@/config/plans";
 
 export default function PricingSection() {
@@ -78,17 +79,17 @@ export default function PricingSection() {
                 </div>
 
                 <div className="mt-8">
-                  <button
-                    type="button"
+                  <Link
+                    href={`/register?lang=ar&plan=${plan.code}`}
                     className={[
-                      "w-full rounded-xl px-5 py-3 text-sm font-bold transition",
+                      "flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-bold transition",
                       plan.highlighted
                         ? "bg-copper-400 text-slate-950 hover:bg-copper-300"
                         : "border border-white/15 text-white hover:border-copper-400 hover:text-copper-300",
                     ].join(" ")}
                   >
                     ابدأ الآن
-                  </button>
+                  </Link>
                 </div>
 
                 <ul className="mt-8 space-y-3">

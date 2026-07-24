@@ -7,6 +7,9 @@ import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
 import AppLoader from "@/components/ui/AppLoader";
+
+const MAX_MANUAL_RECEIPT_BYTES = 4 * 1024 * 1024;
+
 type SubscriptionStatus =
   | "TRIALING"
   | "ACTIVE"
@@ -607,6 +610,15 @@ export default function BillingPage() {
     if (!receiptFile) {
       toast.error(
         isArabic ? "إيصال الدفع مطلوب" : "Payment receipt is required",
+      );
+      return;
+    }
+
+    if (receiptFile.size > MAX_MANUAL_RECEIPT_BYTES) {
+      toast.error(
+        isArabic
+          ? "حجم الإيصال يجب ألا يتجاوز 4MB"
+          : "The receipt must not exceed 4MB",
       );
       return;
     }
@@ -1329,8 +1341,8 @@ export default function BillingPage() {
                   style={{ color: "var(--muted)" }}
                 >
                   {isArabic
-                    ? "الأنواع المدعومة: JPG, PNG, WebP, PDF — الحد الأقصى 5MB"
-                    : "Supported formats: JPG, PNG, WebP, PDF — max 5MB"}
+                    ? "الأنواع المدعومة: JPG, PNG, WebP, PDF — الحد الأقصى 4MB"
+                    : "Supported formats: JPG, PNG, WebP, PDF — max 4MB"}
                 </span>
               </label>
 

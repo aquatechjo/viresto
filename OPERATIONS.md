@@ -25,7 +25,7 @@ The `Production smoke` workflow runs hourly at minute 17 and can also be started
 
 It verifies:
 
-- the homepage, login, pricing, and sitemap respond successfully;
+- the homepage, login, pricing, privacy, terms, subscription policy, and sitemap respond successfully;
 - the public liveness endpoint returns `{ ok: true }`;
 - authenticated and Cron endpoints reject anonymous requests;
 - when the health secret is configured, the protected readiness endpoint confirms live database and Redis access;
@@ -71,3 +71,4 @@ Neon Instant Restore overwrites the selected branch state and briefly interrupts
 - Before every migration: confirm a usable Neon restore point and run `npx prisma migrate status`.
 - Monthly: validate recovery on an isolated Neon branch, never on Production.
 - After every rollback or restore: run smoke checks and verify login, billing access, uploads, notifications, and one read-only financial report.
+- After legal text changes: update the version constants in `src/lib/legal-policy.ts`, then verify that new users record the new acceptance version.

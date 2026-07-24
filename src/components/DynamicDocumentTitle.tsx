@@ -12,6 +12,12 @@ type LocalizedTitle = {
 const EXACT_TITLES: Record<string, LocalizedTitle> = {
   "/": { ar: "الرئيسية", en: "Home" },
   "/pricing": { ar: "الأسعار", en: "Pricing" },
+  "/privacy": { ar: "سياسة الخصوصية", en: "Privacy Policy" },
+  "/terms": { ar: "الشروط والأحكام", en: "Terms & Conditions" },
+  "/subscription-policy": {
+    ar: "سياسة الاشتراك والإلغاء والاسترداد",
+    en: "Subscription, Cancellation & Refunds",
+  },
   "/login": { ar: "تسجيل الدخول", en: "Sign in" },
   "/register": { ar: "إنشاء حساب", en: "Create account" },
   "/forgot-password": { ar: "نسيت كلمة المرور", en: "Forgot password" },

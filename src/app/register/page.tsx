@@ -31,6 +31,13 @@ const COPY = {
     passwordPlaceholder: "مثال: Viresto@123",
     passwordHelp:
       "يجب أن تحتوي كلمة المرور على حرف كبير، حرف صغير، رقم، ورمز خاص.",
+    acceptTermsPrefix: "أوافق على",
+    terms: "الشروط والأحكام",
+    and: "و",
+    subscriptionPolicy: "سياسة الاشتراك والإلغاء والاسترداد",
+    acceptPrivacyPrefix:
+      "أقر بأنني قرأت سياسة الخصوصية وأوافق على معالجة بيانات الحساب لتقديم الخدمة.",
+    privacy: "سياسة الخصوصية",
 
     show: "إظهار",
     hide: "إخفاء",
@@ -74,6 +81,13 @@ const COPY = {
     passwordPlaceholder: "Example: Viresto@123",
     passwordHelp:
       "Your password must include an uppercase letter, a lowercase letter, a number, and a special character.",
+    acceptTermsPrefix: "I agree to the",
+    terms: "Terms & Conditions",
+    and: "and",
+    subscriptionPolicy: "Subscription, Cancellation & Refund Policy",
+    acceptPrivacyPrefix:
+      "I acknowledge the Privacy Policy and consent to processing account data to provide the service.",
+    privacy: "Privacy Policy",
 
     show: "Show",
     hide: "Hide",
@@ -145,6 +159,8 @@ export default function RegisterPage() {
     email: "",
     phone: "",
     password: "",
+    acceptTerms: false,
+    acceptPrivacy: false,
   });
 
   const [loading, setLoading] = useState(false);
@@ -178,7 +194,9 @@ export default function RegisterPage() {
     setTurnstileKey((current) => current + 1);
   }
 
-  function update(key: keyof typeof form) {
+  function update(
+    key: "tenantName" | "name" | "email" | "phone" | "password",
+  ) {
     return (event: ChangeEvent<HTMLInputElement>) =>
       setForm((previous) => ({ ...previous, [key]: event.target.value }));
   }
@@ -473,6 +491,68 @@ export default function RegisterPage() {
               </p>
             </FormField>
 
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-6">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.acceptTerms}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      acceptTerms: event.target.checked,
+                    }))
+                  }
+                  className="mt-1 h-4 w-4 shrink-0 accent-copper-500"
+                  required
+                />
+                <span style={{ color: "var(--text-2)" }}>
+                  {copy.acceptTermsPrefix}{" "}
+                  <Link
+                    href={`/terms?lang=${locale}`}
+                    target="_blank"
+                    className="font-black text-copper-300 hover:underline"
+                  >
+                    {copy.terms}
+                  </Link>{" "}
+                  {copy.and}{" "}
+                  <Link
+                    href={`/subscription-policy?lang=${locale}`}
+                    target="_blank"
+                    className="font-black text-copper-300 hover:underline"
+                  >
+                    {copy.subscriptionPolicy}
+                  </Link>
+                  .
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.acceptPrivacy}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      acceptPrivacy: event.target.checked,
+                    }))
+                  }
+                  className="mt-1 h-4 w-4 shrink-0 accent-copper-500"
+                  required
+                />
+                <span style={{ color: "var(--text-2)" }}>
+                  {copy.acceptPrivacyPrefix}{" "}
+                  <Link
+                    href={`/privacy?lang=${locale}`}
+                    target="_blank"
+                    className="font-black text-copper-300 hover:underline"
+                  >
+                    {copy.privacy}
+                  </Link>
+                  .
+                </span>
+              </label>
+            </div>
+
             <div className="mx-auto flex w-fit justify-center rounded-2xl p-2">
               {turnstileSiteKey ? (
                 <Turnstile
@@ -498,7 +578,12 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={loading || !turnstileToken}
+              disabled={
+                loading ||
+                !turnstileToken ||
+                !form.acceptTerms ||
+                !form.acceptPrivacy
+              }
               className="btn btn-primary mt-1 w-full py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (

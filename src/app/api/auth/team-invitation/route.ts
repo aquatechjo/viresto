@@ -19,6 +19,7 @@ import {
 } from "@/lib/team-invitations";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import { strongPasswordSchema } from "@/lib/validations";
+import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal-policy";
 
 function normalizeToken(value: unknown) {
   const token = String(value ?? "").trim();
@@ -84,6 +85,9 @@ export async function POST(req: NextRequest) {
     const passwordResult = strongPasswordSchema.safeParse(body.password);
 
     if (!token) return err("الدعوة غير صالحة أو منتهية", 404);
+    if (body.acceptTerms !== true || body.acceptPrivacy !== true) {
+      return err("يجب الموافقة على الشروط وسياسة الخصوصية", 400);
+    }
     if (!passwordResult.success) {
       return err(passwordResult.error.issues[0]?.message || "كلمة المرور غير صالحة", 400);
     }
@@ -186,6 +190,10 @@ export async function POST(req: NextRequest) {
           role: invitation.role,
           passwordHash,
           emailVerifiedAt: new Date(),
+          termsAcceptedAt: new Date(),
+          termsVersion: TERMS_VERSION,
+          privacyAcceptedAt: new Date(),
+          privacyVersion: PRIVACY_VERSION,
           isActive: true,
           isSystemAdmin: false,
         },

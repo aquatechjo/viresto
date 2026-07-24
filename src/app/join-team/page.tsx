@@ -29,6 +29,12 @@ const COPY = {
     saving: "جاري تفعيل الحساب...",
     done: "تم تفعيل حسابك. سيتم نقلك إلى تسجيل الدخول.",
     login: "العودة إلى تسجيل الدخول",
+    acceptTerms: "أوافق على",
+    terms: "الشروط والأحكام",
+    and: "و",
+    subscription: "سياسة الاشتراك والإلغاء والاسترداد",
+    acceptPrivacy: "قرأت وأقر",
+    privacy: "سياسة الخصوصية",
   },
   en: {
     title: "Join the office team",
@@ -44,6 +50,12 @@ const COPY = {
     saving: "Activating account...",
     done: "Your account is active. Redirecting you to sign in.",
     login: "Back to sign in",
+    acceptTerms: "I agree to the",
+    terms: "Terms & Conditions",
+    and: "and",
+    subscription: "Subscription, Cancellation & Refund Policy",
+    acceptPrivacy: "I have read and acknowledge the",
+    privacy: "Privacy Policy",
   },
 } as const;
 
@@ -60,6 +72,8 @@ function JoinTeamContent() {
   const [saving, setSaving] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -116,7 +130,12 @@ function JoinTeamContent() {
       const response = await fetch("/api/auth/team-invitation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({
+          token,
+          password,
+          acceptTerms,
+          acceptPrivacy,
+        }),
       });
       const data = await response.json().catch(() => ({}));
 
@@ -200,9 +219,66 @@ function JoinTeamContent() {
 
             <p className="text-xs leading-6 text-copper-100/60">{copy.hint}</p>
 
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-black/15 p-4 text-sm leading-6">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(event) => setAcceptTerms(event.target.checked)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-copper-400"
+                  required
+                />
+                <span>
+                  {copy.acceptTerms}{" "}
+                  <Link
+                    href={`/terms?lang=${locale}`}
+                    target="_blank"
+                    className="font-black text-copper-200 hover:underline"
+                  >
+                    {copy.terms}
+                  </Link>{" "}
+                  {copy.and}{" "}
+                  <Link
+                    href={`/subscription-policy?lang=${locale}`}
+                    target="_blank"
+                    className="font-black text-copper-200 hover:underline"
+                  >
+                    {copy.subscription}
+                  </Link>
+                  .
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={acceptPrivacy}
+                  onChange={(event) => setAcceptPrivacy(event.target.checked)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-copper-400"
+                  required
+                />
+                <span>
+                  {copy.acceptPrivacy}{" "}
+                  <Link
+                    href={`/privacy?lang=${locale}`}
+                    target="_blank"
+                    className="font-black text-copper-200 hover:underline"
+                  >
+                    {copy.privacy}
+                  </Link>
+                  .
+                </span>
+              </label>
+            </div>
+
             <button
               type="submit"
-              disabled={saving || Boolean(message)}
+              disabled={
+                saving ||
+                Boolean(message) ||
+                !acceptTerms ||
+                !acceptPrivacy
+              }
               className="w-full rounded-2xl bg-copper-400 px-4 py-3 font-black text-[#041819] transition hover:bg-copper-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? copy.saving : copy.submit}

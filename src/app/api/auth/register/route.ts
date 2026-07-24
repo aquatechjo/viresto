@@ -11,6 +11,7 @@ import { createVerificationCode } from "@/lib/verification";
 import { sendVerificationEmail } from "@/lib/email";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 import { getPlanByCode } from "@/config/plans";
+import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal-policy";
 
 const TRIAL_DAYS = 7;
 const TRIAL_PLAN_CODE = "PRO";
@@ -157,6 +158,10 @@ export async function POST(req: NextRequest) {
               passwordHash,
               role: "ADMIN",
               emailVerifiedAt: null,
+              termsAcceptedAt: trialStartsAt,
+              termsVersion: TERMS_VERSION,
+              privacyAcceptedAt: trialStartsAt,
+              privacyVersion: PRIVACY_VERSION,
             },
           },
         },

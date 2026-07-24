@@ -1048,7 +1048,7 @@ export default function HomePage() {
                 </div>
 
                 <Link
-                  href="/register"
+                  href={`/register?lang=${locale}&plan=${plan.code}`}
                   className="mt-8 flex h-12 items-center justify-center rounded-2xl bg-copper-500 font-bold text-black transition hover:bg-copper-400"
                 >
                   {copy.pricing.action}
@@ -1107,10 +1107,35 @@ export default function HomePage() {
       </section>
 
       <footer className="border-t border-white/10">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 py-8 sm:px-6 md:flex-row">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 px-5 py-8 sm:px-6">
+          <div className="flex w-full flex-col items-center justify-between gap-4 md:flex-row">
           <p className="text-xl font-black">Viresto</p>
 
           <p className="text-sm text-slate-400">{copy.footer}</p>
+          </div>
+
+          <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold text-slate-400">
+            <Link
+              href={`/privacy?lang=${locale}`}
+              className="transition hover:text-copper-300"
+            >
+              {isArabic ? "سياسة الخصوصية" : "Privacy Policy"}
+            </Link>
+            <Link
+              href={`/terms?lang=${locale}`}
+              className="transition hover:text-copper-300"
+            >
+              {isArabic ? "الشروط والأحكام" : "Terms & Conditions"}
+            </Link>
+            <Link
+              href={`/subscription-policy?lang=${locale}`}
+              className="transition hover:text-copper-300"
+            >
+              {isArabic
+                ? "الاشتراك والإلغاء والاسترداد"
+                : "Subscription & Refunds"}
+            </Link>
+          </nav>
         </div>
       </footer>
     </main>

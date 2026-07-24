@@ -1,9 +1,13 @@
 export const runtime = "nodejs";
 
+import { timingSafeEqual } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ok, err } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
-import cloudinary from "@/lib/cloudinary";
+import cloudinary, {
+  fetchAuthenticatedCloudinaryAsset,
+} from "@/lib/cloudinary";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
@@ -11,51 +15,30 @@ import {
   assertTenantCanCreate,
   assertTenantCanUseStorage,
 } from "@/lib/billing-limits";
-
 import {
-  prepareUploadFile,
-  validatePreparedUploadSize,
-} from "@/lib/server/compress-upload-image";
+  DOCUMENT_MAX_STORED_BYTES,
+  documentUploadCompletionSchema,
+  isExpectedCloudinaryResourceType,
+  isTrustedCloudinaryUrl,
+  type CloudinaryResourceType,
+} from "@/lib/document-upload";
 import {
   DOCUMENT_UPLOAD_MIME_TYPES,
   validateUploadFileContent,
 } from "@/lib/server/upload-file-security";
 import { buildCaseAccessWhere } from "@/lib/access-control";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
-import { externalFetch } from "@/lib/external-fetch";
 
-const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
-const MAX_IMAGE_INPUT_SIZE_BYTES = 25 * 1024 * 1024;
+type StoredDocument = Awaited<ReturnType<typeof findStoredDocument>>;
 
-const compressibleImageTypes = ["image/png", "image/jpeg", "image/webp"];
+function safeSignatureEqual(actual: string, expected: string) {
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
 
-type CloudinaryResourceType = "image" | "raw" | "video";
-
-function isCompressibleImageType(type: string) {
-  return compressibleImageTypes.includes(type);
-}
-
-function getCloudinaryResourceType(
-  value: unknown,
-): CloudinaryResourceType | null {
-  return value === "image" || value === "raw" || value === "video"
-    ? value
-    : null;
-}
-
-function isTrustedCloudinaryUrl(value: unknown, cloudName: string) {
-  if (typeof value !== "string") return false;
-
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === "https:" &&
-      url.hostname === "res.cloudinary.com" &&
-      url.pathname.startsWith(`/${cloudName}/`)
-    );
-  } catch {
-    return false;
-  }
+  return (
+    actualBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(actualBuffer, expectedBuffer)
+  );
 }
 
 async function cleanupUploadedAsset(
@@ -66,10 +49,80 @@ async function cleanupUploadedAsset(
     await cloudinary.uploader.destroy(publicId, {
       resource_type: resourceType,
       type: "authenticated",
+      invalidate: true,
     });
   } catch (error) {
     console.error("Cloudinary cleanup failed after document upload:", error);
   }
+}
+
+function findStoredDocument(tenantId: string, publicId: string) {
+  return prisma.document.findFirst({
+    where: {
+      tenantId,
+      publicId,
+    },
+    include: {
+      client: {
+        select: {
+          id: true,
+          name: true,
+          archivedAt: true,
+        },
+      },
+      case: {
+        select: {
+          id: true,
+          title: true,
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function documentResponse(doc: NonNullable<StoredDocument>, status = 201) {
+  return ok(
+    {
+      document: {
+        id: doc.id,
+        fileName: doc.fileName,
+        fileType: doc.fileType,
+        fileSize: doc.fileSize,
+        notes: doc.notes,
+        tags: doc.tags,
+        createdAt: doc.createdAt,
+        clientId: doc.clientId,
+        caseId: doc.caseId,
+        client: doc.client,
+        case: doc.case,
+      },
+    },
+    status,
+  );
+}
+
+function matchesUploadIntent(
+  doc: NonNullable<StoredDocument>,
+  intent: {
+    caseId: string;
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+  },
+) {
+  return (
+    doc.caseId === intent.caseId &&
+    doc.fileName === intent.fileName &&
+    doc.fileType === intent.mimeType &&
+    doc.fileSize === intent.fileSize
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -80,121 +133,57 @@ export async function POST(req: NextRequest) {
     const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
     if (auth.error || !auth.user) return auth.error;
 
-    const meta = getRequestMeta(req);
-
     const CLOUD = process.env.CLOUDINARY_CLOUD_NAME;
-    const KEY = process.env.CLOUDINARY_API_KEY;
     const SECRET = process.env.CLOUDINARY_API_SECRET;
 
-    if (!CLOUD || !KEY || !SECRET) {
+    if (!CLOUD || !SECRET) {
       return err("رفع الملفات غير مُهيأ", 503);
     }
 
-    const form = await req.formData();
+    const parsed = documentUploadCompletionSchema.safeParse(
+      await req.json().catch(() => null),
+    );
 
-    const fileValue = form.get("file");
-    const file = fileValue instanceof File ? fileValue : null;
-
-    const caseIdRaw = form.get("caseId");
-    const notesRaw = form.get("notes");
-    const tagsRaw = form.get("tags");
-
-    const caseId = typeof caseIdRaw === "string" ? caseIdRaw.trim() : "";
-    const notes = typeof notesRaw === "string" ? notesRaw : null;
-    const tagsValue = typeof tagsRaw === "string" ? tagsRaw : null;
-
-    if (!file) return err("لم يتم إرسال ملف", 400);
-
-    if (file.size <= 0) {
-      return err("لا يمكن رفع ملف فارغ", 400);
+    if (!parsed.success) {
+      return err("بيانات إتمام رفع الملف غير صالحة", 400, parsed.error.flatten());
     }
 
-    if (!caseId) {
-      return err("يجب اختيار قضية قبل رفع المستند", 400);
-    }
+    const intent = parsed.data;
+    const uploaded = intent.upload;
+    const expectedPrefix = `Viresto/${auth.user.tenantId}/documents/`;
+    const trustedLocation =
+      uploaded.publicId.startsWith(expectedPrefix) &&
+      isTrustedCloudinaryUrl(uploaded.secureUrl, CLOUD) &&
+      isExpectedCloudinaryResourceType(
+        intent.mimeType,
+        uploaded.resourceType,
+      ) &&
+      uploaded.bytes === intent.fileSize;
 
-    if (!DOCUMENT_UPLOAD_MIME_TYPES.has(file.type)) {
-      return err(
-        "نوع الملف غير مسموح. الرجاء رفع PDF أو صورة أو ملف DOCX فقط.",
-        400,
-      );
-    }
+    const expectedSignature = cloudinary.utils.api_sign_request(
+      {
+        public_id: uploaded.publicId,
+        version: uploaded.version,
+      },
+      SECRET,
+    );
+    const signatureValid = safeSignatureEqual(
+      uploaded.signature,
+      expectedSignature,
+    );
 
-    if (file.name.length > 180) {
-      return err("اسم الملف طويل جدًا", 400);
-    }
-
-    const isImage = isCompressibleImageType(file.type);
-
-    if (!isImage && file.size > MAX_UPLOAD_SIZE_BYTES) {
-      return err("حجم الملف يتجاوز 10 ميجابايت", 400);
-    }
-
-    if (isImage && file.size > MAX_IMAGE_INPUT_SIZE_BYTES) {
-      return err("حجم الصورة كبير جدًا. الحد الأقصى للصور قبل الضغط هو 25 ميجابايت", 400);
-    }
-
-    let originalBuffer: Buffer;
-
-    try {
-      originalBuffer = Buffer.from(await file.arrayBuffer());
-    } catch {
-      return err("تعذر قراءة الملف المرفوع", 400);
-    }
-
-    const contentValidation = await validateUploadFileContent({
-      buffer: originalBuffer,
-      fileName: file.name,
-      declaredMimeType: file.type,
-      allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
-    });
-
-    if (!contentValidation.ok) {
-      return err(contentValidation.message, 400, {
-        code: contentValidation.code,
-      });
-    }
-
-    let preparedFile;
-
-    try {
-      preparedFile = await prepareUploadFile(file, originalBuffer);
-    } catch {
-      return err("فشل تجهيز الملف قبل الرفع", 400);
-    }
-
-    if (!validatePreparedUploadSize(preparedFile)) {
-      return err("حجم الملف بعد المعالجة يتجاوز الحد المسموح 10 ميجابايت", 400);
-    }
-
-    let tags: string[] = [];
-
-    if (tagsValue) {
-      try {
-        const parsed = JSON.parse(tagsValue);
-        tags = Array.isArray(parsed)
-          ? parsed
-              .map(String)
-              .map((t) => t.trim())
-              .filter(Boolean)
-              .slice(0, 10)
-              .map((t) => t.slice(0, 50))
-          : [];
-      } catch {
-        return err("صيغة التصنيفات غير صحيحة", 400);
-      }
+    if (!trustedLocation || !signatureValid) {
+      return err("استجابة تخزين الملف غير موثوقة", 400);
     }
 
     const caseRecord = await prisma.case.findFirst({
-      where: buildCaseAccessWhere(auth.user, { id: caseId }),
+      where: buildCaseAccessWhere(auth.user, { id: intent.caseId }),
       select: {
         id: true,
         title: true,
         clientId: true,
         client: {
           select: {
-            id: true,
-            name: true,
             archivedAt: true,
           },
         },
@@ -202,11 +191,26 @@ export async function POST(req: NextRequest) {
     });
 
     if (!caseRecord) {
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
       return err("القضية غير موجودة أو لا تتبع لهذا المكتب", 404);
     }
 
-    if (caseRecord.client?.archivedAt) {
-      return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 400);
+    if (caseRecord.client.archivedAt) {
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
+      return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 409);
+    }
+
+    const existingDocument = await findStoredDocument(
+      auth.user.tenantId,
+      uploaded.publicId,
+    );
+
+    if (existingDocument) {
+      if (!matchesUploadIntent(existingDocument, intent)) {
+        return err("تم تسجيل أصل الملف مسبقًا ببيانات مختلفة", 409);
+      }
+
+      return documentResponse(existingDocument, 200);
     }
 
     const documentsLimitCheck = await assertTenantCanCreate(
@@ -215,6 +219,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (!documentsLimitCheck.ok) {
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
       const isPlanLimit = documentsLimitCheck.billing?.canCreate === true;
 
       return err(documentsLimitCheck.message, isPlanLimit ? 400 : 402, {
@@ -226,10 +231,11 @@ export async function POST(req: NextRequest) {
 
     const storageLimitCheck = await assertTenantCanUseStorage(
       auth.user.tenantId,
-      preparedFile.size,
+      uploaded.bytes,
     );
 
     if (!storageLimitCheck.ok) {
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
       const isStorageLimit = storageLimitCheck.billing?.canCreate === true;
 
       return err(storageLimitCheck.message, isStorageLimit ? 400 : 402, {
@@ -244,85 +250,63 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const ts = Math.floor(Date.now() / 1000);
-    const folder = `Viresto/${auth.user.tenantId}`;
-    const uploadType = "authenticated";
-
-    const str = `folder=${folder}&timestamp=${ts}&type=${uploadType}${SECRET}`;
-
-    const buf = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(str),
-    );
-
-    const sig = Array.from(new Uint8Array(buf))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-
-    const uploadBlob = new Blob([new Uint8Array(preparedFile.buffer)], {
-      type: preparedFile.mimeType,
+    const storedAsset = await fetchAuthenticatedCloudinaryAsset({
+      publicId: uploaded.publicId,
+      fileType: intent.mimeType,
+      resourceTypes: [uploaded.resourceType],
     });
 
-    const fd = new FormData();
-    fd.append("file", uploadBlob, preparedFile.fileName);
-    fd.append("api_key", KEY);
-    fd.append("timestamp", String(ts));
-    fd.append("signature", sig);
-    fd.append("folder", folder);
-    fd.append("type", uploadType);
-
-    let res: Response;
-
-    try {
-      res = await externalFetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`,
-        {
-          method: "POST",
-          body: fd,
-        },
-        30_000,
-      );
-    } catch (error) {
-      console.error("Cloudinary document upload failed:", error);
-      return err("تعذر الاتصال بخدمة رفع الملفات. حاول مرة أخرى.", 502);
+    if (!storedAsset) {
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
+      return err("تعذر التحقق من الملف المرفوع", 502);
     }
 
-    const d = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      return err(d.error?.message ?? "فشل رفع الملف", 500);
-    }
-
-    const publicId =
-      typeof d.public_id === "string" ? d.public_id.trim() : null;
-    const secureUrl =
-      typeof d.secure_url === "string" ? d.secure_url.trim() : null;
-    const resourceType = getCloudinaryResourceType(d.resource_type);
-    const storedSize = Number.isSafeInteger(d.bytes) ? Number(d.bytes) : null;
-    const expectedPublicIdPrefix = `${folder}/`;
-
-    const isValidUpload =
-      publicId?.startsWith(expectedPublicIdPrefix) === true &&
-      isTrustedCloudinaryUrl(secureUrl, CLOUD) &&
-      resourceType !== null &&
-      storedSize !== null &&
-      storedSize > 0 &&
-      storedSize <= MAX_UPLOAD_SIZE_BYTES;
+    const announcedLength = Number(
+      storedAsset.headers.get("content-length") || 0,
+    );
 
     if (
-      !isValidUpload ||
-      !publicId ||
-      !secureUrl ||
-      !resourceType ||
-      !storedSize
+      announcedLength > DOCUMENT_MAX_STORED_BYTES ||
+      (announcedLength > 0 && announcedLength !== uploaded.bytes)
     ) {
-      if (publicId?.startsWith(expectedPublicIdPrefix) && resourceType) {
-        await cleanupUploadedAsset(publicId, resourceType);
-      }
-
-      return err("استجابة تخزين الملف غير صالحة", 502);
+      await storedAsset.body?.cancel().catch(() => undefined);
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
+      return err("حجم الملف المخزن لا يطابق عملية الرفع", 400);
     }
 
+    let storedBuffer: Buffer;
+
+    try {
+      storedBuffer = Buffer.from(await storedAsset.arrayBuffer());
+    } catch {
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
+      return err("تعذر قراءة الملف المخزن للتحقق منه", 502);
+    }
+
+    if (
+      storedBuffer.length <= 0 ||
+      storedBuffer.length > DOCUMENT_MAX_STORED_BYTES ||
+      storedBuffer.length !== uploaded.bytes
+    ) {
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
+      return err("حجم الملف المخزن غير صالح", 400);
+    }
+
+    const contentValidation = await validateUploadFileContent({
+      buffer: storedBuffer,
+      fileName: intent.fileName,
+      declaredMimeType: intent.mimeType,
+      allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
+    });
+
+    if (!contentValidation.ok) {
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
+      return err(contentValidation.message, 400, {
+        code: contentValidation.code,
+      });
+    }
+
+    const meta = getRequestMeta(req);
     let finalizeResult;
 
     try {
@@ -344,7 +328,7 @@ export async function POST(req: NextRequest) {
 
         const lockedStorageLimit = await assertTenantCanUseStorage(
           auth.user.tenantId,
-          storedSize,
+          uploaded.bytes,
           tx,
         );
 
@@ -379,13 +363,13 @@ export async function POST(req: NextRequest) {
             tenantId: auth.user.tenantId,
             clientId: lockedCase.clientId,
             caseId: lockedCase.id,
-            fileName: preparedFile.fileName,
-            fileType: preparedFile.mimeType,
-            fileUrl: secureUrl,
-            fileSize: storedSize,
-            publicId,
-            notes: notes?.trim().slice(0, 1000) || null,
-            tags,
+            fileName: intent.fileName,
+            fileType: intent.mimeType,
+            fileUrl: uploaded.secureUrl,
+            fileSize: uploaded.bytes,
+            publicId: uploaded.publicId,
+            notes: intent.notes || null,
+            tags: intent.tags,
           },
           include: {
             client: {
@@ -419,7 +403,7 @@ export async function POST(req: NextRequest) {
             tenantId: auth.user.tenantId,
             type: "DOCUMENT_UPLOADED",
             title: "تم رفع مستند",
-            message: `${preparedFile.fileName} — ${lockedCase.title}`,
+            message: `${intent.fileName} — ${lockedCase.title}`,
             entityType: "CASE",
             entityId: lockedCase.id,
           },
@@ -428,12 +412,30 @@ export async function POST(req: NextRequest) {
         return { doc };
       });
     } catch (error) {
-      await cleanupUploadedAsset(publicId, resourceType);
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const racedDocument = await findStoredDocument(
+          auth.user.tenantId,
+          uploaded.publicId,
+        );
+
+        if (racedDocument) {
+          if (!matchesUploadIntent(racedDocument, intent)) {
+            return err("تم تسجيل أصل الملف مسبقًا ببيانات مختلفة", 409);
+          }
+
+          return documentResponse(racedDocument, 200);
+        }
+      }
+
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
       throw error;
     }
 
     if ("error" in finalizeResult) {
-      await cleanupUploadedAsset(publicId, resourceType);
+      await cleanupUploadedAsset(uploaded.publicId, uploaded.resourceType);
 
       if (finalizeResult.error === "DOCUMENT_LIMIT") {
         const lockedLimitCheck = finalizeResult.limitCheck;
@@ -471,30 +473,6 @@ export async function POST(req: NextRequest) {
       return err("لا يمكن رفع مستند لقضية موكلها مؤرشف", 409);
     }
 
-    const doc = finalizeResult.doc;
-
-    return ok(
-      {
-        document: {
-          id: doc.id,
-          fileName: doc.fileName,
-          fileType: doc.fileType,
-          fileSize: doc.fileSize,
-          notes: doc.notes,
-          tags: doc.tags,
-          createdAt: doc.createdAt,
-          clientId: doc.clientId,
-          caseId: doc.caseId,
-          client: doc.client,
-          case: doc.case,
-        },
-        compression: {
-          wasCompressed: preparedFile.wasCompressed,
-          originalSize: preparedFile.originalSize,
-          finalSize: preparedFile.size,
-        },
-      },
-      201,
-    );
+    return documentResponse(finalizeResult.doc);
   });
 }

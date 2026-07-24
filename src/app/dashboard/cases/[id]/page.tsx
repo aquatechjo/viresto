@@ -10,6 +10,8 @@ import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
 import { fileSizeLabel, formatDate, formatTime } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
+import { uploadDocumentDirect } from "@/lib/client-document-upload";
+import { DOCUMENT_MAX_STORED_BYTES } from "@/lib/document-upload";
 
 interface Payment {
   id: string;
@@ -1148,7 +1150,7 @@ export default function CaseDetailPage() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > DOCUMENT_MAX_STORED_BYTES) {
       toast.error("حجم الملف يتجاوز 10 ميجابايت");
       return;
     }
@@ -1156,27 +1158,15 @@ export default function CaseDetailPage() {
     try {
       setUploadingDocument(true);
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("caseId", id);
-      formData.append("clientId", c.client.id);
-      formData.append(
-        "tags",
-        JSON.stringify(documentForm.tag ? [documentForm.tag] : ["قضية"]),
-      );
-
-      if (documentForm.notes.trim()) {
-        formData.append("notes", documentForm.notes.trim());
-      }
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      const result = await uploadDocumentDirect({
+        file,
+        caseId: id,
+        notes: documentForm.notes,
+        tags: documentForm.tag ? [documentForm.tag] : ["قضية"],
       });
+      const data = result.data;
 
-      const data = await response.json().catch(() => ({}));
-
-      if (response.ok && data.success) {
+      if (result.ok) {
         toast.success("تم رفع المستند وربطه بالقضية");
         setDocumentOpen(false);
         setDocumentForm(DOCUMENT_INIT);
