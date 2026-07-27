@@ -247,12 +247,12 @@ export default function Sidebar() {
     return (
       <div
         dir={isRtl ? "rtl" : "ltr"}
-        className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0f3d3e] text-emerald-50"
+        className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--brand-shell)] text-emerald-50"
       >
         {/* Brand */}
         <div className="shrink-0 border-b border-emerald-100/10 px-4 py-3.5 sm:px-5 sm:py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-copper-400/30 bg-[#082c2d] shadow-lg shadow-black/20">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-copper-400/30 bg-[var(--brand-canvas)] shadow-lg shadow-black/20">
               <img
                 src="/logo.png"
                 alt="Viresto"
@@ -275,7 +275,7 @@ export default function Sidebar() {
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label={locale === "ar" ? "إغلاق القائمة" : "Close menu"}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-[#0b292a] text-emerald-50 transition hover:bg-[#123f40]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-[var(--brand-surface)] text-emerald-50 transition hover:bg-[var(--brand-surface-hover)]"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -316,7 +316,7 @@ export default function Sidebar() {
                           ${
                             active
                               ? "bg-[#b87333] text-[#041819] shadow-sm ring-1 ring-copper-300/40"
-                              : "text-emerald-100/70 hover:bg-[#123f40] hover:text-emerald-50"
+                              : "text-emerald-100/70 hover:bg-[var(--brand-surface-hover)] hover:text-emerald-50"
                           }
                         `}
                       >
@@ -424,8 +424,8 @@ export default function Sidebar() {
         className={`
           fixed top-[max(0.75rem,env(safe-area-inset-top))] z-[80]
           flex h-10 w-10 items-center justify-center rounded-2xl
-          border border-emerald-400/20 bg-[#0b292a] text-emerald-50
-          shadow-lg transition duration-200 hover:bg-[#123f40] xl:hidden
+          border border-emerald-400/20 bg-[var(--brand-surface)] text-emerald-50
+          shadow-lg transition duration-200 hover:bg-[var(--brand-surface-hover)] xl:hidden
           ${isRtl ? "right-3" : "left-3"}
           ${
             mobileOpen

@@ -3,7 +3,7 @@ import { PLANS, formatTokens, getDisplayPrice } from "@/config/plans";
 
 export default function PricingSection() {
   return (
-    <section dir="rtl" className="w-full bg-slate-950 py-20 text-white">
+    <section dir="rtl" className="w-full bg-[var(--brand-canvas)] py-20 text-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto mb-14 max-w-3xl text-center">
           <p className="mb-3 text-sm font-semibold text-copper-400">
@@ -14,7 +14,7 @@ export default function PricingSection() {
             اختر الخطة المناسبة لمكتبك
           </h2>
 
-          <p className="mt-4 text-base leading-8 text-slate-300">
+          <p className="mt-4 text-base leading-8 text-emerald-100/70">
             ابدأ بخطة تناسب حجم مكتبك، وقم بالترقية لاحقًا عند الحاجة.
           </p>
         </div>
@@ -29,8 +29,8 @@ export default function PricingSection() {
                 className={[
                   "relative rounded-3xl border p-6 shadow-2xl transition",
                   plan.highlighted
-                    ? "border-copper-400 bg-slate-900 shadow-copper-950/50"
-                    : "border-white/10 bg-slate-900/70",
+                    ? "border-copper-400 bg-[var(--brand-surface)] shadow-copper-950/50"
+                    : "border-emerald-300/10 bg-[#0b292a]/80",
                 ].join(" ")}
               >
                 {plan.badge && (
@@ -41,7 +41,7 @@ export default function PricingSection() {
 
                 <div className="mb-8">
                   <h3 className="text-2xl font-bold">{plan.name}</h3>
-                  <p className="mt-2 text-sm text-slate-300">{plan.subtitle}</p>
+                  <p className="mt-2 text-sm text-emerald-100/70">{plan.subtitle}</p>
                 </div>
 
                 <div className="mb-6">
@@ -49,17 +49,17 @@ export default function PricingSection() {
                     <span className="text-5xl font-black text-copper-400">
                       {displayPrice}
                     </span>
-                    <span className="pb-2 text-sm text-slate-300">
+                    <span className="pb-2 text-sm text-emerald-100/70">
                       JOD / شهر
                     </span>
                   </div>
 
-                  <p className="mt-2 text-sm text-slate-400">
+                  <p className="mt-2 text-sm text-emerald-100/55">
                     {plan.priceYearlyJod} JOD / سنة — وفر قيمة شهر
                   </p>
                 </div>
 
-                <p className="min-h-12 border-b border-white/10 pb-6 text-sm leading-7 text-slate-300">
+                <p className="min-h-12 border-b border-emerald-300/10 pb-6 text-sm leading-7 text-emerald-100/70">
                   {plan.description}
                 </p>
 
@@ -84,7 +84,7 @@ export default function PricingSection() {
                     className={[
                       "flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-bold transition",
                       plan.highlighted
-                        ? "bg-copper-400 text-slate-950 hover:bg-copper-300"
+                        ? "bg-copper-400 text-[#041819] hover:bg-copper-300"
                         : "border border-white/15 text-white hover:border-copper-400 hover:text-copper-300",
                     ].join(" ")}
                   >
@@ -104,7 +104,7 @@ export default function PricingSection() {
                             "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs",
                             feature.included
                               ? "bg-copper-400/15 text-copper-300"
-                              : "bg-slate-800 text-slate-500",
+                              : "bg-[#103334] text-emerald-100/35",
                           ].join(" ")}
                         >
                           {feature.included ? "✓" : "×"}
@@ -112,7 +112,7 @@ export default function PricingSection() {
 
                         <span
                           className={
-                            feature.included ? "text-slate-100" : "text-slate-500"
+                            feature.included ? "text-emerald-50" : "text-emerald-100/35"
                           }
                         >
                           {feature.label}
@@ -120,7 +120,7 @@ export default function PricingSection() {
                       </div>
 
                       {feature.value && (
-                        <span className="shrink-0 text-xs text-slate-400">
+                        <span className="shrink-0 text-xs text-emerald-100/55">
                           {feature.value}
                         </span>
                       )}
@@ -132,7 +132,7 @@ export default function PricingSection() {
           })}
         </div>
 
-        <div className="mt-8 grid gap-4 text-sm text-slate-300 md:grid-cols-4">
+        <div className="mt-8 grid gap-4 text-sm text-emerald-100/70 md:grid-cols-4">
           <TrustItem title="بياناتك آمنة" text="تشفير وحماية على مستوى عالٍ." />
           <TrustItem title="ترقية أو خفض الخطة" text="يمكنك التغيير عند الحاجة." />
           <TrustItem title="إلغاء في أي وقت" text="بدون التزام طويل." />
@@ -152,7 +152,7 @@ function LimitRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className="text-slate-400">{label}</span>
+      <span className="text-emerald-100/55">{label}</span>
       <span className="font-semibold text-white">{value}</span>
     </div>
   );
@@ -160,7 +160,7 @@ function LimitRow({
 
 function TrustItem({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+    <div className="rounded-2xl border border-emerald-300/10 bg-[#0b292a]/80 p-5">
       <p className="font-bold text-white">{title}</p>
       <p className="mt-2 leading-6">{text}</p>
     </div>

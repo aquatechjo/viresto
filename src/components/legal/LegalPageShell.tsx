@@ -54,9 +54,9 @@ export default function LegalPageShell({
   return (
     <main
       dir={isArabic ? "rtl" : "ltr"}
-      className="min-h-screen bg-slate-950 text-slate-100"
+      className="min-h-screen bg-[var(--brand-canvas)] text-[var(--brand-text)]"
     >
-      <header className="border-b border-white/10 bg-slate-950/95">
+      <header className="border-b border-emerald-300/10 bg-[#041819]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-6">
           <Link href={`/${query}`} className="text-2xl font-black text-white">
             Viresto
@@ -65,7 +65,7 @@ export default function LegalPageShell({
           <div className="flex flex-wrap items-center gap-3 text-sm font-bold">
             <Link
               href={`/${query}`}
-              className="rounded-xl px-3 py-2 text-slate-300 transition hover:bg-white/5 hover:text-white"
+              className="rounded-xl px-3 py-2 text-emerald-100/70 transition hover:bg-white/5 hover:text-white"
             >
               {copy.home}
             </Link>
@@ -80,7 +80,7 @@ export default function LegalPageShell({
       </header>
 
       <div className="mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:py-16">
-        <nav className="h-fit rounded-3xl border border-white/10 bg-white/5 p-4 lg:sticky lg:top-6">
+        <nav className="h-fit rounded-3xl border border-emerald-300/10 bg-[#0b292a]/80 p-4 shadow-xl shadow-black/10 lg:sticky lg:top-6">
           <div className="grid gap-2 text-sm font-bold">
             <LegalNavLink
               href={`/privacy${query}`}
@@ -100,15 +100,15 @@ export default function LegalPageShell({
           </div>
         </nav>
 
-        <article className="min-w-0 rounded-[2rem] border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-black/20 sm:p-10">
-          <div className="border-b border-white/10 pb-8">
+        <article className="min-w-0 rounded-[2rem] border border-emerald-300/10 bg-[#0b292a]/85 p-6 shadow-2xl shadow-black/25 sm:p-10">
+          <div className="border-b border-emerald-300/10 pb-8">
             <p className="text-sm font-bold text-copper-300">
               {copy.effective}
             </p>
             <h1 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
               {title}
             </h1>
-            <p className="mt-5 max-w-3xl text-base leading-8 text-slate-300">
+            <p className="mt-5 max-w-3xl text-base leading-8 text-emerald-100/70">
               {description}
             </p>
           </div>
@@ -123,14 +123,14 @@ export default function LegalPageShell({
                 {section.paragraphs?.map((paragraph) => (
                   <p
                     key={paragraph}
-                    className="mt-4 text-sm leading-8 text-slate-300 sm:text-base"
+                    className="mt-4 text-sm leading-8 text-emerald-100/70 sm:text-base"
                   >
                     {paragraph}
                   </p>
                 ))}
 
                 {section.bullets?.length ? (
-                  <ul className="mt-4 list-disc space-y-3 ps-6 text-sm leading-7 text-slate-300 sm:text-base">
+                  <ul className="mt-4 list-disc space-y-3 ps-6 text-sm leading-7 text-emerald-100/70 marker:text-copper-400 sm:text-base">
                     {section.bullets.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
@@ -140,7 +140,7 @@ export default function LegalPageShell({
             ))}
           </div>
 
-          <footer className="mt-12 border-t border-white/10 pt-8 text-sm leading-7 text-slate-400">
+          <footer className="mt-12 border-t border-emerald-300/10 pt-8 text-sm leading-7 text-emerald-100/55">
             <p>{copy.operator}</p>
             <p className="mt-2">
               {copy.contact}{" "}
@@ -176,7 +176,7 @@ function LegalNavLink({
         "rounded-2xl px-4 py-3 transition",
         active
           ? "bg-copper-400/15 text-copper-200 ring-1 ring-copper-400/30"
-          : "text-slate-300 hover:bg-white/5 hover:text-white",
+          : "text-emerald-100/70 hover:bg-white/5 hover:text-white",
       ].join(" ")}
     >
       {children}

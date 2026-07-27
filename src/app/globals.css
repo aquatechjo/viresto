@@ -12,36 +12,55 @@
    ============================================================ */
 
 :root {
-  /* --- Sidebar / Brand --- */
-  --sidebar: #0f3d3e;
-  --sidebar-dark: #082c2d;
-  --sidebar-hover: #185354;
-  --sidebar-text: #f8fbfa;
-  --sidebar-muted: rgba(226, 241, 239, 0.74);
-  --brand-text: #0f3d3e;
-  --warning-text: #92400e;
+  color-scheme: dark;
+
+  /* --- Viresto brand palette (single source of truth) --- */
+  --brand-canvas: #041819;
+  --brand-shell: #082c2d;
+  --brand-surface: #0b292a;
+  --brand-surface-2: #103334;
+  --brand-surface-hover: #185354;
+  --brand-copper: #b87333;
+  --brand-copper-hover: #cc8e55;
+  --brand-copper-soft: #3a2818;
+  --brand-text: #f8fbfa;
+  --brand-text-soft: #d8f0ec;
+  --brand-text-muted: #86aaa6;
+  --brand-border: #1c494a;
+  --brand-border-strong: #286061;
+
+  /* --- Legacy aliases mapped to the brand palette --- */
+  --sidebar: var(--brand-shell);
+  --sidebar-dark: var(--brand-canvas);
+  --sidebar-hover: var(--brand-surface-hover);
+  --sidebar-text: var(--brand-text);
+  --sidebar-muted: rgba(216, 240, 236, 0.74);
+  --warning-text: #fbbf24;
 
   /* --- Backgrounds --- */
-  --bg: #f2f5f3;
-  --card: #ffffff;
-  --card-2: #f7f9f8;
-  --input-bg: #f3f7f6;
-  --overlay: rgba(5, 28, 29, 0.52);
+  --bg: var(--brand-canvas);
+  --surface: var(--brand-surface);
+  --surface-2: var(--brand-surface-2);
+  --card: var(--brand-surface);
+  --card-2: var(--brand-surface-2);
+  --input-bg: var(--brand-shell);
+  --overlay: rgba(2, 12, 13, 0.76);
 
   /* --- Borders --- */
-  --border: #cfddda;
-  --border-dark: #abc4bf;
+  --border: var(--brand-border);
+  --border-dark: var(--brand-border-strong);
 
   /* --- Text --- */
-  --text: #102d2e;
-  --text-2: #36595a;
-  --text-3: #647c7c;
-  --muted: #647c7c;
+  --text: var(--brand-text);
+  --text-2: var(--brand-text-soft);
+  --text-3: var(--brand-text-muted);
+  --muted: var(--brand-text-muted);
 
   /* --- Accent --- */
-  --gold: #b87333;
-  --gold-soft: #f7e9dc;
-  --gold-border: #dfb184;
+  --gold: var(--brand-copper);
+  --gold-hover: var(--brand-copper-hover);
+  --gold-soft: var(--brand-copper-soft);
+  --gold-border: #7d4925;
 
   /* --- Semantic Colors --- */
   --success: #15803d;
@@ -50,12 +69,12 @@
   --info: #1d4ed8;
 
   /* --- Soft Backgrounds --- */
-  --green-soft: #dcecea;
-  --amber-soft: #f7e9dc;
-  --red-soft: #fee2e2;
-  --blue-soft: #dbeafe;
-  --purple-soft: #ede9fe;
-  --gray-soft: #eef2f1;
+  --green-soft: #123b3c;
+  --amber-soft: #3a2818;
+  --red-soft: #330f0f;
+  --blue-soft: #0c1e40;
+  --purple-soft: #1e1640;
+  --gray-soft: #102d2e;
 
   /* --- Radii --- */
   --radius-xs: 6px;
@@ -66,44 +85,20 @@
   --radius-2xl: 32px;
 
   /* --- Shadows --- */
-  --shadow-xs: 0 2px 8px rgba(8, 44, 45, 0.04);
-  --shadow-sm: 0 4px 16px rgba(8, 44, 45, 0.06);
-  --shadow-md: 0 8px 28px rgba(8, 44, 45, 0.09);
-  --shadow-lg: 0 16px 48px rgba(8, 44, 45, 0.12);
-  --shadow-xl: 0 24px 64px rgba(8, 44, 45, 0.16);
+  --shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.5);
 
   /* --- Transitions --- */
   --ease: 0.18s ease;
   --ease-fast: 0.12s ease;
 }
 
-/* --- Dark Mode --- */
+/* The product uses one dark Viresto identity across public and app surfaces. */
 .dark {
-  --bg: #061b1c;
-  --card: #0b292a;
-  --card-2: #082223;
-  --input-bg: #103334;
-
-  --border: #1c494a;
-  --border-dark: #286061;
-
-  --text: #edf6f5;
-  --text-2: #a7c7c4;
-  --text-3: #789c99;
-  --muted: #789c99;
-  --brand-text: #8dd8cf;
-  --warning-text: #fbbf24;
-
-  --green-soft: #123b3c;
-  --amber-soft: #3a2818;
-  --red-soft: #330f0f;
-  --blue-soft: #0c1e40;
-  --purple-soft: #1e1640;
-  --gray-soft: #102d2e;
-
-  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.32);
-  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
 }
 
 /* ============================================================
@@ -131,7 +126,7 @@ body {
   background:
     radial-gradient(
       ellipse at top right,
-      rgba(15, 61, 62, 0.07),
+      rgba(53, 138, 136, 0.14),
       transparent 28rem
     ),
     var(--bg);
@@ -654,15 +649,15 @@ select.input {
 
 /* Primary */
 .btn-primary {
-  background: var(--sidebar);
-  color: #fff;
-  border-color: var(--sidebar);
-  box-shadow: 0 6px 20px rgba(15, 61, 62, 0.2);
+  background: var(--gold);
+  color: var(--brand-canvas);
+  border-color: var(--gold);
+  box-shadow: 0 8px 24px rgba(184, 115, 51, 0.24);
 }
 .btn-primary:hover {
-  background: var(--sidebar-dark);
-  border-color: var(--sidebar-dark);
-  box-shadow: 0 10px 28px rgba(15, 61, 62, 0.28);
+  background: var(--gold-hover);
+  border-color: var(--gold-hover);
+  box-shadow: 0 12px 32px rgba(184, 115, 51, 0.32);
 }
 
 /* Secondary / Ghost */
@@ -682,12 +677,12 @@ select.input {
 /* Outline */
 .btn-outline {
   background: transparent;
-  color: var(--sidebar);
-  border-color: var(--sidebar);
+  color: var(--gold-hover);
+  border-color: var(--gold);
 }
 .btn-outline:hover {
-  background: var(--sidebar);
-  color: #fff;
+  background: var(--gold);
+  color: var(--brand-canvas);
 }
 
 /* Danger */
@@ -1216,7 +1211,7 @@ select.input {
   width: 1.4rem;
   height: 1.4rem;
   border: 2.5px solid var(--border);
-  border-top-color: var(--sidebar);
+  border-top-color: var(--gold);
   border-radius: 50%;
   animation: spin 0.65s linear infinite;
   flex-shrink: 0;

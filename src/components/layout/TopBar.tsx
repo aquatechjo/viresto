@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import ThemeToggle from "@/components/ThemeToggle";
 import { useEffect, useRef, useState } from "react";
 import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
@@ -69,15 +68,12 @@ function normalizeSearchResults(
 const COMPACT_CONTROL =
   "[&_button]:!flex [&_button]:!h-10 [&_button]:!w-10 [&_button]:!min-w-10 " +
   "[&_button]:!items-center [&_button]:!justify-center " +
-  "[&_button]:!rounded-2xl [&_button]:!border [&_button]:!border-emerald-100 " +
-  "[&_button]:!bg-white/80 [&_button]:!px-0 [&_button]:!text-slate-700 " +
-  "[&_button]:!shadow-[0_5px_16px_rgba(15,118,110,0.08)] " +
+  "[&_button]:!rounded-2xl [&_button]:!border [&_button]:!border-[#286061] " +
+  "[&_button]:!bg-[#0d3435]/90 [&_button]:!px-0 [&_button]:!text-emerald-100 " +
+  "[&_button]:!shadow-none " +
   "[&_button]:!transition-all [&_button:hover]:!-translate-y-px " +
-  "[&_button:hover]:!border-teal-300 [&_button:hover]:!bg-white " +
-  "sm:[&_button]:!h-11 sm:[&_button]:!w-11 sm:[&_button]:!min-w-11 " +
-  "dark:[&_button]:!border-teal-700/60 dark:[&_button]:!bg-[#0d3435]/90 " +
-  "dark:[&_button]:!text-teal-100 dark:[&_button]:!shadow-none " +
-  "dark:[&_button:hover]:!border-teal-500/80 dark:[&_button:hover]:!bg-[#164849]";
+  "[&_button:hover]:!border-copper-400/60 [&_button:hover]:!bg-[#185354] " +
+  "sm:[&_button]:!h-11 sm:[&_button]:!w-11 sm:[&_button]:!min-w-11";
 
 export default function TopBar() {
   const pathname = usePathname();
@@ -198,10 +194,9 @@ export default function TopBar() {
     <header
       dir={isRtl ? "rtl" : "ltr"}
       className={`
-        fixed top-0 z-40 min-w-0 overflow-visible border-b border-emerald-100/90
-        bg-[linear-gradient(180deg,rgba(236,253,245,0.97)_0%,rgba(240,253,250,0.92)_52%,rgba(255,255,255,0.95)_100%)]
-        shadow-[0_8px_28px_rgba(15,118,110,0.08)] backdrop-blur-[18px] transition-colors
-        dark:border-[#155354] dark:bg-[linear-gradient(180deg,rgba(11,55,56,0.98)_0%,rgba(8,37,38,0.97)_100%)]
+        fixed top-0 z-40 min-w-0 overflow-visible border-b border-[#1c494a]
+        bg-[linear-gradient(180deg,rgba(11,41,42,0.98)_0%,rgba(8,44,45,0.97)_100%)]
+        shadow-[0_8px_28px_rgba(0,0,0,0.24)] backdrop-blur-[18px] transition-colors
         ${
           isRtl
             ? "right-0 left-0 pr-[62px] pl-2.5 sm:pr-[68px] sm:pl-4 xl:right-64 xl:px-6"
@@ -212,11 +207,11 @@ export default function TopBar() {
       <div
         className="
           grid min-h-[112px] w-full min-w-0
-          grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]
+          grid-cols-[minmax(0,1fr)_auto_auto_auto]
           items-center gap-x-1.5 gap-y-2 py-2.5
           sm:min-h-[116px] sm:gap-x-2
           xl:min-h-[76px]
-          xl:grid-cols-[minmax(280px,1fr)_auto_auto_auto_auto_auto_auto]
+          xl:grid-cols-[minmax(280px,1fr)_auto_auto_auto_auto_auto]
           xl:gap-3 xl:py-3
         "
       >
@@ -224,11 +219,11 @@ export default function TopBar() {
         <div
           className={`
             col-start-1 row-start-1 min-w-0
-            xl:col-start-7 xl:row-start-1 xl:max-w-[220px]
+            xl:col-start-6 xl:row-start-1 xl:max-w-[220px]
             ${isRtl ? "text-right xl:text-left" : "text-left xl:text-right"}
           `}
         >
-          <h1 className="truncate text-sm font-black text-slate-800 dark:text-emerald-50 sm:text-base">
+          <h1 className="truncate text-sm font-black text-emerald-50 sm:text-base">
             {title}
           </h1>
         </div>
@@ -240,22 +235,15 @@ export default function TopBar() {
           <LanguageToggle />
         </div>
 
-        {/* Theme */}
-        <div
-          className={`col-start-3 row-start-1 shrink-0 xl:col-start-4 ${COMPACT_CONTROL}`}
-        >
-          <ThemeToggle />
-        </div>
-
         {/* Notifications */}
         <div
-          className="relative z-50 col-start-4 row-start-1 shrink-0 overflow-visible xl:col-start-5"
+          className="relative z-50 col-start-3 row-start-1 shrink-0 overflow-visible xl:col-start-4"
         >
           <NotificationBell />
         </div>
 
         {/* Profile — avatar only on mobile/tablet, full control on desktop */}
-        <div className="relative z-50 col-start-5 row-start-1 min-w-0 shrink-0 overflow-visible xl:col-start-6">
+        <div className="relative z-50 col-start-4 row-start-1 min-w-0 shrink-0 overflow-visible xl:col-start-5">
           <ProfileMenu />
         </div>
 
@@ -263,12 +251,10 @@ export default function TopBar() {
         <span
           className="
             hidden h-10 shrink-0 items-center gap-1.5 rounded-2xl
-            border border-emerald-100 bg-white/80 px-3 text-xs font-bold
-            text-slate-700 shadow-[0_5px_16px_rgba(15,118,110,0.08)]
-            transition-all hover:-translate-y-px hover:border-teal-300
-            hover:bg-white xl:col-start-2 xl:row-start-1 xl:flex
-            dark:border-teal-700/60 dark:bg-[#0d3435]/90 dark:text-white
-            dark:hover:border-emerald-500/80 dark:hover:bg-[#185354]
+            border border-[#286061] bg-[#0d3435]/90 px-3 text-xs font-bold
+            text-emerald-50 shadow-none
+            transition-all hover:-translate-y-px hover:border-copper-400/60
+            hover:bg-[#185354] xl:col-start-2 xl:row-start-1 xl:flex
           "
         >
           📅 {dateStr || "—"}
@@ -286,7 +272,7 @@ export default function TopBar() {
           <span
             className={`
               pointer-events-none absolute top-1/2 -translate-y-1/2
-              text-slate-400 dark:text-emerald-200
+              text-emerald-200
               ${isRtl ? "right-3" : "left-3"}
             `}
           >
@@ -303,13 +289,11 @@ export default function TopBar() {
             onFocus={() => setOpen(true)}
             placeholder={t.topbar.searchPlaceholder}
             className={`
-              h-10 w-full rounded-2xl border border-emerald-100 bg-white/90 py-2
-              text-[16px] font-semibold text-slate-800 placeholder:text-slate-400
-              shadow-[0_5px_16px_rgba(15,118,110,0.08)] outline-none transition-all hover:border-emerald-300
-              focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10
+              h-10 w-full rounded-2xl border border-[#286061] bg-[#0d3435]/90 py-2
+              text-[16px] font-semibold text-white placeholder:text-emerald-200/70
+              shadow-none outline-none transition-all hover:border-copper-400/60
+              focus:border-copper-400 focus:ring-4 focus:ring-copper-400/10
               sm:h-11 sm:text-sm
-              dark:border-emerald-700/60 dark:bg-[#0d3435]/90 dark:text-white
-              dark:placeholder:text-emerald-200/80 dark:hover:border-emerald-500/80
               ${isRtl ? "pr-10 pl-10 text-right" : "pl-10 pr-10 text-left"}
             `}
           />
@@ -328,8 +312,7 @@ export default function TopBar() {
               className={`
                 absolute top-full z-[55] mt-2 max-h-[62vh] w-full
                 max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-2xl
-                border border-slate-200 bg-white shadow-2xl
-                dark:border-[#0f3d3e] dark:bg-[#0b292a]
+                border border-[#1c494a] bg-[#0b292a] shadow-2xl
                 xl:min-w-[440px]
                 ${isRtl ? "right-0" : "left-0"}
               `}

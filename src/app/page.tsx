@@ -709,7 +709,7 @@ export default function HomePage() {
   return (
     <main
       dir={isArabic ? "rtl" : "ltr"}
-      className="min-h-screen overflow-x-hidden bg-[#041819] text-white"
+      className="min-h-screen overflow-x-hidden bg-[var(--brand-canvas)] text-white"
     >
       <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-[#041819]/85 backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-5 sm:px-6">

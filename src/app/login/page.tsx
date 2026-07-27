@@ -381,7 +381,7 @@ export default function LoginPage() {
       dir={isArabic ? "rtl" : "ltr"}
       style={{
         background:
-          "radial-gradient(circle at 15% 20%, rgba(184, 115, 51,.18), transparent 28%), radial-gradient(circle at 85% 15%, rgba(255,255,255,.12), transparent 26%), linear-gradient(135deg, #092a2b 0%, #185354 48%, #041819 100%)",
+          "radial-gradient(circle at 15% 20%, rgba(184, 115, 51,.14), transparent 28%), radial-gradient(circle at 85% 15%, rgba(53,138,136,.14), transparent 26%), var(--brand-canvas)",
       }}
     >
       <button
@@ -396,7 +396,7 @@ export default function LoginPage() {
         <span dir="ltr" className="flex items-center gap-1">
           <span
             className={`rounded-full px-3 py-1 text-xs font-black transition ${
-              isArabic ? "bg-white text-[#103839] shadow-sm" : "text-white/70"
+              isArabic ? "bg-copper-400 text-[#041819] shadow-sm" : "text-white/70"
             }`}
           >
             AR
@@ -404,7 +404,7 @@ export default function LoginPage() {
 
           <span
             className={`rounded-full px-3 py-1 text-xs font-black transition ${
-              !isArabic ? "bg-white text-[#103839] shadow-sm" : "text-white/70"
+              !isArabic ? "bg-copper-400 text-[#041819] shadow-sm" : "text-white/70"
             }`}
           >
             EN
@@ -685,22 +685,22 @@ export default function LoginPage() {
 
               <div
                 dir={isArabic ? "rtl" : "ltr"}
-                className={`relative rounded-[28px] bg-white/90 p-6 text-slate-900 shadow-inner sm:p-7 dark:bg-[#0b292a]/95 dark:text-copper-50 ${textAlignClass}`}
+                className={`relative rounded-[28px] bg-[#0b292a]/95 p-6 text-copper-50 shadow-inner sm:p-7 ${textAlignClass}`}
               >
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
                 >
-                  <div className="mb-4 inline-flex rounded-full bg-copper-50 px-3 py-1 text-xs font-black text-copper-800 dark:bg-[#1c5354] dark:text-copper-50">
+                  <div className="mb-4 inline-flex rounded-full bg-[#1c5354] px-3 py-1 text-xs font-black text-copper-50">
                     {copy.welcomeBadge}
                   </div>
 
-                  <h2 className="text-2xl font-black text-slate-900 dark:text-copper-50">
+                  <h2 className="text-2xl font-black text-copper-50">
                     {copy.formTitle}
                   </h2>
 
-                  <p className="mt-2 text-sm font-medium text-slate-600 dark:text-copper-100/75">
+                  <p className="mt-2 text-sm font-medium text-copper-100/75">
                     {copy.formDescription}
                   </p>
                 </motion.div>

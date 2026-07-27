@@ -167,8 +167,10 @@ export default async function RootLayout({
     <html
       lang="ar"
       dir="rtl"
+      className="dark"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
+      data-theme="viresto"
     >
       <body>
         <script
@@ -199,6 +201,9 @@ export default async function RootLayout({
               lineHeight: "1.8",
               borderRadius: "16px",
               fontWeight: 700,
+              background: "#0b292a",
+              color: "#f8fbfa",
+              border: "1px solid #1c494a",
             },
           }}
         />

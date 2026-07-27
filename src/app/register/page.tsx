@@ -273,7 +273,7 @@ export default function RegisterPage() {
             <span
               className={[
                 "rounded-full px-3 py-1 text-xs font-black transition",
-                isRtl ? "bg-white text-[#103839] shadow-sm" : "text-white/70",
+                isRtl ? "bg-copper-400 text-[#041819] shadow-sm" : "text-white/70",
               ].join(" ")}
             >
               AR
@@ -282,7 +282,7 @@ export default function RegisterPage() {
             <span
               className={[
                 "rounded-full px-3 py-1 text-xs font-black transition",
-                !isRtl ? "bg-white text-[#103839] shadow-sm" : "text-white/70",
+                !isRtl ? "bg-copper-400 text-[#041819] shadow-sm" : "text-white/70",
               ].join(" ")}
             >
               EN
@@ -330,7 +330,7 @@ export default function RegisterPage() {
           <span
             className={[
               "rounded-full px-3 py-1 text-xs font-black transition",
-              isRtl ? "bg-white text-[#103839] shadow-sm" : "text-white/70",
+              isRtl ? "bg-copper-400 text-[#041819] shadow-sm" : "text-white/70",
             ].join(" ")}
           >
             AR
@@ -339,7 +339,7 @@ export default function RegisterPage() {
           <span
             className={[
               "rounded-full px-3 py-1 text-xs font-black transition",
-              !isRtl ? "bg-white text-[#103839] shadow-sm" : "text-white/70",
+              !isRtl ? "bg-copper-400 text-[#041819] shadow-sm" : "text-white/70",
             ].join(" ")}
           >
             EN
@@ -349,11 +349,11 @@ export default function RegisterPage() {
 
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <p className="text-3xl font-black tracking-tight text-copper-600 drop-shadow-[0_0_22px_rgba(184,115,51,0.16)]">
+          <p className="text-3xl font-black tracking-tight text-copper-400 drop-shadow-[0_0_22px_rgba(184,115,51,0.16)]">
             {copy.brand}
           </p>
 
-          <p className="mt-1 text-sm font-semibold text-[#647c7c]">
+          <p className="mt-1 text-sm font-semibold text-emerald-100/60">
             {copy.subtitle}
           </p>
         </div>

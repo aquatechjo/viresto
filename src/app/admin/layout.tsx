@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import ThemeToggle from "@/components/ThemeToggle";
 import ProfileMenu from "@/components/layout/ProfileMenu";
 import SessionGuard from "@/components/security/SessionGuard";
 import { requireSystemAdmin } from "@/lib/system-admin";
@@ -79,7 +78,6 @@ export default async function AdminLayout({
               العودة للبرنامج
             </Link>
 
-            <ThemeToggle />
             <ProfileMenu />
           </div>
         </div>
