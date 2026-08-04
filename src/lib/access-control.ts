@@ -49,9 +49,12 @@ function accessibleClientScope(
     return {
       OR: [
         { cases: { some: assignedCase } },
-        // A newly created client has no case yet. Lawyers must be able to
-        // complete the intake flow and create the first case.
-        { cases: { none: {} } },
+        // A lawyer may continue the intake flow only for a client they
+        // created themselves and only until the first case is created.
+        {
+          createdById: user.userId,
+          cases: { none: {} },
+        },
       ],
     };
   }

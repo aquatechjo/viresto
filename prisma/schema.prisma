@@ -244,6 +244,7 @@ model User {
   emailChangeRequests  EmailChangeRequest[]
   assignedTasks        Task[]               @relation("TaskAssignee")
   createdTasks         Task[]               @relation("TaskCreator")
+  createdClients       Client[]             @relation("ClientCreator")
   leadCases            Case[]               @relation("CaseLeadLawyer")
   caseMemberships      CaseMember[]
   cancelledPayments    Payment[]            @relation("PaymentCancelledBy")
@@ -261,6 +262,7 @@ model Client {
   id             String        @id @default(cuid())
   publicId       Int           @unique @default(autoincrement())
   tenantId       String
+  createdById    String?
   name           String
   email          String?
   phone          String?
@@ -274,6 +276,7 @@ model Client {
   phoneHash      String?
   appointments   Appointment[]
   cases          Case[]
+  creator        User?         @relation("ClientCreator", fields: [createdById, tenantId], references: [id, tenantId], onDelete: Restrict)
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   documents      Document[]
   invoices       Invoice[]
@@ -283,6 +286,7 @@ model Client {
 
   @@unique([id, tenantId])
   @@index([tenantId])
+  @@index([tenantId, createdById])
   @@index([tenantId, archivedAt, createdAt])
 }
 

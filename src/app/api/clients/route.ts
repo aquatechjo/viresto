@@ -127,6 +127,7 @@ export async function GET(req: NextRequest) {
         emailHash: _emailHash,
         phoneHash: _phoneHash,
         nationalIdHash: _nationalIdHash,
+        createdById: _createdById,
         ...safeClient
       } = client;
       const revealSensitive = auth.user.role !== "STAFF";
@@ -256,6 +257,7 @@ export async function POST(req: NextRequest) {
       const client = await tx.client.create({
         data: {
           tenantId: auth.user.tenantId,
+          createdById: auth.user.userId,
           ...secureData,
         },
       });
@@ -319,6 +321,7 @@ export async function POST(req: NextRequest) {
       emailHash: _emailHash,
       phoneHash: _phoneHash,
       nationalIdHash: _nationalIdHash,
+      createdById: _createdById,
       ...safeClient
     } = client;
 

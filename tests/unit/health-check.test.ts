@@ -1,19 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { isBearerSecretAuthorized } from "../../src/lib/bearer-secret";
 import {
   getHealthServiceConfiguration,
   isHealthCheckAuthorized,
 } from "../../src/lib/health-check";
 
-test("health authorization accepts only the configured bearer token", () => {
+test("bearer secret authorization accepts only the configured token", () => {
+  const secret = "h".repeat(32);
+
+  assert.equal(isBearerSecretAuthorized(`Bearer ${secret}`, secret), true);
+  assert.equal(isBearerSecretAuthorized(`bearer ${secret}`, secret), true);
+  assert.equal(
+    isBearerSecretAuthorized(`Bearer ${"x".repeat(32)}`, secret),
+    false,
+  );
+  assert.equal(isBearerSecretAuthorized(secret, secret), false);
+  assert.equal(isBearerSecretAuthorized("Bearer   ", secret), false);
+  assert.equal(isBearerSecretAuthorized(null, secret), false);
+  assert.equal(isBearerSecretAuthorized(`Bearer ${secret}`, undefined), false);
+});
+
+test("health authorization delegates to bearer secret verification", () => {
   const secret = "h".repeat(32);
 
   assert.equal(isHealthCheckAuthorized(`Bearer ${secret}`, secret), true);
-  assert.equal(isHealthCheckAuthorized(`bearer ${secret}`, secret), true);
-  assert.equal(isHealthCheckAuthorized(`Bearer ${"x".repeat(32)}`, secret), false);
-  assert.equal(isHealthCheckAuthorized(secret, secret), false);
-  assert.equal(isHealthCheckAuthorized(null, secret), false);
-  assert.equal(isHealthCheckAuthorized(`Bearer ${secret}`, undefined), false);
+  assert.equal(isHealthCheckAuthorized(`Bearer wrong`, secret), false);
 });
 
 test("health configuration reports required integrations without exposing values", () => {

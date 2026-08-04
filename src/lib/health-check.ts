@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { isBearerSecretAuthorized } from "@/lib/bearer-secret";
 
 type Environment = Record<string, string | undefined>;
 
@@ -16,22 +16,11 @@ function hasValues(env: Environment, keys: readonly string[]) {
   return keys.every((key) => Boolean(env[key]?.trim()));
 }
 
-function digest(value: string) {
-  return createHash("sha256").update(value).digest();
-}
-
 export function isHealthCheckAuthorized(
   authorizationHeader: string | null,
   configuredSecret: string | undefined,
 ) {
-  const expected = configuredSecret?.trim();
-  const authorization = authorizationHeader?.match(/^Bearer\s+(.+)$/i);
-  if (!expected || !authorization) return false;
-
-  const provided = authorization[1].trim();
-  if (!provided) return false;
-
-  return timingSafeEqual(digest(provided), digest(expected));
+  return isBearerSecretAuthorized(authorizationHeader, configuredSecret);
 }
 
 export function getHealthServiceConfiguration(env: Environment) {

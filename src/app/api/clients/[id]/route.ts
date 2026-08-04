@@ -38,12 +38,14 @@ function decryptClient<
     emailHash?: string | null;
     phoneHash?: string | null;
     nationalIdHash?: string | null;
+    createdById?: string | null;
   },
 >(client: T, revealSensitive = true) {
   const {
     emailHash: _emailHash,
     phoneHash: _phoneHash,
     nationalIdHash: _nationalIdHash,
+    createdById: _createdById,
     ...safeClient
   } = client;
 

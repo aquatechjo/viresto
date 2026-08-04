@@ -7,7 +7,7 @@
     "prebuild": "npm run env:check",
     "build": "prisma generate && next build",
     "env:check": "node scripts/check-env.mjs",
-    "test:unit": "node --import tsx --test tests/unit/report-finance.test.ts tests/unit/report-limits.test.ts tests/unit/money.test.ts tests/unit/subscription-consistency.test.ts tests/unit/plan-capacity.test.ts tests/unit/plan-entitlements.test.ts tests/unit/ai-usage-core.test.ts tests/unit/financial-audit.test.ts tests/unit/json-normalize.test.ts tests/unit/encryption-keyring.test.ts tests/unit/env-check.test.mjs tests/unit/csp.test.ts tests/unit/team-invitations.test.ts tests/unit/session-policy.test.ts tests/unit/health-check.test.ts tests/unit/request-path-policy.test.ts tests/unit/document-upload.test.ts tests/unit/legal-consent.test.ts",
+    "test:unit": "node --import tsx --test tests/unit/report-finance.test.ts tests/unit/report-limits.test.ts tests/unit/money.test.ts tests/unit/subscription-consistency.test.ts tests/unit/plan-capacity.test.ts tests/unit/plan-entitlements.test.ts tests/unit/ai-usage-core.test.ts tests/unit/financial-audit.test.ts tests/unit/json-normalize.test.ts tests/unit/encryption-keyring.test.ts tests/unit/env-check.test.mjs tests/unit/csp.test.ts tests/unit/team-invitations.test.ts tests/unit/session-policy.test.ts tests/unit/health-check.test.ts tests/unit/access-control.test.ts tests/unit/request-path-policy.test.ts tests/unit/document-upload.test.ts tests/unit/legal-consent.test.ts",
     "smoke:production": "node scripts/production-smoke.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",

@@ -7,7 +7,10 @@ import { ok, err } from "@/lib/api-response";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanCreate } from "@/lib/billing-limits";
-import { buildCaseAccessWhere } from "@/lib/access-control";
+import {
+  buildCaseAccessWhere,
+  buildClientAccessWhere,
+} from "@/lib/access-control";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
@@ -49,10 +52,7 @@ export async function GET(req: NextRequest) {
 
     if (clientId) {
       const clientExists = await prisma.client.findFirst({
-        where: {
-          id: clientId,
-          tenantId: auth.user.tenantId,
-        },
+        where: buildClientAccessWhere(auth.user, { id: clientId }),
         select: {
           id: true,
         },
@@ -254,10 +254,7 @@ export async function POST(req: NextRequest) {
     }
 
     const client = await prisma.client.findFirst({
-      where: {
-        id: parsed.data.clientId,
-        tenantId: auth.user.tenantId,
-      },
+      where: buildClientAccessWhere(auth.user, { id: parsed.data.clientId }),
       select: {
         id: true,
         name: true,
@@ -364,10 +361,7 @@ export async function POST(req: NextRequest) {
       const [lockedClient, lockedLeadLawyer, lockedMembersCount, duplicateCase] =
         await Promise.all([
           tx.client.findFirst({
-            where: {
-              id: parsed.data.clientId,
-              tenantId: auth.user.tenantId,
-            },
+            where: buildClientAccessWhere(auth.user, { id: parsed.data.clientId }),
             select: {
               id: true,
               archivedAt: true,

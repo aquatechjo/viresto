@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { err, ok } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
+import { isBearerSecretAuthorized } from '@/lib/bearer-secret'
 import {
   getActivityRetentionCutoffs,
   SECURITY_ACTIVITY_TYPES,
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
       return err('Cron secret is not configured', 500)
     }
 
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (!isBearerSecretAuthorized(authHeader, process.env.CRON_SECRET)) {
       return err('Unauthorized', 401)
     }
 
