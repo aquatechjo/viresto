@@ -10,6 +10,7 @@ import {
   invalidateCurrentUser,
   type CurrentUser,
 } from "@/lib/client-session";
+import { invalidateTenantWriteAccessCache } from "@/lib/tenant-write-access-cache";
 
 const COPY = {
   ar: {
@@ -71,6 +72,7 @@ export default function ProfileMenu() {
   async function logout() {
     localStorage.removeItem("viresto_last_activity");
     invalidateCurrentUser();
+    invalidateTenantWriteAccessCache();
 
     await fetch("/api/auth/logout", {
       method: "POST",

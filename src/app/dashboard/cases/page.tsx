@@ -18,6 +18,8 @@ import {
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+import { fetchJsonCached } from "@/lib/client-query-cache";
+import { startNavigationFeedback } from "@/lib/navigation-feedback";
 
 interface Case {
   id: string;
@@ -448,20 +450,24 @@ export default function CasesPage() {
   }, [load]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/team?mode=assignees", { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : null))
+    let cancelled = false;
+
+    void fetchJsonCached<any>("/api/team?mode=assignees", 15_000)
       .then((teamData) => {
-        if (!teamData) return;
+        if (cancelled || !teamData) return;
+
         setTeamMembers(
           Array.isArray(teamData.data?.members) ? teamData.data.members : [],
         );
         setCurrentUserId(String(teamData.data?.currentUserId || ""));
       })
-      .catch((error) => {
-        if ((error as Error).name !== "AbortError") setTeamMembers([]);
+      .catch(() => {
+        if (!cancelled) setTeamMembers([]);
       });
-    return () => controller.abort();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -1183,7 +1189,13 @@ export default function CasesPage() {
         totalPages={totalPages}
         onPageChange={setPage}
         isRtl={isRtl}
-        onRowClick={(item) => router.push(`/dashboard/cases/${item.id}`)}
+        onRowIntent={(item) =>
+          router.prefetch(`/dashboard/cases/${item.id}`)
+        }
+        onRowClick={(item) => {
+          startNavigationFeedback();
+          router.push(`/dashboard/cases/${item.id}`);
+        }}
         labels={{
           emptyTitle: loadError ? text.loadError : text.empty.title,
           emptyDescription:

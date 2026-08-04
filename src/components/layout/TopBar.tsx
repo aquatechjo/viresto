@@ -8,6 +8,7 @@ import { Search, Scale } from "lucide-react";
 import LanguageToggle from "@/components/LanguageToggle";
 import { translations } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
+import { startNavigationFeedback } from "@/lib/navigation-feedback";
 
 const TITLE_KEYS: Record<string, keyof typeof translations.ar.dashboard> = {
   "/dashboard": "title",
@@ -75,7 +76,11 @@ const COMPACT_CONTROL =
   "[&_button:hover]:!border-copper-400/60 [&_button:hover]:!bg-[#185354] " +
   "sm:[&_button]:!h-11 sm:[&_button]:!w-11 sm:[&_button]:!min-w-11";
 
-export default function TopBar() {
+interface TopBarProps {
+  sidebarCollapsed: boolean;
+}
+
+export default function TopBar({ sidebarCollapsed }: TopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { locale, isRtl } = useLocale();
@@ -121,31 +126,33 @@ export default function TopBar() {
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
 
-    fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`)
+    fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`, {
+      signal: controller.signal,
+    })
       .then((response) => response.json())
       .then((data) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
 
         setResults(
           data?.success ? normalizeSearchResults(data.data) : EMPTY_RESULTS,
         );
       })
-      .catch(() => {
-        if (!cancelled) {
+      .catch((error) => {
+        if ((error as Error).name !== "AbortError") {
           setResults(EMPTY_RESULTS);
         }
       })
       .finally(() => {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setLoading(false);
         }
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [debouncedQuery]);
 
@@ -190,17 +197,31 @@ export default function TopBar() {
     setQuery("");
   }
 
+  function navigateFromSearch(href: string) {
+    startNavigationFeedback();
+    router.push(href);
+    closeSearch();
+  }
+
+  function warmSearchRoute(href: string) {
+    router.prefetch(href);
+  }
+
   return (
     <header
       dir={isRtl ? "rtl" : "ltr"}
       className={`
         fixed top-0 z-40 min-w-0 overflow-visible border-b border-[#1c494a]
         bg-[linear-gradient(180deg,rgba(11,41,42,0.98)_0%,rgba(8,44,45,0.97)_100%)]
-        shadow-[0_8px_28px_rgba(0,0,0,0.24)] backdrop-blur-[18px] transition-colors
+        shadow-[0_8px_28px_rgba(0,0,0,0.24)] backdrop-blur-[18px] transition-[left,right] duration-300
         ${
           isRtl
-            ? "right-0 left-0 pr-[62px] pl-2.5 sm:pr-[68px] sm:pl-4 xl:right-64 xl:px-6"
-            : "left-0 right-0 pl-[62px] pr-2.5 sm:pl-[68px] sm:pr-4 xl:left-64 xl:px-6"
+            ? `right-0 left-0 pr-[62px] pl-2.5 sm:pr-[68px] sm:pl-4 xl:px-6 ${
+                sidebarCollapsed ? "xl:right-20" : "xl:right-64"
+              }`
+            : `left-0 right-0 pl-[62px] pr-2.5 sm:pl-[68px] sm:pr-4 xl:px-6 ${
+                sidebarCollapsed ? "xl:left-20" : "xl:left-64"
+              }`
         }
       `}
     >
@@ -327,12 +348,21 @@ export default function TopBar() {
                 <button
                   type="button"
                   key={client.id}
-                  onClick={() => {
-                    router.push(
+                  onMouseEnter={() =>
+                    warmSearchRoute(
                       `/dashboard/clients/${client.publicId ?? client.id}`,
-                    );
-                    closeSearch();
-                  }}
+                    )
+                  }
+                  onFocus={() =>
+                    warmSearchRoute(
+                      `/dashboard/clients/${client.publicId ?? client.id}`,
+                    )
+                  }
+                  onClick={() =>
+                    navigateFromSearch(
+                      `/dashboard/clients/${client.publicId ?? client.id}`,
+                    )
+                  }
                   className={`flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:hover:bg-[#123f40]`}
                 >
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-500/15 text-xs font-bold text-teal-700 dark:bg-teal-300/10 dark:text-teal-200">
@@ -359,12 +389,21 @@ export default function TopBar() {
                 <button
                   type="button"
                   key={caseItem.id}
-                  onClick={() => {
-                    router.push(
+                  onMouseEnter={() =>
+                    warmSearchRoute(
                       `/dashboard/cases/${caseItem.publicId ?? caseItem.id}`,
-                    );
-                    closeSearch();
-                  }}
+                    )
+                  }
+                  onFocus={() =>
+                    warmSearchRoute(
+                      `/dashboard/cases/${caseItem.publicId ?? caseItem.id}`,
+                    )
+                  }
+                  onClick={() =>
+                    navigateFromSearch(
+                      `/dashboard/cases/${caseItem.publicId ?? caseItem.id}`,
+                    )
+                  }
                   className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
                 >
                   <Scale className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
@@ -390,10 +429,9 @@ export default function TopBar() {
                 <button
                   type="button"
                   key={task.id}
-                  onClick={() => {
-                    router.push("/dashboard/tasks");
-                    closeSearch();
-                  }}
+                  onMouseEnter={() => warmSearchRoute("/dashboard/tasks")}
+                  onFocus={() => warmSearchRoute("/dashboard/tasks")}
+                  onClick={() => navigateFromSearch("/dashboard/tasks")}
                   className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
                 >
                   <span className="shrink-0 text-xs">
@@ -414,10 +452,11 @@ export default function TopBar() {
                 <button
                   type="button"
                   key={document.id}
-                  onClick={() => {
-                    router.push("/dashboard/documents");
-                    closeSearch();
-                  }}
+                  onMouseEnter={() =>
+                    warmSearchRoute("/dashboard/documents")
+                  }
+                  onFocus={() => warmSearchRoute("/dashboard/documents")}
+                  onClick={() => navigateFromSearch("/dashboard/documents")}
                   className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
                 >
                   <span className="shrink-0 text-xs">📄</span>

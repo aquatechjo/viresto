@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { invalidateCurrentUser } from "@/lib/client-session";
+import { invalidateTenantWriteAccessCache } from "@/lib/tenant-write-access-cache";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 10 * 1000;
@@ -34,6 +35,7 @@ export default function SessionGuard() {
 
     localStorage.removeItem(LAST_ACTIVITY_KEY);
     invalidateCurrentUser();
+    invalidateTenantWriteAccessCache();
 
     await fetch("/api/auth/logout", {
       method: "POST",

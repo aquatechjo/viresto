@@ -20,6 +20,7 @@ import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+import { fetchJsonCached } from "@/lib/client-query-cache";
 
 const AppointmentsCalendar = dynamic(() => import("./AppointmentsCalendar"), {
   ssr: false,
@@ -814,33 +815,25 @@ export default function AppointmentsPage() {
       try {
         if (!options?.silent) setLoading(true);
 
-        const [appointmentsRes, clientsRes, teamRes] = await Promise.all([
-          fetch(
-            `/api/appointments?includeArchivedClients=true${
-              calendarRange
-                ? `&from=${encodeURIComponent(calendarRange.from)}&to=${encodeURIComponent(calendarRange.to)}`
-                : ""
-            }`,
+        const appointmentsUrl =
+          `/api/appointments?includeArchivedClients=true${
+            calendarRange
+              ? `&from=${encodeURIComponent(calendarRange.from)}&to=${encodeURIComponent(calendarRange.to)}`
+              : ""
+          }`;
+
+        const [appointmentsRes, clientsData, teamData] = await Promise.all([
+          fetch(appointmentsUrl),
+          fetchJsonCached<any>(
+            "/api/clients?limit=100&archive=active",
+            15_000,
           ),
-          fetch("/api/clients?limit=100&archive=active"),
-          fetch("/api/team?mode=assignees"),
+          fetchJsonCached<any>("/api/team?mode=assignees", 15_000),
         ]);
 
-        const safeJson = async (response: Response) => {
-          if (!response.ok) return { data: [] };
-
-          try {
-            return await response.json();
-          } catch {
-            return { data: [] };
-          }
-        };
-
-        const [appointmentsData, clientsData, teamData] = await Promise.all([
-          safeJson(appointmentsRes),
-          safeJson(clientsRes),
-          safeJson(teamRes),
-        ]);
+        const appointmentsData = appointmentsRes.ok
+          ? await appointmentsRes.json().catch(() => ({ data: [] }))
+          : { data: [] };
 
         setAppts(
           Array.isArray(appointmentsData.data) ? appointmentsData.data : [],
@@ -852,6 +845,7 @@ export default function AppointmentsPage() {
               ? clientsData.data
               : [],
         );
+
         const loadedMembers = Array.isArray(teamData.data?.members)
           ? teamData.data.members
           : [];

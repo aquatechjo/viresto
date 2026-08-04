@@ -35,6 +35,7 @@ interface VDSDataTableProps<T> {
   labels?: VDSDataTableLabels;
   isRtl?: boolean;
   onRowClick?: (row: T) => void;
+  onRowIntent?: (row: T) => void;
   className?: string;
 }
 
@@ -58,6 +59,7 @@ export default function VDSDataTable<T>({
   labels = {},
   isRtl = false,
   onRowClick,
+  onRowIntent,
   className = "",
 }: VDSDataTableProps<T>) {
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<VDSRowId>>(
@@ -230,6 +232,7 @@ export default function VDSDataTable<T>({
                   <tr
                     key={rowId}
                     onClick={() => onRowClick?.(row)}
+                    onPointerEnter={() => onRowIntent?.(row)}
                     className={[
                       "border-b transition-colors last:border-b-0",
                       onRowClick

@@ -10,6 +10,7 @@ export default function DashboardShell({
   children: React.ReactNode
 }) {
   const [locale, setLocale] = useState<Locale>('ar')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     const current = getCurrentLocale()
@@ -20,10 +21,20 @@ export default function DashboardShell({
       setLocale(next)
     }
 
+    const stored = window.localStorage.getItem('viresto_sidebar_collapsed')
+    setSidebarCollapsed(stored === 'true')
+
+    function handleSidebarChange(e: Event) {
+      const next = (e as CustomEvent<boolean>).detail
+      setSidebarCollapsed(next)
+    }
+
     window.addEventListener('localechange', handleLocaleChange)
+    window.addEventListener('viresto-sidebar-change', handleSidebarChange)
 
     return () => {
       window.removeEventListener('localechange', handleLocaleChange)
+      window.removeEventListener('viresto-sidebar-change', handleSidebarChange)
     }
   }, [])
 
@@ -33,7 +44,15 @@ export default function DashboardShell({
     <div
       className={`
         flex min-h-screen flex-col
-        ${isRtl ? 'lg:mr-64' : 'lg:ml-64'}
+        ${
+          isRtl
+            ? sidebarCollapsed
+              ? 'xl:mr-20'
+              : 'xl:mr-64'
+            : sidebarCollapsed
+              ? 'xl:ml-20'
+              : 'xl:ml-64'
+        }
       `}
     >
       {children}

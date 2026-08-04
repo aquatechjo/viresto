@@ -218,6 +218,27 @@ const SUBSCRIPTION_STATUS_LABELS: Record<Locale, Record<string, string>> = {
   },
 };
 
+const ACCOUNT_ACCESS_MESSAGES: Record<Locale, Record<string, string>> = {
+  ar: {
+    CANCELLED: "تم إلغاء الاشتراك. يرجى تجديد الاشتراك للمتابعة.",
+    EXPIRED: "انتهى الاشتراك. يرجى تجديد الاشتراك للمتابعة.",
+    UNPAID: "الاشتراك غير مدفوع. يرجى إتمام الدفع للمتابعة.",
+    PAST_DUE: "يوجد تأخير في الدفع. يرجى تجديد الاشتراك للمتابعة.",
+    MISSING: "لا يوجد اشتراك مفعّل لهذا المكتب.",
+  },
+  en: {
+    CANCELLED:
+      "Your subscription has been cancelled. Please renew it to continue.",
+    EXPIRED:
+      "Your subscription has expired. Please renew it to continue using the system.",
+    UNPAID:
+      "Your subscription is unpaid. Please complete the payment to continue.",
+    PAST_DUE:
+      "Your payment is overdue. Please renew your subscription to continue.",
+    MISSING: "No active subscription was found for this office.",
+  },
+};
+
 const PRIORITY_LABELS: Record<Locale, Record<string, string>> = {
   ar: {
     URGENT: "عاجلة",
@@ -1179,6 +1200,16 @@ export default function DashboardPage() {
       : t.dailySummary(stats?.todayApptCount ?? 0, stats?.dueTasksCount ?? 0);
 
   const canViewFinance = stats?.permissions?.canViewFinance === true;
+  const subscriptionStatus = accountAccess?.billing?.subscriptionStatus ?? "";
+
+  const subscriptionStatusLabel =
+    SUBSCRIPTION_STATUS_LABELS[locale][subscriptionStatus] ??
+    (subscriptionStatus || "—");
+
+  const accountStatusMessage =
+    ACCOUNT_ACCESS_MESSAGES[locale][subscriptionStatus] ??
+    (locale === "ar" ? accountAccess?.message : null) ??
+    `${accountAccess?.billing?.plan.name ?? "—"} · ${subscriptionStatusLabel}`;
 
   const attentionItems = useMemo(() => {
     const items: Array<{
@@ -1316,14 +1347,7 @@ export default function DashboardPage() {
                 className="mt-0.5 truncate text-xs font-semibold"
                 style={{ color: "var(--text-3)" }}
               >
-                {accountAccess.message ||
-                  `${accountAccess.billing?.plan.name ?? "—"} · ${
-                    SUBSCRIPTION_STATUS_LABELS[locale][
-                      accountAccess.billing?.subscriptionStatus ?? ""
-                    ] ??
-                    accountAccess.billing?.subscriptionStatus ??
-                    "—"
-                  }`}
+                {accountStatusMessage}
               </p>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
 import { useLocale } from "@/lib/useLocale";
+import { startNavigationFeedback } from "@/lib/navigation-feedback";
 
 type NotificationItem = {
   id: string;
@@ -180,6 +181,8 @@ export default function NotificationBell() {
     }
 
     if (notification.href) {
+      startNavigationFeedback();
+      router.prefetch(notification.href);
       router.push(notification.href);
       setOpen(false);
     }

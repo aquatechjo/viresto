@@ -1,6 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  getCachedTenantWriteAccess,
+  requestTenantWriteAccess,
+  type TenantAccessEntitlements,
+  type TenantAccessPayload,
+} from "@/lib/tenant-write-access-cache";
 
 type LocaleKey = "ar" | "en";
 
@@ -9,11 +15,7 @@ interface TenantWriteAccessState {
   canWrite: boolean;
   message: string | null;
   subscriptionStatus: string | null;
-  entitlements: {
-    teamManagement: boolean;
-    advancedReports: boolean;
-    fullExport: boolean;
-  } | null;
+  entitlements: TenantAccessEntitlements | null;
   refresh: () => Promise<void>;
 }
 
@@ -22,69 +24,117 @@ const FALLBACK_MESSAGE: Record<LocaleKey, string> = {
   en: "The subscription has ended. You can view data only until the subscription is renewed.",
 };
 
+const STATUS_MESSAGES: Record<LocaleKey, Record<string, string>> = {
+  ar: {
+    CANCELLED: "تم إلغاء الاشتراك. يرجى تجديد الاشتراك للمتابعة.",
+    EXPIRED: "انتهى الاشتراك. يرجى تجديد الاشتراك للمتابعة.",
+    UNPAID: "الاشتراك غير مدفوع. يرجى إتمام الدفع للمتابعة.",
+    PAST_DUE: "يوجد تأخير في الدفع. يرجى تجديد الاشتراك للمتابعة.",
+    MISSING: "لا يوجد اشتراك مفعّل لهذا المكتب.",
+  },
+  en: {
+    CANCELLED:
+      "Your subscription has been cancelled. Please renew it to continue.",
+    EXPIRED:
+      "Your subscription has expired. Please renew it to continue.",
+    UNPAID:
+      "Your subscription is unpaid. Please complete the payment to continue.",
+    PAST_DUE:
+      "Your payment is overdue. Please renew your subscription to continue.",
+    MISSING:
+      "No active subscription was found for this office.",
+  },
+};
+
 function pickLocale(locale?: string): LocaleKey {
   return locale === "en" ? "en" : "ar";
 }
 
+function resolveState(payload: TenantAccessPayload | null, locale: LocaleKey) {
+  if (!payload) {
+    return {
+      canWrite: true,
+      message: null,
+      subscriptionStatus: null,
+      entitlements: null,
+    };
+  }
+
+  const canWrite = payload.canWrite !== false;
+  const subscriptionStatus = payload.billing?.subscriptionStatus ?? null;
+  const translatedStatusMessage = subscriptionStatus
+    ? STATUS_MESSAGES[locale][subscriptionStatus]
+    : null;
+
+  return {
+    canWrite,
+    message: canWrite
+      ? null
+      : translatedStatusMessage ||
+        (locale === "ar"
+          ? payload.message || payload.billing?.blockReason
+          : null) ||
+        FALLBACK_MESSAGE[locale],
+    subscriptionStatus,
+    entitlements: payload.entitlements ?? null,
+  };
+}
+
 export function useTenantWriteAccess(locale?: string): TenantWriteAccessState {
   const localeKey = pickLocale(locale);
+  const initialPayload = getCachedTenantWriteAccess();
+  const initialState = resolveState(initialPayload, localeKey);
 
-  const [loading, setLoading] = useState(true);
-  const [canWrite, setCanWrite] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(() => !initialPayload);
+  const [canWrite, setCanWrite] = useState(initialState.canWrite);
+  const [message, setMessage] = useState<string | null>(initialState.message);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(
-    null,
+    initialState.subscriptionStatus,
   );
-  const [entitlements, setEntitlements] = useState<
-    TenantWriteAccessState["entitlements"]
-  >(null);
+  const [entitlements, setEntitlements] =
+    useState<TenantAccessEntitlements | null>(initialState.entitlements);
 
-  const refresh = useCallback(async () => {
-    try {
-      setLoading(true);
+  const applyPayload = useCallback(
+    (payload: TenantAccessPayload | null) => {
+      const next = resolveState(payload, localeKey);
 
-      const response = await fetch("/api/billing/access", {
-        cache: "no-store",
-      });
+      setCanWrite(next.canWrite);
+      setMessage(next.message);
+      setSubscriptionStatus(next.subscriptionStatus);
+      setEntitlements(next.entitlements);
+    },
+    [localeKey],
+  );
 
-      const data = await response.json().catch(() => ({}));
+  const load = useCallback(
+    async (force = false) => {
+      const cached = !force ? getCachedTenantWriteAccess() : null;
 
-      if (!response.ok || data.success === false) {
-        // لا نغلق الواجهة إذا فشل فحص الحالة؛ الـ backend هو مصدر الحماية النهائي.
-        setCanWrite(true);
-        setMessage(null);
-        setSubscriptionStatus(null);
-        setEntitlements(null);
+      if (cached) {
+        applyPayload(cached);
+        setLoading(false);
         return;
       }
 
-      const payload = data.data ?? {};
-      const allowed = payload.canWrite !== false;
+      setLoading(true);
 
-      setCanWrite(allowed);
-      setMessage(
-        allowed
-          ? null
-          : payload.message ||
-              payload.billing?.blockReason ||
-              FALLBACK_MESSAGE[localeKey],
-      );
-      setSubscriptionStatus(payload.billing?.subscriptionStatus ?? null);
-      setEntitlements(payload.entitlements ?? null);
-    } catch {
-      // لا نمنع المستخدم بسبب خطأ شبكة مؤقت؛ الحماية الفعلية موجودة في API.
-      setCanWrite(true);
-      setMessage(null);
-      setSubscriptionStatus(null);
-      setEntitlements(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [localeKey]);
+      try {
+        const payload = await requestTenantWriteAccess(force);
+        applyPayload(payload);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyPayload],
+  );
+
+  const refresh = useCallback(async () => {
+    await load(true);
+  }, [load]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void load(false);
+  }, [load]);
 
   return {
     loading,

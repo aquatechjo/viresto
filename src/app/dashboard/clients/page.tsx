@@ -8,6 +8,7 @@ import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+import { startNavigationFeedback } from "@/lib/navigation-feedback";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -992,9 +993,17 @@ export default function ClientsPage() {
           page={page}
           totalPages={totalPages}
           onPageChange={setPage}
-          onRowClick={(client) =>
-            router.push(`/dashboard/clients/${client.publicId ?? client.id}`)
+          onRowIntent={(client) =>
+            router.prefetch(
+              `/dashboard/clients/${client.publicId ?? client.id}`,
+            )
           }
+          onRowClick={(client) => {
+            startNavigationFeedback();
+            router.push(
+              `/dashboard/clients/${client.publicId ?? client.id}`,
+            );
+          }}
           toolbar={
             <div
               dir={isRtl ? "rtl" : "ltr"}
