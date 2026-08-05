@@ -97,7 +97,7 @@ const CONTENT: Record<
       {
         heading: "12. القانون والتواصل",
         paragraphs: [
-          "تخضع هذه الشروط لقوانين المملكة الأردنية الهاشمية. يسعى الطرفان أولًا إلى تسوية النزاع وديًا، ثم تختص محاكم عمّان ما لم يفرض القانون اختصاصًا آخر. يمكن إرسال الإشعارات والأسئلة إلى عنوان التواصل المبين أدناه.",
+          "تخضع هذه الشروط لقوانين المملكة الأردنية الهاشمية. يسعى الطرفان أولًا إلى تسوية النزاع وديًا، ثم تختص محاكم عمّان ما لم يفرض القانون اختصاصًا آخر. يمكن إرسال الإشعارات والأسئلة القانونية إلى info@aquatechagency.com، وبلاغات الأمان وطلبات الدعم إلى support@aquatechagency.com.",
         ],
       },
     ],
@@ -183,7 +183,7 @@ const CONTENT: Record<
       {
         heading: "12. Governing law and contact",
         paragraphs: [
-          "These terms are governed by the laws of the Hashemite Kingdom of Jordan. The parties will first seek an amicable resolution, after which the courts of Amman have jurisdiction unless mandatory law requires otherwise. Notices and questions may be sent to the contact address below.",
+          "These terms are governed by the laws of the Hashemite Kingdom of Jordan. The parties will first seek an amicable resolution, after which the courts of Amman have jurisdiction unless mandatory law requires otherwise. Legal notices and questions may be sent to info@aquatechagency.com, while security reports and support requests may be sent to support@aquatechagency.com.",
         ],
       },
     ],

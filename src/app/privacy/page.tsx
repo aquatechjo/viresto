@@ -75,7 +75,7 @@ const CONTENT: Record<
           "تقديم شكوى إلى الجهة المختصة بحماية البيانات الشخصية.",
         ],
         paragraphs: [
-          "يمكن إرسال الطلب إلى البريد الموضح أدناه. قد نطلب معلومات مناسبة للتحقق من الهوية والصلاحية، خصوصًا عندما يتعلق الطلب ببيانات يديرها مكتب محاماة داخل حسابه.",
+          "يمكن إرسال طلبات الوصول أو التصحيح أو المحو أو الاعتراض إلى support@aquatechagency.com. قد نطلب معلومات مناسبة للتحقق من الهوية والصلاحية، خصوصًا عندما يتعلق الطلب ببيانات يديرها مكتب محاماة داخل حسابه.",
         ],
       },
       {
@@ -87,7 +87,7 @@ const CONTENT: Record<
       {
         heading: "8. التحديثات والتواصل",
         paragraphs: [
-          "قد نحدّث هذه السياسة عند تغير الخدمة أو المتطلبات القانونية. يظهر تاريخ النفاذ أعلى الصفحة، وسنقدم إشعارًا مناسبًا عند وجود تغيير جوهري. يمكن إرسال أسئلة الخصوصية وطلبات الحقوق إلى البريد الرسمي المبين أدناه.",
+          "قد نحدّث هذه السياسة عند تغير الخدمة أو المتطلبات القانونية. يظهر تاريخ النفاذ أعلى الصفحة، وسنقدم إشعارًا مناسبًا عند وجود تغيير جوهري. يمكن إرسال أسئلة الخصوصية وطلبات الحقوق إلى support@aquatechagency.com.",
         ],
       },
     ],
@@ -151,7 +151,7 @@ const CONTENT: Record<
           "To submit a complaint to the competent personal-data authority.",
         ],
         paragraphs: [
-          "Requests may be sent to the address below. We may request appropriate information to verify identity and authority, particularly where the request concerns data controlled by a law office inside its account.",
+          "Privacy and data-rights requests may be sent to support@aquatechagency.com. We may request appropriate information to verify identity and authority, particularly where the request concerns data controlled by a law office inside its account.",
         ],
       },
       {
@@ -163,7 +163,7 @@ const CONTENT: Record<
       {
         heading: "8. Changes and contact",
         paragraphs: [
-          "We may update this policy when the service or legal requirements change. The effective date appears above, and material changes will receive appropriate notice. Privacy questions and rights requests can be sent to the official contact address below.",
+          "We may update this policy when the service or legal requirements change. The effective date appears above, and material changes will receive appropriate notice. Privacy questions and rights requests can be sent to support@aquatechagency.com.",
         ],
       },
     ],

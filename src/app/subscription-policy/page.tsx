@@ -50,7 +50,7 @@ const CONTENT: Record<
       {
         heading: "5. الإلغاء",
         paragraphs: [
-          "يمكن إلغاء التجديد من إعدادات الاشتراك أو عبر التواصل الرسمي. ما لم تُذكر نتيجة مختلفة عند الطلب، يوقف الإلغاء التجديد القادم ويستمر الوصول المدفوع حتى نهاية الدورة الحالية. لا يترتب على الإلغاء حذف بيانات المكتب تلقائيًا؛ يمكن طلب التصدير أو الإغلاق وفق سياسة الخصوصية.",
+          "يمكن إلغاء التجديد من إعدادات الاشتراك أو عبر support@aquatechagency.com. ما لم تُذكر نتيجة مختلفة عند الطلب، يوقف الإلغاء التجديد القادم ويستمر الوصول المدفوع حتى نهاية الدورة الحالية. لا يترتب على الإلغاء حذف بيانات المكتب تلقائيًا؛ يمكن طلب التصدير أو الإغلاق وفق سياسة الخصوصية.",
           "يجب تقديم طلب الإلغاء قبل موعد التجديد. إذا كانت عملية التجديد قد اكتملت بالفعل، يعامل الطلب وفق بند الاسترداد أدناه.",
         ],
       },
@@ -69,13 +69,13 @@ const CONTENT: Record<
           "لا تحد هذه السياسة من أي حق في الإصلاح أو الاستبدال أو استرداد المقابل تقرره قواعد حماية المستهلك أو أي تشريع نافذ.",
         ],
         paragraphs: [
-          "يجب أن يتضمن طلب الاسترداد بريد الحساب ورقم العملية وسبب الطلب دون إرسال بيانات بطاقة حساسة. بعد الموافقة، يُعاد المبلغ إلى وسيلة الدفع الأصلية متى كان ذلك ممكنًا، وتختلف مدة ظهوره بحسب مزود الدفع والبنك وسيتم توضيحها عند معالجة الطلب.",
+          "يُرسل طلب الاسترداد إلى support@aquatechagency.com، ويجب أن يتضمن بريد الحساب ورقم العملية وسبب الطلب دون إرسال بيانات بطاقة حساسة. بعد الموافقة، يُعاد المبلغ إلى وسيلة الدفع الأصلية متى كان ذلك ممكنًا، وتختلف مدة ظهوره بحسب مزود الدفع والبنك وسيتم توضيحها عند معالجة الطلب.",
         ],
       },
       {
         heading: "8. الاعتراضات على العمليات",
         paragraphs: [
-          "يرجى التواصل معنا أولًا عند وجود عملية غير معروفة أو خلاف على الخدمة لنتمكن من التحقيق وتقديم السجلات اللازمة. لا يمنع ذلك العميل من ممارسة حقوقه لدى البنك أو مزود الدفع، ولا يجوز استخدام الاعتراض لاسترداد خدمة استُخدمت بصورة مشروعة.",
+          "يرجى التواصل أولًا عبر support@aquatechagency.com عند وجود عملية غير معروفة أو خلاف على الخدمة لنتمكن من التحقيق وتقديم السجلات اللازمة. لا يمنع ذلك العميل من ممارسة حقوقه لدى البنك أو مزود الدفع، ولا يجوز استخدام الاعتراض لاسترداد خدمة استُخدمت بصورة مشروعة.",
         ],
       },
       {
@@ -119,7 +119,7 @@ const CONTENT: Record<
       {
         heading: "5. Cancellation",
         paragraphs: [
-          "Renewal can be cancelled through subscription settings or the official contact channel. Unless the order states otherwise, cancellation stops the next renewal and paid access continues until the end of the current period. Cancellation does not automatically delete office data; export or closure can be requested under the Privacy Policy.",
+          "Renewal can be cancelled through subscription settings or by emailing support@aquatechagency.com. Unless the order states otherwise, cancellation stops the next renewal and paid access continues until the end of the current period. Cancellation does not automatically delete office data; export or closure can be requested under the Privacy Policy.",
           "Cancellation should be submitted before the renewal date. If renewal has already completed, the request is handled under the refund section below.",
         ],
       },
@@ -138,13 +138,13 @@ const CONTENT: Record<
           "This policy does not limit any repair, replacement, refund, or other right granted by consumer-protection or other mandatory law.",
         ],
         paragraphs: [
-          "A refund request should include the account email, transaction reference, and reason, without sending sensitive card data. Approved refunds are returned to the original payment method where possible. Timing depends on the payment provider and bank and will be communicated during processing.",
+          "Refund requests should be sent to support@aquatechagency.com and include the account email, transaction reference, and reason, without sending sensitive card data. Approved refunds are returned to the original payment method where possible. Timing depends on the payment provider and bank and will be communicated during processing.",
         ],
       },
       {
         heading: "8. Payment disputes",
         paragraphs: [
-          "Please contact us first about an unrecognised charge or service dispute so we can investigate and provide relevant records. This does not restrict rights with a bank or payment provider, but a dispute must not be used to reclaim a service that was legitimately used.",
+          "Please contact support@aquatechagency.com first about an unrecognised charge or service dispute so we can investigate and provide relevant records. This does not restrict rights with a bank or payment provider, but a dispute must not be used to reclaim a service that was legitimately used.",
         ],
       },
       {

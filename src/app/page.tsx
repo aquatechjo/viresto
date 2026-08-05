@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { COMPANY_CONTACT } from "@/config/contact";
 import {
   PLANS,
   getDisplayPrice,
@@ -1135,6 +1136,20 @@ export default function HomePage() {
                 ? "الاشتراك والإلغاء والاسترداد"
                 : "Subscription & Refunds"}
             </Link>
+            <a
+              dir="ltr"
+              href={`mailto:${COMPANY_CONTACT.infoEmail}`}
+              className="transition hover:text-copper-300"
+            >
+              {COMPANY_CONTACT.infoEmail}
+            </a>
+            <a
+              dir="ltr"
+              href={`mailto:${COMPANY_CONTACT.supportEmail}`}
+              className="transition hover:text-copper-300"
+            >
+              {COMPANY_CONTACT.supportEmail}
+            </a>
           </nav>
         </div>
       </footer>

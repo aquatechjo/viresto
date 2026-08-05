@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { COMPANY_CONTACT } from "@/config/contact";
 
 export type LegalLocale = "ar" | "en";
 
@@ -25,7 +26,8 @@ const NAVIGATION = {
     language: "English",
     effective: "تاريخ النفاذ: 24 يوليو 2026",
     operator: "Viresto منصة تُشغّلها Aqua Tech — عمّان، الأردن",
-    contact: "للاستفسارات القانونية أو طلبات الخصوصية:",
+    infoContact: "للاستفسارات العامة والقانونية:",
+    supportContact: "لطلبات الخصوصية والدعم والإبلاغ الأمني:",
   },
   en: {
     home: "Home",
@@ -35,7 +37,8 @@ const NAVIGATION = {
     language: "العربية",
     effective: "Effective date: July 24, 2026",
     operator: "Viresto is operated by Aqua Tech — Amman, Jordan",
-    contact: "For legal questions or privacy requests:",
+    infoContact: "For general and legal enquiries:",
+    supportContact: "For privacy, support, and security reports:",
   },
 } as const;
 
@@ -143,13 +146,23 @@ export default function LegalPageShell({
           <footer className="mt-12 border-t border-emerald-300/10 pt-8 text-sm leading-7 text-emerald-100/55">
             <p>{copy.operator}</p>
             <p className="mt-2">
-              {copy.contact}{" "}
+              {copy.infoContact}{" "}
               <a
                 dir="ltr"
-                href="mailto:info.aquatech.jo@gmail.com"
+                href={`mailto:${COMPANY_CONTACT.infoEmail}`}
                 className="font-bold text-copper-300 hover:underline"
               >
-                info.aquatech.jo@gmail.com
+                {COMPANY_CONTACT.infoEmail}
+              </a>
+            </p>
+            <p className="mt-2">
+              {copy.supportContact}{" "}
+              <a
+                dir="ltr"
+                href={`mailto:${COMPANY_CONTACT.supportEmail}`}
+                className="font-bold text-copper-300 hover:underline"
+              >
+                {COMPANY_CONTACT.supportEmail}
               </a>
             </p>
           </footer>

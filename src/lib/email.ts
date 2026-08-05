@@ -1,4 +1,5 @@
 import { externalFetch } from "@/lib/external-fetch";
+import { COMPANY_CONTACT } from "@/config/contact";
 
 type SendVerificationEmailInput = {
   to: string;
@@ -11,6 +12,10 @@ function getAppName() {
 
 function getEmailFrom() {
   return process.env.EMAIL_FROM || "Viresto <onboarding@resend.dev>";
+}
+
+function getEmailReplyTo() {
+  return process.env.EMAIL_REPLY_TO?.trim() || COMPANY_CONTACT.supportEmail;
 }
 
 function verificationEmailHtml(code: string) {
@@ -60,6 +65,7 @@ export async function sendVerificationEmail({
     },
     body: JSON.stringify({
       from: getEmailFrom(),
+      reply_to: getEmailReplyTo(),
       to,
       subject: `رمز تأكيد البريد الإلكتروني - ${getAppName()}`,
       html: verificationEmailHtml(code),
@@ -105,6 +111,7 @@ export async function sendPasswordResetEmail({
     },
     body: JSON.stringify({
       from: getEmailFrom(),
+      reply_to: getEmailReplyTo(),
       to,
       subject: "رمز إعادة تعيين كلمة المرور - Viresto",
       text: `رمز إعادة تعيين كلمة المرور هو: ${code}. الرمز صالح لمدة 10 دقائق.`,
@@ -165,6 +172,7 @@ export async function sendEmailChangeCode({
     },
     body: JSON.stringify({
       from: getEmailFrom(),
+      reply_to: getEmailReplyTo(),
       to,
       subject: `${title} - ${getAppName()}`,
       text: `${description}\nرمز التحقق: ${code}\nتنتهي صلاحية الرمز خلال 10 دقائق.`,
@@ -233,6 +241,7 @@ export async function sendEmailChangeCompletedEmail({
     },
     body: JSON.stringify({
       from: getEmailFrom(),
+      reply_to: getEmailReplyTo(),
       to,
       subject: `تم تغيير البريد الإلكتروني - ${getAppName()}`,
       text: message,
@@ -307,6 +316,7 @@ export async function sendTeamInvitationEmail({
     },
     body: JSON.stringify({
       from: getEmailFrom(),
+      reply_to: getEmailReplyTo(),
       to,
       subject: `دعوة للانضمام إلى ${tenantName} - ${getAppName()}`,
       text: `${inviterName} دعاك للانضمام إلى ${tenantName} في ${getAppName()}. افتح الرابط التالي واختر كلمة مرورك خلال 72 ساعة: ${invitationUrl}`,
