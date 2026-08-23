@@ -6,6 +6,7 @@ import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
 import { Search, Scale } from "lucide-react";
 import LanguageToggle from "@/components/LanguageToggle";
+import ThemeToggle from "@/components/ThemeToggle";
 import { translations } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import { startNavigationFeedback } from "@/lib/navigation-feedback";
@@ -253,7 +254,10 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
         <div
           className={`col-start-2 row-start-1 shrink-0 xl:col-start-3 ${COMPACT_CONTROL}`}
         >
-          <LanguageToggle />
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <ThemeToggle />
+            <LanguageToggle />
+          </div>
         </div>
 
         {/* Notifications */}
