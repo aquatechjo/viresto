@@ -161,6 +161,80 @@
 }
 
 /* ============================================================
+   VIRESTO AUTH DARK THEME
+   Keep the login experience dark regardless of dashboard theme.
+   ============================================================ */
+
+.viresto-auth-dark {
+  color-scheme: dark;
+
+  --brand-canvas: #041819;
+  --brand-shell: #082c2d;
+  --brand-surface: #0b292a;
+  --brand-surface-2: #103334;
+  --brand-surface-hover: #185354;
+
+  --brand-copper: #b87333;
+  --brand-copper-hover: #cc8e55;
+  --brand-copper-soft: #3a2818;
+
+  --brand-text: #f8fbfa;
+  --brand-text-soft: #d8f0ec;
+  --brand-text-muted: #86aaa6;
+
+  --brand-border: #1c494a;
+  --brand-border-strong: #286061;
+
+  --sidebar: #082c2d;
+  --sidebar-dark: #041819;
+  --sidebar-hover: #185354;
+  --sidebar-text: #f8fbfa;
+  --sidebar-muted: rgba(216, 240, 236, 0.74);
+
+  --bg: #041819;
+  --surface: #0b292a;
+  --surface-2: #103334;
+  --card: #0b292a;
+  --card-2: #103334;
+  --card-bg: #0b292a;
+  --input-bg: #061b1c;
+  --overlay: rgba(2, 12, 13, 0.76);
+
+  --border: #1c494a;
+  --border-dark: #286061;
+
+  --text: #f8fbfa;
+  --text-2: #d8f0ec;
+  --text-3: #86aaa6;
+  --muted: #86aaa6;
+
+  --gold: #b87333;
+  --gold-hover: #cc8e55;
+  --gold-soft: #3a2818;
+  --gold-border: #7d4925;
+
+  --green-soft: #123b3c;
+  --amber-soft: #3a2818;
+  --red-soft: #330f0f;
+  --blue-soft: #0c1e40;
+  --purple-soft: #1e1640;
+  --gray-soft: #102d2e;
+}
+
+.viresto-auth-dark input,
+.viresto-auth-dark select,
+.viresto-auth-dark textarea {
+  background-color: #061b1c;
+  border-color: #286061;
+  color: #f0fdf4;
+}
+
+.viresto-auth-dark input::placeholder,
+.viresto-auth-dark textarea::placeholder {
+  color: rgba(187, 247, 208, 0.55);
+}
+
+/* ============================================================
    2. BASE — الإعدادات الأساسية
    ============================================================ */
 
