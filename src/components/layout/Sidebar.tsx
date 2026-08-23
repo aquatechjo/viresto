@@ -302,22 +302,24 @@ export default function Sidebar({
         >
           <div
             className={`flex min-w-0 items-center ${
-              compact ? "justify-between gap-1" : "gap-3"
+              compact ? "justify-center" : "gap-3"
             }`}
           >
-            <div
-              className={`flex shrink-0 items-center justify-center overflow-hidden border border-copper-400/30 bg-[var(--brand-canvas)] shadow-lg shadow-black/20 ${
-                compact
-                  ? "h-9 w-9 rounded-xl"
-                  : "h-12 w-12 rounded-2xl"
-              }`}
-            >
-              <img
-                src="/logo.png"
-                alt="Viresto"
-                className="h-full w-full scale-[1.22] object-cover"
-              />
-            </div>
+            {!compact && (
+              <div
+                className={`flex shrink-0 items-center justify-center overflow-hidden border border-copper-400/30 bg-[var(--brand-canvas)] shadow-lg shadow-black/20 ${
+                  compact
+                    ? "h-9 w-9 rounded-xl"
+                    : "h-12 w-12 rounded-2xl"
+                }`}
+              >
+                <img
+                  src="/logo.png"
+                  alt="Viresto"
+                  className="h-full w-full scale-[1.22] object-cover"
+                />
+              </div>
+            )}
 
             {!compact && (
               <div className="min-w-0 flex-1">
