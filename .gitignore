@@ -36,3 +36,5 @@ Thumbs.db
 
 tsconfig.tsbuildinfo
 .viresto-backups/
+.vercel
+.env*
