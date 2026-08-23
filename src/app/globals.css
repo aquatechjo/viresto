@@ -96,7 +96,64 @@
   --ease-fast: 0.12s ease;
 }
 
-/* The product uses one dark Viresto identity across public and app surfaces. */
+/* ============================================================
+   VIRESTO LIGHT THEME
+   ============================================================ */
+
+:root:not(.dark) {
+  color-scheme: light;
+
+  --brand-canvas: #f3f7f6;
+  --brand-shell: #082c2d;
+  --brand-surface: #ffffff;
+  --brand-surface-2: #f6f9f8;
+  --brand-surface-hover: #edf4f2;
+
+  --brand-copper: #a9652f;
+  --brand-copper-hover: #8e5121;
+  --brand-copper-soft: #f8eee5;
+
+  --brand-text: #17302e;
+  --brand-text-soft: #36534f;
+  --brand-text-muted: #718581;
+
+  --brand-border: #dbe6e2;
+  --brand-border-strong: #c6d7d2;
+
+  --sidebar: #082c2d;
+  --sidebar-text: #f8fbfa;
+  --sidebar-muted: rgba(216, 240, 236, 0.74);
+
+  --bg: #f3f7f6;
+  --surface: #ffffff;
+  --surface-2: #f6f9f8;
+  --card: #ffffff;
+  --card-2: #f6f9f8;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --overlay: rgba(15, 35, 34, 0.38);
+
+  --border: #dbe6e2;
+  --border-dark: #c6d7d2;
+
+  --text: #17302e;
+  --text-2: #36534f;
+  --text-3: #718581;
+  --muted: #718581;
+
+  --gold: #a9652f;
+  --gold-hover: #8e5121;
+  --gold-soft: #f8eee5;
+  --gold-border: #e8cbb1;
+
+  --green-soft: #e9f5ef;
+  --blue-soft: #eaf1fb;
+  --amber-soft: #fff4df;
+  --red-soft: #fef0ef;
+  --purple-soft: #f2ecfb;
+  --gray-soft: #f0f3f5;
+}
+
 .dark {
   color-scheme: dark;
 }

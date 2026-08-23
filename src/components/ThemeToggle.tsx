@@ -23,8 +23,12 @@ export default function ThemeToggle() {
     const currentTheme = getCurrentTheme()
     const nextTheme: Theme = currentTheme === 'dark' ? 'light' : 'dark'
 
-    document.documentElement.classList.toggle('dark', nextTheme === 'dark')
-    localStorage.setItem('theme', nextTheme)
+    const root = document.documentElement
+
+    root.classList.toggle('dark', nextTheme === 'dark')
+    root.style.colorScheme = nextTheme
+    window.localStorage.setItem('theme', nextTheme)
+
     setTheme(nextTheme)
   }
 
