@@ -28,7 +28,7 @@ export default function VDSSectionHeader({ title, subtitle, href, linkLabel, isR
         </div>
       </div>
       {href && linkLabel && (
-        <Link href={href} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5" style={{ color: "var(--sidebar)" }}>
+        <Link href={href} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-black transition hover:bg-black/5 dark:hover:bg-white/5" style={{ color: "var(--text)" }}>
           {linkLabel}<ArrowIcon className="h-3.5 w-3.5" />
         </Link>
       )}

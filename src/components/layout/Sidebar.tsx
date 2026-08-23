@@ -21,8 +21,6 @@ import {
   Activity,
   ShieldCheck,
   X,
-  ChevronLeft,
-  ChevronRight,
   LogOut,
   ListTodo,
 } from "lucide-react";
@@ -361,17 +359,7 @@ export default function Sidebar({
                     : "h-9 w-9 rounded-xl"
                 }`}
               >
-                {isRtl ? (
-                  collapsed ? (
-                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                  )
-                ) : collapsed ? (
-                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                )}
+                <Menu className="h-4 w-4" aria-hidden="true" />
               </button>
             )}
 
@@ -380,7 +368,7 @@ export default function Sidebar({
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label={locale === "ar" ? "إغلاق القائمة" : "Close menu"}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-[var(--brand-surface)] text-emerald-50 transition hover:bg-[var(--brand-surface-hover)]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-[var(--brand-surface)] text-emerald-50 transition hover:bg-[var(--sidebar-hover)]"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -452,7 +440,7 @@ export default function Sidebar({
                           ${
                             active
                               ? "bg-[#b87333] text-[#041819] shadow-sm ring-1 ring-copper-300/40"
-                              : "text-emerald-100/70 hover:bg-[var(--brand-surface-hover)] hover:text-emerald-50"
+                              : "text-emerald-100/70 hover:bg-[var(--sidebar-hover)] hover:text-emerald-50"
                           }
                         `}
                       >
@@ -600,7 +588,7 @@ export default function Sidebar({
           fixed top-[max(0.75rem,env(safe-area-inset-top))] z-[80]
           flex h-10 w-10 items-center justify-center rounded-2xl
           border border-emerald-400/20 bg-[var(--brand-surface)] text-emerald-50
-          shadow-lg transition duration-200 hover:bg-[var(--brand-surface-hover)] xl:hidden
+          shadow-lg transition duration-200 hover:bg-[var(--sidebar-hover)] xl:hidden
           ${isRtl ? "right-3" : "left-3"}
           ${
             mobileOpen

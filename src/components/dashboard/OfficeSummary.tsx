@@ -59,7 +59,7 @@ export default function OfficeSummary(props: OfficeSummaryProps) {
         <div className="mt-3 flex items-center justify-between gap-3 rounded-[20px] border p-3.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
           <div className="min-w-0">
             <p className="text-xs font-bold" style={{ color: "var(--text-3)" }}>{labels.totalRevenue}</p>
-            <p className="mt-1 truncate text-lg font-black" style={{ color: "var(--sidebar)" }}>{totalRevenue}</p>
+            <p className="mt-1 truncate text-lg font-black" style={{ color: "var(--text)" }}>{totalRevenue}</p>
           </div>
           <CircleDollarSign className="h-6 w-6 shrink-0 text-amber-600 dark:text-amber-300" />
         </div>

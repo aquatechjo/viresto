@@ -713,7 +713,7 @@ export default function HomePage() {
       className="min-h-screen overflow-x-hidden bg-[var(--brand-canvas)] text-white"
     >
       <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-[#041819]/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-5 sm:px-6">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-center gap-4 px-5 sm:justify-between sm:px-6">
           <Link href="/" className="flex shrink-0 items-center">
             <VirestoLogo />
           </Link>
@@ -762,16 +762,16 @@ export default function HomePage() {
           <div
             className={
               isArabic
-                ? "max-w-2xl text-right lg:[direction:rtl]"
-                : "max-w-2xl text-left lg:[direction:ltr]"
+                ? "mx-auto max-w-2xl text-center lg:mx-0 lg:text-right lg:[direction:rtl]"
+                : "mx-auto max-w-2xl text-center lg:mx-0 lg:text-left lg:[direction:ltr]"
             }
           >
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 shadow-lg shadow-black/10">
+            <div className="mx-auto mb-6 inline-flex max-w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-center text-sm font-semibold text-white/90 shadow-lg shadow-black/10 lg:mx-0">
               <span className="h-2 w-2 rounded-full bg-copper-400" />
               {copy.hero.badge}
             </div>
 
-            <h1 className="max-w-2xl text-3xl font-black leading-[1.1] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
+            <h1 className="mx-auto max-w-2xl text-3xl font-black leading-[1.1] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:mx-0 lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
               <span className="block">{copy.hero.titleTop}</span>
               <span className="block text-copper-400">
                 {copy.hero.titleAccent}
@@ -781,27 +781,27 @@ export default function HomePage() {
               ) : null}
             </h1>
 
-            <p className="mt-6 max-w-xl text-lg font-medium leading-8 text-white/70">
+            <p className="mx-auto mt-6 max-w-xl text-lg font-medium leading-8 text-white/70 lg:mx-0">
               {copy.hero.description}
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-4">
+            <div className="mx-auto mt-8 flex max-w-sm flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 lg:mx-0 lg:justify-start">
               <Link
                 href="/dashboard"
-                className="flex h-14 items-center justify-center rounded-2xl bg-copper-500 px-7 font-bold text-black transition-all hover:bg-copper-400"
+                className="flex h-14 w-full items-center justify-center rounded-2xl bg-copper-500 px-7 font-bold text-black transition-all hover:bg-copper-400 sm:w-auto sm:min-w-44"
               >
                 {copy.hero.primary}
               </Link>
 
               <a
                 href="#features"
-                className="flex h-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-7 font-semibold transition-all hover:bg-white/10"
+                className="flex h-14 w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-7 font-semibold transition-all hover:bg-white/10 sm:w-auto sm:min-w-44"
               >
                 {copy.hero.secondary}
               </a>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-3 text-sm font-semibold text-slate-300 sm:gap-4">
+            <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm font-semibold text-slate-300 sm:gap-4 lg:justify-start">
               {copy.hero.tags.map((tag) => (
                 <span
                   key={tag}
