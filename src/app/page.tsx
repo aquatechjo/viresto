@@ -659,8 +659,8 @@ function getStoredLocale(): Locale {
 
 function VirestoLogo() {
   return (
-    <span className="flex items-center gap-3" aria-label="Viresto">
-      <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-copper-300/25 bg-white/[0.07] p-2 shadow-[0_14px_34px_rgba(53, 138, 136,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl">
+    <span className="flex items-center gap-2 sm:gap-3" aria-label="Viresto">
+      <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-copper-300/25 bg-white/[0.07] p-1.5 shadow-[0_14px_34px_rgba(53, 138, 136,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl sm:h-14 sm:w-14 sm:rounded-2xl sm:p-2">
         <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_35%_25%,rgba(83, 168, 164,0.30),transparent_42%),linear-gradient(135deg,rgba(255,255,255,0.12),rgba(53, 138, 136,0.08))]" />
         <img
           src="/logo.png"
@@ -672,7 +672,7 @@ function VirestoLogo() {
         />
       </span>
 
-      <span className="text-2xl font-black tracking-tight text-white">
+      <span className="text-lg font-black tracking-tight text-white sm:text-2xl">
         Viresto
       </span>
     </span>
@@ -713,7 +713,7 @@ export default function HomePage() {
       className="min-h-screen overflow-x-hidden bg-[var(--brand-canvas)] text-white"
     >
       <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-[#041819]/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-center gap-4 px-5 sm:justify-between sm:px-6">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3.5 sm:h-20 sm:gap-4 sm:px-6">
           <Link href="/" className="flex shrink-0 items-center">
             <VirestoLogo />
           </Link>
@@ -732,11 +732,11 @@ export default function HomePage() {
             </a>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             <button
               type="button"
               onClick={changeLanguage}
-              className="hidden h-12 w-16 items-center justify-center rounded-2xl border border-copper-400/35 bg-white/[0.03] text-sm font-black uppercase tracking-wide text-copper-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-copper-300/60 hover:bg-copper-500/10 hover:text-white sm:flex"
+              className="flex h-9 w-10 items-center justify-center rounded-xl border border-copper-400/35 bg-white/[0.03] text-[11px] font-black uppercase tracking-wide text-copper-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-copper-300/60 hover:bg-copper-500/10 hover:text-white sm:h-12 sm:w-16 sm:rounded-2xl sm:text-sm"
               aria-label={copy.nav.language}
               title={copy.nav.language}
             >
@@ -745,7 +745,7 @@ export default function HomePage() {
 
             <Link
               href="/login"
-              className="hidden h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 font-semibold transition hover:bg-white/10 sm:flex"
+              className="flex h-9 items-center justify-center whitespace-nowrap rounded-xl border border-white/10 bg-white/5 px-2.5 text-[11px] font-semibold transition hover:bg-white/10 sm:h-12 sm:rounded-2xl sm:px-5 sm:text-base"
             >
               {copy.nav.login}
             </Link>
@@ -753,12 +753,12 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <section className="relative px-5 pb-10 pt-28 sm:px-6 lg:pb-12 lg:pt-32">
+      <section className="relative px-4 pb-9 pt-[88px] sm:px-6 sm:pb-10 sm:pt-28 lg:pb-12 lg:pt-32">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(53, 138, 136,.18),transparent_42%)]" />
         <div className="pointer-events-none absolute left-[-12rem] top-36 h-80 w-80 rounded-full bg-copper-500/10 blur-3xl" />
         <div className="pointer-events-none absolute right-[-10rem] top-28 h-96 w-96 rounded-full bg-copper-400/10 blur-3xl" />
 
-        <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-9 sm:gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
           <div
             className={
               isArabic
@@ -766,12 +766,12 @@ export default function HomePage() {
                 : "mx-auto max-w-2xl text-center lg:mx-0 lg:text-left lg:[direction:ltr]"
             }
           >
-            <div className="mx-auto mb-6 inline-flex max-w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-center text-sm font-semibold text-white/90 shadow-lg shadow-black/10 lg:mx-0">
-              <span className="h-2 w-2 rounded-full bg-copper-400" />
+            <div className="mx-auto mb-5 inline-flex max-w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-center text-[11px] font-semibold leading-5 text-white/90 shadow-lg shadow-black/10 sm:mb-6 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm lg:mx-0">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-copper-400 sm:h-2 sm:w-2" />
               {copy.hero.badge}
             </div>
 
-            <h1 className="mx-auto max-w-2xl text-3xl font-black leading-[1.1] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:mx-0 lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
+            <h1 className="mx-auto max-w-2xl text-[1.8rem] font-black leading-[1.13] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:mx-0 lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
               <span className="block">{copy.hero.titleTop}</span>
               <span className="block text-copper-400">
                 {copy.hero.titleAccent}
@@ -781,31 +781,31 @@ export default function HomePage() {
               ) : null}
             </h1>
 
-            <p className="mx-auto mt-6 max-w-xl text-lg font-medium leading-8 text-white/70 lg:mx-0">
+            <p className="mx-auto mt-4 max-w-xl text-[15px] font-medium leading-7 text-white/70 sm:mt-6 sm:text-lg sm:leading-8 lg:mx-0">
               {copy.hero.description}
             </p>
 
-            <div className="mx-auto mt-8 flex max-w-sm flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 lg:mx-0 lg:justify-start">
+            <div className="mx-auto mt-6 flex max-w-sm flex-col items-stretch justify-center gap-2.5 sm:mt-8 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 lg:mx-0 lg:justify-start">
               <Link
                 href="/dashboard"
-                className="flex h-14 w-full items-center justify-center rounded-2xl bg-copper-500 px-7 font-bold text-black transition-all hover:bg-copper-400 sm:w-auto sm:min-w-44"
+                className="flex h-12 w-full items-center justify-center rounded-xl bg-copper-500 px-6 text-sm font-bold text-black transition-all hover:bg-copper-400 sm:h-14 sm:w-auto sm:min-w-44 sm:rounded-2xl sm:px-7 sm:text-base"
               >
                 {copy.hero.primary}
               </Link>
 
               <a
                 href="#features"
-                className="flex h-14 w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-7 font-semibold transition-all hover:bg-white/10 sm:w-auto sm:min-w-44"
+                className="flex h-12 w-full items-center justify-center rounded-xl border border-white/10 bg-white/5 px-6 text-sm font-semibold transition-all hover:bg-white/10 sm:h-14 sm:w-auto sm:min-w-44 sm:rounded-2xl sm:px-7 sm:text-base"
               >
                 {copy.hero.secondary}
               </a>
             </div>
 
-            <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm font-semibold text-slate-300 sm:gap-4 lg:justify-start">
+            <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs font-semibold text-slate-300 sm:mt-8 sm:gap-4 sm:text-sm lg:justify-start">
               {copy.hero.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2"
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 sm:px-4 sm:py-2"
                 >
                   {tag}
                 </span>
