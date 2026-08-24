@@ -24,7 +24,7 @@ import {
 import type { Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import { getCurrentUser } from "@/lib/client-session";
-import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
+import AppLoader from "@/components/ui/AppLoader";
 import MetricCard from "@/components/dashboard/MetricCard";
 import AttentionPanel from "@/components/dashboard/AttentionPanel";
 import TodayAppointments from "@/components/dashboard/TodayAppointments";
@@ -1302,7 +1302,7 @@ export default function DashboardPage() {
   ]);
 
   if (loading) {
-    return <DashboardSkeleton isRtl={isRtl} />;
+    return <AppLoader fullScreen={false} />;
   }
 
   return (

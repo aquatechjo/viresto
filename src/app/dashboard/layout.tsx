@@ -6,7 +6,7 @@ import SessionGuard from "@/components/security/SessionGuard";
 import DeferredAIAssistant from "@/components/dashboard/DeferredAIAssistant";
 import NavigationPerformance from "@/components/navigation/NavigationPerformance";
 import { useLocale } from "@/lib/useLocale";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 export default function DashboardLayout({
   children,
@@ -39,7 +39,9 @@ export default function DashboardLayout({
       style={{ background: "var(--bg)" }}
     >
       <SessionGuard />
-      <NavigationPerformance />
+      <Suspense fallback={null}>
+        <NavigationPerformance />
+      </Suspense>
       <Sidebar
         collapsed={sidebarCollapsed}
         onCollapsedChange={handleSidebarCollapsedChange}

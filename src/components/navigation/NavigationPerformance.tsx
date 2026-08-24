@@ -1,19 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   startNavigationFeedback,
   subscribeToNavigationStart,
 } from "@/lib/navigation-feedback";
 
-const CORE_DASHBOARD_ROUTES = [
+const DASHBOARD_ROUTES = [
   "/dashboard",
   "/dashboard/clients",
   "/dashboard/cases",
   "/dashboard/documents",
   "/dashboard/appointments",
   "/dashboard/tasks",
+  "/dashboard/team",
+  "/dashboard/finance/invoices",
+  "/dashboard/finance/payments",
+  "/dashboard/finance/reports",
+  "/dashboard/billing",
+  "/dashboard/activity",
+  "/dashboard/settings",
 ] as const;
 
 type NetworkInformation = {
@@ -35,11 +42,13 @@ type WindowWithIdleCallback = Window & {
 
 export default function NavigationPerformance() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
   const activeRef = useRef(false);
-  const previousPathRef = useRef(pathname);
+  const routeKey = `${pathname}?${searchParams.toString()}`;
+  const previousRouteRef = useRef(routeKey);
   const intervalRef = useRef<number | null>(null);
   const hideTimerRef = useRef<number | null>(null);
   const safetyTimerRef = useRef<number | null>(null);
@@ -91,9 +100,9 @@ export default function NavigationPerformance() {
   }, []);
 
   useEffect(() => {
-    if (previousPathRef.current === pathname) return;
+    if (previousRouteRef.current === routeKey) return;
 
-    previousPathRef.current = pathname;
+    previousRouteRef.current = routeKey;
 
     if (!activeRef.current) return;
 
@@ -116,7 +125,7 @@ export default function NavigationPerformance() {
       setProgress(0);
       hideTimerRef.current = null;
     }, 180);
-  }, [pathname]);
+  }, [routeKey]);
 
 
 
@@ -184,12 +193,12 @@ export default function NavigationPerformance() {
     const timers: number[] = [];
 
     function warmRoutes() {
-      CORE_DASHBOARD_ROUTES.filter((route) => route !== pathname).forEach(
+      DASHBOARD_ROUTES.filter((route) => route !== pathname).forEach(
         (route, index) => {
           timers.push(
             window.setTimeout(() => {
               router.prefetch(route);
-            }, index * 280),
+            }, index * 140),
           );
         },
       );
@@ -199,10 +208,10 @@ export default function NavigationPerformance() {
 
     if (windowWithIdleCallback.requestIdleCallback) {
       idleHandle = windowWithIdleCallback.requestIdleCallback(warmRoutes, {
-        timeout: 1600,
+        timeout: 1200,
       });
     } else {
-      timers.push(window.setTimeout(warmRoutes, 700));
+      timers.push(window.setTimeout(warmRoutes, 500));
     }
 
     return () => {
