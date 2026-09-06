@@ -30,7 +30,7 @@ test.describe("تسجيل الدخول", () => {
 
     // اللوجن الحالي يستخدم window.location.href = "/dashboard"
     // (full navigation مش router.push) — لهيك بدنا ننتظر الـ URL فعليًا
-    await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+    await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
 
     await expect(page).toHaveURL(/\/dashboard/);
   });

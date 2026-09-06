@@ -1,3 +1,11 @@
+import { loadEnvFile } from "node:process";
+
+try {
+  loadEnvFile(".env.local");
+} catch {
+  // .env.local غير موجود محليًا — عادي، بيعتمد على متغيرات البيئة الحقيقية (مثلاً بـ CI)
+}
+
 import { defineConfig, devices } from "@playwright/test";
 
 // يقرأ العنوان من .env.local (E2E_BASE_URL) أو يفتري dev server محلي
