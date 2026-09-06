@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "dev": "next dev",
     "prebuild": "npm run env:check",
     "build": "prisma generate && next build",
@@ -60,6 +62,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/luxon": "^3.7.2",
     "@types/node": "^24.13.3",
