@@ -15,6 +15,8 @@ const REQUIRED_VALUES = [
   "EMAIL_FROM",
   "CRON_SECRET",
   "ALLOWED_SERVER_ACTION_ORIGINS",
+  "POLAR_ORGANIZATION_ID",
+  "POLAR_ENVIRONMENT",
 ];
 
 const SECRET_RULES = [
@@ -23,6 +25,8 @@ const SECRET_RULES = [
   ["VERIFICATION_SECRET", 32],
   ["SEARCH_HASH_SECRET", 32],
   ["CRON_SECRET", 32],
+  ["POLAR_ACCESS_TOKEN", 32],
+  ["POLAR_WEBHOOK_SECRET", 32],
 ];
 
 const OPTIONAL_SECRET_RULES = [["HEALTHCHECK_SECRET", 32]];
@@ -127,6 +131,15 @@ export function validateEnvironment(env) {
     if (value && !isPostgresUrl(value)) {
       errors.push(`${name} must be a PostgreSQL connection URL`);
     }
+  }
+
+  const polarEnvironment = valueOf("POLAR_ENVIRONMENT");
+  if (
+    polarEnvironment &&
+    polarEnvironment !== "production" &&
+    polarEnvironment !== "sandbox"
+  ) {
+    errors.push('POLAR_ENVIRONMENT must be "production" or "sandbox"');
   }
 
   const appUrl = valueOf("APP_URL") || valueOf("NEXT_PUBLIC_APP_URL");

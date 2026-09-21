@@ -11,10 +11,6 @@ import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
-import {
-  buildPublicManualPaymentSettings,
-  MANUAL_PAYMENT_SETTINGS_ID,
-} from "@/lib/manual-payment-settings";
 import { getAiUsagePeriod } from "@/lib/ai-usage-core";
 
 type DbPlanLike = {
@@ -251,62 +247,6 @@ export async function GET(req: NextRequest) {
                 isActive: true,
               },
             },
-            payments: {
-              orderBy: { createdAt: "desc" },
-              take: 10,
-              select: {
-                id: true,
-                amount: true,
-                currency: true,
-                status: true,
-                method: true,
-                receiptPublicId: true,
-                adminNote: true,
-                reviewedAt: true,
-                paidAt: true,
-                createdAt: true,
-              },
-            },
-          },
-        },
-        subscriptionPayments: {
-          where: {
-            status: { in: ["PENDING", "APPROVED", "REJECTED"] },
-            receiptPublicId: { not: null },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-          select: {
-            id: true,
-            amount: true,
-            currency: true,
-            status: true,
-            method: true,
-            receiptPublicId: true,
-            adminNote: true,
-            reviewedAt: true,
-            paidAt: true,
-            createdAt: true,
-            requestedInterval: true,
-            requestedPlan: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-              },
-            },
-            subscription: {
-              select: {
-                interval: true,
-                plan: {
-                  select: {
-                    id: true,
-                    code: true,
-                    name: true,
-                  },
-                },
-              },
-            },
           },
         },
       },
@@ -317,13 +257,8 @@ export async function GET(req: NextRequest) {
     }
 
     const aiPeriod = getAiUsagePeriod();
-    const [
-      plans,
-      usageCounts,
-      storageAggregate,
-      manualPaymentSettings,
-      aiUsagePeriod,
-    ] = await Promise.all([
+    const [plans, usageCounts, storageAggregate, aiUsagePeriod] =
+      await Promise.all([
       prisma.billingPlan.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: "asc" },
@@ -375,11 +310,6 @@ export async function GET(req: NextRequest) {
         },
         _sum: {
           fileSize: true,
-        },
-      }),
-      prisma.manualPaymentSettings.findUnique({
-        where: {
-          id: MANUAL_PAYMENT_SETTINGS_ID,
         },
       }),
       prisma.aiUsagePeriod.findUnique({
@@ -558,46 +488,14 @@ export async function GET(req: NextRequest) {
             cancelledAt: subscription.cancelledAt,
             createdAt: subscription.createdAt,
             updatedAt: subscription.updatedAt,
-            payments: subscription.payments.map((payment) => {
-              const { receiptPublicId, ...safePayment } = payment;
-
-              return {
-                ...safePayment,
-                amount: formatAmount(payment.amount, payment.currency),
-                receiptUrl: receiptPublicId
-                  ? `/api/billing/manual-payment/${payment.id}/receipt`
-                  : null,
-              };
-            }),
             plan: currentPlanPayload,
           }
         : null,
-
-      paymentHistory: tenant.subscriptionPayments.map((payment) => ({
-        id: payment.id,
-        amount: formatAmount(payment.amount, payment.currency),
-        currency: payment.currency,
-        status: payment.status,
-        method: payment.method,
-        receiptUrl: payment.receiptPublicId
-          ? `/api/billing/manual-payment/${payment.id}/receipt`
-          : null,
-        adminNote: payment.adminNote,
-        reviewedAt: payment.reviewedAt,
-        paidAt: payment.paidAt,
-        createdAt: payment.createdAt,
-        plan: payment.requestedPlan ?? payment.subscription?.plan ?? null,
-        interval:
-          payment.requestedInterval ?? payment.subscription?.interval ?? null,
-      })),
 
       currentPlan: currentPlanPayload,
       usage,
       warnings,
       availablePlans,
-      manualPaymentSettings: buildPublicManualPaymentSettings(
-        manualPaymentSettings,
-      ),
 
       period: {
         currentPeriodStart: subscription?.currentPeriodStart ?? null,

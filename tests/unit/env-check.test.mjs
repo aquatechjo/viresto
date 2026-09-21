@@ -26,6 +26,10 @@ function validEnvironment() {
     PUBLIC_REGISTER_ENABLED: "false",
     NEXT_PUBLIC_REGISTER_ENABLED: "false",
     TURNSTILE_ENABLED: "false",
+    POLAR_ACCESS_TOKEN: "polar_pat_" + "a".repeat(32),
+    POLAR_WEBHOOK_SECRET: "w".repeat(32),
+    POLAR_ORGANIZATION_ID: "org-viresto",
+    POLAR_ENVIRONMENT: "sandbox",
   };
 }
 

@@ -1,14 +1,11 @@
 "use client";
 
-import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
 import AppLoader from "@/components/ui/AppLoader";
-
-const MAX_MANUAL_RECEIPT_BYTES = 4 * 1024 * 1024;
 
 type SubscriptionStatus =
   | "TRIALING"
@@ -19,6 +16,8 @@ type SubscriptionStatus =
   | "UNPAID";
 
 type StatusTone = "success" | "warning" | "danger" | "muted";
+
+type BillingCycle = "MONTHLY" | "YEARLY";
 
 interface Money {
   raw: number;
@@ -58,49 +57,6 @@ interface BillingPlan {
   isCurrent?: boolean;
 }
 
-type ManualPaymentMethodCode = "CLIQ" | "BANK_TRANSFER";
-
-interface ManualPaymentField {
-  key: string;
-  labelAr: string;
-  labelEn: string;
-  value: string;
-  direction?: "ltr" | "rtl";
-}
-
-interface ManualPaymentMethod {
-  code: ManualPaymentMethodCode;
-  labelAr: string;
-  labelEn: string;
-  fields: ManualPaymentField[];
-}
-
-interface ManualPaymentSettings {
-  enabled: boolean;
-  methods: ManualPaymentMethod[];
-  instructionsAr?: string | null;
-  instructionsEn?: string | null;
-}
-
-interface SubscriptionPayment {
-  id: string;
-  amount: Money;
-  currency: string;
-  status: string;
-  method?: string | null;
-  receiptUrl?: string | null;
-  adminNote?: string | null;
-  reviewedAt?: string | null;
-  paidAt?: string | null;
-  createdAt: string;
-  plan?: {
-    id: string;
-    code: string;
-    name: string;
-  } | null;
-  interval?: "MONTHLY" | "YEARLY" | null;
-}
-
 interface BillingData {
   tenant: {
     id: string;
@@ -122,7 +78,7 @@ interface BillingData {
     status: SubscriptionStatus;
     statusLabel: string;
     statusTone: StatusTone;
-    interval: "MONTHLY" | "YEARLY";
+    interval: BillingCycle;
     amount: Money;
     currency: string;
     trialEndsAt?: string | null;
@@ -133,10 +89,8 @@ interface BillingData {
     cancelledAt?: string | null;
     createdAt: string;
     updatedAt: string;
-    payments: SubscriptionPayment[];
     plan: BillingPlan;
   } | null;
-  paymentHistory: SubscriptionPayment[];
   currentPlan: BillingPlan;
   usage: {
     users: UsageItem;
@@ -150,23 +104,11 @@ interface BillingData {
   };
   warnings: Array<{ key: string; percent: number | null }>;
   availablePlans: BillingPlan[];
-  manualPaymentSettings: ManualPaymentSettings;
   period?: {
     currentPeriodStart?: string | null;
     currentPeriodEnd?: string | null;
     trialEndsAt?: string | null;
   };
-}
-
-function getPaymentMethodLabel(value: string | null | undefined, isArabic: boolean) {
-  switch (value?.toUpperCase().replace(/[ -]+/g, "_")) {
-    case "CLIQ":
-      return "CliQ";
-    case "BANK_TRANSFER":
-      return isArabic ? "تحويل بنكي" : "Bank transfer";
-    default:
-      return value || "-";
-  }
 }
 
 const statusClasses: Record<StatusTone, string> = {
@@ -283,18 +225,6 @@ function getStatusToneFromStatus(status: SubscriptionStatus): StatusTone {
 
 function getPlanCode(plan: BillingPlan) {
   return plan.code.toUpperCase();
-}
-
-function moneyToJod(money: Money) {
-  if (Number.isFinite(money.raw) && money.raw >= 1000) {
-    return money.raw / 1000;
-  }
-
-  if (Number.isFinite(money.value) && money.value >= 1000) {
-    return money.value / 1000;
-  }
-
-  return Number.isFinite(money.value) ? money.value : 0;
 }
 
 function getAiTokenLabel(plan: BillingPlan, isArabic: boolean) {
@@ -492,12 +422,6 @@ export default function BillingPage() {
     subscriptionStatus: isArabic ? "حالة الاشتراك" : "Subscription status",
     currentPeriodEnd: isArabic ? "نهاية الفترة الحالية" : "Current period end",
     trialEndsAt: isArabic ? "نهاية التجربة" : "Trial ends at",
-    noPayments: isArabic
-      ? "لا توجد دفعات اشتراك بعد"
-      : "No subscription payments yet",
-    paymentHistory: isArabic
-      ? "سجل دفعات الاشتراك"
-      : "Subscription payment history",
     aiEnabled: isArabic ? "مفعل" : "Enabled",
     aiDisabled: isArabic ? "غير مفعل" : "Disabled",
     storage: isArabic ? "التخزين" : "Storage",
@@ -517,154 +441,13 @@ export default function BillingPage() {
 
   const [data, setData] = useState<BillingData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkoutPending, setCheckoutPending] = useState(false);
+  const [checkoutTimedOut, setCheckoutTimedOut] = useState(false);
+  const checkoutBaselineRef = useRef<string | null>(null);
+  const checkoutAttemptsRef = useRef(0);
 
-  const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
-  const [manualPaymentPlanId, setManualPaymentPlanId] = useState("");
-  const [manualPaymentInterval, setManualPaymentInterval] = useState<
-    "MONTHLY" | "YEARLY"
-  >("MONTHLY");
-  const [manualPaymentMethod, setManualPaymentMethod] = useState("");
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [submittingManualPayment, setSubmittingManualPayment] = useState(false);
-
-  const selectedManualPlan = useMemo(() => {
-    return (
-      data?.availablePlans.find((plan) => plan.id === manualPaymentPlanId) ??
-      null
-    );
-  }, [data, manualPaymentPlanId]);
-
-  const selectedManualPaymentMethod = useMemo(() => {
-    return (
-      data?.manualPaymentSettings.methods.find(
-        (method) => method.code === manualPaymentMethod,
-      ) ?? null
-    );
-  }, [data, manualPaymentMethod]);
-
-  function openManualPayment(planId: string) {
-    const firstMethod = data?.manualPaymentSettings.methods[0];
-
-    if (!data?.manualPaymentSettings.enabled || !firstMethod) {
-      toast.error(
-        isArabic
-          ? "الدفع اليدوي غير متاح حاليًا. تواصل مع إدارة Viresto."
-          : "Manual payment is currently unavailable. Contact Viresto management.",
-      );
-      return;
-    }
-
-    setManualPaymentPlanId(planId);
-    setManualPaymentInterval("MONTHLY");
-    setManualPaymentMethod(firstMethod.code);
-    setReceiptFile(null);
-    setManualPaymentOpen(true);
-  }
-
-  function closeManualPayment(force = false) {
-    if (submittingManualPayment && !force) return;
-
-    setManualPaymentOpen(false);
-    setManualPaymentPlanId("");
-    setManualPaymentInterval("MONTHLY");
-    setManualPaymentMethod("");
-    setReceiptFile(null);
-  }
-
-  async function copyPaymentValue(value: string, label: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(
-        isArabic ? `تم نسخ ${label}` : `${label} copied`,
-      );
-    } catch {
-      toast.error(isArabic ? "تعذر نسخ المعلومة" : "Could not copy value");
-    }
-  }
-
-  function openReceipt(paymentId: string) {
-    window.open(
-      `/api/billing/manual-payment/${paymentId}/receipt`,
-      "_blank",
-      "noopener,noreferrer",
-    );
-  }
-
-  async function submitManualPayment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!selectedManualPlan) {
-      toast.error(isArabic ? "اختر الخطة أولًا" : "Select a plan first");
-      return;
-    }
-
-    if (!selectedManualPaymentMethod) {
-      toast.error(
-        isArabic
-          ? "اختر طريقة دفع مفعّلة"
-          : "Select an enabled payment method",
-      );
-      return;
-    }
-
-    if (!receiptFile) {
-      toast.error(
-        isArabic ? "إيصال الدفع مطلوب" : "Payment receipt is required",
-      );
-      return;
-    }
-
-    if (receiptFile.size > MAX_MANUAL_RECEIPT_BYTES) {
-      toast.error(
-        isArabic
-          ? "حجم الإيصال يجب ألا يتجاوز 4MB"
-          : "The receipt must not exceed 4MB",
-      );
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("planId", selectedManualPlan.id);
-    formData.append("interval", manualPaymentInterval);
-    formData.append("method", manualPaymentMethod);
-    formData.append("receipt", receiptFile);
-
-    setSubmittingManualPayment(true);
-
-    const res = await fetch("/api/billing/manual-payment", {
-      method: "POST",
-      body: formData,
-    });
-
-    const json = await res.json().catch(() => ({}));
-
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-
-    if (!res.ok || !json.success) {
-      toast.error(
-        json.message ||
-          (isArabic
-            ? "تعذر إرسال إيصال الدفع"
-            : "Failed to submit payment receipt"),
-      );
-      setSubmittingManualPayment(false);
-      return;
-    }
-
-    toast.success(
-      json.data?.message ||
-        (isArabic
-          ? "تم إرسال إيصال الدفع بنجاح"
-          : "Payment receipt submitted successfully"),
-    );
-
-    setSubmittingManualPayment(false);
-    closeManualPayment(true);
-    await load();
-  }
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("MONTHLY");
+  const [upgradingKey, setUpgradingKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -697,6 +480,61 @@ export default function BillingPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+
+    params.delete("checkout");
+    const query = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + (query ? `?${query}` : ""),
+    );
+
+    setCheckoutPending(true);
+  }, []);
+
+  useEffect(() => {
+    if (!checkoutPending || !data) return undefined;
+
+    if (checkoutBaselineRef.current === null) {
+      checkoutBaselineRef.current = data.subscription?.updatedAt ?? "";
+      checkoutAttemptsRef.current = 0;
+    }
+
+    if (
+      data.subscription?.updatedAt &&
+      data.subscription.updatedAt !== checkoutBaselineRef.current
+    ) {
+      setCheckoutPending(false);
+      toast.success(
+        isArabic
+          ? "تم تفعيل اشتراكك بنجاح"
+          : "Your subscription has been activated",
+      );
+      return undefined;
+    }
+
+    const timer = setTimeout(async () => {
+      checkoutAttemptsRef.current += 1;
+
+      if (checkoutAttemptsRef.current >= 15) {
+        setCheckoutPending(false);
+        setCheckoutTimedOut(true);
+        return;
+      }
+
+      await load();
+    }, 3000);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [checkoutPending, data, load, isArabic]);
+
   const trialLabel = useMemo(() => {
     if (!data?.tenant.trialEndsAt && !data?.subscription?.trialEndsAt) {
       return billing.noTrial;
@@ -728,6 +566,60 @@ export default function BillingPage() {
     return `${billing.daysLeftPrefix} ${data.tenant.trialDaysLeft} ${billing.day}`;
   }, [data, billing, isArabic]);
 
+  async function handleUpgrade(plan: BillingPlan, cycle: BillingCycle) {
+    const key = `${plan.id}:${cycle}`;
+    setUpgradingKey(key);
+
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: plan.code,
+          billingCycle: cycle.toLowerCase(),
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!res.ok || !json.success) {
+        toast.error(
+          json.message ||
+            (isArabic ? "تعذر بدء عملية الترقية" : "Could not start the upgrade"),
+        );
+        return;
+      }
+
+      if (json.data?.mode === "checkout" && json.data?.url) {
+        window.location.href = json.data.url;
+        return;
+      }
+
+      if (json.data?.mode === "updated") {
+        toast.success(
+          isArabic
+            ? "تم تغيير خطتك بنجاح. سيتم تعديل رصيدك تلقائيًا حسب سياسة Polar."
+            : "Your plan has been changed. Your balance will be adjusted automatically per Polar's policy.",
+        );
+        await load();
+        return;
+      }
+
+      toast.error(isArabic ? "استجابة غير متوقعة" : "Unexpected response");
+    } catch {
+      toast.error(
+        isArabic ? "تعذر الاتصال بخدمة الدفع" : "Could not reach the payment service",
+      );
+    } finally {
+      setUpgradingKey(null);
+    }
+  }
+
   if (loading) {
     return <AppLoader fullScreen={false} />;
   }
@@ -754,9 +646,7 @@ export default function BillingPage() {
   );
 
   const currentTone = getStatusToneFromStatus(currentStatus);
-  const manualPaymentAvailable =
-    data.manualPaymentSettings.enabled &&
-    data.manualPaymentSettings.methods.length > 0;
+  const hasLiveSubscription = ["ACTIVE", "TRIALING"].includes(currentStatus);
 
   return (
     <div className="space-y-6" dir={isArabic ? "rtl" : "ltr"}>
@@ -767,22 +657,27 @@ export default function BillingPage() {
             {billing.subtitle}
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => openManualPayment(currentPlan.id)}
-          disabled={!manualPaymentAvailable}
-          className="btn btn-primary"
-        >
-          {manualPaymentAvailable
-            ? isArabic
-              ? "تجديد / ترقية الاشتراك"
-              : "Renew / Upgrade subscription"
-            : isArabic
-              ? "الدفع اليدوي غير متاح حاليًا"
-              : "Manual payment unavailable"}
-        </button>
       </div>
+
+      {checkoutPending && (
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-100">
+          <span
+            className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-amber-500 border-t-transparent"
+            aria-hidden="true"
+          />
+          {isArabic
+            ? "جاري تفعيل اشتراكك... قد يستغرق ذلك بضع ثوانٍ."
+            : "Activating your subscription... this may take a few seconds."}
+        </div>
+      )}
+
+      {checkoutTimedOut && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-100">
+          {isArabic
+            ? "الدفع تم بنجاح، لكن تفعيل الاشتراك يستغرق وقتًا أطول من المعتاد. سيتم تحديث الحالة تلقائيًا، أو يمكنك تحديث الصفحة لاحقًا."
+            : "Payment succeeded, but activation is taking longer than usual. Your status will update automatically, or refresh this page later."}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
@@ -931,7 +826,7 @@ export default function BillingPage() {
       </div>
 
       <div>
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-black text-emerald-600 dark:text-emerald-300">
               {isArabic ? "خطط الاشتراك" : "Subscription plans"}
@@ -940,21 +835,52 @@ export default function BillingPage() {
               {billing.availablePlans}
             </h2>
           </div>
+
+          <div
+            className="inline-flex items-center gap-1 self-start rounded-2xl border p-1"
+            style={{ borderColor: "var(--border)", background: "var(--input-bg)" }}
+            role="group"
+            aria-label={isArabic ? "دورة الفوترة" : "Billing cycle"}
+          >
+            <button
+              type="button"
+              onClick={() => setBillingCycle("MONTHLY")}
+              className={[
+                "rounded-xl px-4 py-2 text-sm font-black transition",
+                billingCycle === "MONTHLY"
+                  ? "bg-[#c47a31] text-[#061b1c]"
+                  : "text-[var(--text)]",
+              ].join(" ")}
+            >
+              {labels.monthly}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle("YEARLY")}
+              className={[
+                "rounded-xl px-4 py-2 text-sm font-black transition",
+                billingCycle === "YEARLY"
+                  ? "bg-[#c47a31] text-[#061b1c]"
+                  : "text-[var(--text)]",
+              ].join(" ")}
+            >
+              {labels.yearly}
+            </button>
+          </div>
         </div>
 
         <div className="grid items-stretch gap-4 lg:grid-cols-3">
           {data.availablePlans.map((plan) => {
             const active = plan.isCurrent || plan.id === currentPlan.id;
-            const requestEligible =
-              !active ||
-              ["EXPIRED", "UNPAID", "CANCELLED", "PAST_DUE"].includes(
-                currentStatus,
-              );
-            const canRequest = requestEligible && manualPaymentAvailable;
+            const isCurrentSelection =
+              active && hasLiveSubscription && subscription?.interval === billingCycle;
             const features = getPlanFeatures(plan, isArabic);
-            const currentMonthlyPriceJod = moneyToJod(plan.priceMonthly);
+            const price =
+              billingCycle === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
             const code = getPlanCode(plan);
             const highlighted = code === "PRO";
+            const key = `${plan.id}:${billingCycle}`;
+            const isUpgrading = upgradingKey === key;
 
             return (
               <div
@@ -1009,22 +935,12 @@ export default function BillingPage() {
                       className="flex items-end justify-end gap-2 text-right"
                     >
                       <span className="text-5xl font-black tracking-tight text-white">
-                        {currentMonthlyPriceJod}
-                      </span>
-                      <span className="pb-2 text-3xl font-black text-white">
-                        JOD
+                        {price.formatted}
                       </span>
                       <span className="pb-2 text-sm font-bold text-emerald-100/65">
-                        / {labels.monthly}
+                        / {billingCycle === "YEARLY" ? labels.yearly : labels.monthly}
                       </span>
                     </div>
-
-                    <p
-                      dir="ltr"
-                      className="mt-2 text-right text-xs font-bold text-emerald-100/55"
-                    >
-                      {plan.priceYearly.formatted} / {labels.yearly}
-                    </p>
                   </div>
 
                   <div className="mt-6">
@@ -1062,26 +978,28 @@ export default function BillingPage() {
                   <div className="mt-auto pt-6">
                     <button
                       type="button"
-                      disabled={!canRequest}
+                      disabled={isCurrentSelection || isUpgrading}
                       className={[
                         "w-full rounded-2xl px-5 py-4 text-sm font-black transition",
-                        canRequest
-                          ? "bg-[#c47a31] text-[#061b1c] shadow-lg shadow-black/20 hover:bg-[#d58a3d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e1a261] focus-visible:ring-offset-2 focus-visible:ring-offset-[#041718]"
-                          : "border border-white/10 bg-white/5 text-emerald-100/60",
+                        isCurrentSelection
+                          ? "border border-white/10 bg-white/5 text-emerald-100/60"
+                          : "bg-[#c47a31] text-[#061b1c] shadow-lg shadow-black/20 hover:bg-[#d58a3d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e1a261] focus-visible:ring-offset-2 focus-visible:ring-offset-[#041718] disabled:cursor-not-allowed disabled:opacity-70",
                       ].join(" ")}
-                      onClick={() => openManualPayment(plan.id)}
+                      onClick={() => void handleUpgrade(plan, billingCycle)}
                     >
-                      {requestEligible && !manualPaymentAvailable
+                      {isUpgrading
                         ? isArabic
-                          ? "الدفع اليدوي غير متاح حاليًا"
-                          : "Manual payment unavailable"
-                        : active && canRequest
-                          ? isArabic
-                            ? "تجديد الاشتراك"
-                            : "Renew subscription"
+                          ? "جاري المعالجة..."
+                          : "Processing..."
+                        : isCurrentSelection
+                          ? billing.currentPlanButton
                           : active
-                            ? billing.currentPlanButton
-                            : billing.requestUpgrade}
+                            ? isArabic
+                              ? "تغيير دورة الفوترة"
+                              : "Change billing cycle"
+                            : isArabic
+                              ? "الاشتراك الآن"
+                              : "Subscribe now"}
                     </button>
                   </div>
                 </div>
@@ -1089,365 +1007,6 @@ export default function BillingPage() {
             );
           })}
         </div>
-      </div>
-
-      {manualPaymentOpen && selectedManualPlan && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="manual-payment-title"
-        >
-          <div
-            className={`no-scrollbar max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[28px] border p-5 shadow-2xl ${
-              isArabic ? "text-right" : "text-left"
-            }`}
-            dir={isArabic ? "rtl" : "ltr"}
-            style={{
-              background: "var(--card)",
-              borderColor: "var(--border)",
-            }}
-          >
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <h2 id="manual-payment-title" className="text-2xl font-black">
-                  {isArabic ? "إرسال إيصال الدفع" : "Submit payment receipt"}
-                </h2>
-
-                <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-                  {isArabic
-                    ? "اختر مدة الاشتراك وطريقة الدفع، ثم ارفع صورة الإيصال ليتم مراجعته من الإدارة."
-                    : "Choose the billing period and payment method, then upload the receipt for admin review."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => closeManualPayment()}
-                disabled={submittingManualPayment}
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border text-lg font-black transition hover:bg-[var(--input-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31] disabled:cursor-not-allowed disabled:opacity-50"
-                style={{
-                  borderColor: "var(--border)",
-                  color: "var(--text)",
-                }}
-                aria-label={isArabic ? "إغلاق" : "Close"}
-              >
-                ×
-              </button>
-            </div>
-
-            <div
-              className="mb-5 rounded-2xl border p-4"
-              style={{
-                borderColor: "var(--border)",
-                background: "var(--input-bg)",
-              }}
-            >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p
-                    className="text-xs font-bold"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {isArabic ? "الخطة المختارة" : "Selected plan"}
-                  </p>
-
-                  <h3 className="text-xl font-black">
-                    {selectedManualPlan.name}
-                  </h3>
-                </div>
-
-                <div className="text-sm font-black">
-                  {manualPaymentInterval === "YEARLY"
-                    ? selectedManualPlan.priceYearly.formatted
-                    : selectedManualPlan.priceMonthly.formatted}
-                </div>
-              </div>
-            </div>
-
-            <form onSubmit={submitManualPayment} className="space-y-4">
-              <label className="block space-y-2 text-sm">
-                <span className="font-bold">
-                  {isArabic ? "مدة الاشتراك" : "Billing period"}
-                </span>
-
-                <select
-                  className={`input w-full ${
-                    isArabic ? "!text-right" : "!text-left"
-                  }`}
-                  dir={isArabic ? "rtl" : "ltr"}
-                  style={{ textAlign: isArabic ? "right" : "left" }}
-                  value={manualPaymentInterval}
-                  onChange={(event) =>
-                    setManualPaymentInterval(
-                      event.target.value === "YEARLY" ? "YEARLY" : "MONTHLY",
-                    )
-                  }
-                  disabled={submittingManualPayment}
-                >
-                  <option value="MONTHLY">
-                    {isArabic
-                      ? `شهري - ${selectedManualPlan.priceMonthly.formatted}`
-                      : `Monthly - ${selectedManualPlan.priceMonthly.formatted}`}
-                  </option>
-
-                  <option value="YEARLY">
-                    {isArabic
-                      ? `سنوي - ${selectedManualPlan.priceYearly.formatted}`
-                      : `Yearly - ${selectedManualPlan.priceYearly.formatted}`}
-                  </option>
-                </select>
-              </label>
-
-              <label className="block space-y-2 text-sm">
-                <span className="font-bold">
-                  {isArabic ? "طريقة الدفع" : "Payment method"}
-                </span>
-
-                <select
-                  className={`input w-full ${
-                    isArabic ? "!text-right" : "!text-left"
-                  }`}
-                  dir={isArabic ? "rtl" : "ltr"}
-                  style={{ textAlign: isArabic ? "right" : "left" }}
-                  value={manualPaymentMethod}
-                  onChange={(event) =>
-                    setManualPaymentMethod(event.target.value)
-                  }
-                  disabled={submittingManualPayment}
-                >
-                  <option value="" disabled>
-                    {isArabic ? "اختر طريقة الدفع" : "Select payment method"}
-                  </option>
-                  {data.manualPaymentSettings.methods.map((method) => (
-                    <option key={method.code} value={method.code}>
-                      {isArabic ? method.labelAr : method.labelEn}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {selectedManualPaymentMethod && (
-                <div
-                  className="rounded-2xl border p-4"
-                  style={{
-                    borderColor: "var(--border)",
-                    background: "var(--input-bg)",
-                  }}
-                >
-                  <p className="font-black">
-                    {isArabic ? "حوّل المبلغ إلى" : "Send the payment to"} {" "}
-                    {isArabic
-                      ? selectedManualPaymentMethod.labelAr
-                      : selectedManualPaymentMethod.labelEn}
-                  </p>
-
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    {selectedManualPaymentMethod.fields.map((field) => {
-                      const fieldLabel = isArabic
-                        ? field.labelAr
-                        : field.labelEn;
-
-                      return (
-                        <div
-                          key={field.key}
-                          className="rounded-xl border p-3"
-                          style={{
-                            borderColor: "var(--border)",
-                            background: "var(--card)",
-                          }}
-                        >
-                          <p
-                            className="text-xs font-bold"
-                            style={{ color: "var(--muted)" }}
-                          >
-                            {fieldLabel}
-                          </p>
-                          <div className="mt-1 flex items-center justify-between gap-3">
-                            <p
-                              className="min-w-0 break-all font-black"
-                              dir={field.direction ?? (isArabic ? "rtl" : "ltr")}
-                            >
-                              {field.value}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void copyPaymentValue(field.value, fieldLabel)
-                              }
-                              className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-black transition hover:bg-[var(--input-bg)]"
-                              style={{ borderColor: "var(--border)" }}
-                            >
-                              {isArabic ? "نسخ" : "Copy"}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div
-                className="rounded-2xl border p-4 text-sm leading-7"
-                style={{
-                  borderColor: "var(--border)",
-                  background: "var(--input-bg)",
-                  color: "var(--muted)",
-                }}
-              >
-                <p className="font-black" style={{ color: "var(--text)" }}>
-                  {isArabic ? "تعليمات الدفع" : "Payment instructions"}
-                </p>
-
-                {(isArabic
-                  ? data.manualPaymentSettings.instructionsAr
-                  : data.manualPaymentSettings.instructionsEn) && (
-                  <p className="mt-1 whitespace-pre-line">
-                    {isArabic
-                      ? data.manualPaymentSettings.instructionsAr
-                      : data.manualPaymentSettings.instructionsEn}
-                  </p>
-                )}
-
-                <p className="mt-2 font-bold">
-                  {isArabic
-                    ? "بعد التحويل ارفع صورة واضحة للإيصال. لن يتم تفعيل الاشتراك إلا بعد مراجعة الإدارة والتأكد من وصول المبلغ."
-                    : "After transferring, upload a clear receipt. The subscription is activated only after admin review and payment confirmation."}
-                </p>
-              </div>
-
-              <label className="block space-y-2 text-sm">
-                <span className="font-bold">
-                  {isArabic ? "إيصال الدفع" : "Payment receipt"}
-                </span>
-
-                <input
-                  type="file"
-                  className={`input w-full ${
-                    isArabic ? "!text-right" : "!text-left"
-                  }`}
-                  dir={isArabic ? "rtl" : "ltr"}
-                  style={{ textAlign: isArabic ? "right" : "left" }}
-                  accept="image/jpeg,image/png,image/webp,application/pdf"
-                  disabled={submittingManualPayment}
-                  onChange={(event) =>
-                    setReceiptFile(event.target.files?.[0] ?? null)
-                  }
-                />
-
-                <span
-                  className="block text-xs"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {isArabic
-                    ? "الأنواع المدعومة: JPG, PNG, WebP, PDF — الحد الأقصى 4MB"
-                    : "Supported formats: JPG, PNG, WebP, PDF — max 4MB"}
-                </span>
-              </label>
-
-              <div
-                className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"
-                dir="ltr"
-              >
-                <button
-                  type="button"
-                  onClick={() => closeManualPayment()}
-                  disabled={submittingManualPayment}
-                  className="inline-flex min-h-12 items-center justify-center rounded-xl border px-5 py-3 text-sm font-black transition hover:bg-[var(--input-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31] disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{
-                    borderColor: "var(--border)",
-                    color: "var(--text)",
-                  }}
-                >
-                  {isArabic ? "إلغاء" : "Cancel"}
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={
-                    submittingManualPayment || !selectedManualPaymentMethod
-                  }
-                  className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#c47a31] px-5 py-3 text-sm font-black text-[#061b1c] shadow-lg shadow-black/15 transition hover:bg-[#d58a3d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e1a261] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {submittingManualPayment
-                    ? isArabic
-                      ? "جاري الإرسال..."
-                      : "Submitting..."
-                    : isArabic
-                      ? "إرسال للمراجعة"
-                      : "Submit for review"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <div className="card p-5">
-        <h2 className="mb-4 text-xl font-black">{labels.paymentHistory}</h2>
-
-        {!data.paymentHistory.length ? (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
-            {labels.noPayments}
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table w-full">
-              <thead>
-                <tr>
-                  <th>{isArabic ? "التاريخ" : "Date"}</th>
-                  <th>{isArabic ? "المبلغ" : "Amount"}</th>
-                  <th>{isArabic ? "الخطة" : "Plan"}</th>
-                  <th>{isArabic ? "المدة" : "Interval"}</th>
-                  <th>{isArabic ? "الحالة" : "Status"}</th>
-                  <th>{isArabic ? "طريقة الدفع" : "Method"}</th>
-                  <th>{isArabic ? "الإيصال" : "Receipt"}</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {data.paymentHistory.map((payment) => (
-                  <tr key={payment.id}>
-                    <td>
-                      {formatDate(payment.paidAt || payment.createdAt, locale)}
-                    </td>
-                    <td>{payment.amount.formatted}</td>
-                    <td>{payment.plan?.name || "-"}</td>
-                    <td>
-                      {payment.interval === "YEARLY"
-                        ? isArabic
-                          ? "سنوي"
-                          : "Yearly"
-                        : payment.interval === "MONTHLY"
-                          ? isArabic
-                            ? "شهري"
-                            : "Monthly"
-                          : "-"}
-                    </td>
-                    <td>{payment.status}</td>
-                    <td>
-                      {getPaymentMethodLabel(payment.method, isArabic)}
-                    </td>
-                    <td>
-                      {payment.receiptUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => openReceipt(payment.id)}
-                          className="btn btn-ghost"
-                        >
-                          {isArabic ? "عرض" : "View"}
-                        </button>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );
