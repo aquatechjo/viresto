@@ -707,6 +707,19 @@ export default function HomePage() {
     setLocale(nextLocale);
   }
 
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileNavOpen]);
+
   return (
     <main
       dir={isArabic ? "rtl" : "ltr"}
@@ -749,8 +762,82 @@ export default function HomePage() {
             >
               {copy.nav.login}
             </Link>
+
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen((open) => !open)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition hover:bg-white/10 md:hidden"
+              aria-label={
+                mobileNavOpen
+                  ? isArabic
+                    ? "إغلاق القائمة"
+                    : "Close menu"
+                  : isArabic
+                    ? "فتح القائمة"
+                    : "Open menu"
+              }
+              aria-expanded={mobileNavOpen}
+              aria-controls="mobile-nav-panel"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                {mobileNavOpen ? (
+                  <>
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                  </>
+                ) : (
+                  <>
+                    <line x1="4" y1="7" x2="20" y2="7" />
+                    <line x1="4" y1="12" x2="20" y2="12" />
+                    <line x1="4" y1="17" x2="20" y2="17" />
+                  </>
+                )}
+              </svg>
+            </button>
           </div>
         </div>
+
+        {mobileNavOpen ? (
+          <div
+            id="mobile-nav-panel"
+            className="border-t border-white/10 bg-[#041819]/95 px-3.5 pb-4 pt-2 backdrop-blur-xl sm:px-6 md:hidden"
+          >
+            <div className="flex flex-col gap-1 text-sm font-semibold text-slate-300">
+              <a
+                href="#features"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-lg px-3 py-2.5 transition hover:bg-white/5 hover:text-white"
+              >
+                {copy.nav.features}
+              </a>
+
+              <a
+                href="#pricing"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-lg px-3 py-2.5 transition hover:bg-white/5 hover:text-white"
+              >
+                {copy.nav.pricing}
+              </a>
+
+              <a
+                href="#cta"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-lg px-3 py-2.5 transition hover:bg-white/5 hover:text-white"
+              >
+                {copy.nav.getStarted}
+              </a>
+            </div>
+          </div>
+        ) : null}
       </nav>
 
       <section className="relative px-4 pb-9 pt-[88px] sm:px-6 sm:pb-10 sm:pt-28 lg:pb-12 lg:pt-32">
