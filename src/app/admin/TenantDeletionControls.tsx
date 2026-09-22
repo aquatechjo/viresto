@@ -10,7 +10,6 @@ type TenantDeletionControlsProps = {
   isProtectedTenant: boolean;
   isSuspended: boolean;
   hasActiveSubscription: boolean;
-  pendingPaymentCount: number;
 };
 
 export default function TenantDeletionControls({
@@ -19,7 +18,6 @@ export default function TenantDeletionControls({
   isProtectedTenant,
   isSuspended,
   hasActiveSubscription,
-  pendingPaymentCount,
 }: TenantDeletionControlsProps) {
   const router = useRouter();
   const [confirmation, setConfirmation] = useState("");
@@ -41,8 +39,7 @@ export default function TenantDeletionControls({
     );
   }
 
-  const eligible =
-    isSuspended && !hasActiveSubscription && pendingPaymentCount === 0;
+  const eligible = isSuspended && !hasActiveSubscription;
   const canDelete =
     eligible &&
     acknowledged &&
@@ -108,26 +105,17 @@ export default function TenantDeletionControls({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-2 md:grid-cols-3">
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
         <Requirement met={isSuspended} label="المكتب معلّق" />
         <Requirement
           met={!hasActiveSubscription}
           label="لا يوجد اشتراك فعّال"
         />
-        <Requirement
-          met={pendingPaymentCount === 0}
-          label={
-            pendingPaymentCount === 0
-              ? "لا توجد طلبات دفع معلّقة"
-              : `${pendingPaymentCount} طلب دفع يحتاج مراجعة`
-          }
-        />
       </div>
 
       {!eligible && (
         <p className="mt-3 text-sm font-bold text-red-700 dark:text-red-200">
-          أكمل المتطلبات أعلاه أولًا: أنهِ الاشتراك، راجع طلبات الدفع، ثم علّق
-          المكتب.
+          أكمل المتطلبات أعلاه أولًا: أنهِ الاشتراك، ثم علّق المكتب.
         </p>
       )}
 

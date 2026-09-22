@@ -43,8 +43,7 @@ model Tenant {
   teamInvitations        TeamInvitation[]
   users                  User[]
 
-  subscriptions        Subscription[]
-  subscriptionPayments SubscriptionPayment[]
+  subscriptions Subscription[]
 }
 
 model TeamInvitation {
@@ -94,8 +93,7 @@ model BillingPlan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  subscriptions         Subscription[]
-  manualPaymentRequests SubscriptionPayment[] @relation("RequestedBillingPlan")
+  subscriptions Subscription[]
 }
 
 model Subscription {
@@ -122,51 +120,14 @@ model Subscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan     BillingPlan           @relation(fields: [planId], references: [id])
-  payments SubscriptionPayment[]
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   BillingPlan @relation(fields: [planId], references: [id])
 
   @@unique([id, tenantId])
   @@index([tenantId])
   @@index([planId])
   @@index([status])
   @@index([currentPeriodEnd])
-}
-
-model SubscriptionPayment {
-  id                String           @id @default(cuid())
-  tenantId          String
-  subscriptionId    String?
-  requestedPlanId   String?
-  requestedInterval BillingInterval?
-
-  amount   Int    @default(0) // بالفلس
-  currency String @default("JOD")
-  status   String @default("PENDING")
-
-  method          String?
-  receiptUrl      String?
-  receiptPublicId String?
-
-  adminNote    String?
-  reviewedById String?
-  reviewedAt   DateTime?
-
-  paidAt DateTime?
-  raw    Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  subscription  Subscription? @relation(fields: [subscriptionId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  requestedPlan BillingPlan?  @relation("RequestedBillingPlan", fields: [requestedPlanId], references: [id], onDelete: Restrict)
-
-  @@index([tenantId])
-  @@index([subscriptionId])
-  @@index([requestedPlanId])
-  @@index([status])
-  @@index([reviewedAt])
 }
 
 model AiUsagePeriod {

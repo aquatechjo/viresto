@@ -20,24 +20,10 @@ type RouteContext = {
 
 type CloudinaryResourceType = "image" | "raw" | "video";
 
-const OPEN_MANUAL_PAYMENT_STATUSES = ["UPLOADING", "PENDING", "PROCESSING"];
-
 function documentResourceType(fileType: string): CloudinaryResourceType {
   if (fileType.startsWith("image/")) return "image";
   if (fileType.startsWith("video/")) return "video";
   return "raw";
-}
-
-function receiptResourceType(raw: unknown): CloudinaryResourceType {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "image";
-
-  const resourceType = (raw as Record<string, unknown>).resourceType;
-
-  if (resourceType === "raw" || resourceType === "video") {
-    return resourceType;
-  }
-
-  return "image";
 }
 
 export async function DELETE(req: NextRequest, context: RouteContext) {
@@ -86,13 +72,6 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
           select: {
             status: true,
             currentPeriodEnd: true,
-          },
-        },
-        subscriptionPayments: {
-          select: {
-            status: true,
-            receiptPublicId: true,
-            raw: true,
           },
         },
         documents: {
@@ -147,15 +126,6 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       return err("يجب إنهاء الاشتراك الفعّال قبل حذف المكتب", 409);
     }
 
-    const openPaymentCount = tenant.subscriptionPayments.filter(
-      (payment) =>
-        OPEN_MANUAL_PAYMENT_STATUSES.includes(payment.status.toUpperCase()),
-    ).length;
-
-    if (openPaymentCount > 0) {
-      return err("يجب إكمال أو مراجعة طلبات الدفع المفتوحة قبل حذف المكتب", 409);
-    }
-
     const cloudResources = new Map<
       string,
       { publicId: string; resourceType: CloudinaryResourceType }
@@ -167,16 +137,6 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       const resourceType = documentResourceType(document.fileType);
       cloudResources.set(`${resourceType}:${document.publicId}`, {
         publicId: document.publicId,
-        resourceType,
-      });
-    }
-
-    for (const payment of tenant.subscriptionPayments) {
-      if (!payment.receiptPublicId) continue;
-
-      const resourceType = receiptResourceType(payment.raw);
-      cloudResources.set(`${resourceType}:${payment.receiptPublicId}`, {
-        publicId: payment.receiptPublicId,
         resourceType,
       });
     }
@@ -212,12 +172,6 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
               currentPeriodEnd: true,
             },
           },
-          subscriptionPayments: {
-            select: {
-              receiptPublicId: true,
-              raw: true,
-            },
-          },
           documents: {
             select: {
               publicId: true,
@@ -247,17 +201,6 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
         return { error: "ACTIVE_SUBSCRIPTION" as const };
       }
 
-      const lockedOpenPaymentCount = await tx.subscriptionPayment.count({
-        where: {
-          tenantId,
-          status: { in: OPEN_MANUAL_PAYMENT_STATUSES },
-        },
-      });
-
-      if (lockedOpenPaymentCount > 0) {
-        return { error: "OPEN_PAYMENT" as const };
-      }
-
       for (const document of lockedTenant.documents) {
         if (!document.publicId) continue;
 
@@ -268,18 +211,7 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
         });
       }
 
-      for (const payment of lockedTenant.subscriptionPayments) {
-        if (!payment.receiptPublicId) continue;
-
-        const resourceType = receiptResourceType(payment.raw);
-        cloudResources.set(`${resourceType}:${payment.receiptPublicId}`, {
-          publicId: payment.receiptPublicId,
-          resourceType,
-        });
-      }
-
       // Delete restrictive relations first, then remove the tenant itself.
-      await tx.subscriptionPayment.deleteMany({ where: { tenantId } });
       await tx.subscription.deleteMany({ where: { tenantId } });
       await tx.payment.deleteMany({ where: { tenantId } });
       await tx.document.deleteMany({ where: { tenantId } });
@@ -321,9 +253,6 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     }
     if (deleteResult.error === "ACTIVE_SUBSCRIPTION") {
       return err("يجب إنهاء الاشتراك الفعّال قبل حذف المكتب", 409);
-    }
-    if (deleteResult.error === "OPEN_PAYMENT") {
-      return err("يجب إكمال أو مراجعة طلبات الدفع المفتوحة قبل حذف المكتب", 409);
     }
 
     const cleanupResults = await Promise.allSettled(

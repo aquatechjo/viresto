@@ -17,12 +17,6 @@ const SUPPORTED_PLAN_CODES = new Set<PlanCode>([
   "BUSINESS",
 ]);
 
-export type ManualPaymentPricingSnapshot = {
-  amount: number;
-  currency: string;
-  interval: BillingInterval;
-};
-
 function normalizePlanCode(code: string): PlanCode | null {
   const normalized = code.trim().toUpperCase() as PlanCode;
   return SUPPORTED_PLAN_CODES.has(normalized) ? normalized : null;
@@ -70,33 +64,6 @@ export function parseBillingInterval(value: unknown): BillingInterval | null {
   if (value === BillingInterval.YEARLY) return BillingInterval.YEARLY;
 
   return null;
-}
-
-export function validateManualPaymentPricingSnapshot(input: {
-  amount: number;
-  currency: string;
-  interval: BillingInterval;
-  planCode: string;
-}): ManualPaymentPricingSnapshot | null {
-  if (!getBillingPlanConfig(input.planCode, input.interval)) {
-    return null;
-  }
-
-  if (!Number.isSafeInteger(input.amount) || input.amount <= 0) {
-    return null;
-  }
-
-  const currency = input.currency.trim().toUpperCase();
-
-  if (!/^[A-Z]{3}$/.test(currency)) {
-    return null;
-  }
-
-  return {
-    amount: input.amount,
-    currency,
-    interval: input.interval,
-  };
 }
 
 export function addBillingPeriod(start: Date, interval: BillingInterval) {

@@ -11,13 +11,6 @@ export const DOCUMENT_UPLOAD_MIME_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-export const RECEIPT_UPLOAD_MIME_TYPES = new Set([
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-]);
-
 type ValidationResult =
   | { ok: true }
   | { ok: false; message: string; code: string };

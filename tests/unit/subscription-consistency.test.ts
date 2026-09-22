@@ -4,7 +4,6 @@ import { BillingInterval } from "@prisma/client";
 import {
   addBillingPeriod,
   parseBillingInterval,
-  validateManualPaymentPricingSnapshot,
 } from "../../src/lib/subscription-consistency";
 
 test("parseBillingInterval rejects missing or malformed intervals", () => {
@@ -36,59 +35,4 @@ test("addBillingPeriod handles a leap-day yearly subscription", () => {
   );
 
   assert.equal(end.toISOString(), "2025-02-28T07:15:00.000Z");
-});
-
-test("manual payment approval accepts the immutable request price snapshot", () => {
-  assert.deepEqual(
-    validateManualPaymentPricingSnapshot({
-      amount: 25_000,
-      currency: "jod",
-      interval: BillingInterval.MONTHLY,
-      planCode: "BASIC",
-    }),
-    {
-      amount: 25_000,
-      currency: "JOD",
-      interval: BillingInterval.MONTHLY,
-    },
-  );
-});
-
-test("manual payment approval rejects corrupt pricing snapshots", () => {
-  assert.equal(
-    validateManualPaymentPricingSnapshot({
-      amount: 0,
-      currency: "JOD",
-      interval: BillingInterval.MONTHLY,
-      planCode: "BASIC",
-    }),
-    null,
-  );
-  assert.equal(
-    validateManualPaymentPricingSnapshot({
-      amount: 25_000.5,
-      currency: "JOD",
-      interval: BillingInterval.MONTHLY,
-      planCode: "BASIC",
-    }),
-    null,
-  );
-  assert.equal(
-    validateManualPaymentPricingSnapshot({
-      amount: 25_000,
-      currency: "JOD!",
-      interval: BillingInterval.MONTHLY,
-      planCode: "BASIC",
-    }),
-    null,
-  );
-  assert.equal(
-    validateManualPaymentPricingSnapshot({
-      amount: 25_000,
-      currency: "JOD",
-      interval: BillingInterval.MONTHLY,
-      planCode: "UNKNOWN",
-    }),
-    null,
-  );
 });

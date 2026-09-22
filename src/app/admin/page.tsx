@@ -120,14 +120,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             plan: true,
           },
         },
-        subscriptionPayments: {
-          where: {
-            status: "PENDING",
-          },
-          select: {
-            id: true,
-          },
-        },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -803,7 +795,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     "ACTIVE",
                     "TRIALING",
                   ].includes(effectiveSubscriptionStatus)}
-                  pendingPaymentCount={tenant.subscriptionPayments.length}
                 />
               </div>
             </details>
