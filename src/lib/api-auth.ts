@@ -14,9 +14,21 @@ import {
   userCanUseSession,
 } from "@/lib/session-policy";
 
-// Revocations and role changes must take effect on the next request.
-// A distributed, versioned cache can be added later without weakening this rule.
-const AUTH_CACHE_TTL_MS = 0;
+// Short cache to reduce repeated auth DB round-trips within one page load's
+// burst of API calls. Every security-sensitive mutation (logout, session
+// revoke, password/email change, role/active changes, tenant suspension)
+// explicitly invalidates the affected cache entries below — see
+// invalidateAuthCacheForSession/ForUser/ForTenant — so this TTL only bounds
+// the window for paths that don't call one of those, not the primary
+// enforcement mechanism. Override via env for local tuning; set to 0 to
+// disable entirely.
+// NOTE: this cache is an in-process Map (globalThis-scoped). On a
+// multi-instance/serverless deployment, explicit invalidation only clears
+// the instance that handled the mutation — other warm instances may still
+// serve a stale cached entry for up to AUTH_CACHE_TTL_MS. A distributed,
+// versioned cache (e.g. Redis-backed) would close that gap if it matters
+// for this deployment target.
+const AUTH_CACHE_TTL_MS = Number(process.env.AUTH_CACHE_TTL_MS || 5_000);
 
 export type AuthenticatedUserProfile = {
   id: string;
@@ -131,6 +143,47 @@ function setCachedAuth(
       if (value.expiresAt <= now) {
         authCache.delete(key);
       }
+    }
+  }
+}
+
+/**
+ * Call at any point that revokes a single, already-known session (logout,
+ * revoking one device from the session list) so the next request for that
+ * exact session re-validates from the DB instead of waiting out the TTL.
+ */
+export function invalidateAuthCacheForSession(
+  sessionId: string,
+  userId: string,
+  tenantId: string,
+) {
+  authCache.delete(getCacheKey(sessionId, userId, tenantId));
+}
+
+/**
+ * Call whenever a user's security context changes in a way that isn't
+ * scoped to one known session id: password/email change, "sign out other
+ * sessions", an admin changing a team member's role/active state or
+ * removing them. userId alone is enough to scope this — User.id is
+ * globally unique, not composite with tenantId.
+ */
+export function invalidateAuthCacheForUser(userId: string) {
+  for (const [key, entry] of authCache.entries()) {
+    if (entry.user.userId === userId) {
+      authCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Call when an entire tenant's access changes at once (suspending or
+ * deleting a tenant), so every cached member of that tenant re-validates
+ * on their next request instead of each needing an individual invalidation.
+ */
+export function invalidateAuthCacheForTenant(tenantId: string) {
+  for (const [key, entry] of authCache.entries()) {
+    if (entry.user.tenantId === tenantId) {
+      authCache.delete(key);
     }
   }
 }

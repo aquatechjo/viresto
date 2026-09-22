@@ -3,7 +3,11 @@ import { NextRequest } from "next/server";
 import { SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import {
+  invalidateAuthCacheForTenant,
+  requireRole,
+  getRequestMeta,
+} from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
@@ -254,6 +258,8 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     if (deleteResult.error === "ACTIVE_SUBSCRIPTION") {
       return err("يجب إنهاء الاشتراك الفعّال قبل حذف المكتب", 409);
     }
+
+    invalidateAuthCacheForTenant(tenantId);
 
     const cleanupResults = await Promise.allSettled(
       Array.from(cloudResources.values()).map((resource) =>

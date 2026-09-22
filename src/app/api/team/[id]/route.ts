@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { invalidateAuthCacheForUser, requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import {
   assertTenantCanCreate,
@@ -207,6 +207,8 @@ export async function PATCH(
       }
     }
 
+    invalidateAuthCacheForUser(id);
+
     return ok(result.updated);
   });
 }
@@ -301,6 +303,8 @@ export async function DELETE(
       }
       return err("لا يمكن تعطيل آخر مدير نشط داخل المكتب", 400);
     }
+
+    invalidateAuthCacheForUser(id);
 
     return ok({ disabled: true, message: "تم تعطيل المستخدم بنجاح" });
   });

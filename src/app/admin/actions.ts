@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import {
+  invalidateAuthCacheForTenant,
+  invalidateAuthCacheForUser,
+} from "@/lib/api-auth";
 import { requireSystemAdmin } from "@/lib/system-admin";
 import {
   assertTenantCanCreate,
@@ -68,6 +72,8 @@ export async function suspendTenant(id: string) {
       },
     });
   });
+
+  invalidateAuthCacheForTenant(id);
 
   revalidatePath("/admin");
 }
@@ -202,6 +208,8 @@ export async function deactivateUser(id: string) {
       },
     });
   });
+
+  invalidateAuthCacheForUser(id);
 
   revalidatePath("/admin");
 }

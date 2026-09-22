@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clearCookie, COOKIE, verifyToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/api-handler";
+import { invalidateAuthCacheForSession } from "@/lib/api-auth";
 import { verifySameOrigin } from "@/lib/csrf";
 
 export async function POST(req: NextRequest) {
@@ -23,6 +24,12 @@ export async function POST(req: NextRequest) {
           isActive: false,
         },
       });
+
+      invalidateAuthCacheForSession(
+        session.sessionId,
+        session.userId,
+        session.tenantId,
+      );
     }
 
     const res = NextResponse.json({ success: true });

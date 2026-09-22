@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireAuth } from "@/lib/api-auth";
+import { invalidateAuthCacheForSession, requireAuth } from "@/lib/api-auth";
 import { verifySameOrigin } from "@/lib/csrf";
 
 export async function POST(req: NextRequest) {
@@ -30,6 +30,12 @@ export async function POST(req: NextRequest) {
         isActive: false,
       },
     });
+
+    invalidateAuthCacheForSession(
+      sessionId,
+      auth.user.userId,
+      auth.user.tenantId,
+    );
 
     return ok({ revoked: true });
   });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { invalidateAuthCacheForUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail } from "@/lib/encryption";
 import { verifyPasswordResetCode } from "@/lib/password-reset";
@@ -166,6 +167,8 @@ export async function POST(request: NextRequest) {
         },
       });
     });
+
+    invalidateAuthCacheForUser(user.id);
 
     return NextResponse.json({
       success: true,

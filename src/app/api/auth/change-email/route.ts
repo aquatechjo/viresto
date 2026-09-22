@@ -3,7 +3,11 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { signToken, buildCookie } from "@/lib/auth";
-import { requireAuth, getRequestMeta } from "@/lib/api-auth";
+import {
+  requireAuth,
+  getRequestMeta,
+  invalidateAuthCacheForUser,
+} from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { err } from "@/lib/api-response";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -371,6 +375,8 @@ export async function POST(req: NextRequest) {
 
       throw error;
     }
+
+    invalidateAuthCacheForUser(user.id);
 
     const token = await signToken({
       userId: updatedUser.id,
