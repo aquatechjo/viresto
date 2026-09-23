@@ -6,8 +6,12 @@ const config: Config = {
     extend: {
       fontFamily: { cairo: ['Cairo', 'sans-serif'] },
       colors: {
-        sidebar: { dark: '#082c2d', mid: '#0f3d3e', light: '#185354' },
-        gold: { DEFAULT: '#b87333', soft: '#f7e9dc' },
+        // Derived from the CSS custom properties in globals.css (single
+        // source of truth) rather than duplicated literals. Neither token
+        // is currently consumed as a Tailwind utility class anywhere in the
+        // app, so this is a zero-risk alignment, not a behavior change.
+        sidebar: { dark: 'var(--sidebar-dark)', mid: 'var(--sidebar)', light: 'var(--sidebar-hover)' },
+        gold: { DEFAULT: 'var(--brand-copper)', soft: 'var(--brand-copper-soft)' },
         copper: {
           50: '#fbf5ef',
           100: '#f7e9dc',

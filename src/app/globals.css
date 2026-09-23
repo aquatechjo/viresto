@@ -16,6 +16,7 @@
 
   /* --- Viresto brand palette (single source of truth) --- */
   --brand-canvas: #041819;
+  --brand-canvas-deep: #020e0f;
   --brand-shell: #082c2d;
   --brand-surface: #0b292a;
   --brand-surface-2: #103334;
@@ -29,10 +30,13 @@
   --brand-border: #1c494a;
   --brand-border-strong: #286061;
 
-  /* --- Legacy aliases mapped to the brand palette --- */
-  --sidebar: var(--brand-shell);
-  --sidebar-dark: var(--brand-canvas);
-  --sidebar-hover: var(--brand-surface-hover);
+  /* --- Chrome (sidebar / page-header banners / calendar UI accent) ---
+     Aligned to the landing page's dark canvas rather than the brand-shell
+     teal-green, so "success/active/paid" badges no longer borrow the same
+     color as general brand chrome — see --success below. --- */
+  --sidebar: var(--brand-canvas);
+  --sidebar-dark: var(--brand-canvas-deep);
+  --sidebar-hover: var(--brand-shell);
   --sidebar-text: var(--brand-text);
   --sidebar-muted: rgba(216, 240, 236, 0.74);
   --warning-text: #fbbf24;
@@ -62,8 +66,13 @@
   --gold-soft: var(--brand-copper-soft);
   --gold-border: #7d4925;
 
-  /* --- Semantic Colors --- */
-  --success: #15803d;
+  /* --- Semantic Colors ---
+     --success is the single source of truth for "success/active/paid/open"
+     badges and alerts (see .badge-green/.badge-OPEN/.badge-PAID/.badge-ACTIVE/
+     .badge-LOW/.alert-success/.progress-bar.green below), independent of
+     --sidebar's chrome color. Value matches the pre-existing dark-mode
+     .badge-green override so dark-mode badges render unchanged. --- */
+  --success: #a7f3d0;
   --warning: #b45309;
   --danger: #dc2626;
   --info: #1d4ed8;
@@ -147,6 +156,11 @@
   --gold-hover: #8e5121;
   --gold-soft: #f8eee5;
   --gold-border: #e8cbb1;
+
+  /* Preserves the pre-existing light-mode badge/alert "success" color
+     (previously read from --sidebar) unchanged by the dark-mode chrome
+     recolor above — light mode is intentionally not touched this pass. */
+  --success: #082c2d;
 
   --green-soft: #e9f5ef;
   --blue-soft: #eaf1fb;
@@ -950,7 +964,7 @@ select.input {
 /* Color variants */
 .badge-green {
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--success);
   border-color: rgba(15, 61, 62, 0.18);
 }
 .badge-amber {
@@ -986,7 +1000,6 @@ select.input {
 
 /* Keep semantic badges readable against their dark-mode soft backgrounds. */
 .dark .badge-green {
-  color: #a7f3d0;
   border-color: rgba(110, 231, 183, 0.35);
 }
 .dark .badge-amber,
@@ -1014,7 +1027,7 @@ select.input {
 /* Case Status */
 .badge-OPEN {
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--success);
   border-color: rgba(15, 61, 62, 0.18);
 }
 .badge-IN_PROGRESS {
@@ -1036,7 +1049,7 @@ select.input {
 /* Payment Status */
 .badge-PAID {
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--success);
   border-color: rgba(15, 61, 62, 0.18);
 }
 .badge-PENDING {
@@ -1058,7 +1071,7 @@ select.input {
 /* User Status */
 .badge-ACTIVE {
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--success);
   border-color: rgba(15, 61, 62, 0.18);
 }
 .badge-INACTIVE {
@@ -1085,7 +1098,7 @@ select.input {
 }
 .badge-LOW {
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--success);
   border-color: rgba(15, 61, 62, 0.18);
 }
 
@@ -1484,7 +1497,7 @@ select.input {
 
 .alert-success {
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--success);
   border-color: rgba(15, 61, 62, 0.2);
 }
 
@@ -1707,7 +1720,7 @@ select.input {
 }
 
 .progress-bar.green {
-  background: var(--sidebar);
+  background: var(--success);
 }
 .progress-bar.amber {
   background: var(--warning);
