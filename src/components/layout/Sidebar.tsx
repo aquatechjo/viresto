@@ -370,7 +370,7 @@ export default function Sidebar({
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label={locale === "ar" ? "إغلاق القائمة" : "Close menu"}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-[var(--brand-surface)] text-emerald-50 transition hover:bg-[var(--sidebar-hover)]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-[var(--landing-surface)] text-emerald-50 transition hover:bg-[var(--landing-surface-hover)]"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -589,8 +589,8 @@ export default function Sidebar({
         className={`
           fixed top-[max(0.75rem,env(safe-area-inset-top))] z-[80]
           flex h-10 w-10 items-center justify-center rounded-2xl
-          border border-emerald-400/20 bg-[var(--brand-surface)] text-emerald-50
-          shadow-lg transition duration-200 hover:bg-[var(--sidebar-hover)] xl:hidden
+          border border-emerald-400/20 bg-[var(--landing-surface)] text-emerald-50
+          shadow-lg transition duration-200 hover:bg-[var(--landing-surface-hover)] xl:hidden
           ${isRtl ? "right-3" : "left-3"}
           ${
             mobileOpen

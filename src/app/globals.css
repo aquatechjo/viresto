@@ -41,6 +41,20 @@
   --sidebar-muted: rgba(216, 240, 236, 0.74);
   --warning-text: #fbbf24;
 
+  /* --- Landing palette (theme-invariant) ---
+     The landing page's dark palette, never overridden by the light theme.
+     Use these for surfaces that stay dark in both themes (sidebar, top bar,
+     always-dark modals/popovers) so they match the landing page exactly. --- */
+  --landing-canvas: #041819;
+  --landing-shell: #082c2d;
+  --landing-surface: #0b292a;
+  --landing-surface-2: #103334;
+  --landing-surface-hover: #185354;
+  --landing-border: #1c494a;
+  --landing-border-strong: #286061;
+  --landing-copper: #b87333;
+  --landing-copper-hover: #cc8e55;
+
   /* --- Backgrounds --- */
   --bg: var(--brand-canvas);
   --surface: var(--brand-surface);
