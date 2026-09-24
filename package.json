@@ -20,7 +20,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "db:seed:demo": "tsx prisma/seed-demo.ts"
+    "db:seed:demo": "tsx prisma/seed-demo.ts",
+    "seed:e2e": "tsx prisma/seed-e2e.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

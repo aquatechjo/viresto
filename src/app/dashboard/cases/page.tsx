@@ -1328,6 +1328,7 @@ export default function CasesPage() {
                 placeholder={text.modal.clientSearchPlaceholder}
                 autoComplete="off"
                 autoFocus
+                data-testid="case-client-search"
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
                 style={{
                   textAlign: isRtl ? "right" : "left",
@@ -1416,6 +1417,7 @@ export default function CasesPage() {
               dir={isRtl ? "rtl" : "ltr"}
               value={form.title}
               onChange={f("title")}
+              data-testid="case-title"
               className={`input ${isRtl ? "!text-right" : "!text-left"}`}
               style={{
                 textAlign: isRtl ? "right" : "left",

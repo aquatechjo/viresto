@@ -14,7 +14,13 @@ import { test, expect } from "@playwright/test";
 const EMAIL = process.env.E2E_TEST_EMAIL;
 const PASSWORD = process.env.E2E_TEST_PASSWORD;
 
+// Login takes 8–15 s against the dev server (success and failure alike), so
+// these waits are sized for that rather than for production.
+const LOGIN_TIMEOUT_MS = 45_000;
+
 test.describe("تسجيل الدخول", () => {
+  test.setTimeout(90_000);
+
   test.skip(
     !EMAIL || !PASSWORD,
     "لازم تضبط E2E_TEST_EMAIL و E2E_TEST_PASSWORD بملف .env.local (حساب تجريبي مخصص للاختبارات فقط)",
@@ -30,7 +36,7 @@ test.describe("تسجيل الدخول", () => {
 
     // اللوجن الحالي يستخدم window.location.href = "/dashboard"
     // (full navigation مش router.push) — لهيك بدنا ننتظر الـ URL فعليًا
-    await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+    await page.waitForURL(/\/dashboard/, { timeout: LOGIN_TIMEOUT_MS });
 
     await expect(page).toHaveURL(/\/dashboard/);
   });
@@ -45,7 +51,7 @@ test.describe("تسجيل الدخول", () => {
 
     // sonner toast — ما بنعتمد على نص محدد لأنه بيتغير حسب اللغة (ar/en)
     await expect(page.locator("[data-sonner-toast]")).toBeVisible({
-      timeout: 8_000,
+      timeout: LOGIN_TIMEOUT_MS,
     });
 
     // لازم يضل بصفحة اللوجن، ما ينتقلش للداشبورد
