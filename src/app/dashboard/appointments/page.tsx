@@ -76,7 +76,7 @@ interface CaseItem {
 }
 
 const TYPE_COLOR: Record<string, string> = {
-  COURT_SESSION: "var(--sidebar)",
+  COURT_SESSION: "var(--accent-fill)",
   MEETING: "#2563eb",
   PHONE_CALL: "#d97706",
   DEADLINE: "#dc2626",
@@ -538,7 +538,7 @@ function DateTimePicker({
                     className="relative flex h-10 items-center justify-center rounded-xl text-sm font-black transition"
                     style={{
                       background: isSelected
-                        ? "var(--sidebar)"
+                        ? "var(--accent-fill)"
                         : isToday
                           ? "var(--green-soft)"
                           : "transparent",
@@ -1040,8 +1040,8 @@ export default function AppointmentsPage() {
           : appt.title,
         start: appt.startTime,
         end: appt.endTime,
-        backgroundColor: TYPE_COLOR[appt.type] || "var(--sidebar)",
-        borderColor: TYPE_COLOR[appt.type] || "var(--sidebar)",
+        backgroundColor: TYPE_COLOR[appt.type] || "var(--accent-fill)",
+        borderColor: TYPE_COLOR[appt.type] || "var(--accent-fill)",
         editable:
           currentRole !== "STAFF" || appt.assignedTo?.id === currentUserId,
         extendedProps: appt,
@@ -1426,7 +1426,7 @@ export default function AppointmentsPage() {
           {
             label: a.stats.today,
             value: todayAppts.length,
-            color: "var(--sidebar)",
+            color: "var(--accent-text)",
             bg: "var(--green-soft)",
           },
           {
@@ -1690,7 +1690,7 @@ export default function AppointmentsPage() {
                             >
                               <p
                                 className="text-sm font-black"
-                                style={{ color: "var(--sidebar)" }}
+                                style={{ color: "var(--accent-text)" }}
                               >
                                 {formatTimeInZone(
                                   appt.startTime,

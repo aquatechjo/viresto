@@ -788,7 +788,7 @@ function DatePicker({
                     className="relative flex h-10 items-center justify-center rounded-xl text-sm font-black transition"
                     style={{
                       background: isSelected
-                        ? "var(--sidebar)"
+                        ? "var(--accent-fill)"
                         : isToday
                           ? "var(--green-soft)"
                           : "transparent",
@@ -1470,7 +1470,7 @@ export default function InvoicesPage() {
             label: copy.stats.paid,
             value: formatMoney(stats.paidAmount),
             hint: copy.stats.invoice(stats.paidCount),
-            color: "var(--sidebar)",
+            color: "var(--success)",
             bg: "var(--green-soft)",
           },
           {
@@ -1722,7 +1722,7 @@ export default function InvoicesPage() {
                               className="text-[11px] font-bold"
                               style={{
                                 color: hasPaidPayment
-                                  ? "var(--sidebar)"
+                                  ? "var(--success)"
                                   : "#92400e",
                               }}
                             >
@@ -1808,7 +1808,7 @@ export default function InvoicesPage() {
 
                       <td
                         className="font-black"
-                        style={{ color: "var(--sidebar)" }}
+                        style={{ color: "var(--accent-text)" }}
                       >
                         <span dir={isRtl ? "rtl" : "ltr"}>
                           {formatMoney(invoice.total)}
@@ -2131,7 +2131,7 @@ export default function InvoicesPage() {
                                 ? "flex-start"
                                 : "flex-start",
                               background: "var(--green-soft)",
-                              color: "var(--sidebar)",
+                              color: "var(--success)",
                               fontWeight: 900,
                             }}
                           >
@@ -2238,7 +2238,7 @@ export default function InvoicesPage() {
                 <p
                   className="mt-1 text-start text-2xl font-black"
                   dir={isRtl ? "rtl" : "ltr"}
-                  style={{ color: "var(--sidebar)" }}
+                  style={{ color: "var(--accent-text)" }}
                 >
                   {formatMoney(total)}
                 </p>

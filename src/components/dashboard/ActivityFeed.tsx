@@ -143,7 +143,7 @@ export default function ActivityFeed({ activities, isRtl, locale, labels }: Acti
                     background: activity.isSecurity ? "rgba(239,68,68,.04)" : "var(--card)",
                   }}
                 >
-                  <span className="absolute inset-y-3 w-1 rounded-full opacity-80" style={{ insetInlineStart: 0, background: activity.isSecurity ? "#dc2626" : "var(--sidebar)" }} />
+                  <span className="absolute inset-y-3 w-1 rounded-full opacity-80" style={{ insetInlineStart: 0, background: activity.isSecurity ? "var(--danger)" : "var(--success)" }} />
                   <VDSIcon tone={tone} size="lg"><Icon className="h-5 w-5" /></VDSIcon>
                   <div className="min-w-0 flex-1 pt-0.5">
                     <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">

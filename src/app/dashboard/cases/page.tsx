@@ -1168,7 +1168,7 @@ export default function CasesPage() {
         <FinancialCard
           label={text.stats.paid}
           value={formatMoney(totalPaid)}
-          color="var(--sidebar)"
+          color="var(--success)"
           isRtl={isRtl}
         />
         <FinancialCard

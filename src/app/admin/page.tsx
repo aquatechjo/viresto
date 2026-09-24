@@ -329,7 +329,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             label: "اشتراكات نشطة",
             value: totals.active,
             hint: "فعالة حاليًا",
-            color: "var(--sidebar)",
+            color: "var(--success)",
             bg: "var(--green-soft)",
           },
           {

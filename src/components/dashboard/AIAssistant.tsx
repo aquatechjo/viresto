@@ -396,7 +396,7 @@ export default function AIAssistant() {
                     style={
                       item.role === "user"
                         ? {
-                            background: "var(--sidebar)",
+                            background: "var(--accent-fill)",
                             color: "var(--sidebar-text)",
                           }
                         : {
@@ -468,7 +468,7 @@ export default function AIAssistant() {
                 aria-label={t.send}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition disabled:cursor-not-allowed disabled:opacity-40"
                 style={{
-                  background: "var(--sidebar)",
+                  background: "var(--accent-fill)",
                   color: "var(--sidebar-text)",
                 }}
               >
@@ -493,7 +493,7 @@ export default function AIAssistant() {
           isRtl ? "left-4 sm:left-6" : "right-4 sm:right-6"
         }`}
         style={{
-          background: "var(--sidebar)",
+          background: "var(--accent-fill)",
           borderColor: "var(--sidebar-hover)",
           color: "var(--sidebar-text)",
           boxShadow: "var(--shadow-xl)",

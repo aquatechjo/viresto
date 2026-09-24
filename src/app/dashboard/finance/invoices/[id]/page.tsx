@@ -2354,7 +2354,7 @@ function InfoCard({
     tone === "green"
       ? {
           background: "var(--green-soft)",
-          color: "var(--sidebar)",
+          color: "var(--success)",
         }
       : tone === "amber"
         ? {

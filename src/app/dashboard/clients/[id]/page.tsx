@@ -1170,7 +1170,7 @@ export default function ClientDetailPage() {
                   style={
                     statusFilter === key
                       ? {
-                          background: "var(--sidebar)",
+                          background: "var(--accent-fill)",
                           color: "#fff",
                         }
                       : {

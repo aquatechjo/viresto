@@ -122,7 +122,7 @@ export default function DocumentPreviewModal({
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg"
                   style={{
                     background: "var(--green-soft)",
-                    color: "var(--sidebar)",
+                    color: "var(--accent-text)",
                   }}
                   initial={{ rotate: -12, scale: 0.8 }}
                   animate={{ rotate: 0, scale: 1 }}

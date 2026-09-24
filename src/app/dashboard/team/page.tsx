@@ -429,7 +429,7 @@ export default function TeamPage() {
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white"
             style={{
-              background: user.isActive ? "var(--sidebar)" : "#9ca3af",
+              background: user.isActive ? "var(--success)" : "#9ca3af",
             }}
           >
             {user.name?.charAt(0) || copy.list.unknownInitial}
@@ -779,7 +779,7 @@ export default function TeamPage() {
           {
             label: copy.stats.active,
             value: activeCount,
-            color: "var(--sidebar)",
+            color: "var(--success)",
             bg: "var(--green-soft)",
           },
           {

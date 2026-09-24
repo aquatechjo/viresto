@@ -292,7 +292,7 @@ export default function SecurityDashboardClient() {
             value: stats.uploadEvents,
             hint: 'مستندات وملفات',
             bg: 'var(--green-soft)',
-            color: 'var(--sidebar)',
+            color: 'var(--success)',
           },
           {
             label: 'عمليات الحذف',

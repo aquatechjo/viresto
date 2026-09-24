@@ -323,7 +323,7 @@ export default function SessionsClient() {
             value: stats.current,
             hint: "هذا الجهاز",
             bg: "var(--green-soft)",
-            color: "var(--sidebar)",
+            color: "var(--success)",
           },
           {
             label: "أجهزة أخرى",
@@ -474,7 +474,7 @@ export default function SessionsClient() {
                           background: session.isCurrent
                             ? "#fff"
                             : "var(--input-bg)",
-                          color: "var(--sidebar)",
+                          color: session.isCurrent ? "var(--sidebar)" : "var(--accent-text)",
                         }}
                       >
                         {session.isCurrent ? "🟢" : "🖥️"}

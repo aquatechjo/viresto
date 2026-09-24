@@ -1018,7 +1018,7 @@ export default function DocumentsPage() {
               style={
                 filter === key
                   ? {
-                      background: "var(--sidebar)",
+                      background: "var(--accent-fill)",
                       color: "#fff",
                     }
                   : {
@@ -1106,7 +1106,7 @@ export default function DocumentsPage() {
               : "cursor-pointer"
           }`}
           style={{
-            border: `2px dashed ${dragging ? "var(--sidebar)" : "var(--border-dark)"}`,
+            border: `2px dashed ${dragging ? "var(--accent-text)" : "var(--border-dark)"}`,
             background: dragging ? "var(--green-soft)" : "var(--card)",
           }}
         >
@@ -1276,7 +1276,7 @@ export default function DocumentsPage() {
                       className="rounded-full px-3 py-1.5 text-xs font-bold transition-all"
                       style={
                         active
-                          ? { background: "var(--sidebar)", color: "#fff" }
+                          ? { background: "var(--accent-fill)", color: "#fff" }
                           : {
                               background: "var(--green-soft)",
                               color: "var(--text-2)",
@@ -1435,7 +1435,7 @@ export default function DocumentsPage() {
                   {doc.aiAnalyzedAt && (
                     <p
                       className="text-xs font-bold"
-                      style={{ color: "var(--sidebar)" }}
+                      style={{ color: "var(--success)" }}
                     >
                       ✨ {d.card.aiAnalyzed}
                     </p>
@@ -1709,7 +1709,7 @@ export default function DocumentsPage() {
                         className="rounded-full px-3 py-1.5 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-60"
                         style={
                           active
-                            ? { background: "var(--sidebar)", color: "#fff" }
+                            ? { background: "var(--accent-fill)", color: "#fff" }
                             : {
                                 background: "var(--green-soft)",
                                 color: "var(--text-2)",
@@ -1866,7 +1866,7 @@ export default function DocumentsPage() {
             >
               <div
                 className="document-success-progress h-full rounded-full"
-                style={{ background: "var(--sidebar)" }}
+                style={{ background: "var(--accent-fill)" }}
               />
             </div>
           </div>

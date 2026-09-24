@@ -308,7 +308,7 @@ export default function DateTimePicker({
                     className="flex h-10 items-center justify-center rounded-xl text-sm font-black transition"
                     style={{
                       background: selected
-                        ? "var(--sidebar)"
+                        ? "var(--accent-fill)"
                         : today
                           ? "var(--green-soft)"
                           : "transparent",

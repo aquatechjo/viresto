@@ -55,6 +55,15 @@
   --landing-copper: #b87333;
   --landing-copper-hover: #cc8e55;
 
+  /* --- Accent (theme-aware) ---
+     --accent-text: emphasis text/icons on cards (numbers, times, active tabs).
+     --accent-fill: filled accents carrying white text (active chips, bars,
+     avatars). Both replace --sidebar where it was used as a content color,
+     which rendered ~1.2:1 contrast on dark cards. Light values equal the old
+     light --sidebar, so light mode is unchanged. --- */
+  --accent-text: #dfb184;
+  --accent-fill: var(--brand-surface-hover);
+
   /* --- Backgrounds --- */
   --bg: var(--brand-canvas);
   --surface: var(--brand-surface);
@@ -175,6 +184,8 @@
      (previously read from --sidebar) unchanged by the dark-mode chrome
      recolor above — light mode is intentionally not touched this pass. */
   --success: #082c2d;
+  --accent-text: #082c2d;
+  --accent-fill: #082c2d;
 
   --green-soft: #e9f5ef;
   --blue-soft: #eaf1fb;
@@ -347,7 +358,7 @@ ol {
 /* --- Text selection --- */
 ::selection {
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--accent-text);
 }
 
 /* --- Scrollbar --- */
@@ -605,7 +616,7 @@ ol {
   justify-content: center;
   font-size: 1.25rem;
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--accent-text);
   flex-shrink: 0;
 }
 
@@ -831,8 +842,8 @@ select.input {
 .btn-secondary:hover,
 .btn-ghost:hover {
   background: var(--green-soft);
-  color: var(--sidebar);
-  border-color: var(--sidebar);
+  color: var(--accent-text);
+  border-color: var(--accent-text);
 }
 
 /* Outline */
@@ -872,11 +883,11 @@ select.input {
 /* Soft (muted background) */
 .btn-soft {
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--accent-text);
   border-color: transparent;
 }
 .btn-soft:hover {
-  background: var(--sidebar);
+  background: var(--accent-fill);
   color: #fff;
 }
 
@@ -1469,7 +1480,7 @@ select.input {
   height: 68px;
   border-radius: 999px;
   background: var(--green-soft);
-  color: var(--sidebar);
+  color: var(--accent-text);
   font-size: 1.75rem;
   border: 2px solid rgba(15, 61, 62, 0.12);
 }
@@ -1642,7 +1653,7 @@ select.input {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--sidebar);
+  background: var(--accent-fill);
   color: #fff;
   display: flex;
   align-items: center;
@@ -1722,7 +1733,7 @@ select.input {
 .progress-bar {
   height: 100%;
   border-radius: 999px;
-  background: var(--sidebar);
+  background: var(--accent-fill);
   transition: width 0.4s ease;
 }
 
@@ -1785,7 +1796,7 @@ select.input {
 }
 
 .tab.active {
-  color: var(--sidebar);
+  color: var(--accent-text);
   border-bottom-color: var(--gold);
   font-weight: 900;
 }
@@ -1809,7 +1820,7 @@ select.input {
 
 .tabs-pill .tab.active {
   background: var(--card);
-  color: var(--sidebar);
+  color: var(--accent-text);
   box-shadow: var(--shadow-xs);
   border-bottom-color: transparent;
 }
@@ -1926,15 +1937,15 @@ select.input {
 }
 
 .chip:hover {
-  border-color: var(--sidebar);
-  color: var(--sidebar);
+  border-color: var(--accent-text);
+  color: var(--accent-text);
   background: var(--green-soft);
 }
 
 .chip.active {
-  background: var(--sidebar);
+  background: var(--accent-fill);
   color: #fff;
-  border-color: var(--sidebar);
+  border-color: var(--accent-fill);
 }
 
 /* ============================================================

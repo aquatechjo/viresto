@@ -74,7 +74,7 @@ export default function TodayAppointments(props: TodayAppointmentsProps) {
                 <Link href="/dashboard/appointments" className="group flex min-w-0 items-center gap-3 rounded-[20px] border p-3.5 transition duration-200 hover:-translate-y-0.5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                   <VDSIcon tone={config.tone} size="lg"><Icon className="h-5 w-5" /></VDSIcon>
                   <div className="min-w-[82px] shrink-0 rounded-2xl border px-3 py-2 text-center" style={{ borderColor: "var(--border)", background: "var(--green-soft)" }}>
-                    <time className="text-sm font-black" style={{ color: "var(--sidebar)" }}>{formatAppointmentTime(appointment.startTime, locale)}</time>
+                    <time className="text-sm font-black" style={{ color: "var(--accent-text)" }}>{formatAppointmentTime(appointment.startTime, locale)}</time>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-black" style={{ color: "var(--text)" }}>{appointment.title}</p>

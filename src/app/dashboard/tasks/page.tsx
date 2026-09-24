@@ -1053,7 +1053,7 @@ export default function TasksPage() {
               style={
                 filter === key
                   ? {
-                      background: "var(--sidebar)",
+                      background: "var(--accent-fill)",
                       color: "#fff",
                     }
                   : {
@@ -1152,7 +1152,7 @@ export default function TasksPage() {
                             : "var(--text-3)",
                         background:
                           taskStatus === "COMPLETED"
-                            ? "var(--sidebar)"
+                            ? "var(--accent-fill)"
                             : "transparent",
                         color: "var(--sidebar-text)",
                       }}

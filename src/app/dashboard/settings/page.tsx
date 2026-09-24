@@ -1157,7 +1157,7 @@ export default function SettingsPage() {
                   className="mb-3 flex h-20 w-20 items-center justify-center rounded-full text-2xl font-black"
                   style={{
                     background: "var(--green-soft)",
-                    color: "var(--sidebar)",
+                    color: "var(--success)",
                   }}
                 >
                   {initials(user.name)}
@@ -1609,7 +1609,7 @@ export default function SettingsPage() {
                   style={{
                     borderColor: "var(--border)",
                     background: "var(--green-soft)",
-                    color: "var(--sidebar)",
+                    color: "var(--success)",
                   }}
                 >
                   {copy.twoFAAlreadyEnabled}
@@ -1673,7 +1673,7 @@ export default function SettingsPage() {
                 style={{
                   borderColor: "var(--border)",
                   background: "var(--green-soft)",
-                  color: "var(--sidebar)",
+                  color: "var(--success)",
                 }}
               >
                 {emailChangeSentTo}

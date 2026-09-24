@@ -1508,7 +1508,7 @@ export default function CaseDetailPage() {
           {
             label: pageText.collected,
             value: formatMoney(totals.totalPaid),
-            color: "var(--sidebar)",
+            color: "var(--success)",
             bg: "var(--green-soft)",
           },
           {
@@ -1520,7 +1520,7 @@ export default function CaseDetailPage() {
           {
             label: pageText.collectionRate,
             value: `${Math.round(totals.pct)}%`,
-            color: totals.pct >= 80 ? "var(--sidebar)" : "#92400e",
+            color: totals.pct >= 80 ? "var(--success)" : "#92400e",
             bg: totals.pct >= 80 ? "var(--green-soft)" : "var(--amber-soft)",
           },
         ].map((item) => (
@@ -1739,7 +1739,7 @@ export default function CaseDetailPage() {
 
                   <h3
                     className="mt-1 text-lg font-black"
-                    style={{ color: "var(--sidebar)" }}
+                    style={{ color: "var(--accent-text)" }}
                   >
                     {c.client.name || pageText.notAdded}
                   </h3>
@@ -1749,7 +1749,7 @@ export default function CaseDetailPage() {
                   className="rounded-full px-3 py-1 text-xs font-black"
                   style={{
                     background: "var(--card)",
-                    color: "var(--sidebar)",
+                    color: "var(--accent-text)",
                     border: "1px solid var(--border)",
                   }}
                 >
@@ -1829,7 +1829,7 @@ export default function CaseDetailPage() {
 
           <div className="card p-5">
             <div className="mb-3 flex justify-between text-xs font-black">
-              <span style={{ color: "var(--sidebar)" }}>
+              <span style={{ color: "var(--success)" }}>
                 {Math.round(totals.pct)}% {pageText.collected}
               </span>
               <span style={{ color: "var(--text-3)" }}>
@@ -1847,7 +1847,7 @@ export default function CaseDetailPage() {
                   width: `${totals.pct}%`,
                   background:
                     totals.pct >= 100
-                      ? "var(--sidebar)"
+                      ? "var(--accent-fill)"
                       : totals.pct >= 60
                         ? "#f59e0b"
                         : "#dc2626",
@@ -1890,7 +1890,7 @@ export default function CaseDetailPage() {
                   style={
                     c.status === status
                       ? {
-                          background: "var(--sidebar)",
+                          background: "var(--accent-fill)",
                           color: "#fff",
                         }
                       : {
@@ -2060,10 +2060,10 @@ export default function CaseDetailPage() {
                       }
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black"
                       style={{
-                        borderColor: "var(--sidebar)",
+                        borderColor: "var(--accent-fill)",
                         background:
                           task.status === "COMPLETED" || task.completed
-                            ? "var(--sidebar)"
+                            ? "var(--accent-fill)"
                             : "transparent",
                         color:
                           task.status === "COMPLETED" || task.completed

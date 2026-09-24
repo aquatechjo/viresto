@@ -445,7 +445,7 @@ function statusStyle(status: PaymentStatus) {
   if (status === 'PAID') {
     return {
       background: 'var(--green-soft)',
-      color: 'var(--sidebar)',
+      color: 'var(--success)',
       border: '1px solid rgba(53, 138, 136, 0.24)',
     }
   }
@@ -1050,7 +1050,7 @@ export default function PaymentsPage() {
           {
             label: copy.stats.collected,
             value: money(stats.collected, locale),
-            color: 'var(--sidebar)',
+            color: 'var(--success)',
             background: 'var(--green-soft)',
           },
           {
@@ -1183,7 +1183,7 @@ export default function PaymentsPage() {
 
             <span
               className="rounded-full px-3 py-1 text-xs font-black"
-              style={{ background: 'var(--green-soft)', color: 'var(--sidebar)' }}
+              style={{ background: 'var(--green-soft)', color: 'var(--success)' }}
             >
               {copy.table.count(filteredPayments.length)}
             </span>
@@ -1297,7 +1297,7 @@ export default function PaymentsPage() {
                       </td>
 
                       <td className="align-middle text-start">
-                        <p className="whitespace-nowrap text-base font-black" style={{ color: 'var(--sidebar)' }}>
+                        <p className="whitespace-nowrap text-base font-black" style={{ color: 'var(--success)' }}>
                           <bdi dir={isRtl ? 'rtl' : 'ltr'}>
                             {money(amountOf(payment), locale)}
                           </bdi>
@@ -1492,7 +1492,7 @@ export default function PaymentsPage() {
                         }}
                         className="min-h-11 rounded-xl px-3 text-sm font-black transition"
                         style={{
-                          background: active ? 'var(--sidebar)' : 'transparent',
+                          background: active ? 'var(--accent-fill)' : 'transparent',
                           color: active ? '#fff' : 'var(--text-2)',
                         }}
                       >
@@ -1588,7 +1588,7 @@ export default function PaymentsPage() {
                   style={{
                     background: 'var(--green-soft)',
                     borderColor: 'var(--border)',
-                    color: 'var(--sidebar)',
+                    color: 'var(--success)',
                   }}
                 >
                   <span className="font-bold">

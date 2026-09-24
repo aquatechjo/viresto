@@ -1115,7 +1115,7 @@ if (loading) {
                   ? copy.stats.monthlyRevenue(months[month])
                   : copy.stats.periodRevenue,
               value: formatMoney(summary.periodRevenue, locale),
-              color: 'var(--sidebar)',
+              color: 'var(--success)',
               bg: 'var(--green-soft)',
             },
             {
@@ -1142,7 +1142,7 @@ if (loading) {
               label: copy.stats.collectionRate,
               value: `${summary.collectionRate}%`,
               color:
-                summary.collectionRate >= 80 ? 'var(--sidebar)' : '#92400e',
+                summary.collectionRate >= 80 ? 'var(--success)' : '#92400e',
               bg:
                 summary.collectionRate >= 80
                   ? 'var(--green-soft)'
@@ -1157,7 +1157,7 @@ if (loading) {
             {
               label: copy.stats.openCases,
               value: summary.openCases,
-              color: 'var(--sidebar)',
+              color: 'var(--success)',
               bg: 'var(--green-soft)',
             },
             {
@@ -1235,7 +1235,7 @@ if (loading) {
                         className="h-full rounded-full"
                         style={{
                           width: `${percent}%`,
-                          background: 'var(--sidebar)',
+                          background: 'var(--accent-fill)',
                         }}
                       />
                     </div>
@@ -1273,7 +1273,7 @@ if (loading) {
                       className="w-full rounded-t-xl"
                       style={{
                         height: `${height}%`,
-                        background: 'var(--sidebar)',
+                        background: 'var(--accent-fill)',
                         opacity: item.month === month ? 1 : 0.55,
                       }}
                     />
