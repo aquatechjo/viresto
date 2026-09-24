@@ -84,7 +84,13 @@ const CASE_STATUS_KEYS = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 const COPY = {
   ar: {
     loadError: "فشل تحميل القضايا",
-    requiredError: "الموكل وعنوان القضية مطلوبان",
+    requiredPrefix: "حقول مطلوبة: ",
+    requiredSeparator: "، ",
+    requiredFields: {
+      client: "الموكل",
+      title: "عنوان القضية",
+      leadLawyer: "المحامي المسؤول",
+    },
     archivedClientCreateError: "لا يمكن إنشاء قضية جديدة لموكل مؤرشف",
     created: "تمت إضافة القضية",
     updated: "تم تعديل القضية",
@@ -174,7 +180,13 @@ const COPY = {
   },
   en: {
     loadError: "Failed to load cases",
-    requiredError: "Client and case title are required",
+    requiredPrefix: "Required: ",
+    requiredSeparator: ", ",
+    requiredFields: {
+      client: "client",
+      title: "case title",
+      leadLawyer: "responsible lawyer",
+    },
     archivedClientCreateError:
       "You cannot create a new case for an archived client",
     created: "Case added successfully",
@@ -361,6 +373,17 @@ export default function CasesPage() {
   const { locale, isRtl } = useLocale();
   const localeKey = (locale === "ar" ? "ar" : "en") as keyof typeof COPY;
   const text = COPY[localeKey];
+
+  // Names exactly the fields that are missing, so the message matches what
+  // the check actually requires (it used to omit the responsible lawyer).
+  function requiredFieldsMessage(
+    fields: Array<keyof (typeof COPY)["ar"]["requiredFields"]>,
+  ) {
+    return (
+      text.requiredPrefix +
+      fields.map((field) => text.requiredFields[field]).join(text.requiredSeparator)
+    );
+  }
 
   const [cases, setCases] = useState<Case[]>([]);
   const [clients, setClients] = useState<ClientOpt[]>([]);
@@ -573,8 +596,14 @@ export default function CasesPage() {
       return;
     }
 
-    if (!form.clientId || !form.title.trim() || !form.leadLawyerId) {
-      toast.error(text.requiredError);
+    const missingFields = [
+      !form.clientId && "client",
+      !form.title.trim() && "title",
+      !form.leadLawyerId && "leadLawyer",
+    ].filter(Boolean) as Array<"client" | "title" | "leadLawyer">;
+
+    if (missingFields.length > 0) {
+      toast.error(requiredFieldsMessage(missingFields));
       return;
     }
 
@@ -623,8 +652,10 @@ export default function CasesPage() {
       return;
     }
 
-    if (!editingCase || !editForm.title.trim()) {
-      toast.error(text.requiredError);
+    if (!editingCase) return;
+
+    if (!editForm.title.trim()) {
+      toast.error(requiredFieldsMessage(["title"]));
       return;
     }
 
