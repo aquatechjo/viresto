@@ -230,15 +230,14 @@ export default function NotificationBell() {
 
       {open && (
         <div
-          className="
-            absolute top-full z-[90] mt-2
-            overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl
+          className={`
+            fixed inset-x-3 top-16 z-[90] max-h-[70vh] w-auto overflow-y-auto
+            rounded-3xl border border-slate-200 bg-white shadow-2xl
             dark:border-[var(--brand-border)] dark:bg-[var(--brand-surface)]
-          "
-          style={{
-            width: "min(24rem, calc(100vw - 1rem))",
-            ...(isRtl ? { left: 0 } : { right: 0 }),
-          }}
+            sm:absolute sm:inset-x-auto sm:top-full sm:mt-2 sm:max-h-none sm:overflow-hidden
+            sm:w-[min(24rem,calc(100vw-1rem))]
+            ${isRtl ? "sm:start-0" : "sm:end-0"}
+          `}
           role="dialog"
           aria-label={copy.title}
           aria-live="polite"
