@@ -764,41 +764,53 @@ export default function ActivityPage() {
       accessor: "title",
       sortable: true,
       width: "34%",
-      cell: (activity) => (
-        <div className="flex min-w-[280px] items-start gap-3 text-start">
-          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
-            <FileText
-              className="h-4 w-4"
-              style={{ color: "var(--text)" }}
-              aria-hidden="true"
-            />
+      cell: (activity) => {
+        const title = displayActivityTitle(activity, locale);
+        const message = displayActivityMessage(activity, locale);
+        const badgeLabel = activityLabel(activity.type, locale);
+        const messageDuplicatesTitle = message === title;
+        const badgeDuplicatesTitle = badgeLabel === title;
+
+        return (
+          <div className="flex min-w-0 items-start gap-3 text-start">
+            <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
+              <FileText
+                className="h-4 w-4"
+                style={{ color: "var(--text)" }}
+                aria-hidden="true"
+              />
+            </div>
+
+            <div className="min-w-0 flex-1 text-start">
+              <p className="font-black" style={{ color: "var(--text)" }}>
+                {title}
+              </p>
+
+              {!messageDuplicatesTitle && (
+                <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
+                  {message}
+                </p>
+              )}
+
+              {!badgeDuplicatesTitle && (
+                <VDSBadge
+                  tone={categoryTone(activity.type, activity.title)}
+                  className="mt-2"
+                >
+                  {badgeLabel}
+                </VDSBadge>
+              )}
+            </div>
           </div>
-
-          <div className="min-w-0 text-start">
-            <p className="font-black" style={{ color: "var(--text)" }}>
-              {displayActivityTitle(activity, locale)}
-            </p>
-
-            <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
-              {displayActivityMessage(activity, locale)}
-            </p>
-
-            <VDSBadge
-              tone={categoryTone(activity.type, activity.title)}
-              className="mt-2"
-            >
-              {activityLabel(activity.type, locale)}
-            </VDSBadge>
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       id: "user",
       header: copy.table.user,
       width: "20%",
       cell: (activity) => (
-        <div className="flex min-w-[180px] items-start gap-2 text-start">
+        <div className="flex min-w-0 items-start gap-2 text-start">
           <UserRound
             className="h-4 w-4 shrink-0"
             style={{ color: "var(--text-3)" }}
