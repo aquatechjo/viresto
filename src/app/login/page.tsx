@@ -294,9 +294,20 @@ export default function LoginPage() {
   useEffect(() => {
     const reason = new URLSearchParams(window.location.search).get("reason");
     const session = translations[getStoredLocale()].session;
+    const message =
+      reason === "idle"
+        ? session.idleLoggedOut
+        : reason === "expired"
+          ? session.expired
+          : null;
 
-    if (reason === "idle") toast.info(session.idleLoggedOut);
-    else if (reason === "expired") toast.info(session.expired);
+    if (!message) return;
+
+    // Deferred: this effect runs before the root layout's <Toaster>
+    // subscribes, and sonner drops toasts fired with no Toaster listening.
+    const timer = window.setTimeout(() => toast.info(message), 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
