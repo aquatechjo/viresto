@@ -198,15 +198,14 @@
 ## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit للكود/الإعداد:** `3609528` — `chore: add CLAUDE.md with the PROJECT_STATUS sync rule` (2026-09-24)، ويليه commit تحديث هذا الملف.
-- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة `1a3da05..3609528`، ثم commit الـ docs هذا).
+- **آخر commit للكود/الإعداد:** `b506091` — `test: add create-case E2E spec and guarded seed:e2e script` (2026-09-24)، ويليه commit تحديث هذا الملف.
+- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة: `71326bb`، `201cf4e`، `b506091`، ثم commit الـ docs هذا).
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
-  - `tests/e2e/create-case.spec.ts` (untracked): **متوقف** إلى أن يُنشأ حساب الاختبار. التفاصيل في القسم 10.
   - `.claude/` (untracked): فيه `launch.json` لخادم التطوير.
 
 **تسلسل الـ commits (الأقدم أولًا):**
-`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج ← `1a3da05` تحديث الحالة ← `3609528` CLAUDE.md (قاعدة مزامنة الحالة)
+`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج ← `1a3da05` تحديث الحالة ← `3609528` CLAUDE.md (قاعدة مزامنة الحالة) ← `71326bb` رسالة تحقق نموذج القضية ← `201cf4e` fail-closed لمهلة Upstash في الإنتاج ← `b506091` اختبار E2E لإنشاء القضية + `seed:e2e` المحمي
 
 ---
 
@@ -234,28 +233,31 @@
 
 > **قاعدة دائمة (في `CLAUDE.md`، commit `3609528`):** بعد كل push يُحدَّث هذا الملف في commit مستقل باسم `docs: update PROJECT_STATUS` ويُرفع أيضًا، ولا يُخلط مع commits الميزات.
 
+### ✅ تم (2026-09-24)
+- `71326bb` — `fix: name the missing fields in the case form validation message`: رسالة التحقق في نموذج القضية تذكر الحقول الناقصة فعلًا، ومنها المحامي المسؤول.
+- `201cf4e` — `fix: fail closed on Upstash rate-limit timeouts in production`: مهلة Upstash في الإنتاج ترفض الطلب بدل تمريره، مع اختبارات وحدة.
+- `b506091` — `test: add create-case E2E spec and guarded seed:e2e script`: `create-case.spec.ts` مع `data-testid` لحقلي بحث الموكل وعنوان القضية، ومهل `login.spec.ts` أصبحت 45 ثانية، و`npm run seed:e2e` (`prisma/seed-e2e.ts`) الذي يرفض العمل إلا إذا كان host الـ `DATABASE_URL` مساويًا لـ `E2E_ALLOWED_DATABASE_HOST`، ولا يلمس إلا إيميلات نطاقات الاختبار.
+- **تهيئة قاعدة dev** (فرع Neon dev، تأكّد المستخدم من لوحة Neon أن الـ endpoint المستخدم في `.env` تابع لفرع dev):
+  - كانت الجداول موجودة و`_prisma_migrations` فارغًا. **انحراف عن الخطة:** لم تُعلَّم كل الـ migrations كمنفّذة. `migrate diff` أظهر أن القاعدة مطابقة حتى `20260922010000_drop_manual_payment_settings`، لكن جدول `SubscriptionPayment` (فارغ) ما زال موجودًا. لذلك عُلّمت 53 migration بـ `migrate resolve --applied`، وطُبّقت الأخيرة `20260922020000_drop_subscription_payment` فعليًا عبر `npm run db:deploy`. النتيجة: `Database schema is up to date!`.
+  - `npm run db:seed` (3 خطط) ثم `npm run seed:e2e` (أُنشئ `test-e2e@example.com`، ADMIN في `e2e-test-office` باشتراك PRO فعّال).
+  - `E2E_ALLOWED_DATABASE_HOST` في `.env.local` كان مضبوطًا مسبقًا على host الـ pooler لفرع dev.
+
 ### قيد التنفيذ
-- لا شيء. آخر عمل (مهلة الجلسة والمسودات و`next` الآمن) مكتمل ومرفوع.
+- لا شيء.
 
 ### التالي (مقترح)
-1. **اختبار E2E لإنشاء القضية**، بعد إنشاء حساب الاختبار (انظر "بانتظارك" أدناه).
-2. **بنود الموبايل المعلّقة** في القسم 5: الجداول العريضة، التقويم، أزرار اللمس، و RTL في PricingSection.
-3. **تنظيف:** حذف `clients/new` وحذف CSS التقويم الميت.
+1. **تشغيل `npm run test:e2e`** والتأكد من نجاح `login.spec.ts` و`create-case.spec.ts` بعد وجود حساب الاختبار. لم يُشغَّلا بعد.
+2. **فصل dev عن مفاتيح الإنتاج** (انظر "بانتظارك").
+3. **بنود الموبايل المعلّقة** في القسم 5: الجداول العريضة، التقويم، أزرار اللمس، و RTL في PricingSection.
+4. **تنظيف:** حذف `clients/new` وحذف CSS التقويم الميت.
 
 ### ⏳ بانتظارك
-- [ ] **إنشاء حساب اختبار E2E:** `.env.local` يشير إلى `test-e2e@example.com`، والحساب **غير موجود** في قاعدة البيانات الحالية (تحقق read-only بتاريخ 2026-09-24، صفر نتائج). لذلك `login.spec.ts` (الملتزم به) و`create-case.spec.ts` يفشلان في تسجيل الدخول. يجب إنشاؤه بنفس بيانات `.env.local` عبر `/register` أو seed. هذا لا يُنفَّذ من Claude.
+- [ ] **⚠️ مفاتيح إنتاج في `.env` المحلي:** الملف ما زال يحتوي مفاتيح **الإنتاج** لـ Polar وResend وCloudinary. **الخطة:** (1) نقل dev إلى **Polar sandbox** ومفاتيح تجريبية/اختبار لـ Resend وCloudinary، (2) بعد ذلك **تدوير (rotate) مفاتيح الإنتاج** الثلاثة، لأنها كانت موجودة على جهاز التطوير.
 - [ ] **نشر الإنتاج:** زر القائمة في الموبايل يظهر أبيض على أبيض في الإنتاج إلى أن يُنشر `714fcbe` والـ commits التي بعده، ومعها إصلاح padding الموبايل `820b603`.
 - [ ] **HawkScan:** لا يعمل لأن `HAWK_API_KEY` غير مضبوط.
 
-### `tests/e2e/create-case.spec.ts`: ما ينقصه قبل الـ commit
-- **المانع:** حساب الاختبار غير موجود (أعلاه).
-- **Timeouts قصيرة:** تسجيل الدخول في dev يستغرق 8–15 ثانية (حتى الفاشل منه)، بينما `waitForURL` = 20 ثانية تشمل compile الصفحة، و`expect` الافتراضي = 5 ثوانٍ. يحتاج نحو 45 ثانية.
-- **Selectors هشّة:** `input[dir]` مع `nth(1)` لعنوان القضية، و`input[autocomplete="off"]` لبحث الموكل. يُفضّل إضافة `name` أو `data-testid` ثابت للحقلين.
-- **تنسيق:** إزاحة سطر `test.setTimeout(60_000)` خاطئة.
-- بعد إنشاء الحساب: تُطبَّق هذه الإصلاحات مع الملف في commit واحد، ويُشغَّل الاختباران حتى ينجحا.
-
 ### Bugs موثّقة، لم تُصلح بعد
-- [ ] **رسالة التحقق في نموذج إنشاء القضية ناقصة:** النموذج يتطلب المحامي المسؤول (`leadLawyerId`)، لكن الرسالة تقول فقط "الموكل وعنوان القضية مطلوبان" (`src/app/dashboard/cases/page.tsx`).
+- [x] ~~رسالة التحقق في نموذج إنشاء القضية ناقصة~~: أُصلح في `71326bb`.
 - [ ] **تسجيل الدخول بطيء جدًا في dev:** 8–15 ثانية لكل طلب `/api/auth/login`، شبه كلها في application code. يستحق التحقيق (bcrypt cost؟ تأخير متعمد للمحاولات الفاشلة؟ زمن الاتصال بقاعدة البيانات؟).
 
 ### تنظيف مقترح
