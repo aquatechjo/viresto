@@ -108,7 +108,14 @@ test.describe("إنشاء قضية جديدة", () => {
     await expect(modal).not.toBeVisible({ timeout: UI_TIMEOUT_MS });
 
     // والقضية الجديدة لازم تظهر بالقائمة بعد إعادة التحميل التلقائي (load())
-    await expect(page.getByText(caseTitle)).toBeVisible({
+    // الجدول عنده نسخة mobile-cards ونسخة desktop-table بنفس الوقت بالـ DOM
+    // (وحدة ظاهرة حسب حجم الشاشة) — بنحدد نسخة الديسكتوب صراحة عشان ما
+    // يصير strict-mode violation من وجود العنوان مرتين.
+    await expect(
+      page
+        .locator('[data-vds-view="desktop-table"]')
+        .getByText(caseTitle),
+    ).toBeVisible({
       timeout: UI_TIMEOUT_MS,
     });
   });
