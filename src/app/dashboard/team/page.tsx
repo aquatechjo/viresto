@@ -425,7 +425,7 @@ export default function TeamPage() {
       sortable: true,
       width: "32%",
       cell: (user) => (
-        <div className="flex min-w-[240px] items-center gap-3 text-start">
+        <div className="flex min-w-0 items-center gap-3 text-start">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white"
             style={{
@@ -504,10 +504,10 @@ export default function TeamPage() {
             <VDSBadge tone="gold">{copy.list.systemAdminFixed}</VDSBadge>
           </span>
         ) : (
-          <div className="flex min-w-[280px] items-center justify-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
             <select
               aria-label={copy.list.roleChangeAria}
-              className="input min-w-[150px] disabled:cursor-not-allowed disabled:opacity-60"
+              className="input min-w-0 flex-1 disabled:cursor-not-allowed disabled:opacity-60"
               style={fieldStyle}
               value={user.role}
               disabled={!canManageTeam}

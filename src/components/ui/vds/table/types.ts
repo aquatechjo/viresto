@@ -12,6 +12,8 @@ export interface VDSDataTableColumn<T> {
   align?: "start" | "center" | "end";
   width?: string;
   hideOnMobile?: boolean;
+  /** Hide this column entirely in the mobile stacked-card view (e.g. it duplicates another column's content there). */
+  mobileHidden?: boolean;
 }
 
 export interface VDSDataTableLabels {

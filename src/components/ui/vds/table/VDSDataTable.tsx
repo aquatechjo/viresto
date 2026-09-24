@@ -159,7 +159,78 @@ export default function VDSDataTable<T>({
           action={emptyAction}
         />
       ) : (
-        <div className="overflow-x-auto">
+        <>
+          {/* Mobile: stacked cards, one per row */}
+          <div
+            className="divide-y md:hidden"
+            data-vds-view="mobile-cards"
+            style={{ borderColor: "var(--border)" }}
+          >
+            {sortedRows.map((row) => {
+              const rowId = getRowId(row);
+              const selected = selectedIds.has(rowId);
+              const visibleColumns = columns.filter(
+                (column) => !column.mobileHidden,
+              );
+
+              return (
+                <div
+                  key={rowId}
+                  onClick={() => onRowClick?.(row)}
+                  onPointerEnter={() => onRowIntent?.(row)}
+                  className={`space-y-2.5 p-4 ${onRowClick ? "cursor-pointer active:bg-black/[.02] dark:active:bg-white/[.03]" : ""}`}
+                  style={{
+                    background: selected ? "rgba(20,184,166,.07)" : undefined,
+                  }}
+                >
+                  {selectable ? (
+                    <div
+                      className="flex items-center justify-end"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleRow(rowId)}
+                        aria-label={`Select row ${String(rowId)}`}
+                        className="h-4 w-4 rounded"
+                      />
+                    </div>
+                  ) : null}
+
+                  {visibleColumns.map((column) => {
+                    const value = column.cell
+                      ? column.cell(row)
+                      : column.accessor
+                        ? String(row[column.accessor] ?? "")
+                        : null;
+
+                    if (value === null || value === undefined) return null;
+
+                    return (
+                      <div
+                        key={column.id}
+                        className="flex min-w-0 items-start justify-between gap-3 text-sm"
+                      >
+                        <span
+                          className="shrink-0 whitespace-nowrap text-xs font-black uppercase tracking-wide"
+                          style={{ color: "var(--text-3)" }}
+                        >
+                          {column.header}
+                        </span>
+                        <span className="min-w-0 flex-1 text-end" style={{ color: "var(--text)" }}>
+                          {value}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop: real table */}
+          <div className="hidden overflow-x-auto md:block" data-vds-view="desktop-table">
           <table className="w-full min-w-[760px] border-collapse">
             <thead
               style={{ background: "var(--surface-2, rgba(148,163,184,.08))" }}
@@ -285,7 +356,8 @@ export default function VDSDataTable<T>({
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       {onPageChange ? (
