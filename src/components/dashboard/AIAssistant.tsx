@@ -258,7 +258,7 @@ export default function AIAssistant() {
           role="dialog"
           aria-labelledby="viresto-ai-assistant-title"
           dir={isRtl ? "rtl" : "ltr"}
-          className={`fixed inset-x-3 bottom-20 z-[100] flex h-[min(640px,calc(100dvh-6rem))] flex-col overflow-hidden rounded-[28px] border sm:inset-x-auto sm:bottom-24 sm:w-[390px] ${
+          className={`fixed inset-x-3 z-[100] flex h-[min(640px,calc(100dvh-6rem))] flex-col overflow-hidden rounded-[28px] border bottom-[calc(5rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-[calc(6rem+env(safe-area-inset-bottom))] sm:w-[390px] ${
             isRtl ? "sm:left-6" : "sm:right-6"
           }`}
           style={{
@@ -489,7 +489,7 @@ export default function AIAssistant() {
         aria-controls="viresto-ai-assistant-panel"
         aria-label={isOpen ? t.close : t.open}
         title={isOpen ? t.close : t.title}
-        className={`fixed bottom-4 z-[110] flex h-14 w-14 items-center justify-center rounded-full border transition hover:-translate-y-0.5 sm:bottom-6 ${
+        className={`fixed z-[110] flex h-14 w-14 items-center justify-center rounded-full border transition hover:-translate-y-0.5 bottom-[calc(1rem+env(safe-area-inset-bottom))] sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] ${
           isRtl ? "left-4 sm:left-6" : "right-4 sm:right-6"
         }`}
         style={{
