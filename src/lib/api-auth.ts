@@ -8,6 +8,7 @@ import {
   SESSION_IDLE_TIMEOUT_MS,
   SESSION_TOUCH_INTERVAL_MS,
   hasUsableSessionId,
+  isActivityRequestMethod,
   sessionExpired,
   sessionMatchesToken,
   shouldTouchSession,
@@ -188,8 +189,18 @@ export function invalidateAuthCacheForTenant(tenantId: string) {
   }
 }
 
+export type ValidateSessionOptions = {
+  /**
+   * Refresh the session's lastActivityAt (throttled by
+   * SESSION_TOUCH_INTERVAL_MS). Only true for requests that represent user
+   * activity (writes); reads validate without extending the idle window.
+   */
+  touch?: boolean;
+};
+
 export async function validateSessionPayload(
   tokenUser: JWTPayload,
+  options: ValidateSessionOptions = {},
 ): Promise<SessionValidationResult> {
   if (!hasUsableSessionId(tokenUser)) {
     return {
@@ -310,7 +321,7 @@ export async function validateSessionPayload(
 
   let lastActivityAtForCache = session.lastActivityAt;
 
-  if (shouldTouchSession(session.lastActivityAt)) {
+  if (options.touch && shouldTouchSession(session.lastActivityAt)) {
     const now = new Date();
     const touchBefore = new Date(Date.now() - SESSION_TOUCH_INTERVAL_MS);
 
@@ -391,7 +402,9 @@ export async function requireAuth(req: NextRequest) {
     };
   }
 
-  const validation = await validateSessionPayload(tokenUser);
+  const validation = await validateSessionPayload(tokenUser, {
+    touch: isActivityRequestMethod(req.method),
+  });
 
   if (!validation.ok) {
     return {

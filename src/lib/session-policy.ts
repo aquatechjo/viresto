@@ -6,6 +6,18 @@ export const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 export const SESSION_IDLE_WARNING_MS = 60 * 1000;
 export const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 
+const ACTIVITY_REQUEST_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
+ * Whether an authenticated request counts as user activity for the idle
+ * timeout. Only writes do (plus the dedicated /api/auth/session/activity
+ * ping, which updates lastActivityAt itself). Background reads such as the
+ * notification poll must not keep an unattended session alive.
+ */
+export function isActivityRequestMethod(method?: string | null) {
+  return ACTIVITY_REQUEST_METHODS.has((method ?? "").toUpperCase());
+}
+
 type SessionTokenIdentity = {
   userId: string;
   tenantId: string;

@@ -186,3 +186,29 @@ test("invalidateAuthCacheForTenant forces a fresh DB read before the TTL elapses
   assert.equal(sessionFindUniqueMock.mock.callCount(), 2);
   assert.equal(userFindUniqueMock.mock.callCount(), 2);
 });
+
+test("a read validates without extending the idle window", async () => {
+  const staleActivity = new Date(Date.now() - 2 * 60 * 1000);
+  sessionFindUniqueMock.mock.mockImplementationOnce(async () => ({
+    ...makeSessionRow(),
+    lastActivityAt: staleActivity,
+  }));
+
+  const result = await validateSessionPayload(tokenUser());
+
+  assert.equal(result.ok, true);
+  assert.equal(sessionUpdateManyMock.mock.callCount(), 0);
+});
+
+test("a write (touch: true) refreshes lastActivityAt once the touch interval has passed", async () => {
+  const staleActivity = new Date(Date.now() - 2 * 60 * 1000);
+  sessionFindUniqueMock.mock.mockImplementationOnce(async () => ({
+    ...makeSessionRow(),
+    lastActivityAt: staleActivity,
+  }));
+
+  const result = await validateSessionPayload(tokenUser(), { touch: true });
+
+  assert.equal(result.ok, true);
+  assert.equal(sessionUpdateManyMock.mock.callCount(), 1);
+});

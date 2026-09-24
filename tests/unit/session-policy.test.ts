@@ -5,6 +5,7 @@ import {
   SESSION_IDLE_WARNING_MS,
   SESSION_TOUCH_INTERVAL_MS,
   hasUsableSessionId,
+  isActivityRequestMethod,
   sessionExpired,
   sessionMatchesToken,
   shouldTouchSession,
@@ -116,4 +117,13 @@ test("users need an active verified account in an unsuspended tenant", () => {
   );
   assert.equal(userCanUseSession(user, "other-tenant"), false);
   assert.equal(userCanUseSession(null, identity.tenantId), false);
+});
+
+test("only write requests count as user activity", () => {
+  for (const method of ["POST", "PUT", "PATCH", "DELETE", "post", "delete"]) {
+    assert.equal(isActivityRequestMethod(method), true, method);
+  }
+  for (const method of ["GET", "HEAD", "OPTIONS", "get", "", undefined, null]) {
+    assert.equal(isActivityRequestMethod(method), false, String(method));
+  }
 });
