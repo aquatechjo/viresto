@@ -47,7 +47,12 @@ export default function SessionGuard() {
   const lastActivitySampleRef = useRef(0);
   const lastActivityWriteRef = useRef(0);
 
-  const forceLogout = useCallback(async (message?: string, manual = false) => {
+  const forceLogout = useCallback(
+    async (
+      message?: string,
+      manual = false,
+      reason: "idle" | "expired" = "expired",
+    ) => {
     if (loggingOutRef.current) return;
 
     loggingOutRef.current = true;
@@ -72,8 +77,19 @@ export default function SessionGuard() {
       toast.info(message);
     }
 
-    window.location.replace("/login");
-  }, []);
+    if (manual) {
+      window.location.replace("/login");
+      return;
+    }
+
+    // Come back to the same page after signing in (validated on /login).
+    const next = `${window.location.pathname}${window.location.search}`;
+    window.location.replace(
+      `/login?next=${encodeURIComponent(next)}&reason=${reason}`,
+    );
+    },
+    [],
+  );
 
   const sendPing = useCallback(async () => {
     lastPingRef.current = Date.now();
@@ -173,7 +189,7 @@ export default function SessionGuard() {
 
       if (inactiveFor >= SESSION_IDLE_TIMEOUT_MS) {
         setSecondsLeft(null);
-        void forceLogout(tRef.current.session.idleLoggedOut);
+        void forceLogout(tRef.current.session.idleLoggedOut, false, "idle");
         return;
       }
 

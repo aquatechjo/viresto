@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { translations } from "@/lib/i18n";
+import { safeNextPath } from "@/lib/safe-redirect";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import FormField from "@/components/ui/FormField";
@@ -253,6 +255,14 @@ function getStoredLocale(): Locale {
   return document.documentElement.lang === "en" ? "en" : "ar";
 }
 
+// Where to go after signing in: a validated same-origin `next`, else
+// /dashboard (see safeNextPath for the open-redirect rules).
+function getPostLoginPath() {
+  if (typeof window === "undefined") return "/dashboard";
+
+  return safeNextPath(new URLSearchParams(window.location.search).get("next"));
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const publicRegisterEnabled =
@@ -280,6 +290,15 @@ export default function LoginPage() {
     setLocale(getStoredLocale());
   }, []);
 
+  // Explain why we're here after an idle or expired-session logout.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("reason");
+    const session = translations[getStoredLocale()].session;
+
+    if (reason === "idle") toast.info(session.idleLoggedOut);
+    else if (reason === "expired") toast.info(session.expired);
+  }, []);
+
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = isArabic ? "rtl" : "ltr";
@@ -301,7 +320,7 @@ export default function LoginPage() {
 
       if (res.ok) {
         localStorage.setItem("viresto_last_activity", String(Date.now()));
-        router.replace("/dashboard");
+        router.replace(getPostLoginPath());
       }
     }
 
@@ -346,7 +365,7 @@ export default function LoginPage() {
 
         toast.success(copy.toast.loginSuccess);
 
-        window.location.href = "/dashboard";
+        window.location.href = getPostLoginPath();
 
         return;
       }
