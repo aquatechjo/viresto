@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   SESSION_IDLE_TIMEOUT_MS,
+  SESSION_IDLE_WARNING_MS,
   SESSION_TOUCH_INTERVAL_MS,
   hasUsableSessionId,
   sessionExpired,
@@ -48,7 +49,13 @@ test("session records must be active and match every token identity field", () =
   assert.equal(sessionMatchesToken(null, identity), false);
 });
 
-test("idle timeout expires only after five complete minutes", () => {
+test("idle timeout is thirty minutes and the warning fits inside it", () => {
+  assert.equal(SESSION_IDLE_TIMEOUT_MS, 30 * 60 * 1000);
+  assert.ok(SESSION_IDLE_WARNING_MS > 0);
+  assert.ok(SESSION_IDLE_WARNING_MS < SESSION_IDLE_TIMEOUT_MS);
+});
+
+test("idle timeout expires only after the full idle window", () => {
   assert.equal(
     sessionExpired(new Date(nowMs - SESSION_IDLE_TIMEOUT_MS), nowMs),
     false,

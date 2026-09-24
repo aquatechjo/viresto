@@ -1,4 +1,9 @@
-export const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+// Single source of truth for session timing, shared by the server
+// (api-auth) and the client idle guard (SessionGuard).
+export const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+// How long before the idle logout the client shows the "stay signed in"
+// warning.
+export const SESSION_IDLE_WARNING_MS = 60 * 1000;
 export const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 
 type SessionTokenIdentity = {

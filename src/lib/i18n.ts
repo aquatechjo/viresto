@@ -129,6 +129,16 @@ export const translations = {
       noResultsFor: "لا نتائج لـ",
     },
 
+    session: {
+      warningTitle: "هل ما زلت هنا؟",
+      warningBody: "سيتم تسجيل خروجك بسبب عدم النشاط خلال",
+      seconds: "ثانية",
+      staySignedIn: "البقاء متصلًا",
+      signOutNow: "تسجيل الخروج الآن",
+      idleLoggedOut: "تم تسجيل خروجك بسبب عدم النشاط.",
+      expired: "انتهت الجلسة. يرجى تسجيل الدخول مجددًا.",
+    },
+
     documents: {
       hero: {
         badge: "إدارة الأرشيف القانوني",
@@ -613,6 +623,16 @@ export const translations = {
     topbar: {
       searchPlaceholder: "Search cases and clients...",
       noResultsFor: "No results for",
+    },
+
+    session: {
+      warningTitle: "Are you still there?",
+      warningBody: "You will be signed out for inactivity in",
+      seconds: "seconds",
+      staySignedIn: "Stay signed in",
+      signOutNow: "Sign out now",
+      idleLoggedOut: "You were signed out due to inactivity.",
+      expired: "Your session has ended. Please sign in again.",
     },
 
     documents: {
