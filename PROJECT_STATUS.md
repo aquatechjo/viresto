@@ -198,15 +198,15 @@
 ## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit:** `8b6b388`, وهو `fix: show the idle/expired logout reason on the login page` (2026-09-24)
-- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة `6cacbc2..8b6b388`).
+- **آخر commit للكود/الإعداد:** `3609528` — `chore: add CLAUDE.md with the PROJECT_STATUS sync rule` (2026-09-24)، ويليه commit تحديث هذا الملف.
+- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة `1a3da05..3609528`، ثم commit الـ docs هذا).
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
-  - `tests/e2e/create-case.spec.ts` (untracked): اختبار E2E جديد لم يُراجع بعد.
+  - `tests/e2e/create-case.spec.ts` (untracked): **متوقف** إلى أن يُنشأ حساب الاختبار. التفاصيل في القسم 10.
   - `.claude/` (untracked): فيه `launch.json` لخادم التطوير.
 
 **تسلسل الـ commits (الأقدم أولًا):**
-`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج
+`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج ← `1a3da05` تحديث الحالة ← `3609528` CLAUDE.md (قاعدة مزامنة الحالة)
 
 ---
 
@@ -230,10 +230,35 @@
 
 ---
 
-## 10. بنود مفتوحة للمتابعة
+## 10. قيد التنفيذ، التالي، والبنود المفتوحة
+
+> **قاعدة دائمة (في `CLAUDE.md`، commit `3609528`):** بعد كل push يُحدَّث هذا الملف في commit مستقل باسم `docs: update PROJECT_STATUS` ويُرفع أيضًا، ولا يُخلط مع commits الميزات.
+
+### قيد التنفيذ
+- لا شيء. آخر عمل (مهلة الجلسة والمسودات و`next` الآمن) مكتمل ومرفوع.
+
+### التالي (مقترح)
+1. **اختبار E2E لإنشاء القضية**، بعد إنشاء حساب الاختبار (انظر "بانتظارك" أدناه).
+2. **بنود الموبايل المعلّقة** في القسم 5: الجداول العريضة، التقويم، أزرار اللمس، و RTL في PricingSection.
+3. **تنظيف:** حذف `clients/new` وحذف CSS التقويم الميت.
+
+### ⏳ بانتظارك
+- [ ] **إنشاء حساب اختبار E2E:** `.env.local` يشير إلى `test-e2e@example.com`، والحساب **غير موجود** في قاعدة البيانات الحالية (تحقق read-only بتاريخ 2026-09-24، صفر نتائج). لذلك `login.spec.ts` (الملتزم به) و`create-case.spec.ts` يفشلان في تسجيل الدخول. يجب إنشاؤه بنفس بيانات `.env.local` عبر `/register` أو seed. هذا لا يُنفَّذ من Claude.
+- [ ] **نشر الإنتاج:** زر القائمة في الموبايل يظهر أبيض على أبيض في الإنتاج إلى أن يُنشر `714fcbe` والـ commits التي بعده، ومعها إصلاح padding الموبايل `820b603`.
+- [ ] **HawkScan:** لا يعمل لأن `HAWK_API_KEY` غير مضبوط.
+
+### `tests/e2e/create-case.spec.ts`: ما ينقصه قبل الـ commit
+- **المانع:** حساب الاختبار غير موجود (أعلاه).
+- **Timeouts قصيرة:** تسجيل الدخول في dev يستغرق 8–15 ثانية (حتى الفاشل منه)، بينما `waitForURL` = 20 ثانية تشمل compile الصفحة، و`expect` الافتراضي = 5 ثوانٍ. يحتاج نحو 45 ثانية.
+- **Selectors هشّة:** `input[dir]` مع `nth(1)` لعنوان القضية، و`input[autocomplete="off"]` لبحث الموكل. يُفضّل إضافة `name` أو `data-testid` ثابت للحقلين.
+- **تنسيق:** إزاحة سطر `test.setTimeout(60_000)` خاطئة.
+- بعد إنشاء الحساب: تُطبَّق هذه الإصلاحات مع الملف في commit واحد، ويُشغَّل الاختباران حتى ينجحا.
+
+### Bugs موثّقة، لم تُصلح بعد
+- [ ] **رسالة التحقق في نموذج إنشاء القضية ناقصة:** النموذج يتطلب المحامي المسؤول (`leadLawyerId`)، لكن الرسالة تقول فقط "الموكل وعنوان القضية مطلوبان" (`src/app/dashboard/cases/page.tsx`).
+- [ ] **تسجيل الدخول بطيء جدًا في dev:** 8–15 ثانية لكل طلب `/api/auth/login`، شبه كلها في application code. يستحق التحقيق (bcrypt cost؟ تأخير متعمد للمحاولات الفاشلة؟ زمن الاتصال بقاعدة البيانات؟).
+
+### تنظيف مقترح
 - [ ] **`src/app/dashboard/clients/new/page.tsx`: صفحة غير مستخدمة، مرشّحة للحذف.** لا يوجد أي رابط إليها في الواجهة، فقط في خريطة عناوين `DynamicDocumentTitle.tsx`. نموذج إنشاء الموكل المستخدم فعليًا هو الـ modal في `clients/page.tsx`.
 - [ ] **CSS ميت لأزرار FullCalendar** في `globals.css`: القواعد الأضعف التي تشير لـ `--sidebar` تتغلب عليها قواعد `--sidebar-dark`، ويمكن حذفها.
 - [ ] **`.dark input { background-color: #061b1c }`** في `globals.css` يتغلب على خلفية حقل البحث في dark، في الـ TopBar والـ drawer معًا. فرق بسيط، وليس خطأ.
-- [ ] **نشر الإنتاج:** زر القائمة في الموبايل يظهر أبيض على أبيض في الإنتاج إلى أن يُنشر `714fcbe` والـ commits التي بعده.
-- [ ] **HawkScan:** لا يعمل لأن `HAWK_API_KEY` غير مضبوط.
-- [ ] **`tests/e2e/create-case.spec.ts`:** غير ملتزم به ولم يُراجع بعد.
