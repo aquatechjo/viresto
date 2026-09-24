@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { SESSION_ABSOLUTE_TIMEOUT_MS } from "@/lib/session-policy";
 
 export interface JWTPayload {
   userId: string;
@@ -12,7 +13,7 @@ export interface JWTPayload {
 }
 
 export const COOKIE = "ld_token";
-const TTL_SEC = 60 * 60 * 24 * 7;
+const TTL_SEC = SESSION_ABSOLUTE_TIMEOUT_MS / 1000;
 const JWT_ISSUER = "viresto";
 const JWT_AUDIENCE = "viresto-app";
 

@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  SESSION_ABSOLUTE_TIMEOUT_MS,
   SESSION_IDLE_TIMEOUT_MS,
   SESSION_IDLE_WARNING_MS,
   SESSION_TOUCH_INTERVAL_MS,
   hasUsableSessionId,
   isActivityRequestMethod,
+  sessionAbsoluteExpired,
   sessionExpired,
   sessionMatchesToken,
   shouldTouchSession,
@@ -126,4 +128,21 @@ test("only write requests count as user activity", () => {
   for (const method of ["GET", "HEAD", "OPTIONS", "get", "", undefined, null]) {
     assert.equal(isActivityRequestMethod(method), false, String(method));
   }
+});
+
+test("absolute limit is twelve hours regardless of activity", () => {
+  assert.equal(SESSION_ABSOLUTE_TIMEOUT_MS, 12 * 60 * 60 * 1000);
+  assert.equal(
+    sessionAbsoluteExpired(new Date(nowMs - SESSION_ABSOLUTE_TIMEOUT_MS), nowMs),
+    false,
+  );
+  assert.equal(
+    sessionAbsoluteExpired(
+      new Date(nowMs - SESSION_ABSOLUTE_TIMEOUT_MS - 1),
+      nowMs,
+    ),
+    true,
+  );
+  assert.equal(sessionAbsoluteExpired(null, nowMs), true);
+  assert.equal(sessionAbsoluteExpired(new Date(Number.NaN), nowMs), true);
 });

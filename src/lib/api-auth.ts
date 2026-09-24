@@ -9,6 +9,7 @@ import {
   SESSION_TOUCH_INTERVAL_MS,
   hasUsableSessionId,
   isActivityRequestMethod,
+  sessionAbsoluteExpired,
   sessionExpired,
   sessionMatchesToken,
   shouldTouchSession,
@@ -64,6 +65,7 @@ export type AuthenticatedUser = {
 type AuthCacheEntry = {
   expiresAt: number;
   lastActivityAt: number;
+  sessionCreatedAt: number;
   user: AuthenticatedUser;
 };
 
@@ -120,6 +122,11 @@ function getCachedAuth(cacheKey: string) {
     return null;
   }
 
+  if (sessionAbsoluteExpired(new Date(cached.sessionCreatedAt), now)) {
+    authCache.delete(cacheKey);
+    return null;
+  }
+
   return cached.user;
 }
 
@@ -127,6 +134,7 @@ function setCachedAuth(
   cacheKey: string,
   user: AuthenticatedUser,
   lastActivityAt: Date,
+  sessionCreatedAt: Date,
 ) {
   if (AUTH_CACHE_TTL_MS <= 0) return;
 
@@ -135,6 +143,7 @@ function setCachedAuth(
   authCache.set(cacheKey, {
     user,
     lastActivityAt: lastActivityAt.getTime(),
+    sessionCreatedAt: sessionCreatedAt.getTime(),
     expiresAt: now + AUTH_CACHE_TTL_MS,
   });
 
@@ -235,6 +244,7 @@ export async function validateSessionPayload(
         tenantId: true,
         isActive: true,
         lastActivityAt: true,
+        createdAt: true,
       },
     }),
 
@@ -296,6 +306,26 @@ export async function validateSessionPayload(
     return {
       ok: false,
       message: "انتهت الجلسة بسبب عدم النشاط. يرجى تسجيل الدخول مجددًا.",
+    };
+  }
+
+  if (sessionAbsoluteExpired(session.createdAt)) {
+    authCache.delete(cacheKey);
+
+    await prisma.session.updateMany({
+      where: {
+        id: tokenUser.sessionId,
+        userId: tokenUser.userId,
+        tenantId: tokenUser.tenantId,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return {
+      ok: false,
+      message: "انتهت المدة القصوى للجلسة. يرجى تسجيل الدخول مجددًا.",
     };
   }
 
@@ -375,7 +405,7 @@ export async function validateSessionPayload(
     },
   };
 
-  setCachedAuth(cacheKey, user, lastActivityAtForCache);
+  setCachedAuth(cacheKey, user, lastActivityAtForCache, session.createdAt);
 
   return {
     ok: true,

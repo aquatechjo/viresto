@@ -5,6 +5,9 @@ export const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 // warning.
 export const SESSION_IDLE_WARNING_MS = 60 * 1000;
 export const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
+// Hard cap on a session's lifetime regardless of activity. Also used as the
+// JWT/cookie lifetime in auth.ts.
+export const SESSION_ABSOLUTE_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 
 const ACTIVITY_REQUEST_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -73,6 +76,19 @@ export function sessionExpired(
   if (!Number.isFinite(lastActivityMs)) return true;
 
   return nowMs - lastActivityMs > SESSION_IDLE_TIMEOUT_MS;
+}
+
+export function sessionAbsoluteExpired(
+  createdAt?: Date | null,
+  nowMs = Date.now(),
+) {
+  if (!createdAt) return true;
+
+  const createdAtMs = createdAt.getTime();
+
+  if (!Number.isFinite(createdAtMs)) return true;
+
+  return nowMs - createdAtMs > SESSION_ABSOLUTE_TIMEOUT_MS;
 }
 
 export function shouldTouchSession(

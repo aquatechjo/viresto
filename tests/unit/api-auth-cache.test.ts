@@ -16,6 +16,7 @@ type SessionRow = {
   tenantId: string;
   isActive: boolean;
   lastActivityAt: Date;
+  createdAt: Date;
 };
 
 type UserRow = {
@@ -51,6 +52,7 @@ function makeSessionRow(): SessionRow {
     tenantId: TENANT_ID,
     isActive: true,
     lastActivityAt: new Date(),
+    createdAt: new Date(),
   };
 }
 
@@ -211,4 +213,20 @@ test("a write (touch: true) refreshes lastActivityAt once the touch interval has
 
   assert.equal(result.ok, true);
   assert.equal(sessionUpdateManyMock.mock.callCount(), 1);
+});
+
+test("a session older than the absolute limit is rejected and deactivated", async () => {
+  sessionFindUniqueMock.mock.mockImplementationOnce(async () => ({
+    ...makeSessionRow(),
+    createdAt: new Date(Date.now() - 13 * 60 * 60 * 1000),
+  }));
+
+  const result = await validateSessionPayload(tokenUser());
+
+  assert.equal(result.ok, false);
+  assert.equal(sessionUpdateManyMock.mock.callCount(), 1);
+  const [args] = sessionUpdateManyMock.mock.calls[0].arguments as [
+    { data: { isActive: boolean } },
+  ];
+  assert.equal(args.data.isActive, false);
 });
