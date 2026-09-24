@@ -1,15 +1,14 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
-import { Search, Scale } from "lucide-react";
+import DashboardSearch from "./DashboardSearch";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import { translations } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
-import { startNavigationFeedback } from "@/lib/navigation-feedback";
 
 const TITLE_KEYS: Record<string, keyof typeof translations.ar.dashboard> = {
   "/dashboard": "title",
@@ -30,43 +29,6 @@ const TITLE_KEYS: Record<string, keyof typeof translations.ar.dashboard> = {
   "/dashboard/team": "team",
 };
 
-function useDebounce<T>(value: T, delay: number) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedValue(value), delay);
-
-    return () => window.clearTimeout(timeout);
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
-interface SearchResults {
-  clients: any[];
-  cases: any[];
-  tasks: any[];
-  documents: any[];
-}
-
-const EMPTY_RESULTS: SearchResults = {
-  clients: [],
-  cases: [],
-  tasks: [],
-  documents: [],
-};
-
-function normalizeSearchResults(
-  data: Partial<SearchResults> | null | undefined,
-): SearchResults {
-  return {
-    clients: Array.isArray(data?.clients) ? data.clients : [],
-    cases: Array.isArray(data?.cases) ? data.cases : [],
-    tasks: Array.isArray(data?.tasks) ? data.tasks : [],
-    documents: Array.isArray(data?.documents) ? data.documents : [],
-  };
-}
-
 const COMPACT_CONTROL =
   "[&_button]:!flex [&_button]:!h-10 [&_button]:!w-10 [&_button]:!min-w-10 " +
   "[&_button]:!items-center [&_button]:!justify-center " +
@@ -83,7 +45,6 @@ interface TopBarProps {
 
 export default function TopBar({ sidebarCollapsed }: TopBarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { locale, isRtl } = useLocale();
   const t = translations[locale];
 
@@ -94,68 +55,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
 
   const title = t.dashboard[titleKey] ?? t.dashboard.title;
 
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResults | null>(null);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [dateStr, setDateStr] = useState("");
-
-  const debouncedQuery = useDebounce(query, 280);
-  const searchRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
-      if (
-        searchRef.current &&
-        !searchRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (debouncedQuery.length < 2) {
-      setResults(null);
-      setLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    setLoading(true);
-
-    fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`, {
-      signal: controller.signal,
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (controller.signal.aborted) return;
-
-        setResults(
-          data?.success ? normalizeSearchResults(data.data) : EMPTY_RESULTS,
-        );
-      })
-      .catch((error) => {
-        if ((error as Error).name !== "AbortError") {
-          setResults(EMPTY_RESULTS);
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [debouncedQuery]);
 
   useEffect(() => {
     const formatter =
@@ -173,40 +73,6 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
 
     setDateStr(formatter.format(new Date()));
   }, [locale]);
-
-  const safeResults = results ?? EMPTY_RESULTS;
-
-  const hasResults =
-    safeResults.clients.length +
-      safeResults.cases.length +
-      safeResults.tasks.length +
-      safeResults.documents.length >
-    0;
-
-  const statusLabels = t.cases.statuses as Record<string, string>;
-
-  const priorityDot: Record<string, string> = {
-    HIGH: "🔴",
-    MEDIUM: "🟡",
-    LOW: "🟢",
-  };
-
-  const alignClass = isRtl ? "text-right" : "text-left";
-
-  function closeSearch() {
-    setOpen(false);
-    setQuery("");
-  }
-
-  function navigateFromSearch(href: string) {
-    startNavigationFeedback();
-    router.push(href);
-    closeSearch();
-  }
-
-  function warmSearchRoute(href: string) {
-    router.prefetch(href);
-  }
 
   return (
     <header
@@ -228,10 +94,10 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
     >
       <div
         className="
-          grid min-h-[112px] w-full min-w-0
+          grid min-h-[64px] w-full min-w-0
           grid-cols-[minmax(0,1fr)_auto_auto_auto]
           items-center gap-x-1.5 gap-y-2 py-2.5
-          sm:min-h-[116px] sm:gap-x-2
+          sm:min-h-[68px] sm:gap-x-2
           xl:min-h-[76px]
           xl:grid-cols-[minmax(280px,1fr)_auto_auto_auto_auto_auto]
           xl:gap-3 xl:py-3
@@ -285,205 +151,11 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
           📅 {dateStr || "—"}
         </span>
 
-        {/* Search — full-width second row on mobile/tablet */}
-        <div
-          ref={searchRef}
-          className="
-            relative col-span-full row-start-2 w-full min-w-0
-            xl:col-span-1 xl:col-start-1 xl:row-start-1
-            xl:min-w-[280px] xl:max-w-[860px]
-          "
-        >
-          <span
-            className={`
-              pointer-events-none absolute top-1/2 -translate-y-1/2
-              text-emerald-200
-              ${isRtl ? "right-3" : "left-3"}
-            `}
-          >
-            <Search className="h-4 w-4" aria-hidden="true" />
-          </span>
-
-          <input
-            aria-label={t.topbar.searchPlaceholder}
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            placeholder={t.topbar.searchPlaceholder}
-            className={`
-              h-10 w-full rounded-2xl border border-[var(--landing-border-strong)] bg-[#103334]/90 py-2
-              text-[16px] font-semibold text-white placeholder:text-emerald-200/70
-              shadow-none outline-none transition-all hover:border-copper-400/60
-              focus:border-copper-400 focus:ring-4 focus:ring-copper-400/10
-              sm:h-11 sm:text-sm
-              ${isRtl ? "pr-10 pl-10 text-right" : "pl-10 pr-10 text-left"}
-            `}
-          />
-
-          {loading && (
-            <span
-              className={`
-                spinner-sm spinner absolute top-1/2 -translate-y-1/2
-                ${isRtl ? "left-3" : "right-3"}
-              `}
-            />
-          )}
-
-          {open && query.length >= 2 && (
-            <div
-              className={`
-                absolute top-full z-[55] mt-2 max-h-[62vh] w-full
-                max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-2xl
-                border border-[var(--landing-border)] bg-[var(--landing-surface)] shadow-2xl
-                xl:min-w-[440px]
-                ${isRtl ? "right-0" : "left-0"}
-              `}
-            >
-              {!hasResults && !loading && (
-                <p className="px-4 py-4 text-center text-sm text-slate-500 dark:text-emerald-100/70">
-                  {t.topbar.noResultsFor} &quot;{query}&quot;
-                </p>
-              )}
-
-              {safeResults.clients.map((client) => (
-                <button
-                  type="button"
-                  key={client.id}
-                  onMouseEnter={() =>
-                    warmSearchRoute(
-                      `/dashboard/clients/${client.publicId ?? client.id}`,
-                    )
-                  }
-                  onFocus={() =>
-                    warmSearchRoute(
-                      `/dashboard/clients/${client.publicId ?? client.id}`,
-                    )
-                  }
-                  onClick={() =>
-                    navigateFromSearch(
-                      `/dashboard/clients/${client.publicId ?? client.id}`,
-                    )
-                  }
-                  className={`flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:hover:bg-[var(--brand-surface-2)]`}
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-500/15 text-xs font-bold text-teal-700 dark:bg-teal-300/10 dark:text-teal-200">
-                    {client.name?.[0] ?? "C"}
-                  </span>
-
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`truncate text-sm font-semibold text-slate-800 dark:text-emerald-50 ${alignClass}`}
-                    >
-                      {client.name}
-                    </p>
-
-                    <p
-                      className={`truncate text-xs text-slate-500 dark:text-emerald-200 ${alignClass}`}
-                    >
-                      {client.phone ?? (locale === "ar" ? "موكل" : "Client")}
-                    </p>
-                  </div>
-                </button>
-              ))}
-
-              {safeResults.cases.map((caseItem) => (
-                <button
-                  type="button"
-                  key={caseItem.id}
-                  onMouseEnter={() =>
-                    warmSearchRoute(
-                      `/dashboard/cases/${caseItem.publicId ?? caseItem.id}`,
-                    )
-                  }
-                  onFocus={() =>
-                    warmSearchRoute(
-                      `/dashboard/cases/${caseItem.publicId ?? caseItem.id}`,
-                    )
-                  }
-                  onClick={() =>
-                    navigateFromSearch(
-                      `/dashboard/cases/${caseItem.publicId ?? caseItem.id}`,
-                    )
-                  }
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[var(--brand-border)] dark:hover:bg-[var(--brand-surface-2)]`}
-                >
-                  <Scale className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
-
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`truncate text-sm font-semibold text-slate-800 dark:text-emerald-50 ${alignClass}`}
-                    >
-                      {caseItem.title}
-                    </p>
-
-                    <p
-                      className={`truncate text-xs text-slate-500 dark:text-emerald-200 ${alignClass}`}
-                    >
-                      {caseItem.client?.name} ·{" "}
-                      {statusLabels[caseItem.status] ?? caseItem.status}
-                    </p>
-                  </div>
-                </button>
-              ))}
-
-              {safeResults.tasks.map((task) => (
-                <button
-                  type="button"
-                  key={task.id}
-                  onMouseEnter={() => warmSearchRoute("/dashboard/tasks")}
-                  onFocus={() => warmSearchRoute("/dashboard/tasks")}
-                  onClick={() => navigateFromSearch("/dashboard/tasks")}
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[var(--brand-border)] dark:hover:bg-[var(--brand-surface-2)]`}
-                >
-                  <span className="shrink-0 text-xs">
-                    {priorityDot[task.priority]}
-                  </span>
-
-                  <p
-                    className={`min-w-0 flex-1 truncate text-sm text-slate-800 dark:text-emerald-50 ${alignClass} ${
-                      task.completed ? "line-through" : ""
-                    }`}
-                  >
-                    {task.title}
-                  </p>
-                </button>
-              ))}
-
-              {safeResults.documents.map((document) => (
-                <button
-                  type="button"
-                  key={document.id}
-                  onMouseEnter={() =>
-                    warmSearchRoute("/dashboard/documents")
-                  }
-                  onFocus={() => warmSearchRoute("/dashboard/documents")}
-                  onClick={() => navigateFromSearch("/dashboard/documents")}
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[var(--brand-border)] dark:hover:bg-[var(--brand-surface-2)]`}
-                >
-                  <span className="shrink-0 text-xs">📄</span>
-
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`truncate text-sm font-semibold text-slate-800 dark:text-emerald-50 ${alignClass}`}
-                    >
-                      {document.fileName}
-                    </p>
-
-                    <p
-                      className={`truncate text-xs text-slate-500 dark:text-emerald-200 ${alignClass}`}
-                    >
-                      {locale === "ar" ? "مستند" : "Document"} ·{" "}
-                      {document.fileType}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Search — desktop only; below xl it lives in the Sidebar drawer */}
+        <DashboardSearch
+          variant="topbar"
+          className="hidden xl:col-span-1 xl:col-start-1 xl:row-start-1 xl:block xl:min-w-[280px] xl:max-w-[860px]"
+        />
       </div>
     </header>
   );

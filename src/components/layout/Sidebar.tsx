@@ -25,6 +25,7 @@ import {
   ListTodo,
 } from "lucide-react";
 
+import DashboardSearch from "./DashboardSearch";
 import { initials } from "@/lib/utils";
 import { translations } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
@@ -377,6 +378,16 @@ export default function Sidebar({
             )}
           </div>
         </div>
+
+        {/* Search — drawer only; on xl+ it stays in the TopBar */}
+        {mobile && (
+          <div className="shrink-0 px-3 pt-3 sm:px-4">
+            <DashboardSearch
+              variant="drawer"
+              onNavigate={() => setMobileOpen(false)}
+            />
+          </div>
+        )}
 
         {/* Navigation */}
         <nav
