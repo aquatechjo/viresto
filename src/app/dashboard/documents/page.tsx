@@ -320,7 +320,7 @@ function UploadProgressIcon() {
   return (
     <div className="relative h-16 w-16" aria-hidden="true">
       <div className="absolute inset-0 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 shadow-[0_0_28px_rgba(53, 138, 136,0.18)]" />
-      <div className="absolute inset-2 rounded-xl border border-emerald-300/20 bg-[#041819]" />
+      <div className="absolute inset-2 rounded-xl border border-emerald-300/20 bg-[var(--landing-canvas)]" />
 
       <div className="absolute left-1/2 top-1/2 h-8 w-7 -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-emerald-200/80 bg-emerald-300/10">
         <div className="mx-auto mt-1 h-1 w-3 rounded-full bg-emerald-200/70" />

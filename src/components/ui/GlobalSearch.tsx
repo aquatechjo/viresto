@@ -85,7 +85,7 @@ export default function GlobalSearch() {
           onFocus={() => setOpen(true)}
           placeholder="بحث في العملاء، القضايا، المهام..."
           className="
-            w-full bg-[#0b292a] border border-[#286061] rounded-xl
+            w-full bg-[var(--landing-surface)] border border-[var(--landing-border-strong)] rounded-xl
             pr-9 pl-4 py-2 text-sm text-white placeholder-gray-500
             focus:outline-none focus:border-[#b87333]/60 focus:ring-1 focus:ring-[#b87333]/20
             transition-all
@@ -93,14 +93,14 @@ export default function GlobalSearch() {
         />
         {loading && (
           <div className="absolute left-3 top-1/2 -translate-y-1/2">
-            <div className="w-3 h-3 border-2 border-[#b87333]/40 border-t-[#b87333] rounded-full animate-spin" />
+            <div className="w-3 h-3 border-2 border-[#b87333]/40 border-t-[var(--landing-copper)] rounded-full animate-spin" />
           </div>
         )}
       </div>
 
       {/* Dropdown */}
       {open && query.length >= 2 && (
-        <div className="absolute z-50 top-full mt-2 w-80 bg-[#0b292a] border border-[#286061] rounded-xl shadow-2xl overflow-hidden">
+        <div className="absolute z-50 top-full mt-2 w-80 bg-[var(--landing-surface)] border border-[var(--landing-border-strong)] rounded-xl shadow-2xl overflow-hidden">
           {!hasResults && !loading && (
             <div className="p-4 text-center text-sm text-gray-500">لا توجد نتائج لـ &quot;{query}&quot;</div>
           )}
@@ -108,11 +108,11 @@ export default function GlobalSearch() {
           {/* Clients */}
           {results?.clients && results.clients.length > 0 && (
             <section>
-              <div className="px-3 py-1.5 text-xs text-gray-500 bg-[#082223] border-b border-[#286061]">العملاء</div>
+              <div className="px-3 py-1.5 text-xs text-gray-500 bg-[var(--landing-shell)] border-b border-[var(--landing-border-strong)]">العملاء</div>
               {results.clients.map(c => (
                 <button key={c.id} onClick={() => navigate(`/dashboard/clients/${c.id}`)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#123f40] transition-colors text-right">
-                  <div className="w-7 h-7 rounded-full bg-[#b87333]/20 flex items-center justify-center text-[#b87333] text-xs font-bold shrink-0">
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--landing-surface-2)] transition-colors text-right">
+                  <div className="w-7 h-7 rounded-full bg-[#b87333]/20 flex items-center justify-center text-[var(--landing-copper)] text-xs font-bold shrink-0">
                     {c.name[0]}
                   </div>
                   <div className="min-w-0">
@@ -127,10 +127,10 @@ export default function GlobalSearch() {
           {/* Cases */}
           {results?.cases && results.cases.length > 0 && (
             <section>
-              <div className="px-3 py-1.5 text-xs text-gray-500 bg-[#082223] border-b border-[#286061] border-t">القضايا</div>
+              <div className="px-3 py-1.5 text-xs text-gray-500 bg-[var(--landing-shell)] border-b border-[var(--landing-border-strong)] border-t">القضايا</div>
               {results.cases.map(c => (
                 <button key={c.id} onClick={() => navigate(`/dashboard/cases/${c.id}`)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#123f40] transition-colors text-right">
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--landing-surface-2)] transition-colors text-right">
                   <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs shrink-0">
                     ⚖️
                   </div>
@@ -152,10 +152,10 @@ export default function GlobalSearch() {
           {/* Appointments */}
           {results?.appointments && results.appointments.length > 0 && (
             <section>
-              <div className="px-3 py-1.5 text-xs text-gray-500 bg-[#082223] border-b border-[#286061] border-t">المواعيد</div>
+              <div className="px-3 py-1.5 text-xs text-gray-500 bg-[var(--landing-shell)] border-b border-[var(--landing-border-strong)] border-t">المواعيد</div>
               {results.appointments.map(a => (
                 <button key={a.id} onClick={() => navigate('/dashboard/appointments')}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#123f40] transition-colors text-right">
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--landing-surface-2)] transition-colors text-right">
                   <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 text-xs shrink-0">📅</div>
                   <div className="min-w-0">
                     <p className="text-sm text-white truncate">{a.title}</p>
@@ -171,10 +171,10 @@ export default function GlobalSearch() {
           {/* Tasks */}
           {results?.tasks && results.tasks.length > 0 && (
             <section>
-              <div className="px-3 py-1.5 text-xs text-gray-500 bg-[#082223] border-b border-[#286061] border-t">المهام</div>
+              <div className="px-3 py-1.5 text-xs text-gray-500 bg-[var(--landing-shell)] border-b border-[var(--landing-border-strong)] border-t">المهام</div>
               {results.tasks.map(t => (
                 <button key={t.id} onClick={() => navigate('/dashboard/tasks')}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#123f40] transition-colors text-right">
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--landing-surface-2)] transition-colors text-right">
                   <div className="w-7 h-7 rounded-full bg-orange-500/20 flex items-center justify-center text-xs shrink-0">
                     {PRIORITY_LABELS[t.priority]}
                   </div>

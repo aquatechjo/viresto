@@ -182,7 +182,7 @@ function badgeVisualStyle(value: string): CSSProperties {
   if (value === "OVERDUE" || value === "URGENT" || value === "HIGH") {
     return {
       background: "var(--red-soft, rgba(220, 38, 38, 0.12))",
-      color: "#dc2626",
+      color: "var(--danger)",
       borderColor: "rgba(220, 38, 38, 0.24)",
     };
   }
@@ -1323,7 +1323,7 @@ export default function CaseDetailPage() {
                   className="rounded-full px-3 py-1 text-xs font-black"
                   style={{
                     background: "#fff7ed",
-                    color: "#b45309",
+                    color: "var(--warning)",
                     border: "1px solid rgba(180, 83, 9, 0.22)",
                   }}
                 >
@@ -1488,7 +1488,7 @@ export default function CaseDetailPage() {
           className="rounded-3xl border p-5 text-sm font-bold leading-7"
           style={{
             background: "#fff7ed",
-            color: "#b45309",
+            color: "var(--warning)",
             borderColor: "rgba(180, 83, 9, 0.22)",
           }}
         >
@@ -1514,7 +1514,7 @@ export default function CaseDetailPage() {
           {
             label: pageText.remaining,
             value: formatMoney(totals.remaining),
-            color: totals.remaining > 0 ? "#dc2626" : "var(--text-3)",
+            color: totals.remaining > 0 ? "var(--danger)" : "var(--text-3)",
             bg: totals.remaining > 0 ? "var(--red-soft)" : "var(--card)",
           },
           {
@@ -1711,7 +1711,7 @@ export default function CaseDetailPage() {
                   className="mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-black"
                   style={{
                     background: "#fff7ed",
-                    color: "#b45309",
+                    color: "var(--warning)",
                     borderColor: "rgba(180, 83, 9, 0.22)",
                   }}
                 >
@@ -1850,7 +1850,7 @@ export default function CaseDetailPage() {
                       ? "var(--accent-fill)"
                       : totals.pct >= 60
                         ? "#f59e0b"
-                        : "#dc2626",
+                        : "var(--danger)",
                 }}
               />
             </div>
@@ -2448,7 +2448,7 @@ export default function CaseDetailPage() {
                         className="btn text-xs disabled:cursor-not-allowed disabled:opacity-40"
                         style={{
                           background: "var(--red-soft)",
-                          color: "#dc2626",
+                          color: "var(--danger)",
                         }}
                       >
                         {pageText.delete}
@@ -2481,7 +2481,7 @@ export default function CaseDetailPage() {
               className="rounded-2xl border p-3 text-xs font-bold leading-6"
               style={{
                 background: "#fff7ed",
-                color: "#b45309",
+                color: "var(--warning)",
                 borderColor: "rgba(180, 83, 9, 0.22)",
               }}
             >
@@ -2704,7 +2704,7 @@ export default function CaseDetailPage() {
               className="rounded-2xl border p-3 text-xs font-bold leading-6"
               style={{
                 background: "#fff7ed",
-                color: "#b45309",
+                color: "var(--warning)",
                 borderColor: "rgba(180, 83, 9, 0.22)",
               }}
             >
@@ -3307,7 +3307,7 @@ export default function CaseDetailPage() {
               disabled={deleteLoading}
               onClick={confirmDeletePayment}
               className="btn flex-1"
-              style={{ background: "#dc2626", color: "#fff" }}
+              style={{ background: "var(--danger)", color: "#fff" }}
             >
               {deleteLoading ? pageText.deleting : pageText.delete}
             </button>
@@ -3349,7 +3349,7 @@ export default function CaseDetailPage() {
 
         .case-detail-page .badge-red {
           background: var(--red-soft) !important;
-          color: #dc2626 !important;
+          color: var(--danger) !important;
         }
 
         .case-detail-page .badge-gray {
@@ -3409,7 +3409,7 @@ function MiniMetric({
       <p
         dir="ltr"
         className="mt-1 whitespace-nowrap text-sm font-black"
-        style={{ color: danger ? "#dc2626" : "var(--text)" }}
+        style={{ color: danger ? "var(--danger)" : "var(--text)" }}
       >
         {value}
       </p>

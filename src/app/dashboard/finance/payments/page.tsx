@@ -521,7 +521,7 @@ function FinanceSuccessOverlay({
           className="finance-success-topline absolute inset-x-0 top-0 h-1"
           style={{
             background:
-              "linear-gradient(90deg, transparent, #b87333, #f1c27d, transparent)",
+              "linear-gradient(90deg, transparent, var(--landing-copper), #f1c27d, transparent)",
           }}
         />
 
@@ -571,7 +571,7 @@ function FinanceSuccessOverlay({
           <div
             className="finance-success-progress h-full rounded-full"
             style={{
-              background: "linear-gradient(90deg,#0f5253,#b87333)",
+              background: "linear-gradient(90deg,var(--landing-surface-hover),var(--landing-copper))",
             }}
           />
         </div>
@@ -1021,8 +1021,8 @@ export default function PaymentsPage() {
               }
               className="btn min-h-[46px] px-6 disabled:cursor-not-allowed disabled:opacity-50"
               style={{
-                background: '#b87333',
-                color: '#041819',
+                background: 'var(--landing-copper)',
+                color: 'var(--landing-canvas)',
                 borderColor: 'rgba(184,115,51,0.5)',
               }}
             >
@@ -1366,7 +1366,7 @@ export default function PaymentsPage() {
                             <button
                               type="button"
                               onClick={() => updatePaymentStatus(payment, draftStatus)}
-                              className="h-7 rounded-lg bg-[#b87333] px-2.5 text-[10px] font-black text-[#041819] transition hover:bg-[#cc8e55]"
+                              className="h-7 rounded-lg bg-[var(--landing-copper)] px-2.5 text-[10px] font-black text-[var(--landing-canvas)] transition hover:bg-[var(--landing-copper-hover)]"
                             >
                               {copy.actions.saveStatus}
                             </button>

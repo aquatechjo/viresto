@@ -888,7 +888,7 @@ export default function ActivityPage() {
         return href ? (
           <Link
             href={href}
-            className="inline-flex items-center justify-center rounded-xl border border-emerald-500/30 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
+            className="inline-flex items-center justify-center rounded-xl border border-emerald-500/30 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[var(--brand-surface-2)]"
           >
             {copy.table.view}
           </Link>
@@ -1048,7 +1048,7 @@ export default function ActivityPage() {
           <button
             type="submit"
             disabled={refreshing}
-            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:bg-[#1c5354] dark:text-emerald-50 dark:hover:bg-[#23696a]"
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:bg-[var(--brand-surface-hover)] dark:text-emerald-50 dark:hover:bg-[var(--brand-border-strong)]"
             title={copy.filters.search}
           >
             <Search className="h-4 w-4" />
@@ -1103,7 +1103,7 @@ export default function ActivityPage() {
                 type="button"
                 disabled={!pagination.hasPreviousPage || refreshing}
                 onClick={() => setPage((current) => Math.max(current - 1, 1))}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[var(--brand-surface-2)]"
               >
                 {copy.table.previous}
               </button>
@@ -1126,8 +1126,8 @@ export default function ActivityPage() {
                       onClick={() => setPage(pageNumber)}
                       className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl border px-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         pagination.page === pageNumber
-                          ? "border-emerald-500 bg-emerald-600 text-white shadow-sm dark:border-emerald-300 dark:bg-emerald-300 dark:text-[#072829]"
-                          : "border-emerald-500/30 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
+                          ? "border-emerald-500 bg-emerald-600 text-white shadow-sm dark:border-emerald-300 dark:bg-emerald-300 dark:text-[var(--brand-canvas)]"
+                          : "border-emerald-500/30 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[var(--brand-surface-2)]"
                       }`}
                     >
                       {pageNumber}
@@ -1144,7 +1144,7 @@ export default function ActivityPage() {
                     Math.min(current + 1, Math.max(pagination.totalPages, 1)),
                   )
                 }
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[#123f40]"
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/30 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/30 dark:text-emerald-100 dark:hover:bg-[var(--brand-surface-2)]"
               >
                 {copy.table.next}
               </button>

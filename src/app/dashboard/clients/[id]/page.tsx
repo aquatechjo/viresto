@@ -898,7 +898,7 @@ export default function ClientDetailPage() {
           style={{
             background: "#fff7ed",
             borderColor: "rgba(180, 83, 9, 0.22)",
-            color: "#b45309",
+            color: "var(--warning)",
           }}
         >
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -915,7 +915,7 @@ export default function ClientDetailPage() {
               disabled={archiving || deleting}
               className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
               style={{
-                background: "#b45309",
+                background: "var(--warning)",
                 color: "#fff",
                 borderColor: "rgba(180, 83, 9, 0.25)",
               }}
@@ -950,7 +950,7 @@ export default function ClientDetailPage() {
           {
             label: text.stats.remaining,
             value: formatMoney(totals.totalRemaining, localeKey),
-            color: totals.totalRemaining > 0 ? "#dc2626" : "var(--text-3)",
+            color: totals.totalRemaining > 0 ? "var(--danger)" : "var(--text-3)",
             bg: totals.totalRemaining > 0 ? "var(--red-soft)" : "var(--card)",
           },
           {
@@ -1009,7 +1009,7 @@ export default function ClientDetailPage() {
                   style={{
                     background: "#fff7ed",
                     borderColor: "rgba(180, 83, 9, 0.22)",
-                    color: "#b45309",
+                    color: "var(--warning)",
                   }}
                 >
                   {text.archivedClient}
@@ -1133,7 +1133,7 @@ export default function ClientDetailPage() {
                       ? "#5bb8b3"
                       : totals.collectionRate >= 60
                         ? "#f59e0b"
-                        : "#dc2626",
+                        : "var(--danger)",
                 }}
               />
             </div>
@@ -1324,7 +1324,7 @@ export default function ClientDetailPage() {
                             dir="ltr"
                             className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
                             style={{
-                              color: remaining > 0 ? "#dc2626" : "var(--text)",
+                              color: remaining > 0 ? "var(--danger)" : "var(--text)",
                             }}
                           >
                             {formatMoney(remaining, localeKey)}
@@ -1345,7 +1345,7 @@ export default function ClientDetailPage() {
                                         ? "#5bb8b3"
                                         : percent >= 60
                                           ? "#f59e0b"
-                                          : "#dc2626",
+                                          : "var(--danger)",
                                   }}
                                 />
                               </div>
@@ -1403,7 +1403,7 @@ export default function ClientDetailPage() {
               className="rounded-2xl border p-3 text-xs font-bold"
               style={{
                 background: "#fff7ed",
-                color: "#b45309",
+                color: "var(--warning)",
                 borderColor: "rgba(180, 83, 9, 0.22)",
               }}
             >

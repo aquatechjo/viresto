@@ -79,7 +79,7 @@ const TYPE_COLOR: Record<string, string> = {
   COURT_SESSION: "var(--accent-fill)",
   MEETING: "#2563eb",
   PHONE_CALL: "#d97706",
-  DEADLINE: "#dc2626",
+  DEADLINE: "var(--danger)",
   OTHER: "var(--text-3)",
 };
 
@@ -1438,7 +1438,7 @@ export default function AppointmentsPage() {
           {
             label: a.stats.deadlines,
             value: deadlines,
-            color: deadlines > 0 ? "#dc2626" : "#6b7280",
+            color: deadlines > 0 ? "var(--danger)" : "#6b7280",
             bg: deadlines > 0 ? "var(--red-soft)" : "var(--card)",
           },
         ].map((item) => (
@@ -1923,7 +1923,7 @@ export default function AppointmentsPage() {
               className="rounded-2xl border p-3 text-xs font-bold"
               style={{
                 background: "#fff7ed",
-                color: "#b45309",
+                color: "var(--warning)",
                 borderColor: "rgba(180, 83, 9, 0.22)",
               }}
             >
@@ -2055,7 +2055,7 @@ export default function AppointmentsPage() {
                       className="rounded-full px-3 py-1 text-xs font-black"
                       style={{
                         background: "#fff7ed",
-                        color: "#b45309",
+                        color: "var(--warning)",
                         border: "1px solid rgba(180, 83, 9, 0.18)",
                       }}
                     >

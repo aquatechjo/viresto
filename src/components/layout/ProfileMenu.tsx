@@ -95,9 +95,9 @@ export default function ProfileMenu() {
           sm:h-10 sm:w-10 sm:min-w-10 sm:rounded-2xl
           xl:h-12 xl:w-auto xl:min-w-[235px] xl:justify-start xl:gap-3
           xl:px-3
-          dark:border-emerald-700/60 dark:bg-[#082c2d]
+          dark:border-emerald-700/60 dark:bg-[var(--brand-shell)]
           dark:text-emerald-50 dark:hover:border-emerald-500/80
-          dark:hover:bg-[#185354]
+          dark:hover:bg-[var(--brand-surface-hover)]
         "
       >
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0a3435] text-xs font-black text-white sm:h-8 sm:w-8 sm:rounded-xl sm:text-sm xl:h-9 xl:w-9 dark:bg-emerald-900">
@@ -134,12 +134,12 @@ export default function ProfileMenu() {
             overflow-hidden rounded-3xl border border-slate-200
             bg-white/95 shadow-2xl backdrop-blur-2xl
             xl:mt-3 xl:w-72
-            dark:border-[#0f3d3e] dark:bg-[#0b292a]/95
+            dark:border-[var(--brand-border)] dark:bg-[#0b292a]/95
             ${isRtl ? "left-0 xl:right-0 xl:left-auto" : "right-0 xl:left-0 xl:right-auto"}
           `}
         >
           <div
-            className={`border-b border-slate-200 p-4 dark:border-[#0f3d3e] ${
+            className={`border-b border-slate-200 p-4 dark:border-[var(--brand-border)] ${
               isRtl ? "text-right" : "text-left"
             }`}
           >
@@ -195,7 +195,7 @@ function MenuLink({
     <Link
       href={href}
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-slate-700 transition hover:bg-slate-100 dark:text-emerald-50 dark:hover:bg-[#123f40] ${
+      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-slate-700 transition hover:bg-slate-100 dark:text-emerald-50 dark:hover:bg-[var(--brand-surface-2)] ${
         isRtl ? "flex-row text-right" : "flex-row text-left"
       }`}
     >

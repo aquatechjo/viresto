@@ -70,11 +70,11 @@ function normalizeSearchResults(
 const COMPACT_CONTROL =
   "[&_button]:!flex [&_button]:!h-10 [&_button]:!w-10 [&_button]:!min-w-10 " +
   "[&_button]:!items-center [&_button]:!justify-center " +
-  "[&_button]:!rounded-2xl [&_button]:!border [&_button]:!border-[#286061] " +
-  "[&_button]:!bg-[#0d3435]/90 [&_button]:!px-0 [&_button]:!text-emerald-100 " +
+  "[&_button]:!rounded-2xl [&_button]:!border [&_button]:!border-[var(--landing-border-strong)] " +
+  "[&_button]:!bg-[#103334]/90 [&_button]:!px-0 [&_button]:!text-emerald-100 " +
   "[&_button]:!shadow-none " +
   "[&_button]:!transition-all [&_button:hover]:!-translate-y-px " +
-  "[&_button:hover]:!border-copper-400/60 [&_button:hover]:!bg-[#185354] " +
+  "[&_button:hover]:!border-copper-400/60 [&_button:hover]:!bg-[var(--landing-surface-hover)] " +
   "sm:[&_button]:!h-11 sm:[&_button]:!w-11 sm:[&_button]:!min-w-11";
 
 interface TopBarProps {
@@ -212,7 +212,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
     <header
       dir={isRtl ? "rtl" : "ltr"}
       className={`
-        fixed top-0 z-40 min-w-0 overflow-visible border-b border-[#1c494a]
+        fixed top-0 z-40 min-w-0 overflow-visible border-b border-[var(--landing-border)]
         bg-[linear-gradient(180deg,rgba(11,41,42,0.98)_0%,rgba(8,44,45,0.97)_100%)]
         shadow-[0_8px_28px_rgba(0,0,0,0.24)] backdrop-blur-[18px] transition-[left,right] duration-300
         ${
@@ -276,10 +276,10 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
         <span
           className="
             hidden h-10 shrink-0 items-center gap-1.5 rounded-2xl
-            border border-[#286061] bg-[#0d3435]/90 px-3 text-xs font-bold
+            border border-[var(--landing-border-strong)] bg-[#103334]/90 px-3 text-xs font-bold
             text-emerald-50 shadow-none
             transition-all hover:-translate-y-px hover:border-copper-400/60
-            hover:bg-[#185354] xl:col-start-2 xl:row-start-1 xl:flex
+            hover:bg-[var(--landing-surface-hover)] xl:col-start-2 xl:row-start-1 xl:flex
           "
         >
           📅 {dateStr || "—"}
@@ -314,7 +314,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
             onFocus={() => setOpen(true)}
             placeholder={t.topbar.searchPlaceholder}
             className={`
-              h-10 w-full rounded-2xl border border-[#286061] bg-[#0d3435]/90 py-2
+              h-10 w-full rounded-2xl border border-[var(--landing-border-strong)] bg-[#103334]/90 py-2
               text-[16px] font-semibold text-white placeholder:text-emerald-200/70
               shadow-none outline-none transition-all hover:border-copper-400/60
               focus:border-copper-400 focus:ring-4 focus:ring-copper-400/10
@@ -337,7 +337,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
               className={`
                 absolute top-full z-[55] mt-2 max-h-[62vh] w-full
                 max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-2xl
-                border border-[#1c494a] bg-[#0b292a] shadow-2xl
+                border border-[var(--landing-border)] bg-[var(--landing-surface)] shadow-2xl
                 xl:min-w-[440px]
                 ${isRtl ? "right-0" : "left-0"}
               `}
@@ -367,7 +367,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
                       `/dashboard/clients/${client.publicId ?? client.id}`,
                     )
                   }
-                  className={`flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:hover:bg-[#123f40]`}
+                  className={`flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:hover:bg-[var(--brand-surface-2)]`}
                 >
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-500/15 text-xs font-bold text-teal-700 dark:bg-teal-300/10 dark:text-teal-200">
                     {client.name?.[0] ?? "C"}
@@ -408,7 +408,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
                       `/dashboard/cases/${caseItem.publicId ?? caseItem.id}`,
                     )
                   }
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
+                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[var(--brand-border)] dark:hover:bg-[var(--brand-surface-2)]`}
                 >
                   <Scale className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
 
@@ -436,7 +436,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
                   onMouseEnter={() => warmSearchRoute("/dashboard/tasks")}
                   onFocus={() => warmSearchRoute("/dashboard/tasks")}
                   onClick={() => navigateFromSearch("/dashboard/tasks")}
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
+                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[var(--brand-border)] dark:hover:bg-[var(--brand-surface-2)]`}
                 >
                   <span className="shrink-0 text-xs">
                     {priorityDot[task.priority]}
@@ -461,7 +461,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
                   }
                   onFocus={() => warmSearchRoute("/dashboard/documents")}
                   onClick={() => navigateFromSearch("/dashboard/documents")}
-                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[#0f3d3e] dark:hover:bg-[#123f40]`}
+                  className={`flex w-full min-w-0 items-center gap-2.5 border-t border-slate-200 px-3 py-2.5 ${alignClass} transition-colors hover:bg-slate-50 dark:border-[var(--brand-border)] dark:hover:bg-[var(--brand-surface-2)]`}
                 >
                   <span className="shrink-0 text-xs">📄</span>
 

@@ -220,7 +220,7 @@ export default function NotificationBell() {
             className="
               absolute -top-1 -end-1 flex h-5 min-w-5 items-center justify-center
               rounded-full bg-red-500 px-1 text-[10px] font-black leading-none text-white
-              ring-2 ring-white dark:ring-[#082526]
+              ring-2 ring-white dark:ring-[var(--brand-shell)]
             "
           >
             {unreadCount > 99 ? "99+" : unreadCount}
@@ -233,7 +233,7 @@ export default function NotificationBell() {
           className="
             absolute top-full z-[90] mt-2
             overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl
-            dark:border-[#0f3d3e] dark:bg-[#0b292a]
+            dark:border-[var(--brand-border)] dark:bg-[var(--brand-surface)]
           "
           style={{
             width: "min(24rem, calc(100vw - 1rem))",
@@ -243,7 +243,7 @@ export default function NotificationBell() {
           aria-label={copy.title}
           aria-live="polite"
         >
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-[#0f3d3e]">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-[var(--brand-border)]">
             <div className="min-w-0">
               <p className="truncate text-sm font-black text-slate-900 dark:text-emerald-50">
                 {copy.title}
@@ -303,7 +303,7 @@ export default function NotificationBell() {
                   onClick={() => openNotification(notification)}
                   className={`
                     grid w-full min-w-0 items-start gap-3 border-b border-slate-100 px-4 py-3 text-start
-                    transition hover:bg-slate-50 dark:border-[#0f3d3e]/70 dark:hover:bg-[#123f40]
+                    transition hover:bg-slate-50 dark:border-[#1c494a]/70 dark:hover:bg-[var(--brand-surface-2)]
                   `}
                   style={{
                     gridTemplateColumns: isRtl
@@ -312,7 +312,7 @@ export default function NotificationBell() {
                   }}
                 >
                   <span
-                    className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-base dark:bg-[#082c2d]"
+                    className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-base dark:bg-[var(--brand-shell)]"
                     style={{
                       gridColumn: isRtl ? 2 : 1,
                       gridRow: 1,

@@ -849,7 +849,7 @@ export default function CasesPage() {
               style={{
                 background: "#fff7ed",
                 borderColor: "rgba(180, 83, 9, 0.22)",
-                color: "#b45309",
+                color: "var(--warning)",
               }}
             >
               {text.archivedClientBadge}
@@ -920,7 +920,7 @@ export default function CasesPage() {
             dir="ltr"
             className="whitespace-nowrap text-sm font-black"
             style={{
-              color: amount > 0 ? "#dc2626" : "var(--text)",
+              color: amount > 0 ? "var(--danger)" : "var(--text)",
             }}
           >
             {formatMoney(amount)}
@@ -1085,7 +1085,7 @@ export default function CasesPage() {
           {
             label: text.stats.archivedClients,
             value: archivedClientCount,
-            color: archivedClientCount > 0 ? "#b45309" : "var(--text-2)",
+            color: archivedClientCount > 0 ? "var(--warning)" : "var(--text-2)",
             bg: archivedClientCount > 0 ? "#fff7ed" : "var(--card)",
           },
         ].map((item) => (
@@ -1357,7 +1357,7 @@ export default function CasesPage() {
               className="rounded-2xl border p-3 text-xs font-bold"
               style={{
                 background: "#fff7ed",
-                color: "#b45309",
+                color: "var(--warning)",
                 borderColor: "rgba(180, 83, 9, 0.22)",
               }}
             >
@@ -1925,7 +1925,7 @@ function FinancialCard({
     >
       <p
         className="text-xs font-black"
-        style={{ color: danger ? "#dc2626" : "var(--text-3)" }}
+        style={{ color: danger ? "var(--danger)" : "var(--text-3)" }}
       >
         {label}
       </p>
@@ -1935,7 +1935,7 @@ function FinancialCard({
         className={`mt-2 whitespace-nowrap text-xl font-black leading-tight ${
           isRtl ? "text-right" : "text-left"
         }`}
-        style={{ color: danger ? "#dc2626" : color }}
+        style={{ color: danger ? "var(--danger)" : color }}
       >
         {value}
       </p>

@@ -1027,7 +1027,7 @@ export default function TasksPage() {
           <button
             type="button"
             onClick={clearFilters}
-            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31]"
+            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-copper)]"
             style={{
               background: "var(--card-2)",
               borderColor: "var(--border)",

@@ -113,7 +113,7 @@ interface BillingData {
 
 const statusClasses: Record<StatusTone, string> = {
   success:
-    "border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-400/30 dark:bg-[#1c5354] dark:text-emerald-50",
+    "border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-400/30 dark:bg-[var(--brand-surface-hover)] dark:text-emerald-50",
   warning:
     "border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200",
   danger:
@@ -706,7 +706,7 @@ export default function BillingPage() {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#286061] dark:bg-[#061b1c]">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[var(--brand-border-strong)] dark:bg-[var(--brand-canvas)]">
               <p
                 className="text-xs font-bold"
                 style={{ color: "var(--muted)" }}
@@ -716,7 +716,7 @@ export default function BillingPage() {
               <p className="mt-1 font-black">{data.tenant.name}</p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#286061] dark:bg-[#061b1c]">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[var(--brand-border-strong)] dark:bg-[var(--brand-canvas)]">
               <p
                 className="text-xs font-bold"
                 style={{ color: "var(--muted)" }}
@@ -728,7 +728,7 @@ export default function BillingPage() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#286061] dark:bg-[#061b1c]">
+            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[var(--brand-border-strong)] dark:bg-[var(--brand-canvas)]">
               <p
                 className="text-xs font-bold"
                 style={{ color: "var(--muted)" }}
@@ -789,7 +789,7 @@ export default function BillingPage() {
               return (
                 <div
                   key={key}
-                  className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[#286061] dark:bg-[#061b1c]"
+                  className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[var(--brand-border-strong)] dark:bg-[var(--brand-canvas)]"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-black">{usageLabels[key]}</p>
@@ -848,7 +848,7 @@ export default function BillingPage() {
               className={[
                 "rounded-xl px-4 py-2 text-sm font-black transition",
                 billingCycle === "MONTHLY"
-                  ? "bg-[#c47a31] text-[#061b1c]"
+                  ? "bg-[var(--landing-copper)] text-[var(--landing-canvas)]"
                   : "text-[var(--text)]",
               ].join(" ")}
             >
@@ -860,7 +860,7 @@ export default function BillingPage() {
               className={[
                 "rounded-xl px-4 py-2 text-sm font-black transition",
                 billingCycle === "YEARLY"
-                  ? "bg-[#c47a31] text-[#061b1c]"
+                  ? "bg-[var(--landing-copper)] text-[var(--landing-canvas)]"
                   : "text-[var(--text)]",
               ].join(" ")}
             >
@@ -887,9 +887,9 @@ export default function BillingPage() {
                 key={plan.id}
                 className={[
                   "relative flex h-full min-h-[620px] flex-col overflow-hidden rounded-[28px] border p-5 text-white shadow-2xl shadow-emerald-950/10",
-                  "bg-[#041718]",
+                  "bg-[var(--landing-canvas)]",
                   highlighted
-                    ? "border-emerald-500/55 bg-[#082c2d] ring-1 ring-emerald-400/30"
+                    ? "border-emerald-500/55 bg-[var(--landing-shell)] ring-1 ring-emerald-400/30"
                     : "border-white/10",
                   active ? "ring-2 ring-emerald-300" : "",
                 ].join(" ")}
@@ -983,7 +983,7 @@ export default function BillingPage() {
                         "w-full rounded-2xl px-5 py-4 text-sm font-black transition",
                         isCurrentSelection
                           ? "border border-white/10 bg-white/5 text-emerald-100/60"
-                          : "bg-[#c47a31] text-[#061b1c] shadow-lg shadow-black/20 hover:bg-[#d58a3d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e1a261] focus-visible:ring-offset-2 focus-visible:ring-offset-[#041718] disabled:cursor-not-allowed disabled:opacity-70",
+                          : "bg-[var(--landing-copper)] text-[var(--landing-canvas)] shadow-lg shadow-black/20 hover:bg-[var(--landing-copper-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-copper-hover)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--landing-canvas)] disabled:cursor-not-allowed disabled:opacity-70",
                       ].join(" ")}
                       onClick={() => void handleUpgrade(plan, billingCycle)}
                     >

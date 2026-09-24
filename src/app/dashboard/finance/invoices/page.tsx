@@ -924,7 +924,7 @@ function FinanceSuccessOverlay({
           className="finance-success-topline absolute inset-x-0 top-0 h-1"
           style={{
             background:
-              "linear-gradient(90deg, transparent, #b87333, #f1c27d, transparent)",
+              "linear-gradient(90deg, transparent, var(--landing-copper), #f1c27d, transparent)",
           }}
         />
 
@@ -974,7 +974,7 @@ function FinanceSuccessOverlay({
           <div
             className="finance-success-progress h-full rounded-full"
             style={{
-              background: "linear-gradient(90deg,#0f5253,#b87333)",
+              background: "linear-gradient(90deg,var(--landing-surface-hover),var(--landing-copper))",
             }}
           />
         </div>

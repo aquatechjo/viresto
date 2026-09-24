@@ -45,11 +45,11 @@ className="
   hover:border-emerald-200
   hover:bg-white
 
-  dark:border-[#286061]
-  dark:bg-[#082c2d]
+  dark:border-[var(--brand-border-strong)]
+  dark:bg-[var(--brand-shell)]
   dark:text-emerald-100
   dark:hover:border-emerald-400/70
-  dark:hover:bg-[#185354]
+  dark:hover:bg-[var(--brand-surface-hover)]
 "
       type="button"
       onClick={toggleTheme}

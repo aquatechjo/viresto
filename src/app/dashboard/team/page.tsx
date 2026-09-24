@@ -861,7 +861,7 @@ export default function TeamPage() {
             type="button"
             onClick={clearFilters}
             disabled={!search && roleFilter === "all" && statusFilter === "all"}
-            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c47a31] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-copper)] disabled:cursor-not-allowed disabled:opacity-50"
             style={{
               background: "var(--card-2)",
               borderColor: "var(--border)",

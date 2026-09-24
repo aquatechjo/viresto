@@ -292,7 +292,7 @@ export default function Sidebar({
     return (
       <div
         dir={isRtl ? "rtl" : "ltr"}
-        className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--brand-shell)] text-emerald-50"
+        className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--sidebar)] text-emerald-50"
       >
         {/* Brand */}
         <div
@@ -355,7 +355,7 @@ export default function Sidebar({
                       ? "تصغير القائمة الجانبية"
                       : "Collapse sidebar"
                 }
-                className={`flex shrink-0 items-center justify-center border border-copper-300/30 bg-[#103536] text-emerald-50 shadow-sm transition hover:border-copper-300/65 hover:bg-[#185354] ${
+                className={`flex shrink-0 items-center justify-center border border-copper-300/30 bg-[var(--landing-surface-2)] text-emerald-50 shadow-sm transition hover:border-copper-300/65 hover:bg-[var(--landing-surface-hover)] ${
                   compact
                     ? "h-7 w-7 rounded-lg"
                     : "h-9 w-9 rounded-xl"
@@ -441,7 +441,7 @@ export default function Sidebar({
                           }
                           ${
                             active
-                              ? "bg-[#b87333] text-[#041819] shadow-sm ring-1 ring-copper-300/40"
+                              ? "bg-[var(--landing-copper)] text-[var(--landing-canvas)] shadow-sm ring-1 ring-copper-300/40"
                               : "text-emerald-100/70 hover:bg-[var(--sidebar-hover)] hover:text-emerald-50"
                           }
                         `}
@@ -451,7 +451,7 @@ export default function Sidebar({
                             h-[18px] w-[18px] shrink-0 transition-all sm:h-5 sm:w-5
                             ${
                               active
-                                ? "text-[#041819]"
+                                ? "text-[var(--landing-canvas)]"
                                 : "text-emerald-100/55 group-hover:text-emerald-200"
                             }
                           `}
@@ -490,7 +490,7 @@ export default function Sidebar({
                   : "min-h-12 gap-3 px-3 py-2.5 sm:px-4"
               }`}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#b87333] text-[#041819] shadow-sm">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--landing-copper)] text-[var(--landing-canvas)] shadow-sm">
                 <ShieldCheck className="h-5 w-5" aria-hidden="true" />
               </span>
 
@@ -533,7 +533,7 @@ export default function Sidebar({
                 : "gap-3 p-2.5 sm:p-3"
             }`}
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-copper-500 text-xs font-black text-[#041819] sm:h-10 sm:w-10 sm:rounded-2xl sm:text-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-copper-500 text-xs font-black text-[var(--landing-canvas)] sm:h-10 sm:w-10 sm:rounded-2xl sm:text-sm">
               {user ? initials(user.name) : "L"}
             </div>
 
@@ -563,7 +563,7 @@ export default function Sidebar({
             onClick={logout}
             aria-label={locale === "ar" ? "تسجيل الخروج" : "Logout"}
             title={compact ? (locale === "ar" ? "تسجيل الخروج" : "Logout") : undefined}
-            className={`mt-2.5 flex h-10 items-center justify-center rounded-2xl bg-[#b87333] text-sm font-bold text-[#041819] transition hover:bg-[#cc8e55] sm:mt-3 sm:h-11 ${
+            className={`mt-2.5 flex h-10 items-center justify-center rounded-2xl bg-[var(--landing-copper)] text-sm font-bold text-[var(--landing-canvas)] transition hover:bg-[var(--landing-copper-hover)] sm:mt-3 sm:h-11 ${
               compact ? "mx-auto w-11 px-0" : "w-full gap-2 px-4"
             }`}
           >

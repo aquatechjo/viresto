@@ -384,7 +384,7 @@ function CreateClientModal({
       aria-modal="true"
     >
       <div
-        className="w-full max-w-2xl rounded-[28px] border border-[#286061] bg-[#0b292a] p-6 text-start shadow-2xl"
+        className="w-full max-w-2xl rounded-[28px] border border-[var(--landing-border-strong)] bg-[var(--landing-surface)] p-6 text-start shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="mb-6 flex items-start justify-between gap-4">
@@ -400,7 +400,7 @@ function CreateClientModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#082c2d] text-xl text-emerald-100 transition hover:bg-[#123f40]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--landing-shell)] text-xl text-emerald-100 transition hover:bg-[var(--landing-surface-2)]"
             aria-label={text.modal.close}
           >
             ×
@@ -596,7 +596,7 @@ function CreateClientModal({
             <button
               type="submit"
               disabled={loading}
-              className="rounded-2xl bg-[#1b6262] px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#2b7778] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-[var(--landing-copper)] px-5 py-3 text-sm font-black text-[var(--landing-canvas)] transition hover:bg-[var(--landing-copper-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? text.modal.saving : text.modal.save}
             </button>
@@ -605,7 +605,7 @@ function CreateClientModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-2xl border border-[#286061] bg-transparent px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[#123f40] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl border border-[var(--landing-border-strong)] bg-transparent px-5 py-3 text-sm font-black text-emerald-50 transition hover:bg-[var(--landing-surface-2)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {text.modal.cancel}
             </button>
