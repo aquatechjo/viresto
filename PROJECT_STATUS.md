@@ -102,6 +102,16 @@
 - **Viewport meta:** أُضيف `export const viewport` في `src/app/layout.tsx`. قبله كانت كل الصفحات تُعرض بعرض سطح المكتب على الهاتف.
 - **Hamburger menu للصفحة الرئيسية** في `src/app/page.tsx`: روابط Features وPricing وGet Started لم تكن متاحة تحت `md`.
 
+### ✅ تم الإصلاح — 2026-09-24
+- **محتوى الصفحات كان مخفيًا تحت الـ TopBar على الشاشات الأضيق من 640px** (bug في الإنتاج) — commit `820b603`. السبب أن قاعدة `.dashboard-page-shell { padding: 1rem }` في `globals.css` تتغلب على `pt-[...]`، والحل `!pt-[...]`.
+- **نقل البحث إلى الـ drawer في الموبايل** — commit `15196f2`:
+  - الـ TopBar صار صفًا واحدًا تحت `xl`، والبحث في أعلى الـ drawer.
+  - مكوّن مشترك واحد: `src/components/layout/DashboardSearch.tsx`.
+  - اختيار نتيجة يغلق الـ drawer، ولا autofocus عند فتحه.
+  - نتائج البحث صارت داكنة دائمًا، وهذا أصلح أيضًا عدم قراءتها في light على الديسكتوب.
+  - جرى التحقق عند 375px بالعربية والإنجليزية وفي الوضعين.
+- حذف `GlobalSearch.tsx` غير المستخدم — commit `6cacbc2`.
+
 ### 🟡 معلّق (من تقرير الـ responsiveness الأصلي، لم يُنفّذ بعد)
 - [ ] **الجداول العريضة** تحتاج تمريرًا أفقيًا منظمًا أو عرض بطاقات على الموبايل:
   - `dashboard/finance/payments`
@@ -152,23 +162,55 @@
 
 ---
 
-## 7. Git — حالة الـ commits
+## 7. الجلسات وأمان تسجيل الدخول — ✅ مكتمل (2026-09-24)
+
+كل القيم في `src/lib/session-policy.ts` (مصدر واحد للخادم والعميل):
+
+| الإعداد | القيمة |
+|---|---|
+| مهلة الخمول `SESSION_IDLE_TIMEOUT_MS` | 30 دقيقة (كانت 5، ومعرّفة مرتين) |
+| التحذير قبل الخروج `SESSION_IDLE_WARNING_MS` | 60 ثانية |
+| الحد الأقصى المطلق `SESSION_ABSOLUTE_TIMEOUT_MS` | 12 ساعة، وهو أيضًا عمر الـ JWT والكوكي (كان 7 أيام) |
+| عمر المسودات `FORM_DRAFT_MAX_AGE_MS` (في `src/lib/form-draft.ts`) | 24 ساعة |
+
+| Commit | ما تم |
+|---|---|
+| `d33fe07` | مربع تحذير "هل ما زلت هنا؟" بعدّاد و"البقاء متصلًا / تسجيل الخروج الآن" (عربي/إنجليزي، الوضعان). النشاط = click/keydown/scroll/touchstart فقط (أُزيل mousemove)، والتمرير داخل اللوحات يُحتسب. أُضيف trailing ping حتى لا ينتهي الخادم قبل العميل. |
+| `9d0179b` | `lastActivityAt` يتجدد فقط من `/api/auth/session/activity` وطلبات الكتابة (POST/PUT/PATCH/DELETE). قبلها كان poll الإشعارات كل 60 ثانية يُبقي أي تبويب مفتوح حيًا على الخادم للأبد. |
+| `e6231db` | حد مطلق 12 ساعة يُفحص على `Session.createdAt`، حتى للمدخلات المخزنة في الكاش. لا migration. |
+| `1a451ad` | `useFormDraft`: المسودات في `sessionStorage` بمفتاح `userId`، وتنتهي بعد 24 ساعة، والحقول الحساسة لا تُحفظ أبدًا. تُستعاد بعد خروج الخمول، وتُحذف عند الإلغاء أو الحفظ أو الخروج اليدوي. مفعّلة في: إنشاء موكل، إنشاء قضية، تعديل قضية (ويشمل الملاحظات)، إنشاء فاتورة، إنشاء مهمة. |
+| `2b4f9e0` | بعد خروج الخمول: `/login?next=<الصفحة>&reason=idle`، والعودة لنفس الصفحة. `next` يُتحقق منه عبر `safeNextPath` (`src/lib/safe-redirect.ts`) ضد open redirect: يُرفض `//` والـ backslash والـ schemes والمسافات والأحرف الخاصة وكل صيغها المرمّزة. |
+| `8b6b388` | إصلاح: رسالة سبب الخروج لم تكن تظهر في صفحة الدخول (الـ Toaster لم يكن مشتركًا بعد). |
+
+**التحقق:**
+- الاختبارات 106/106، منها 20 جديدة.
+- التحذير جُرّب بمهلة مؤقتة 3 دقائق: ظهر عند الثانية 120، و"البقاء متصلًا" أرسل ping، والخروج التلقائي ألغى الجلسة على الخادم. ثم أُعيدت القيمة إلى 30 دقيقة.
+- `next` أعاد المستخدم إلى `/dashboard/cases`.
+- مسودة "إنشاء قضية" حُفظت، وبقيت بعد unload، واستُعيدت مع رسالة، وحُذفت عند الإلغاء.
+
+**مقايضات أمنية مقبولة:**
+- 30 دقيقة نافذة أطول على جهاز غير مقفل.
+- المسودات نص واضح في `sessionStorage`، وتُمسح بإغلاق التبويب.
+- النقر الآلي يمكنه تمديد الخمول، لكن ليس أبعد من حد الـ 12 ساعة.
+
+---
+
+## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit:** `bd4298d`, وهو `refactor: replace hardcoded dashboard hex colors with palette tokens` (2026-09-24)
-- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (`f507eaf..bd4298d`).
+- **آخر commit:** `8b6b388`, وهو `fix: show the idle/expired logout reason on the login page` (2026-09-24)
+- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة `6cacbc2..8b6b388`).
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
   - `tests/e2e/create-case.spec.ts` (untracked): اختبار E2E جديد لم يُراجع بعد.
   - `.claude/` (untracked): فيه `launch.json` لخادم التطوير.
-  - `PROJECT_STATUS.md` (هذا الملف)
 
 **تسلسل الـ commits (الأقدم أولًا):**
-`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens
+`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج
 
 ---
 
-## 8. ملاحظات بيئية مهمة
+## 9. ملاحظات بيئية مهمة
 
 ### الـ Hooks المكسورة (Security Guidance + Pixeltable) — ✅ أُصلح (2026-09-24)، ويتطلب إعادة تشغيل Claude Desktop
 - **الأعراض:** إشعار "Push/Commit security review found issues" بعد كل commit/push، و"hook blocking error" بعد كل Write/Edit. **إنذار كاذب**: لم تُجرَ أي مراجعة أمنية فعلية أصلًا، والكتابة والـ commit ينجحان.
@@ -185,3 +227,13 @@
 - خادم التطوير: `npm run dev` (منفذ 3000)، ومعرّف في `.claude/launch.json` باسم `viresto-dev`.
 - الاختبارات: `npm run test:unit` (يتطلب Node 24 بسبب `--experimental-test-module-mocks`)، و`npm run test:e2e` (Playwright يقرأ `.env.local`).
 - رسائل الـ commit تنتهي بسطر `Co-Authored-By` الخاص بـ Claude.
+
+---
+
+## 10. بنود مفتوحة للمتابعة
+- [ ] **`src/app/dashboard/clients/new/page.tsx`: صفحة غير مستخدمة، مرشّحة للحذف.** لا يوجد أي رابط إليها في الواجهة، فقط في خريطة عناوين `DynamicDocumentTitle.tsx`. نموذج إنشاء الموكل المستخدم فعليًا هو الـ modal في `clients/page.tsx`.
+- [ ] **CSS ميت لأزرار FullCalendar** في `globals.css`: القواعد الأضعف التي تشير لـ `--sidebar` تتغلب عليها قواعد `--sidebar-dark`، ويمكن حذفها.
+- [ ] **`.dark input { background-color: #061b1c }`** في `globals.css` يتغلب على خلفية حقل البحث في dark، في الـ TopBar والـ drawer معًا. فرق بسيط، وليس خطأ.
+- [ ] **نشر الإنتاج:** زر القائمة في الموبايل يظهر أبيض على أبيض في الإنتاج إلى أن يُنشر `714fcbe` والـ commits التي بعده.
+- [ ] **HawkScan:** لا يعمل لأن `HAWK_API_KEY` غير مضبوط.
+- [ ] **`tests/e2e/create-case.spec.ts`:** غير ملتزم به ولم يُراجع بعد.
