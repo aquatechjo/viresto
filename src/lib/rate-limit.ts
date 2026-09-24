@@ -21,6 +21,12 @@ export class RateLimitUnavailableError extends Error {
   }
 }
 
+// Upper bound for one Upstash round trip. @upstash/ratelimit's own default
+// is 5 s, after which it silently *allows* the request (reason "timeout").
+// Login calls the limiter twice, so that default could add 10 s to every
+// login while rate limiting was effectively off.
+export const RATE_LIMIT_TIMEOUT_MS = 2_000
+
 const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
     ? Redis.fromEnv()
@@ -42,6 +48,21 @@ function reportProductionFailure(message: string) {
 
   reportedProductionFailure = true
   console.error(message)
+}
+
+// Logged on every occurrence (not once per instance) so each outage shows up
+// in Vercel logs. Carries only the limiter prefix, never the identifier.
+function logUnavailable(reason: 'timeout' | 'error', prefix: string, detail?: string) {
+  console.error(
+    `[RATE_LIMIT_UNAVAILABLE] reason=${reason} prefix=${prefix}${detail ? ` detail=${detail}` : ''}`
+  )
+}
+
+function warnLocalFallback(message: string) {
+  if (warnedAboutLocalFallback) return
+
+  warnedAboutLocalFallback = true
+  console.warn(message)
 }
 
 function windowToDuration(windowMs: number): `${number} s` | `${number} m` | `${number} h` {
@@ -69,7 +90,9 @@ function getLimiter(prefix: string, max: number, windowMs: number) {
   const limiter = new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(max, windowToDuration(windowMs)),
-    analytics: true,
+    // Nothing reads Upstash analytics; it only added extra writes per check.
+    analytics: false,
+    timeout: RATE_LIMIT_TIMEOUT_MS,
     prefix,
   })
 
@@ -132,40 +155,51 @@ export async function checkRateLimit(
       throw new RateLimitUnavailableError()
     }
 
-    if (!warnedAboutLocalFallback) {
-      warnedAboutLocalFallback = true
-      console.warn(
-        'Upstash env vars are missing. Using an in-memory rate limit outside production.'
-      )
-    }
+    warnLocalFallback(
+      'Upstash env vars are missing. Using an in-memory rate limit outside production.'
+    )
 
     return checkLocalRateLimit(protectedKey, normalizedOptions)
   }
 
-  try {
-    const result = await limiter.limit(protectedKey)
+  let result: Awaited<ReturnType<Ratelimit['limit']>>
 
-    return {
-      allowed: result.success,
-      remaining: result.remaining,
-      resetAt: result.reset,
-    }
+  try {
+    result = await limiter.limit(protectedKey)
   } catch (error) {
+    const errorName = error instanceof Error ? error.name : 'UnknownError'
+
     if (process.env.NODE_ENV === 'production') {
-      const errorName = error instanceof Error ? error.name : 'UnknownError'
-      reportProductionFailure(
-        `[RATE_LIMIT_UNAVAILABLE] Upstash request failed (${errorName}).`
-      )
+      logUnavailable('error', normalizedOptions.keyPrefix, errorName)
       throw new RateLimitUnavailableError()
     }
 
-    if (!warnedAboutLocalFallback) {
-      warnedAboutLocalFallback = true
-      console.warn(
-        'Upstash request failed. Using an in-memory rate limit outside production.'
-      )
-    }
+    warnLocalFallback(
+      'Upstash request failed. Using an in-memory rate limit outside production.'
+    )
 
     return checkLocalRateLimit(protectedKey, normalizedOptions)
+  }
+
+  // A timeout comes back as success: true with reason "timeout". Treat it
+  // exactly like a failed request: fail closed in production, fall back to
+  // the in-memory limiter elsewhere.
+  if (result.reason === 'timeout') {
+    if (process.env.NODE_ENV === 'production') {
+      logUnavailable('timeout', normalizedOptions.keyPrefix, `${RATE_LIMIT_TIMEOUT_MS}ms`)
+      throw new RateLimitUnavailableError()
+    }
+
+    warnLocalFallback(
+      'Upstash timed out. Using an in-memory rate limit outside production.'
+    )
+
+    return checkLocalRateLimit(protectedKey, normalizedOptions)
+  }
+
+  return {
+    allowed: result.success,
+    remaining: result.remaining,
+    resetAt: result.reset,
   }
 }

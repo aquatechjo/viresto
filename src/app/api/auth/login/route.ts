@@ -22,20 +22,28 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-real-ip") ??
       "unknown";
 
-    const rl = await checkRateLimit(ip, {
+    // Started before the body is parsed so every request (including invalid
+    // ones) still counts against the IP limit, and so it runs in parallel
+    // with the per-account check below instead of adding its latency.
+    const ipLimitPromise = checkRateLimit(ip, {
       keyPrefix: "login",
       max: 5,
       windowMs: 15 * 60 * 1000,
     });
-
-    if (!rl.allowed) {
-      return err("محاولات كثيرة لتسجيل الدخول. حاول بعد 15 دقيقة.", 429);
-    }
+    // Prevent an unhandled rejection if it fails while the body is parsed;
+    // the error is re-thrown where the result is awaited.
+    ipLimitPromise.catch(() => {});
 
     const body = await req.json().catch(() => ({}));
     const parsed = loginSchema.safeParse(body);
 
     if (!parsed.success) {
+      const rl = await ipLimitPromise;
+
+      if (!rl.allowed) {
+        return err("محاولات كثيرة لتسجيل الدخول. حاول بعد 15 دقيقة.", 429);
+      }
+
       return err(parsed.error.issues[0]?.message || "بيانات غير صالحة", 400);
     }
 
@@ -46,13 +54,16 @@ export async function POST(req: NextRequest) {
      * حد مستقل لكل بريد يمنع توزيع التخمين على عدة عناوين شبكة.
      * يطبق على البريد سواء كان مسجلًا أم لا لتجنب كشف وجود الحساب.
      */
-    const accountLimit = await checkRateLimit(email, {
-      keyPrefix: "login-account",
-      max: 15,
-      windowMs: 15 * 60 * 1000,
-    });
+    const [rl, accountLimit] = await Promise.all([
+      ipLimitPromise,
+      checkRateLimit(email, {
+        keyPrefix: "login-account",
+        max: 15,
+        windowMs: 15 * 60 * 1000,
+      }),
+    ]);
 
-    if (!accountLimit.allowed) {
+    if (!rl.allowed || !accountLimit.allowed) {
       return err("محاولات كثيرة لتسجيل الدخول. حاول بعد 15 دقيقة.", 429);
     }
 
