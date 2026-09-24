@@ -15,6 +15,7 @@ import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnl
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import type { Locale } from "@/lib/i18n";
 import { formatInvoiceNumber } from "@/lib/invoice-print";
+import { useFormDraft } from "@/lib/useFormDraft";
 
 type InvoiceStatus =
   | "DRAFT"
@@ -1054,6 +1055,45 @@ export default function InvoicesPage() {
   const [items, setItems] = useState<InvoiceItem[]>([
     { preset: "", description: "", quantity: "", unitPrice: "" },
   ]);
+
+  const invoiceDraft = useMemo(
+    () => ({
+      clientId,
+      caseId,
+      clientSearch,
+      caseSearch,
+      dueDate,
+      tax,
+      discount,
+      notes,
+      items,
+    }),
+    [clientId, caseId, clientSearch, caseSearch, dueDate, tax, discount, notes, items],
+  );
+
+  const restoreInvoiceDraft = useCallback(
+    (draft: typeof invoiceDraft) => {
+      setClientId(draft.clientId ?? "");
+      setCaseId(draft.caseId ?? "");
+      setClientSearch(draft.clientSearch ?? "");
+      setCaseSearch(draft.caseSearch ?? "");
+      setDueDate(draft.dueDate ?? "");
+      setTax(draft.tax ?? "");
+      setDiscount(draft.discount ?? "");
+      setNotes(draft.notes ?? "");
+      if (Array.isArray(draft.items) && draft.items.length > 0) {
+        setItems(draft.items);
+      }
+    },
+    [],
+  );
+
+  useFormDraft({
+    formKey: "invoice-create",
+    value: invoiceDraft,
+    onRestore: restoreInvoiceDraft,
+    active: open,
+  });
 
   const filteredCases = useMemo(() => {
     if (!clientId) return [];

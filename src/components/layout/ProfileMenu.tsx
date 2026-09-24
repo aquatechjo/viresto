@@ -11,6 +11,7 @@ import {
   type CurrentUser,
 } from "@/lib/client-session";
 import { invalidateTenantWriteAccessCache } from "@/lib/tenant-write-access-cache";
+import { clearAllDrafts } from "@/lib/form-draft";
 
 const COPY = {
   ar: {
@@ -71,6 +72,7 @@ export default function ProfileMenu() {
 
   async function logout() {
     localStorage.removeItem("viresto_last_activity");
+    clearAllDrafts(window.sessionStorage);
     invalidateCurrentUser();
     invalidateTenantWriteAccessCache();
 

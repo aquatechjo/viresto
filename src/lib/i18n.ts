@@ -139,6 +139,11 @@ export const translations = {
       expired: "انتهت الجلسة. يرجى تسجيل الدخول مجددًا.",
     },
 
+    drafts: {
+      restored: "تمت استعادة ما كتبته ولم يُحفظ.",
+      discard: "تجاهل",
+    },
+
     documents: {
       hero: {
         badge: "إدارة الأرشيف القانوني",
@@ -633,6 +638,11 @@ export const translations = {
       signOutNow: "Sign out now",
       idleLoggedOut: "You were signed out due to inactivity.",
       expired: "Your session has ended. Please sign in again.",
+    },
+
+    drafts: {
+      restored: "Restored your unsaved input.",
+      discard: "Discard",
     },
 
     documents: {

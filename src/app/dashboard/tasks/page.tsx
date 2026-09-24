@@ -14,6 +14,7 @@ import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+import { useFormDraft } from "@/lib/useFormDraft";
 
 interface Task {
   id: string;
@@ -390,6 +391,13 @@ export default function TasksPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editForm, setEditForm] = useState<EditTaskFormState>(EDIT_INIT);
   const [editSaving, setEditSaving] = useState(false);
+
+  useFormDraft({
+    formKey: "task-create",
+    value: form,
+    onRestore: setForm,
+    active: open,
+  });
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);

@@ -20,6 +20,7 @@ import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnl
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { fetchJsonCached } from "@/lib/client-query-cache";
 import { startNavigationFeedback } from "@/lib/navigation-feedback";
+import { useFormDraft } from "@/lib/useFormDraft";
 
 interface Case {
   id: string;
@@ -384,6 +385,20 @@ export default function CasesPage() {
   const [editingCase, setEditingCase] = useState<Case | null>(null);
   const [form, setForm] = useState(INIT);
   const [editForm, setEditForm] = useState(EDIT_INIT);
+
+  useFormDraft({
+    formKey: "case-create",
+    value: form,
+    onRestore: setForm,
+    active: open,
+  });
+
+  useFormDraft({
+    formKey: `case-edit:${editingCase?.id ?? ""}`,
+    value: editForm,
+    onRestore: setEditForm,
+    active: editOpen && Boolean(editingCase),
+  });
   const [clientSearch, setClientSearch] = useState("");
   const [clientListOpen, setClientListOpen] = useState(false);
   const [clientSearchLoading, setClientSearchLoading] = useState(false);

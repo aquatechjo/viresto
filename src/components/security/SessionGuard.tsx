@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { invalidateCurrentUser } from "@/lib/client-session";
 import { invalidateTenantWriteAccessCache } from "@/lib/tenant-write-access-cache";
 import { translations } from "@/lib/i18n";
+import { SESSION_EXPIRING_EVENT, clearAllDrafts } from "@/lib/form-draft";
 import { useLocale } from "@/lib/useLocale";
 import {
   SESSION_IDLE_TIMEOUT_MS,
@@ -46,10 +47,18 @@ export default function SessionGuard() {
   const lastActivitySampleRef = useRef(0);
   const lastActivityWriteRef = useRef(0);
 
-  const forceLogout = useCallback(async (message?: string) => {
+  const forceLogout = useCallback(async (message?: string, manual = false) => {
     if (loggingOutRef.current) return;
 
     loggingOutRef.current = true;
+
+    if (manual) {
+      // The user chose to leave: nothing to come back to.
+      clearAllDrafts(window.sessionStorage);
+    } else {
+      // Expired: let open forms persist their input before we redirect.
+      window.dispatchEvent(new Event(SESSION_EXPIRING_EVENT));
+    }
 
     localStorage.removeItem(LAST_ACTIVITY_KEY);
     invalidateCurrentUser();
@@ -253,7 +262,7 @@ export default function SessionGuard() {
           <button
             type="button"
             className="btn btn-secondary min-h-11"
-            onClick={() => void forceLogout()}
+            onClick={() => void forceLogout(undefined, true)}
           >
             {t.session.signOutNow}
           </button>

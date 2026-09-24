@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import DashboardSearch from "./DashboardSearch";
+import { clearAllDrafts } from "@/lib/form-draft";
 import { initials } from "@/lib/utils";
 import { translations } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
@@ -240,6 +241,7 @@ export default function Sidebar({
   }, [mobileOpen]);
 
   async function logout() {
+    clearAllDrafts(window.sessionStorage);
     localStorage.removeItem("viresto_last_activity");
     invalidateCurrentUser();
     invalidateTenantWriteAccessCache();

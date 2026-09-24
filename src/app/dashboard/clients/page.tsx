@@ -14,6 +14,7 @@ import {
   isPlanLimitResponse,
   planLimitMessage,
 } from "@/lib/plan-ui";
+import { useFormDraft } from "@/lib/useFormDraft";
 
 interface Client {
   id: string;
@@ -334,6 +335,8 @@ function CreateClientModal({
     address: "",
     notes: "",
   });
+
+  useFormDraft({ formKey: "client-create", value: form, onRestore: setForm });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
