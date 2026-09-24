@@ -1713,7 +1713,67 @@ export default function InvoicesPage() {
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile: stacked cards, one per row */}
+          <div className="divide-y md:hidden" data-vds-view="mobile-cards" style={{ borderColor: "var(--border)" }}>
+            {visibleInvoices.map((invoice) => {
+              const archivedInvoice = isArchivedInvoice(invoice);
+
+              return (
+                <div
+                  key={invoice.id}
+                  onClick={() => openInvoice(invoice)}
+                  className="cursor-pointer space-y-2.5 p-4 active:bg-black/[.02] dark:active:bg-white/[.03]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-black" style={{ color: "var(--text)" }}>
+                        <span dir="ltr">{formatInvoiceNumber(invoice.invoiceNumber)}</span>
+                      </p>
+                      <p dir="auto" className="mt-1 truncate text-xs font-bold" style={{ color: "var(--text-3)" }}>
+                        {invoice.client?.name || "-"}
+                      </p>
+                    </div>
+
+                    <p className="shrink-0 whitespace-nowrap font-black" style={{ color: "var(--accent-text)" }}>
+                      <span dir={isRtl ? "rtl" : "ltr"}>{formatMoney(invoice.total)}</span>
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-3)" }}>
+                    <span dir={isRtl ? "rtl" : "ltr"}>
+                      {invoice.dueDate ? localizedDate(invoice.dueDate, locale) : "-"}
+                    </span>
+
+                    {archivedInvoice && (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-black"
+                        style={{
+                          background: "#fff7ed",
+                          color: "#b45309",
+                          border: "1px solid rgba(180, 83, 9, 0.18)",
+                        }}
+                      >
+                        {copy.list.archivedRecord}
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openInvoice(invoice);
+                    }}
+                    className="btn btn-ghost h-9 w-full whitespace-nowrap px-4 text-xs"
+                  >
+                    {copy.actions.view}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block" data-vds-view="desktop-table">
             <table
               className={`data-table ${
                 isRtl ? "invoice-list-table-rtl" : "invoice-list-table-ltr"

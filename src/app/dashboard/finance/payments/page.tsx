@@ -1189,7 +1189,68 @@ export default function PaymentsPage() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile: stacked cards, one per row */}
+          <div className="divide-y md:hidden" data-vds-view="mobile-cards" style={{ borderColor: 'var(--border)' }}>
+            {filteredPayments.map((payment) => {
+              const canOpen = Boolean(payment.invoice?.id || payment.case?.id)
+
+              return (
+                <div
+                  key={payment.id}
+                  onClick={() => canOpen && openRelated(payment)}
+                  className={`space-y-2.5 p-4 ${canOpen ? 'cursor-pointer active:bg-black/[.02] dark:active:bg-white/[.03]' : ''}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p dir="auto" className="font-black" style={{ color: 'var(--text)' }}>
+                        {payment.client?.name || '-'}
+                      </p>
+                      <p className="mt-1 truncate text-xs" style={{ color: 'var(--text-3)' }}>
+                        {payment.invoice
+                          ? `${copy.labels.invoice} ${formatInvoiceNumber(payment.invoice.invoiceNumber)}`
+                          : payment.case?.title || copy.labels.noCase}
+                      </p>
+                    </div>
+
+                    <p className="shrink-0 whitespace-nowrap text-base font-black" style={{ color: 'var(--success)' }}>
+                      <bdi dir={isRtl ? 'rtl' : 'ltr'}>{money(amountOf(payment), locale)}</bdi>
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold" style={{ color: 'var(--text-3)' }}>
+                    {payment.reference ? (
+                      <bdi dir="ltr" className="font-mono">{payment.reference}</bdi>
+                    ) : null}
+                    <bdi dir={isRtl ? 'rtl' : 'ltr'}>
+                      {formatPaymentDate(payment.paidAt || payment.createdAt, locale)}
+                    </bdi>
+                    <span
+                      className="rounded-full px-2.5 py-1 text-[11px] font-black"
+                      style={statusStyle(payment.status)}
+                    >
+                      {copy.statuses[payment.status]}
+                    </span>
+                  </div>
+
+                  {canOpen ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openRelated(payment)
+                      }}
+                      className="btn btn-ghost h-9 w-full whitespace-nowrap px-3 text-xs"
+                      style={{ color: 'var(--text)' }}
+                    >
+                      {payment.invoice ? copy.actions.viewInvoice : copy.actions.viewCase}
+                    </button>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block" data-vds-view="desktop-table">
             <table
               className={`data-table min-w-[1120px] table-fixed ${
                 isRtl ? 'payment-list-table-rtl' : 'payment-list-table-ltr'

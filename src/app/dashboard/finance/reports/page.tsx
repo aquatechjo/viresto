@@ -1,5 +1,6 @@
 'use client'
 import AppLoader from "@/components/ui/AppLoader"
+import ResponsiveTable from '@/components/ui/ResponsiveTable'
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -1350,39 +1351,20 @@ if (loading) {
               </p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table dir={isRtl ? 'rtl' : 'ltr'} className="data-table [&_td]:align-middle [&_td]:text-start [&_th]:text-start">
-                <thead>
-                  <tr>
-                    <th>{copy.table.case}</th>
-                    <th>{copy.table.client}</th>
-                    <th>{copy.table.amount}</th>
-                    <th>{copy.table.status}</th>
-                    <th>{copy.table.date}</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {data.periodPayments.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-6 text-center">
-                        {copy.sections.periodPayments.empty}
-                      </td>
-                    </tr>
-                  ) : (
-                    data.periodPayments.map((payment) => (
-                      <tr key={payment.id}>
-                        <td>{payment.case?.title || '-'}</td>
-                        <td>{payment.client?.name || '-'}</td>
-                        <td>{formatMoney(payment.amount, locale)}</td>
-                        <td>{paymentStatusLabel(payment.status, copy)}</td>
-                        <td>{formatDate(payment.reportDate, locale)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              isRtl={isRtl}
+              rows={data.periodPayments}
+              getRowId={(payment) => payment.id}
+              emptyMessage={copy.sections.periodPayments.empty}
+              tableClassName="data-table [&_td]:align-middle [&_td]:text-start [&_th]:text-start"
+              columns={[
+                { id: 'case', header: copy.table.case, cell: (payment) => payment.case?.title || '-' },
+                { id: 'client', header: copy.table.client, cell: (payment) => payment.client?.name || '-' },
+                { id: 'amount', header: copy.table.amount, cell: (payment) => formatMoney(payment.amount, locale) },
+                { id: 'status', header: copy.table.status, cell: (payment) => paymentStatusLabel(payment.status, copy) },
+                { id: 'date', header: copy.table.date, cell: (payment) => formatDate(payment.reportDate, locale) },
+              ]}
+            />
           </div>
 
           <div className="card overflow-hidden p-0 text-start">
@@ -1399,43 +1381,22 @@ if (loading) {
               </p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table dir={isRtl ? 'rtl' : 'ltr'} className="data-table [&_td]:align-middle [&_td]:text-start [&_th]:text-start">
-                <thead>
-                  <tr>
-                    <th>{copy.table.invoiceNumber}</th>
-                    <th>{copy.table.client}</th>
-                    <th>{copy.table.amount}</th>
-                    <th>{copy.table.collected}</th>
-                    <th>{copy.table.remaining}</th>
-                    <th>{copy.table.status}</th>
-                    <th>{copy.table.dueDate}</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {data.periodInvoices.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-6 text-center">
-                        {copy.sections.periodInvoices.empty}
-                      </td>
-                    </tr>
-                  ) : (
-                    data.periodInvoices.map((invoice) => (
-                      <tr key={invoice.id}>
-                        <td>{invoice.invoiceNumber}</td>
-                        <td>{invoice.client?.name || '-'}</td>
-                        <td>{formatMoney(invoice.total, locale)}</td>
-                        <td>{formatMoney(invoice.paidAmount, locale)}</td>
-                        <td>{formatMoney(invoice.remainingAmount, locale)}</td>
-                        <td>{invoiceDisplayStatus(invoice, copy)}</td>
-                        <td>{formatDate(invoice.dueDate, locale)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              isRtl={isRtl}
+              rows={data.periodInvoices}
+              getRowId={(invoice) => invoice.id}
+              emptyMessage={copy.sections.periodInvoices.empty}
+              tableClassName="data-table [&_td]:align-middle [&_td]:text-start [&_th]:text-start"
+              columns={[
+                { id: 'invoiceNumber', header: copy.table.invoiceNumber, cell: (invoice) => invoice.invoiceNumber },
+                { id: 'client', header: copy.table.client, cell: (invoice) => invoice.client?.name || '-' },
+                { id: 'amount', header: copy.table.amount, cell: (invoice) => formatMoney(invoice.total, locale) },
+                { id: 'collected', header: copy.table.collected, cell: (invoice) => formatMoney(invoice.paidAmount, locale) },
+                { id: 'remaining', header: copy.table.remaining, cell: (invoice) => formatMoney(invoice.remainingAmount, locale) },
+                { id: 'status', header: copy.table.status, cell: (invoice) => invoiceDisplayStatus(invoice, copy) },
+                { id: 'dueDate', header: copy.table.dueDate, cell: (invoice) => formatDate(invoice.dueDate, locale) },
+              ]}
+            />
           </div>
         </div>
 
