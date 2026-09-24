@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -11,6 +12,25 @@ const arJoLocale = {
   ...arLocale,
   code: "ar-JO-u-nu-latn",
 };
+
+const MOBILE_DAY_LETTERS = {
+  ar: ["ح", "ن", "ث", "ر", "خ", "ج", "س"],
+  en: ["S", "M", "T", "W", "T", "F", "S"],
+};
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
 
 interface AppointmentsCalendarProps {
   locale: Locale;
@@ -34,10 +54,13 @@ export default function AppointmentsCalendar({
   onRangeChange,
 }: AppointmentsCalendarProps) {
   const isRtl = locale === "ar";
+  const isMobile = useIsMobile();
+  const dayLetters = MOBILE_DAY_LETTERS[isRtl ? "ar" : "en"];
 
   return (
     <div className="appointments-calendar" dir={isRtl ? "rtl" : "ltr"}>
       <FullCalendar
+        key={isMobile ? "mobile" : "desktop"}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
         timeZone={timeZone}
@@ -58,21 +81,40 @@ export default function AppointmentsCalendar({
             to: info.end.toISOString(),
           })
         }
-        eventMinHeight={34}
-        eventShortHeight={34}
-        eventContent={(info) => (
-          <div
-            className="appointment-event-content"
-            dir={isRtl ? "rtl" : "ltr"}
-          >
-            {info.timeText && (
-              <span className="appointment-event-time" dir="ltr">
-                {info.timeText}
-              </span>
-            )}
-            <span className="appointment-event-title">{info.event.title}</span>
-          </div>
-        )}
+        dayHeaderContent={
+          isMobile
+            ? (info) => dayLetters[info.date.getDay()]
+            : undefined
+        }
+        eventMinHeight={isMobile ? 8 : 34}
+        eventShortHeight={isMobile ? 8 : 34}
+        eventDisplay={isMobile ? "list-item" : "auto"}
+        eventContent={
+          isMobile
+            ? (info) => (
+                <span
+                  className="appointment-event-dot"
+                  title={info.event.title}
+                  aria-label={info.event.title}
+                />
+              )
+            : (info) => (
+                <div
+                  className="appointment-event-content"
+                  dir={isRtl ? "rtl" : "ltr"}
+                >
+                  {info.timeText && (
+                    <span className="appointment-event-time" dir="ltr">
+                      {info.timeText}
+                    </span>
+                  )}
+                  <span className="appointment-event-title">
+                    {info.event.title}
+                  </span>
+                </div>
+              )
+        }
+        dayMaxEvents={isMobile ? 4 : 3}
         headerToolbar={
           isRtl
             ? {
@@ -111,7 +153,6 @@ export default function AppointmentsCalendar({
           hour12: true,
           meridiem: "short",
         }}
-        dayMaxEvents={3}
         moreLinkText={(count) => (isRtl ? `+${count} أخرى` : `+${count} more`)}
       />
 
@@ -175,6 +216,20 @@ export default function AppointmentsCalendar({
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+        }
+
+        .appointments-calendar .appointment-event-dot {
+          display: block;
+          width: 6px;
+          height: 6px;
+          margin: 0 auto;
+          border-radius: 9999px;
+          background: currentColor;
+        }
+
+        .appointments-calendar .fc-daygrid-event-harness {
+          display: flex;
+          justify-content: center;
         }
       `}</style>
     </div>
