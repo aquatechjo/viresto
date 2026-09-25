@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-09-25 (تجهيز الإطلاق — أسعار USD، الصفحات القانونية، إصلاح webhook الخاص بـ Polar)
+> آخر تحديث: 2026-09-25 (نموذج التجربة 14 يومًا + القفل من الخادم + إصلاحات webhook الخاص بـ Polar — القسم 2.1)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -56,6 +56,46 @@
 ### ⚠️ إصلاح حرج — 2026-09-25 (`cf169aa`)
 - **webhooks الخاصة بـ Polar كانت تُرفض بـ 401 من الـ proxy قبل وصولها للـ handler.** `/api/billing/webhooks/polar` لم يكن في `MACHINE_AUTHENTICATED_PATHS` (`src/lib/request-path-policy.ts`) ولا في `publicPaths`، وطلبات Polar لا تحمل كوكي `ld_token`. النتيجة: لم يُزامَن أي اشتراك من الـ webhooks في الإنتاج قبل هذا الـ commit (نجاح الـ checkout لا يعني أن المزامنة نجحت). الـ unit tests لم تكتشف ذلك لأنها تستدعي الـ route مباشرة دون الـ proxy.
 - الإصلاح: إضافة المسار الحرفي إلى القائمة. الـ handler يتحقق من التوقيع أصلًا. تم التحقق على dev: POST غير موقّع ← 403 من الـ handler (كان 401 من الـ proxy)، و`/api/billing/checkout` بدون جلسة ما زال 401.
+
+## 2.1 نموذج الفوترة: تجربة داخل التطبيق 14 يومًا + إصلاحات webhook الخاص بـ Polar — ✅ مكتمل ومرفوع (2026-09-25)، ⏳ غير منشور
+
+### القرارات (من المستخدم)
+- كل مكتب جديد يبدأ **بتجربة مجانية داخل التطبيق لمدة 14 يومًا** (بلا بطاقة) بمزايا Pro. **لا توجد تجربة على جهة Polar** (المستخدم يزيلها يدويًا من المنتجات الستة، والـ checkout يرسل `allowTrial: false` كاحتياط).
+- بعد انتهاء التجربة بلا دفع: **قفل كامل من الخادم** باستثناء الاشتراك/الفوترة، إعدادات الحساب، وتسجيل الخروج. لا حذف لأي بيانات. الدفع يفتح كل شيء فورًا.
+- الدفع ينهي التجربة فورًا، والفترة المدفوعة تبدأ لحظة الشراء.
+- **past_due:** وصول كامل + شريط أحمر "فشل الدفع، حدّث بطاقتك" (EN+AR) برابط لبوابة عميل Polar. القفل عند إلغاء/إبطال Polar للاشتراك أو بعد **7 أيام** في past_due، أيهما أسبق.
+- **مهلة التجديد:** 48 ساعة بعد نهاية الفترة لاشتراكات Polar المتجددة فقط، ولا مهلة لـ `cancel_at_period_end`.
+- **فتح فوري عند العودة من الـ checkout:** من الخادم فقط وبعد التحقق (انظر `fceea7a`).
+
+### الـ Commits
+| Commit | ما تم |
+|---|---|
+| `3ac98b7` | التجربة الصريحة: `register` ينشئ صف `Subscription` بحالة `TRIALING`، بلا `polarSubscriptionId`، بمبلغ 0 وعملة USD، مع `trialStartsAt`/`trialEndsAt` (عمود جديد nullable، migration `20260925000000`). مصدر قرار واحد: `src/lib/tenant-access.ts` (`resolveTenantAccess` → `PAID`/`TRIAL`/`LOCKED`). `billing-limits` صار يشتق منه. تعديل نص سياسة الاشتراك (7 ← 14 يومًا). |
+| `5750f64` | القفل من الخادم داخل `requireAuth`/`requireRole` (كل routes المكتب تمر منهما): `402 { code: SUBSCRIPTION_REQUIRED, reason }`. المسموح: `/api/auth/*`، `/api/billing/*`، و`GET /api/settings`. مدير النظام مستثنى. الكاش (5 ثوانٍ) يُمسح في `invalidateAuthCacheForTenant`. الواجهة: `SubscriptionGate` يحوّل المكتب المقفول إلى `/dashboard/billing?locked=1` (تجربة استخدام فقط؛ الحماية في الـ API). |
+| `d22a098` | صفحة الاشتراك: "تجربة مجانية: بقي X يومًا، تنتهي في DATE" + زر "اشترك الآن"، وبطاقة الحالة المقفولة. التجربة تظهر كـ "تجربة مجانية (مزايا Pro)" وليست Pro، ولا تُعلَّم أي خطة كحالية حتى الدفع الفعلي (قبلها كان زر Pro الشهري معطّلًا أثناء التجربة). غير المدراء يرون الإشعار مع "اطلب من مدير المكتب". شريط كهرماني في كل الداشبورد في آخر 3 أيام. |
+| `53fc2bc` | إصلاح webhook (مكتشف من تسليم إنتاج حقيقي): tenant من `metadata.tenantId` أولًا، ثم الربط الموجود لنفس اشتراك Polar، ثم `customer.external_id` كاحتياط فقط؛ التعارض يُسجَّل `tenant_mismatch` والثقة بالـ metadata؛ اشتراك مربوط بمكتب آخر يُرفض (`tenant_conflict`) ولا يُنقل. معالجة `subscription.revoked` (كان يُتجاهل!)، `.uncanceled`، `.past_due`. عمود `pastDueSince` (migration `20260925010000`). منتجات التطبيق الآخر على نفس منظمة Polar ← 200 وتجاهل قبل أي استدعاء. أحداث بتوقيع صحيح لا يفهمها الـ SDK ← 200 بدل 500 يعيده Polar للأبد. `POST /api/billing/portal` لبوابة العميل. سطر log واحد لكل فشل: `[polar-webhook] <reason> key=value` (ids فقط). `paused` صار `EXPIRED` بدل `PAST_DUE`. |
+| `599b787` | اشتراك Polar مستحق يغلق صف التجربة فورًا (`CANCELLED`، `cancelledAt` = `currentPeriodEnd` = الآن، وتبقى تواريخ التجربة للتاريخ). `allowTrial: false` في الـ checkout. |
+| `fceea7a` | `POST /api/billing/checkout/confirm`: عند العودة بـ `checkout_id={CHECKOUT_ID}` يتحقق الخادم من Polar (الحالة succeeded/confirmed، `metadata.tenantId` = مكتب المستخدم، المنتج من منتجاتنا الستة، والاشتراك من نفس الـ checkout والمنتج والمكتب) ثم يزامن. أي فشل ← `{synced:false, reason}` بلا كتابة، والصفحة تنتظر الـ webhook كما كانت. |
+| `27fee9d` | `scripts/migrate-offices-to-app-trial.ts`: dry run افتراضيًا، والكتابة فقط بـ `--apply`. **لم يُشغَّل على الإنتاج.** |
+
+### إجابات للمستخدم (موثّقة)
+- **`external_id`:** الكود يضعه فقط في الـ checkout كـ `externalCustomerId: tenantId`، أي أنه **tenantId** وليس userId. Polar يحتفظ بأول external_id رآه لنفس الإيميل، لذلك القيمة `cmpsq0nwo0002uog46vzfs9q2` غالبًا مكتب/محاولة سابقة بنفس الإيميل (معرّف أقدم من `cmughejyn…` حسب بادئة الوقت في cuid، استنتاج)، أو من Aqua Growth Engine. للتحقق: `SELECT id, name, "createdAt" FROM "Tenant" WHERE id = 'cmpsq0nwo0002uog46vzfs9q2';`
+- **الـ 403:** التحقق عبر `validateEvent` من الـ SDK على الـ body الخام، والسر كما يعطيه Polar (مع `.trim()`). يمكن أن يفشل بسر صحيح إذا: كان في متغير Vercel مسافة/سطر جديد/علامات تنصيص (عولج بـ trim)، أو السر لـ endpoint آخر (المنظمة مشتركة مع Aqua Growth Engine)، أو لم يُعَد النشر بعد تغيير المتغير / ضُبط لـ Preview فقط، أو الحدث أقدم من 5 دقائق.
+
+### التحقق
+- `tsc` نظيف والـ unit tests قبل كل commit: 127 ← 145 ← 145 ← 172 ← 175 ← 187 ← **191/191**. `eslint` نظيف للملفات المعدّلة.
+- الاختبارات المطلوبة موجودة: إنشاء التجربة (`register-trial`، `tenant-access`)، قفل انتهاء التجربة (`subscription-lockout`)، الشراء ينهي التجربة، تعارض الـ tenant، حالة trialing، تجاهل المنتج الأجنبي (`polar-subscription-sync`، `billing-webhook-route`)، إضافة لـ past_due، الـ confirm، وتصنيف الـ migration.
+- **على dev** (فرع Neon dev، host مطابق لـ `E2E_ALLOWED_DATABASE_HOST`): طُبّقت الـ migrations الاثنتان. بمكتب اختبار مؤقت (حُذف بعدها): شريط آخر 3 أيام، بطاقة التجربة EN/AR، أزرار الخطط الثلاث كلها "اشترك الآن"، التحويل لصفحة الاشتراك عند القفل، `/api/cases` و`/api/clients` و`/api/dashboard-stats` ← 402 بينما `/api/auth/me` و`/api/billing` و`GET /api/settings` ← 200، صفحة الإعدادات تعمل، الشريط الأحمر لـ past_due مع استمرار القراءة والكتابة، وطلب الـ confirm عند العودة. **لم يُضغط "تحديث وسيلة الدفع"** لأن `.env` فيه مفتاح Polar الإنتاجي.
+- الـ dry run للسكربت على dev: (a)=0، (b)=1 (مكتب E2E)، (c)=1.
+
+### ملاحظات وانحرافات
+- التسجيل كان ينشئ تجربة أصلًا (7 أيام، JOD، غير مميزة عن اشتراك Polar)، وليس اشتراك Pro مدفوعًا. صارت صريحة.
+- قبل هذا، انتهاء الاشتراك كان "قراءة فقط" (الكتابة ممنوعة فقط). الآن قفل كامل.
+- تعريف "تجربة داخل التطبيق" = `TRIALING` بلا `polarSubscriptionId` (يشمل صفوف التجربة القديمة بلا `trialStartsAt`). مسار الأدمن لا ينشئ `TRIALING`.
+- عند فتح صفحة مقفولة تظهر لحظيًا رسالة خطأ من الصفحة (مثل "Failed to load cases") قبل التحويل. تجميلي، لم يُعالج.
+- الـ proxy لا يفحص الاشتراك (لا DB فيه)؛ الحماية في `requireAuth`. الـ server actions الوحيدة (`admin/actions.ts`) خاصة بمدير النظام.
+- الكاش in-memory لكل instance: بعد الدفع قد تبقى instances أخرى دافئة على القفل حتى 5 ثوانٍ.
+- `checkout` لا يعتبر `PAST_DUE` اشتراكًا حيًا، فاختيار خطة أثناء past_due يبدأ checkout جديدًا (قد يرفضه Polar). لم يُعالج.
 
 ## 3. تنظيف نظام الدفع اليدوي القديم (CliQ / تحويل بنكي) — ✅ مكتمل
 
@@ -231,15 +271,15 @@
 ## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit للكود/الإعداد:** `cf169aa` — `fix: let Polar webhooks through the session proxy` (2026-09-25)، ويليه commit تحديث هذا الملف.
-- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة: `8281e64` → `cf169aa`، ثم commit الـ docs هذا).
+- **آخر commit للكود/الإعداد:** `27fee9d` — `chore: add a dry-run-by-default script to move old offices onto the trial` (2026-09-25)، ويليه commit تحديث هذا الملف.
+- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة: `3ac98b7` → `27fee9d`، ثم commit الـ docs هذا). **غير منشورة على الإنتاج بعد.**
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
   - `.claude/` (untracked): فيه `launch.json` لخادم التطوير.
-  - **تعديلات المستخدم غير الملتزمة (لم تُلمس في جلسة 2026-09-25):** `.gitignore`، `playwright.config.ts`، `src/app/admin/page.tsx`، `src/app/dashboard/cases/[id]/page.tsx`، `src/app/dashboard/clients/[id]/page.tsx`، `src/app/dashboard/finance/payments/page.tsx`، `src/lib/rate-limit.ts`، `tests/e2e/*.spec.ts`، و`tests/e2e/global-setup.ts` (untracked).
+  - **تعديلات المستخدم غير الملتزمة (لم تُلمس في جلستي 2026-09-25):** `.gitignore`، `playwright.config.ts`، `src/app/admin/page.tsx`، `src/app/dashboard/cases/[id]/page.tsx`، `src/app/dashboard/clients/[id]/page.tsx`، `src/app/dashboard/finance/payments/page.tsx`، `src/lib/rate-limit.ts`، `tests/e2e/*.spec.ts`، و`tests/e2e/global-setup.ts` (untracked).
 
 **تسلسل الـ commits (الأقدم أولًا):**
-`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج ← `1a3da05` تحديث الحالة ← `3609528` CLAUDE.md (قاعدة مزامنة الحالة) ← `71326bb` رسالة تحقق نموذج القضية ← `201cf4e` fail-closed لمهلة Upstash في الإنتاج ← `b506091` اختبار E2E لإنشاء القضية + `seed:e2e` المحمي ← `b345088` تحديث الحالة ← `5b11d54` إصلاح قائمة التنبيهات بالموبايل ← `28f960f` إصلاح تقويم المواعيد بالموبايل ← `24ca222` بطاقات موبايل لـ `VDSDataTable` ← `dab5a9d` `ResponsiveTable` + هجرة جداول المالية ← `e1d3c74` إزالة تكرار سجل النشاط بالموبايل ← `631e2bb` منطقة آمنة لزر المساعد الذكي ← `796d6e6` اختبارات Playwright لتجاوب الموبايل ← `3319920` تحديث الحالة ← `8281e64` أسعار USD ← `36abee0` FAQ Business ← `8f6ef2d` footer ‏Aqua.Tech ← `5070944` الصفحات القانونية ← `0a44138` فواصل آلاف `/pricing` ← `cf169aa` إصلاح webhook الخاص بـ Polar
+`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج ← `1a3da05` تحديث الحالة ← `3609528` CLAUDE.md (قاعدة مزامنة الحالة) ← `71326bb` رسالة تحقق نموذج القضية ← `201cf4e` fail-closed لمهلة Upstash في الإنتاج ← `b506091` اختبار E2E لإنشاء القضية + `seed:e2e` المحمي ← `b345088` تحديث الحالة ← `5b11d54` إصلاح قائمة التنبيهات بالموبايل ← `28f960f` إصلاح تقويم المواعيد بالموبايل ← `24ca222` بطاقات موبايل لـ `VDSDataTable` ← `dab5a9d` `ResponsiveTable` + هجرة جداول المالية ← `e1d3c74` إزالة تكرار سجل النشاط بالموبايل ← `631e2bb` منطقة آمنة لزر المساعد الذكي ← `796d6e6` اختبارات Playwright لتجاوب الموبايل ← `3319920` تحديث الحالة ← `8281e64` أسعار USD ← `36abee0` FAQ Business ← `8f6ef2d` footer ‏Aqua.Tech ← `5070944` الصفحات القانونية ← `0a44138` فواصل آلاف `/pricing` ← `cf169aa` إصلاح webhook الخاص بـ Polar ← `39e0c95` تحديث الحالة ← `3ac98b7` تجربة 14 يومًا ← `5750f64` القفل من الخادم ← `d22a098` عدّاد التجربة والشريط ← `53fc2bc` إصلاحات webhook + past_due ← `599b787` الشراء ينهي التجربة ← `fceea7a` الفتح الفوري ← `27fee9d` سكربت ترحيل المكاتب
 
 ---
 
@@ -282,6 +322,7 @@
 
 ### ✅ تم (2026-09-25)
 - تجهيز الإطلاق: أسعار USD، FAQ، footer، الصفحات القانونية، وإصلاح webhook الخاص بـ Polar. انظر القسم 5.1 والقسم 2.
+- نموذج التجربة 14 يومًا، القفل من الخادم، past_due، الفتح الفوري، وإصلاحات webhook من تسليم الإنتاج (`3ac98b7` → `27fee9d`). انظر القسم 2.1.
 
 ### قيد التنفيذ
 - لا شيء.
@@ -295,9 +336,17 @@
 6. **تنظيف:** حذف `clients/new` وحذف CSS التقويم الميت.
 
 ### ⏳ بانتظارك
+- [ ] **🚀 نشر نموذج التجربة (القسم 2.1) — بالترتيب:**
+  - [ ] **أولًا `npm run db:deploy` على قاعدة الإنتاج** (migrationان إضافيتان nullable: `trialStartsAt`، `pastDueSince`). **قبل نشر الكود**، لأن `npm run build` لا يطبّق migrations، و`requireAuth` صار يقرأ هذه الأعمدة في كل طلب: نشر الكود قبلها يكسر كل الـ API.
+  - [ ] نشر `27fee9d` (أو أحدث) على Vercel.
+  - [ ] **Polar ← Webhooks:** إضافة الأحداث `subscription.revoked`، `subscription.uncanceled`، `subscription.past_due` إلى الموجودة.
+  - [ ] إزالة التجربة من المنتجات الستة في Polar (أنت، يدويًا).
+  - [ ] `npx tsx --env-file=<ملف env الإنتاج> scripts/migrate-offices-to-app-trial.ts` (dry run)، مراجعة الأعداد وقائمة (b)، ثم نفس الأمر مع `--apply` لمنح المجموعة (a) تجربة 14 يومًا من لحظة التشغيل. قرار مكاتب (b) يدويًا.
+  - [ ] التحقق من `external_id` بالاستعلام في القسم 2.1، و redeliver لتسليم الإنتاج الفاشل بعد النشر (يجب أن يفعّل المكتب `cmughejyn0001149coe7u22sh` وليس `cmpsq0nwo…`).
+  - [ ] بعد النشر: مراقبة `[polar-webhook]` في Vercel logs.
 - [ ] **🚀 قبل الإطلاق (2026-09-25) — Polar والإنتاج:**
   - [ ] **نشر `cf169aa` على الإنتاج**، وإلا تبقى الـ webhooks مرفوضة بـ 401.
-  - [ ] **Polar dashboard ← Settings ← Webhooks:** الـ URL بالضبط `https://www.virestojo.com/api/billing/webhooks/polar` (نفس الـ host الأساسي، بدون redirect)، الصيغة Raw/JSON، والأحداث: `subscription.created`، `subscription.active`، `subscription.updated`، `subscription.canceled`، `order.paid`. أي حدث آخر يُقبل (200) ويُتجاهل.
+  - [ ] **Polar dashboard ← Settings ← Webhooks:** الـ URL بالضبط `https://www.virestojo.com/api/billing/webhooks/polar` (نفس الـ host الأساسي، بدون redirect)، الصيغة Raw/JSON، والأحداث: `subscription.created`، `subscription.active`، `subscription.updated`، `subscription.canceled`، `subscription.uncanceled`، `subscription.revoked`، `subscription.past_due`، `order.paid`. أي حدث آخر يُقبل (200) ويُتجاهل.
   - [ ] بعد النشر: "Send test event"/redeliver من Polar، والتأكد من 200 (403 = السر لا يطابق، 401 = النسخة المنشورة قديمة).
   - [ ] **Vercel (Production) env vars بالاسم:** `POLAR_ACCESS_TOKEN`، `POLAR_WEBHOOK_SECRET`، `POLAR_ORGANIZATION_ID`، `POLAR_ENVIRONMENT` (= `production`)، و`APP_URL` و/أو `NEXT_PUBLIC_APP_URL`.
   - [ ] **تشغيل `npm run db:seed` على قاعدة الإنتاج** لتحديث `BillingPlan` إلى `USD` والأسعار بالسنت، والتأكد أن معرّفات المنتجات في `prisma/seed.ts` هي منتجات Polar **الإنتاج** (وليست sandbox) وبأسعار 29/290، 59/590، 119/1190.
@@ -305,7 +354,7 @@
   - [ ] أي اشتراك أُنشئ قبل `cf169aa` لم يُزامَن من الـ webhooks: التأكد يدويًا من حالته في لوحة الأدمن مقابل Polar.
 - [ ] **⚠️ مفاتيح إنتاج في `.env` المحلي:** الملف ما زال يحتوي مفاتيح **الإنتاج** لـ Polar وResend وCloudinary. **الخطة:** (1) نقل dev إلى **Polar sandbox** ومفاتيح تجريبية/اختبار لـ Resend وCloudinary، (2) بعد ذلك **تدوير (rotate) مفاتيح الإنتاج** الثلاثة، لأنها كانت موجودة على جهاز التطوير.
 - [ ] **نشر الإنتاج:** زر القائمة في الموبايل يظهر أبيض على أبيض في الإنتاج إلى أن يُنشر `714fcbe` والـ commits التي بعده، ومعها إصلاح padding الموبايل `820b603`.
-- [ ] **HawkScan:** لا يعمل لأن `HAWK_API_KEY` غير مضبوط (لم يُشغَّل على commits يوم 2026-09-25 لنفس السبب).
+- [ ] **HawkScan:** لا يعمل لأن `HAWK_API_KEY` غير مضبوط (لم يُشغَّل على أي commit يوم 2026-09-25، ومنها commits القسم 2.1).
 
 ### Bugs موثّقة، لم تُصلح بعد
 - [x] ~~رسالة التحقق في نموذج إنشاء القضية ناقصة~~: أُصلح في `71326bb`.
