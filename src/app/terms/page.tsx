@@ -19,7 +19,7 @@ const CONTENT: Record<
   ar: {
     title: "الشروط والأحكام",
     description:
-      "تنظم هذه الشروط استخدام منصة Viresto التي تشغّلها Aqua Tech. إنشاء حساب أو استخدام المنصة يعني قبول هذه الشروط وسياسة الخصوصية وسياسة الاشتراك.",
+      "تنظم هذه الشروط استخدام منصة Viresto التي تشغّلها Aqua.Tech. إنشاء حساب أو استخدام المنصة يعني قبول هذه الشروط وسياسة الخصوصية وسياسة الاشتراك.",
     sections: [
       {
         heading: "1. الخدمة",
@@ -45,7 +45,7 @@ const CONTENT: Record<
       {
         heading: "4. بيانات المكتب والموكلين",
         paragraphs: [
-          "يحتفظ المكتب بحقوقه في المحتوى الذي يرفعه. ويمنح Aqua Tech ترخيصًا محدودًا لمعالجة هذا المحتوى فقط لتشغيل Viresto وتأمينه ودعمه والامتثال للالتزامات القانونية.",
+          "يحتفظ المكتب بحقوقه في المحتوى الذي يرفعه. ويمنح Aqua.Tech ترخيصًا محدودًا لمعالجة هذا المحتوى فقط لتشغيل Viresto وتأمينه ودعمه والامتثال للالتزامات القانونية.",
           "يتحمل المكتب مسؤولية مشروعية جمع البيانات وإدخالها ومشاركتها، والحصول على التفويضات والموافقات اللازمة، ودقة السجلات، والالتزام بواجبات السرية المهنية وأوامر المحاكم وقواعد المهنة.",
         ],
       },
@@ -61,7 +61,7 @@ const CONTENT: Record<
       {
         heading: "6. الاشتراك والتجربة والدفع",
         paragraphs: [
-          "تخضع التجربة المجانية والخطط المدفوعة والأسعار والتجديد والإلغاء والاسترداد لسياسة الاشتراك والإلغاء والاسترداد وللمعلومات الظاهرة عند إتمام الطلب. عند التعارض في معلومة تجارية محددة، تسود التفاصيل التي وافق عليها العميل صراحةً عند الطلب، دون الإخلال بالحقوق التي لا يجوز التنازل عنها قانونًا.",
+          "تخضع التجربة المجانية والخطط المدفوعة والأسعار والتجديد والإلغاء والاسترداد لسياسة الاشتراك والإلغاء والاسترداد وللمعلومات الظاهرة عند إتمام الطلب. تُفوتَر اشتراكات المنصة بالدولار الأمريكي (USD) عبر مزود الدفع Polar. عند التعارض في معلومة تجارية محددة، تسود التفاصيل التي وافق عليها العميل صراحةً عند الطلب، دون الإخلال بالحقوق التي لا يجوز التنازل عنها قانونًا.",
         ],
       },
       {
@@ -73,7 +73,7 @@ const CONTENT: Record<
       {
         heading: "8. الملكية الفكرية",
         paragraphs: [
-          "تعود حقوق منصة Viresto وبرمجياتها وتصميمها وعلاماتها ومحتواها الأصلي إلى Aqua Tech أو مرخصيها. لا تمنح هذه الشروط حق نسخ المنصة أو بيعها أو هندستها عكسيًا أو إنشاء خدمة منافسة من مكوناتها، باستثناء ما يسمح به القانون صراحةً.",
+          "تعود حقوق منصة Viresto وبرمجياتها وتصميمها وعلاماتها ومحتواها الأصلي إلى Aqua.Tech أو مرخصيها. لا تمنح هذه الشروط حق نسخ المنصة أو بيعها أو هندستها عكسيًا أو إنشاء خدمة منافسة من مكوناتها، باستثناء ما يسمح به القانون صراحةً.",
         ],
       },
       {
@@ -91,7 +91,7 @@ const CONTENT: Record<
       {
         heading: "11. المسؤولية",
         paragraphs: [
-          "تُقدم المنصة كأداة إدارية، ويتحمل المكتب قراراته القانونية والمهنية ومواعيده ونسخه الأصلية وسلامة البيانات التي يدخلها. لا تستبعد هذه الشروط مسؤولية لا يجوز استبعادها قانونًا. وفي غير ذلك، تقتصر المسؤولية المباشرة لـAqua Tech عن المطالبات المتعلقة بالخدمة على الرسوم التي دفعها العميل عن الفترة التي نشأت خلالها المطالبة، ما لم يكن الضرر ناتجًا عن غش أو خطأ جسيم أو مخالفة لا يسمح القانون بتقييدها.",
+          "تُقدم المنصة كأداة إدارية، ويتحمل المكتب قراراته القانونية والمهنية ومواعيده ونسخه الأصلية وسلامة البيانات التي يدخلها. لا تستبعد هذه الشروط مسؤولية لا يجوز استبعادها قانونًا. وفي غير ذلك، تقتصر المسؤولية المباشرة لـAqua.Tech عن المطالبات المتعلقة بالخدمة على الرسوم التي دفعها العميل عن الفترة التي نشأت خلالها المطالبة، ما لم يكن الضرر ناتجًا عن غش أو خطأ جسيم أو مخالفة لا يسمح القانون بتقييدها.",
         ],
       },
       {
@@ -105,7 +105,7 @@ const CONTENT: Record<
   en: {
     title: "Terms & Conditions",
     description:
-      "These terms govern use of Viresto, operated by Aqua Tech. Creating an account or using the platform constitutes acceptance of these terms, the Privacy Policy, and the Subscription Policy.",
+      "These terms govern use of Viresto, operated by Aqua.Tech. Creating an account or using the platform constitutes acceptance of these terms, the Privacy Policy, and the Subscription Policy.",
     sections: [
       {
         heading: "1. The service",
@@ -131,7 +131,7 @@ const CONTENT: Record<
       {
         heading: "4. Office and client data",
         paragraphs: [
-          "The office retains its rights in uploaded content and grants Aqua Tech a limited licence to process it only to operate, secure, support, and legally maintain Viresto.",
+          "The office retains its rights in uploaded content and grants Aqua.Tech a limited licence to process it only to operate, secure, support, and legally maintain Viresto.",
           "The office is responsible for lawful collection and use, required authorisations and notices, record accuracy, professional confidentiality, court orders, and applicable professional rules.",
         ],
       },
@@ -147,7 +147,7 @@ const CONTENT: Record<
       {
         heading: "6. Subscription, trial, and payment",
         paragraphs: [
-          "The free trial, paid plans, prices, renewals, cancellation, and refunds are governed by the Subscription, Cancellation & Refund Policy and the information shown when an order is completed. For a specific commercial term, the details expressly accepted at the order stage prevail without limiting non-waivable statutory rights.",
+          "The free trial, paid plans, prices, renewals, cancellation, and refunds are governed by the Subscription, Cancellation & Refund Policy and the information shown when an order is completed. Platform subscriptions are billed in US dollars (USD) through our payment provider, Polar. For a specific commercial term, the details expressly accepted at the order stage prevail without limiting non-waivable statutory rights.",
         ],
       },
       {
@@ -159,7 +159,7 @@ const CONTENT: Record<
       {
         heading: "8. Intellectual property",
         paragraphs: [
-          "Viresto software, design, marks, and original content belong to Aqua Tech or its licensors. These terms do not permit copying, resale, reverse engineering, or building a competing service from Viresto components except where applicable law expressly allows it.",
+          "Viresto software, design, marks, and original content belong to Aqua.Tech or its licensors. These terms do not permit copying, resale, reverse engineering, or building a competing service from Viresto components except where applicable law expressly allows it.",
         ],
       },
       {
@@ -177,7 +177,7 @@ const CONTENT: Record<
       {
         heading: "11. Liability",
         paragraphs: [
-          "Viresto is an administrative tool. The office remains responsible for legal and professional decisions, deadlines, original copies, and the accuracy of entered data. Nothing excludes liability that cannot lawfully be excluded. Otherwise, Aqua Tech's direct liability for service claims is limited to fees paid for the period in which the claim arose, except for fraud, gross negligence, or another liability that applicable law does not permit us to limit.",
+          "Viresto is an administrative tool. The office remains responsible for legal and professional decisions, deadlines, original copies, and the accuracy of entered data. Nothing excludes liability that cannot lawfully be excluded. Otherwise, Aqua.Tech's direct liability for service claims is limited to fees paid for the period in which the claim arose, except for fraud, gross negligence, or another liability that applicable law does not permit us to limit.",
         ],
       },
       {

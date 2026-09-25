@@ -20,25 +20,25 @@ const CONTENT: Record<
   ar: {
     title: "سياسة الاشتراك والإلغاء والاسترداد",
     description:
-      "توضح هذه السياسة آلية التجربة والخطط المدفوعة والتجديد وتغيير الخطة والإلغاء والاسترداد في Viresto. تظهر الشروط التجارية النهائية بوضوح قبل تأكيد أي عملية دفع.",
+      "توضح هذه السياسة آلية التجربة والخطط المدفوعة والتجديد وتغيير الخطة والإلغاء والاسترداد في Viresto، المنصة التي تشغّلها Aqua.Tech. تظهر الشروط التجارية النهائية بوضوح قبل تأكيد أي عملية دفع.",
     sections: [
       {
         heading: "1. الخطط والأسعار",
         paragraphs: [
-          "تتوفر Viresto بخطط شهرية وسنوية موضحة في صفحة الأسعار وبالدينار الأردني. يَظهر السعر النهائي ودورة الفوترة وأي رسوم أو ضرائب واجبة قبل تأكيد الطلب. لا تُطبق زيادة سعرية على دورة مدفوعة جارية، ويُقدم إشعار مناسب قبل تأثير أي تغيير على التجديد التالي.",
+          "تتوفر Viresto بخطط شهرية وسنوية موضحة في صفحة الأسعار، وتُسعَّر وتُفوتَر بالدولار الأمريكي (USD). يَظهر السعر النهائي ودورة الفوترة وأي رسوم أو ضرائب واجبة قبل تأكيد الطلب. لا تُطبق زيادة سعرية على دورة مدفوعة جارية، ويُقدم إشعار مناسب قبل تأثير أي تغيير على التجديد التالي.",
         ],
       },
       {
         heading: "2. التجربة المجانية",
         paragraphs: [
-          "يحصل المكتب الجديد المؤهل على تجربة مجانية لمدة 7 أيام وفق الخطة المعروضة عند التسجيل. لا تتحول التجربة إلى اشتراك مدفوع إلا بعد اختيار خطة وتقديم وسيلة دفع أو تأكيد طلب دفع. عند انتهاء التجربة دون اشتراك فعال، قد يصبح الحساب للقراءة فقط إلى أن يتم التفعيل.",
+          "يحصل المكتب الجديد المؤهل على تجربة مجانية لمدة 7 أيام وفق الخطة المعروضة عند التسجيل. لا تتحول التجربة إلى اشتراك مدفوع إلا بعد اختيار خطة وإتمام الدفع عبر صفحة الدفع. عند انتهاء التجربة دون اشتراك فعال، قد يصبح الحساب للقراءة فقط إلى أن يتم التفعيل.",
         ],
       },
       {
         heading: "3. الدفع والتجديد",
         paragraphs: [
-          "عند استخدام الدفع الإلكتروني، تُعالج العملية عبر مزود دفع خارجي وتخضع أيضًا لشروطه الأمنية والتشغيلية. لا يخزن Viresto بيانات البطاقة الكاملة. يتجدد الاشتراك تلقائيًا فقط عندما توضح شاشة الطلب ذلك ويوافق العميل عليه صراحةً، ويكون التجديد وفق الدورة المختارة.",
-          "الدفعات اليدوية، إن كانت متاحة، لا تتجدد تلقائيًا ما لم يتم الاتفاق على ذلك بوضوح. يُعد الاشتراك فعالًا بعد تأكيد استلام الدفعة وقبولها.",
+          "تُدفع اشتراكات المنصة إلكترونيًا بالدولار الأمريكي عبر مزود الدفع Polar (polar.sh)، وتخضع العملية أيضًا لشروطه الأمنية والتشغيلية. لا يخزن Viresto بيانات البطاقة الكاملة. يتجدد الاشتراك تلقائيًا فقط عندما توضح شاشة الطلب ذلك ويوافق العميل عليه صراحةً، ويكون التجديد وفق الدورة المختارة.",
+          "لا تُقبل اشتراكات المنصة عبر CliQ أو التحويل البنكي أو أي دفع يدوي. لا يشمل ذلك الفواتير والمدفوعات التي يسجلها المكتب لموكليه داخل Viresto، فهي منفصلة عن اشتراك المنصة.",
         ],
       },
       {
@@ -81,7 +81,7 @@ const CONTENT: Record<
       {
         heading: "9. تحديث السياسة",
         paragraphs: [
-          "قد تُحدّث هذه السياسة عند إضافة بوابة دفع أو تغيير آلية الفوترة. لا يسري تغيير جوهري بأثر رجعي على دورة مدفوعة مكتملة، وسيظهر تاريخ النفاذ ويقدم إشعار مناسب قبل تطبيقه على التجديدات المستقبلية.",
+          "قد تُحدّث هذه السياسة عند تغيير مزود الدفع أو آلية الفوترة. لا يسري تغيير جوهري بأثر رجعي على دورة مدفوعة مكتملة، وسيظهر تاريخ النفاذ ويقدم إشعار مناسب قبل تطبيقه على التجديدات المستقبلية.",
         ],
       },
     ],
@@ -89,25 +89,25 @@ const CONTENT: Record<
   en: {
     title: "Subscription, Cancellation & Refund Policy",
     description:
-      "This policy explains Viresto trials, paid plans, renewal, plan changes, cancellation, and refunds. Final commercial terms are displayed clearly before any payment is confirmed.",
+      "This policy explains trials, paid plans, renewal, plan changes, cancellation, and refunds for Viresto, which is operated by Aqua.Tech. Final commercial terms are displayed clearly before any payment is confirmed.",
     sections: [
       {
         heading: "1. Plans and prices",
         paragraphs: [
-          "Viresto offers monthly and annual plans shown on the Pricing page in Jordanian dinars. The final price, billing interval, and applicable fees or taxes are displayed before confirmation. A price increase will not affect a current paid period, and appropriate notice will be given before it affects a future renewal.",
+          "Viresto offers monthly and annual plans shown on the Pricing page, priced and billed in US dollars (USD). The final price, billing interval, and applicable fees or taxes are displayed before confirmation. A price increase will not affect a current paid period, and appropriate notice will be given before it affects a future renewal.",
         ],
       },
       {
         heading: "2. Free trial",
         paragraphs: [
-          "An eligible new office receives a 7-day free trial under the plan shown at registration. The trial becomes paid only after a plan is selected and a payment method or payment request is confirmed. When the trial ends without an active subscription, the account may become read-only until activation.",
+          "An eligible new office receives a 7-day free trial under the plan shown at registration. The trial becomes paid only after a plan is selected and payment is completed at checkout. When the trial ends without an active subscription, the account may become read-only until activation.",
         ],
       },
       {
         heading: "3. Payment and renewal",
         paragraphs: [
-          "Electronic payments are processed by an external payment provider and are also subject to that provider's security and operational terms. Viresto does not store complete card details. A subscription renews automatically only where the order screen clearly states this and the customer expressly agrees, using the selected billing interval.",
-          "Manual payments, where available, do not renew automatically unless this is clearly agreed. The subscription becomes active after the payment is confirmed and accepted.",
+          "Platform subscriptions are paid electronically in US dollars through our payment provider, Polar (polar.sh), and are also subject to its security and operational terms. Viresto does not store complete card details. A subscription renews automatically only where the order screen clearly states this and the customer expressly agrees, using the selected billing interval.",
+          "Platform subscriptions are not accepted by CliQ, bank transfer, or any other manual payment. This does not cover the invoices and payments an office records for its own clients inside Viresto, which are separate from the platform subscription.",
         ],
       },
       {
@@ -150,7 +150,7 @@ const CONTENT: Record<
       {
         heading: "9. Policy changes",
         paragraphs: [
-          "This policy may be updated when a payment gateway is added or billing mechanics change. A material change will not retroactively alter a completed paid period. The effective date will be shown and appropriate notice will be provided before future renewals are affected.",
+          "This policy may be updated when the payment provider or billing mechanics change. A material change will not retroactively alter a completed paid period. The effective date will be shown and appropriate notice will be provided before future renewals are affected.",
         ],
       },
     ],

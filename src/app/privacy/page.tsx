@@ -19,12 +19,12 @@ const CONTENT: Record<
   ar: {
     title: "سياسة الخصوصية",
     description:
-      "توضح هذه السياسة كيف تجمع Aqua Tech، بصفتها مشغّل منصة Viresto، البيانات الشخصية وتستخدمها وتحميها، وكيف يمكن للأشخاص المعنيين ممارسة حقوقهم.",
+      "توضح هذه السياسة كيف تجمع Aqua.Tech، بصفتها مشغّل منصة Viresto، البيانات الشخصية وتستخدمها وتحميها، وكيف يمكن للأشخاص المعنيين ممارسة حقوقهم.",
     sections: [
       {
         heading: "1. النطاق والأدوار",
         paragraphs: [
-          "تنطبق هذه السياسة على موقع Viresto وتطبيقه وخدماته. بالنسبة لبيانات الحساب والتواصل والأمان والفوترة، تعمل Aqua Tech بصفتها المسؤول عن المعالجة. وبالنسبة لبيانات الموكلين والقضايا والمستندات التي يُدخلها المكتب، يحدد المكتب أغراض المعالجة وتعمل Aqua Tech عادةً بصفتها معالجًا لتقديم الخدمة نيابةً عنه.",
+          "تنطبق هذه السياسة على موقع Viresto وتطبيقه وخدماته. بالنسبة لبيانات الحساب والتواصل والأمان والفوترة، تعمل Aqua.Tech بصفتها المسؤول عن المعالجة. وبالنسبة لبيانات الموكلين والقضايا والمستندات التي يُدخلها المكتب، يحدد المكتب أغراض المعالجة وتعمل Aqua.Tech عادةً بصفتها معالجًا لتقديم الخدمة نيابةً عنه.",
           "يجب على المكتب التأكد من وجود أساس قانوني مناسب لإدخال بيانات موكليه وأطراف القضايا إلى المنصة، وإبلاغهم عند وجوب ذلك.",
         ],
       },
@@ -34,7 +34,7 @@ const CONTENT: Record<
           "بيانات إنشاء الحساب وإدارة المكتب: الاسم، اسم المكتب، البريد الإلكتروني، رقم الهاتف، الدور والصلاحيات.",
           "بيانات التشغيل التي يضيفها المستخدمون: بيانات الموكلين والقضايا والمواعيد والمهام والمستندات والفواتير والمدفوعات والملاحظات.",
           "بيانات الأمان والتقنية: عنوان IP، معلومات الجهاز والمتصفح، الجلسات، سجلات الدخول والنشاط ومحاولات الوصول.",
-          "بيانات الاشتراك والفوترة وطلبات الدفع، دون تخزين بيانات البطاقة الكاملة داخل Viresto.",
+          "بيانات الاشتراك والفوترة. تُعالج مدفوعات الاشتراك عبر Polar، ولا تُخزَّن بيانات البطاقة الكاملة داخل Viresto.",
           "محتوى يُرسل إلى مزود الذكاء الاصطناعي فقط عند تفعيل موافقة المكتب وطلب ميزة تعتمد عليه.",
         ],
       },
@@ -54,7 +54,7 @@ const CONTENT: Record<
       {
         heading: "4. الجهات التي قد تعالج البيانات",
         paragraphs: [
-          "نستخدم مزودي خدمات تقنيين لتشغيل المنصة، مثل خدمات الاستضافة وقاعدة البيانات وتخزين الملفات والبريد الإلكتروني وتحديد معدل الطلبات. وقد تشمل هذه الجهات Vercel وNeon وCloudinary وResend وUpstash، ومزود الذكاء الاصطناعي عند تفعيل الميزة.",
+          "نستخدم مزودي خدمات تقنيين لتشغيل المنصة، مثل خدمات الاستضافة وقاعدة البيانات وتخزين الملفات والبريد الإلكتروني وتحديد معدل الطلبات. وقد تشمل هذه الجهات Vercel وNeon وCloudinary وResend وUpstash، وPolar لمعالجة مدفوعات الاشتراك، ومزود الذكاء الاصطناعي عند تفعيل الميزة.",
           "لا نبيع البيانات الشخصية. ولا نشاركها إلا بالقدر الضروري لتقديم الخدمة، أو بموافقة مناسبة، أو امتثالًا لطلب قانوني ملزم. قد تتم المعالجة أو الاستضافة خارج الأردن مع اتخاذ الضوابط التعاقدية والتقنية المطلوبة وبما يراعي التشريعات النافذة.",
         ],
       },
@@ -95,12 +95,12 @@ const CONTENT: Record<
   en: {
     title: "Privacy Policy",
     description:
-      "This policy explains how Aqua Tech, the operator of Viresto, collects, uses, protects, and shares personal data, and how data subjects can exercise their rights.",
+      "This policy explains how Aqua.Tech, the operator of Viresto, collects, uses, protects, and shares personal data, and how data subjects can exercise their rights.",
     sections: [
       {
         heading: "1. Scope and roles",
         paragraphs: [
-          "This policy applies to the Viresto website, application, and services. Aqua Tech acts as controller for account, communications, security, and billing data. For client, case, and document data entered by a law office, the office determines the processing purposes and Aqua Tech generally acts as its processor to provide the service.",
+          "This policy applies to the Viresto website, application, and services. Aqua.Tech acts as controller for account, communications, security, and billing data. For client, case, and document data entered by a law office, the office determines the processing purposes and Aqua.Tech generally acts as its processor to provide the service.",
           "Each office is responsible for having an appropriate legal basis to add client and case-party data and for providing any notices required by law.",
         ],
       },
@@ -110,7 +110,7 @@ const CONTENT: Record<
           "Account and office data, including names, office name, email, phone number, role, and permissions.",
           "Operational content entered by users, including clients, cases, appointments, tasks, documents, invoices, payments, and notes.",
           "Security and technical data, including IP address, browser and device details, sessions, sign-in records, activity logs, and access attempts.",
-          "Subscription, billing, and payment-request data. Viresto does not store complete payment-card details.",
+          "Subscription and billing data. Subscription payments are processed by Polar, and Viresto does not store complete payment-card details.",
           "Content sent to an AI provider only when the office has enabled consent and requests a feature that uses it.",
         ],
       },
@@ -130,7 +130,7 @@ const CONTENT: Record<
       {
         heading: "4. Service providers and transfers",
         paragraphs: [
-          "We use technical providers for hosting, databases, file storage, email delivery, and rate limiting. These may include Vercel, Neon, Cloudinary, Resend, Upstash, and an AI provider when the feature is enabled.",
+          "We use technical providers for hosting, databases, file storage, email delivery, rate limiting, and payments. These may include Vercel, Neon, Cloudinary, Resend, Upstash, Polar for subscription payments, and an AI provider when the feature is enabled.",
           "We do not sell personal data. We disclose it only as needed to provide the service, with suitable consent, or to comply with a binding legal request. Processing or hosting may occur outside Jordan under appropriate contractual and technical safeguards and applicable legal requirements.",
         ],
       },
