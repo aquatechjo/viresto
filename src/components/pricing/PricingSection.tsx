@@ -53,7 +53,7 @@ export default function PricingSection() {
                 <div className="mb-6">
                   <div className="flex items-end gap-2">
                     <span dir="ltr" className="text-5xl font-black text-copper-400">
-                      ${displayPrice}
+                      ${displayPrice.toLocaleString("en-US")}
                     </span>
                     <span className="pb-2 text-sm text-emerald-100/70">
                       / شهريًا
@@ -61,7 +61,9 @@ export default function PricingSection() {
                   </div>
 
                   <p className="mt-2 text-sm text-emerald-100/55">
-                    <span dir="ltr">${getYearlyPrice(plan)}</span> / سنويًا —{" "}
+                    <span dir="ltr">
+                      ${getYearlyPrice(plan).toLocaleString("en-US")}
+                    </span> / سنويًا —{" "}
                     {formatYearlySavings(plan)}
                   </p>
                 </div>
