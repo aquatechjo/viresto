@@ -26,6 +26,7 @@ function appTrial(overrides: Partial<AccessSubscription> = {}): AccessSubscripti
     trialEndsAt: at(9 * DAY),
     currentPeriodEnd: at(9 * DAY),
     cancelAtPeriodEnd: false,
+    pastDueSince: null,
     createdAt: at(-5 * DAY),
     ...overrides,
   };
@@ -40,6 +41,7 @@ function polarSub(overrides: Partial<AccessSubscription> = {}): AccessSubscripti
     trialEndsAt: null,
     currentPeriodEnd: at(20 * DAY),
     cancelAtPeriodEnd: false,
+    pastDueSince: null,
     createdAt: at(-1 * DAY),
     ...overrides,
   };
@@ -151,4 +153,43 @@ test("a cancelled paid subscription locks with CANCELLED even if an old trial ex
 
   assert.equal(access.state, "LOCKED");
   assert.equal(access.lockReason, "CANCELLED");
+});
+
+test("past_due: full access with paymentFailed for up to 7 days", () => {
+  const pastDue = polarSub({ status: "PAST_DUE", pastDueSince: at(-6 * DAY) });
+  const access = resolveTenantAccess([pastDue], NOW);
+
+  assert.equal(access.state, "PAID");
+  assert.equal(access.paymentFailed, true);
+  assert.equal(access.pastDueLocksAt?.getTime(), at(DAY).getTime());
+});
+
+test("past_due: locked once 7 days have passed", () => {
+  const pastDue = polarSub({ status: "PAST_DUE", pastDueSince: at(-7 * DAY - 1) });
+  const access = resolveTenantAccess([pastDue], NOW);
+
+  assert.equal(access.state, "LOCKED");
+  assert.equal(access.lockReason, "PAST_DUE");
+});
+
+test("past_due: Polar cancelling the subscription locks before the 7 days are up", () => {
+  const cancelled = polarSub({
+    status: "CANCELLED",
+    pastDueSince: at(-DAY),
+    currentPeriodEnd: at(-2 * DAY),
+  });
+  assert.equal(resolveTenantAccess([cancelled], NOW).state, "LOCKED");
+});
+
+test("a healthy subscription is preferred over one in past_due", () => {
+  const access = resolveTenantAccess(
+    [
+      polarSub({ id: "late", status: "PAST_DUE", pastDueSince: at(-DAY) }),
+      polarSub({ id: "ok", createdAt: at(-10 * DAY) }),
+    ],
+    NOW,
+  );
+
+  assert.equal(access.subscriptionId, "ok");
+  assert.equal(access.paymentFailed, false);
 });

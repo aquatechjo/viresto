@@ -12,7 +12,8 @@ import { Webhook } from "standardwebhooks";
 // are mocked, so no network/DB calls happen.
 
 const TEST_SECRET = "w".repeat(32);
-process.env.POLAR_WEBHOOK_SECRET = TEST_SECRET;
+// Pasted env vars often carry a trailing newline; the route trims it.
+process.env.POLAR_WEBHOOK_SECRET = `${TEST_SECRET}\n`;
 
 const subscriptionsGetMock = mock.fn<(...args: unknown[]) => Promise<Record<string, unknown>>>(
   async () => fetchedSubscriptionFixture(),
@@ -20,15 +21,24 @@ const subscriptionsGetMock = mock.fn<(...args: unknown[]) => Promise<Record<stri
 const getPolarClientMock = mock.fn(() => ({
   subscriptions: { get: subscriptionsGetMock },
 }));
+type SyncResult = { ok: boolean; reason?: string } & Record<string, unknown>;
 const syncSubscriptionFromPolarMock = mock.fn<
-  (...args: unknown[]) => Promise<Record<string, unknown>>
->(async () => ({ id: "synced" }));
+  (...args: unknown[]) => Promise<SyncResult>
+>(async () => ({ ok: true }));
+const findBillingPlanForPolarProductMock = mock.fn<
+  (...args: unknown[]) => Promise<Record<string, unknown> | null>
+>(async (productId) => (productId === "prod_1" ? { id: "plan-pro" } : null));
+const warnMock = mock.method(console, "warn", () => undefined);
 
 mock.module("@/lib/polar", {
   namedExports: { getPolarClient: getPolarClientMock },
 });
 mock.module("@/lib/polar-subscription-sync", {
-  namedExports: { syncSubscriptionFromPolar: syncSubscriptionFromPolarMock },
+  namedExports: {
+    POLAR_LOG_PREFIX: "[polar-webhook]",
+    syncSubscriptionFromPolar: syncSubscriptionFromPolarMock,
+    findBillingPlanForPolarProduct: findBillingPlanForPolarProductMock,
+  },
 });
 
 let POST: (typeof import("../../src/app/api/billing/webhooks/polar/route"))["POST"];
@@ -41,8 +51,10 @@ beforeEach(() => {
   subscriptionsGetMock.mock.resetCalls();
   getPolarClientMock.mock.resetCalls();
   syncSubscriptionFromPolarMock.mock.resetCalls();
+  findBillingPlanForPolarProductMock.mock.resetCalls();
+  warnMock.mock.resetCalls();
   subscriptionsGetMock.mock.mockImplementation(async () => fetchedSubscriptionFixture());
-  syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({ id: "synced" }));
+  syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({ ok: true }));
 });
 
 function sign(body: string, secret = TEST_SECRET, msgId = "msg_test_1", timestamp = new Date()) {
@@ -159,15 +171,19 @@ function subscriptionDataFixture(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function subscriptionEventPayload(type: string) {
+function subscriptionEventPayload(type: string, overrides: Record<string, unknown> = {}) {
   return {
     type,
     timestamp: new Date().toISOString(),
-    data: subscriptionDataFixture(),
+    data: subscriptionDataFixture(overrides),
   };
 }
 
-function orderPayload(type: "order.paid" | "order.created") {
+function loggedLines() {
+  return warnMock.mock.calls.map((call) => String(call.arguments[0]));
+}
+
+function orderPayload(type: "order.paid" | "order.created", productId = "prod_1") {
   const now = new Date().toISOString();
   return {
     type,
@@ -195,7 +211,7 @@ function orderPayload(type: "order.paid" | "order.created") {
       is_invoice_generated: false,
       receipt_number: null,
       customer_id: "cust_1",
-      product_id: "prod_1",
+      product_id: productId,
       discount_id: null,
       subscription_id: "sub_1",
       checkout_id: null,
@@ -232,6 +248,29 @@ test("webhook: rejects a request signed with the wrong secret", async () => {
   const res = await POST(makeRequest(payload, wrongHeaders));
   assert.equal(res.status, 403);
   assert.equal(syncSubscriptionFromPolarMock.mock.callCount(), 0);
+  assert.equal(
+    loggedLines()[0],
+    "[polar-webhook] signature_invalid webhook_id=msg_test_1 has_signature=true has_timestamp=true",
+  );
+});
+
+test("webhook: a correct secret verifies even with a trailing newline in the env var", async () => {
+  // The env var above has a newline appended; signing uses the bare secret.
+  const res = await POST(makeRequest(subscriptionEventPayload("subscription.updated")));
+  assert.equal(res.status, 200);
+});
+
+test("webhook: a signature over a modified body is rejected (the raw body is what is verified)", async () => {
+  const payload = subscriptionEventPayload("subscription.created");
+  const headers = sign(JSON.stringify(payload));
+  const tampered = new NextRequest("http://localhost/api/billing/webhooks/polar", {
+    method: "POST",
+    body: JSON.stringify({ ...payload, type: "subscription.revoked" }),
+    headers: { "content-type": "application/json", ...headers },
+  });
+
+  const res = await POST(tampered);
+  assert.equal(res.status, 403);
 });
 
 for (const type of [
@@ -239,6 +278,9 @@ for (const type of [
   "subscription.active",
   "subscription.updated",
   "subscription.canceled",
+  "subscription.uncanceled",
+  "subscription.revoked",
+  "subscription.past_due",
 ]) {
   test(`webhook: a correctly signed ${type} event passes verification and syncs the subscription`, async () => {
     const payload = subscriptionEventPayload(type);
@@ -284,4 +326,83 @@ test("webhook: a downstream sync failure returns 500 instead of crashing", async
 
   const res = await POST(makeRequest(subscriptionEventPayload("subscription.created")));
   assert.equal(res.status, 500);
+  assert.equal(
+    loggedLines()[0],
+    "[polar-webhook] sync_failed event=subscription.created webhook_id=msg_test_1 error=Error",
+  );
+});
+
+test("webhook: trialing status is passed to the sync (treated as entitled there)", async () => {
+  const res = await POST(
+    makeRequest(subscriptionEventPayload("subscription.created", { status: "trialing" })),
+  );
+
+  assert.equal(res.status, 200);
+  assert.equal(
+    (syncSubscriptionFromPolarMock.mock.calls[0].arguments[0] as { status: string }).status,
+    "trialing",
+  );
+});
+
+test("webhook: foreign product on a subscription event answers 200 and logs unknown_product", async () => {
+  syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({
+    ok: false,
+    reason: "unknown_product",
+  }));
+
+  const res = await POST(
+    makeRequest(subscriptionEventPayload("subscription.created", { product_id: "prod_other_app" })),
+  );
+
+  assert.equal(res.status, 200);
+  assert.equal(
+    loggedLines()[0],
+    "[polar-webhook] unknown_product event=subscription.created webhook_id=msg_test_1 sub=sub_1 product=prod_other_app",
+  );
+});
+
+test("webhook: foreign product on order.paid answers 200 without calling the Polar API", async () => {
+  const res = await POST(makeRequest(orderPayload("order.paid", "prod_other_app")));
+
+  assert.equal(res.status, 200);
+  assert.equal(subscriptionsGetMock.mock.callCount(), 0);
+  assert.equal(syncSubscriptionFromPolarMock.mock.callCount(), 0);
+  assert.match(loggedLines()[0], /^\[polar-webhook\] unknown_product event=order\.paid .*product=prod_other_app$/);
+});
+
+test("webhook: tenant failures are acknowledged (200) so Polar stops retrying", async () => {
+  for (const reason of ["tenant_missing", "tenant_not_found", "tenant_conflict"]) {
+    warnMock.mock.resetCalls();
+    syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({ ok: false, reason }));
+
+    const res = await POST(makeRequest(subscriptionEventPayload("subscription.updated")));
+
+    assert.equal(res.status, 200);
+    assert.ok(loggedLines()[0].startsWith(`[polar-webhook] ${reason} `));
+  }
+});
+
+test("webhook: a validly signed event this SDK cannot parse is acknowledged, not retried", async () => {
+  const res = await POST(
+    makeRequest({ type: "something.new", timestamp: new Date().toISOString(), data: {} }),
+  );
+
+  assert.equal(res.status, 200);
+  assert.equal(loggedLines()[0], "[polar-webhook] unparseable_event webhook_id=msg_test_1");
+  assert.equal(syncSubscriptionFromPolarMock.mock.callCount(), 0);
+});
+
+test("webhook: log lines never contain the payload or the secret", async () => {
+  syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({
+    ok: false,
+    reason: "tenant_not_found",
+  }));
+  await POST(makeRequest(subscriptionEventPayload("subscription.updated")));
+
+  assert.ok(loggedLines().length > 0);
+  for (const line of loggedLines()) {
+    assert.ok(!line.includes(TEST_SECRET));
+    assert.ok(!line.includes("test@example.com"));
+    assert.ok(!line.includes("{"));
+  }
 });

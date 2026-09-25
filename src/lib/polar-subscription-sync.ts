@@ -10,7 +10,19 @@ import {
   getBillingPlanConfig,
   syncTenantSubscriptionMirror,
 } from "@/lib/subscription-consistency";
+import { invalidateAuthCacheForTenant } from "@/lib/api-auth";
+import { isPaidSubscriptionEntitled } from "@/lib/tenant-access";
+import { getTenantAccess } from "@/lib/tenant-access-server";
 
+export const POLAR_LOG_PREFIX = "[polar-webhook]";
+
+/**
+ * Polar statuses → ours. "active" and "trialing" are entitled; "past_due"
+ * keeps access for 7 days (tenant-access.ts); "canceled" is what Polar
+ * reports once a subscription has actually ended or been revoked. A
+ * subscription set to cancel at period end stays "active" with
+ * cancel_at_period_end=true until then.
+ */
 export function mapPolarStatus(status: string): SubscriptionStatus {
   switch (status) {
     case "trialing":
@@ -19,10 +31,9 @@ export function mapPolarStatus(status: string): SubscriptionStatus {
       return SubscriptionStatus.ACTIVE;
     case "past_due":
       return SubscriptionStatus.PAST_DUE;
-    case "paused":
-      return SubscriptionStatus.PAST_DUE;
     case "canceled":
       return SubscriptionStatus.CANCELLED;
+    case "paused":
     case "incomplete_expired":
       return SubscriptionStatus.EXPIRED;
     case "incomplete":
@@ -32,42 +43,137 @@ export function mapPolarStatus(status: string): SubscriptionStatus {
   }
 }
 
-function resolveTenantId(subscription: PolarSubscription): string | null {
-  const externalId = subscription.customer?.externalId;
-  if (externalId) return externalId;
+export type PolarTenantResolution =
+  | {
+      ok: true;
+      tenantId: string;
+      source: "metadata" | "existing_subscription" | "external_id";
+      mismatch: { externalId: string } | null;
+    }
+  | {
+      ok: false;
+      reason: "tenant_missing" | "tenant_conflict";
+      existingTenantId?: string;
+    };
 
-  const metadataTenantId = subscription.metadata?.tenantId;
-  return typeof metadataTenantId === "string" ? metadataTenantId : null;
+/**
+ * Which office a Polar subscription belongs to.
+ *
+ * metadata.tenantId is set by our own checkout for this exact purchase, so
+ * it wins. customer.external_id is NOT reliable: Polar keys customers by
+ * email and keeps the external_id from the first time it saw that email
+ * (an earlier office, an earlier attempt, or the other app sharing this
+ * Polar org), so it is only a fallback. If our DB already links this
+ * Polar subscription to a different office than metadata names, refuse
+ * rather than move a paid subscription between offices.
+ */
+export function resolvePolarTenant(input: {
+  metadataTenantId: string | null;
+  externalId: string | null;
+  existingTenantId: string | null;
+}): PolarTenantResolution {
+  const { metadataTenantId, externalId, existingTenantId } = input;
+
+  if (metadataTenantId) {
+    if (existingTenantId && existingTenantId !== metadataTenantId) {
+      return { ok: false, reason: "tenant_conflict", existingTenantId };
+    }
+
+    return {
+      ok: true,
+      tenantId: metadataTenantId,
+      source: "metadata",
+      mismatch:
+        externalId && externalId !== metadataTenantId ? { externalId } : null,
+    };
+  }
+
+  if (existingTenantId) {
+    return {
+      ok: true,
+      tenantId: existingTenantId,
+      source: "existing_subscription",
+      mismatch:
+        externalId && externalId !== existingTenantId ? { externalId } : null,
+    };
+  }
+
+  if (externalId) {
+    return { ok: true, tenantId: externalId, source: "external_id", mismatch: null };
+  }
+
+  return { ok: false, reason: "tenant_missing" };
+}
+
+export async function findBillingPlanForPolarProduct(
+  productId: string | null | undefined,
+) {
+  if (!productId) return null;
+
+  return prisma.billingPlan.findFirst({
+    where: {
+      OR: [
+        { polarMonthlyProductId: productId },
+        { polarYearlyProductId: productId },
+      ],
+    },
+  });
+}
+
+export type PolarSyncFailureReason =
+  | "unknown_product"
+  | "tenant_missing"
+  | "tenant_conflict"
+  | "tenant_not_found";
+
+export type PolarSyncResult =
+  | {
+      ok: true;
+      tenantId: string;
+      status: SubscriptionStatus;
+      entitled: boolean;
+      tenantSource: "metadata" | "existing_subscription" | "external_id";
+    }
+  | { ok: false; reason: PolarSyncFailureReason };
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 export async function syncSubscriptionFromPolar(
   subscription: PolarSubscription,
-) {
-  const tenantId = resolveTenantId(subscription);
-
-  if (!tenantId) {
-    console.error(
-      "[POLAR_SYNC] Subscription has no external tenant id",
-      subscription.id,
-    );
-    return null;
-  }
-
-  const plan = await prisma.billingPlan.findFirst({
-    where: {
-      OR: [
-        { polarMonthlyProductId: subscription.productId },
-        { polarYearlyProductId: subscription.productId },
-      ],
-    },
-  });
+): Promise<PolarSyncResult> {
+  // Products outside our 6 BillingPlan products belong to the other app on
+  // this Polar org. Never touch an office for them.
+  const plan = await findBillingPlanForPolarProduct(subscription.productId);
 
   if (!plan) {
-    console.error(
-      "[POLAR_SYNC] No BillingPlan matches Polar product",
-      subscription.productId,
+    return { ok: false, reason: "unknown_product" };
+  }
+
+  const existing = await prisma.subscription.findUnique({
+    where: { polarSubscriptionId: subscription.id },
+    select: { tenantId: true, status: true, pastDueSince: true },
+  });
+
+  const resolution = resolvePolarTenant({
+    metadataTenantId: stringOrNull(subscription.metadata?.tenantId),
+    externalId: stringOrNull(subscription.customer?.externalId),
+    existingTenantId: existing?.tenantId ?? null,
+  });
+
+  if (!resolution.ok) {
+    return { ok: false, reason: resolution.reason };
+  }
+
+  const { tenantId } = resolution;
+
+  if (resolution.mismatch) {
+    // Expected when the Polar customer (keyed by email) was first created
+    // for another office. We trust `resolution.source`, never external_id.
+    console.warn(
+      `${POLAR_LOG_PREFIX} tenant_mismatch sub=${subscription.id} tenant=${tenantId} source=${resolution.source} external_id=${resolution.mismatch.externalId}`,
     );
-    return null;
   }
 
   const interval =
@@ -77,11 +183,33 @@ export async function syncSubscriptionFromPolar(
 
   const billingPlanConfig = getBillingPlanConfig(plan.code, interval);
   const status = mapPolarStatus(subscription.status);
-  const isEntitled =
-    status === SubscriptionStatus.ACTIVE ||
-    status === SubscriptionStatus.TRIALING;
+  const now = new Date();
 
-  return prisma.$transaction(async (tx) => {
+  // Start the 7-day past_due clock once, and keep it across the repeated
+  // webhooks Polar sends while it retries the card.
+  const pastDueSince =
+    status === SubscriptionStatus.PAST_DUE
+      ? existing?.status === SubscriptionStatus.PAST_DUE && existing.pastDueSince
+        ? existing.pastDueSince
+        : now
+      : null;
+
+  const fields = {
+    planId: plan.id,
+    status,
+    interval,
+    currency: subscription.currency?.toUpperCase() || plan.currency,
+    amount: subscription.amount ?? billingPlanConfig?.amount ?? 0,
+    trialEndsAt: subscription.trialEnd ?? null,
+    currentPeriodStart: subscription.currentPeriodStart,
+    currentPeriodEnd: subscription.currentPeriodEnd,
+    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+    cancelledAt: subscription.canceledAt ?? null,
+    pastDueSince,
+    polarCustomerId: subscription.customerId,
+  };
+
+  const result = await prisma.$transaction(async (tx) => {
     await lockTenantMutation(tx, tenantId);
 
     const tenant = await tx.tenant.findUnique({
@@ -89,53 +217,36 @@ export async function syncSubscriptionFromPolar(
       select: { id: true },
     });
 
-    if (!tenant) {
-      console.error(
-        "[POLAR_SYNC] Tenant not found for external id",
-        tenantId,
-      );
-      return null;
-    }
+    if (!tenant) return null;
 
     const record = await tx.subscription.upsert({
       where: { polarSubscriptionId: subscription.id },
       create: {
         tenantId,
-        planId: plan.id,
-        status,
-        interval,
-        currency: subscription.currency?.toUpperCase() || plan.currency,
-        amount: subscription.amount ?? billingPlanConfig?.amount ?? 0,
-        trialEndsAt: subscription.trialEnd ?? null,
-        currentPeriodStart: subscription.currentPeriodStart,
-        currentPeriodEnd: subscription.currentPeriodEnd,
-        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-        cancelledAt: subscription.canceledAt ?? null,
         polarSubscriptionId: subscription.id,
-        polarCustomerId: subscription.customerId,
+        ...fields,
       },
-      update: {
-        planId: plan.id,
-        status,
-        interval,
-        currency: subscription.currency?.toUpperCase() || plan.currency,
-        amount: subscription.amount ?? billingPlanConfig?.amount ?? 0,
-        trialEndsAt: subscription.trialEnd ?? null,
-        currentPeriodStart: subscription.currentPeriodStart,
-        currentPeriodEnd: subscription.currentPeriodEnd,
-        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-        cancelledAt: subscription.canceledAt ?? null,
-        polarCustomerId: subscription.customerId,
-      },
+      update: fields,
     });
 
-    if (isEntitled) {
+    const entitled = isPaidSubscriptionEntitled(record, now);
+
+    if (entitled) {
       await syncTenantSubscriptionMirror(tx, {
         tenantId,
         planCode: plan.code,
         status: TenantStatus.ACTIVE,
-        trialEndsAt: subscription.trialEnd ?? null,
+        trialEndsAt: null,
       });
+    } else {
+      const access = await getTenantAccess(tenantId, tx);
+
+      if (access.state === "LOCKED") {
+        await tx.tenant.update({
+          where: { id: tenantId },
+          data: { status: TenantStatus.EXPIRED },
+        });
+      }
     }
 
     await tx.activity.create({
@@ -149,6 +260,21 @@ export async function syncSubscriptionFromPolar(
       },
     });
 
-    return record;
+    return { entitled };
   });
+
+  if (!result) {
+    return { ok: false, reason: "tenant_not_found" };
+  }
+
+  // Unlock (or lock) on the very next request instead of after the cache TTL.
+  invalidateAuthCacheForTenant(tenantId);
+
+  return {
+    ok: true,
+    tenantId,
+    status,
+    entitled: result.entitled,
+    tenantSource: resolution.source,
+  };
 }

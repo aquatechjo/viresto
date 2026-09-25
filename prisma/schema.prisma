@@ -115,6 +115,9 @@ model Subscription {
 
   cancelAtPeriodEnd Boolean   @default(false)
   cancelledAt       DateTime?
+  // When Polar first reported this subscription past_due. Access continues
+  // for 7 days from here (see tenant-access.ts); cleared once it recovers.
+  pastDueSince      DateTime?
 
   polarSubscriptionId String? @unique
   polarCustomerId     String?

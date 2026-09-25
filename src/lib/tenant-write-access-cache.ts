@@ -12,6 +12,9 @@ export type TenantAccessSummary = {
   trialEndsAt: string | null;
   trialDaysLeft: number | null;
   trialEndingSoon: boolean;
+  paymentFailed?: boolean;
+  pastDueLocksAt?: string | null;
+  canManageBilling?: boolean;
 };
 
 export type TenantAccessPayload = {

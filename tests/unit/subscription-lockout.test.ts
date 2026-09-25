@@ -24,6 +24,7 @@ function expiredTrial() {
     trialEndsAt: new Date(Date.now() - DAY),
     currentPeriodEnd: new Date(Date.now() - DAY),
     cancelAtPeriodEnd: false,
+    pastDueSince: null,
     createdAt: new Date(Date.now() - 15 * DAY),
   };
 }
@@ -45,6 +46,7 @@ function paidSubscription() {
     trialEndsAt: null,
     currentPeriodEnd: new Date(Date.now() + 30 * DAY),
     cancelAtPeriodEnd: false,
+    pastDueSince: null,
     createdAt: new Date(),
   };
 }

@@ -462,6 +462,9 @@ export async function GET(req: NextRequest) {
         trialEndsAt: access.trialEndsAt,
         trialDaysLeft: access.trialDaysLeft,
         trialEndingSoon: isTrialEndingSoon(access),
+        paymentFailed: access.paymentFailed,
+        pastDueLocksAt: access.pastDueLocksAt,
+        canManageBilling: true,
       },
 
       tenant: {

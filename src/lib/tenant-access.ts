@@ -10,6 +10,10 @@ export const TRIAL_ENDING_SOON_DAYS = 3;
 // the renewal charge and its webhook are in flight. Never applies to
 // subscriptions set to cancel at period end.
 export const RENEWAL_GRACE_MS = 48 * 60 * 60 * 1000;
+// A failed renewal (Polar past_due) keeps full access while Polar retries
+// the card, with a red banner. Hard cap: 7 days in past_due, or sooner if
+// Polar cancels/revokes the subscription.
+export const PAST_DUE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -21,6 +25,7 @@ export type AccessSubscription = {
   trialEndsAt: Date | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
+  pastDueSince: Date | null;
   createdAt: Date;
 };
 
@@ -41,6 +46,9 @@ export type TenantAccess = {
   trialStartsAt: Date | null;
   trialEndsAt: Date | null;
   trialDaysLeft: number | null;
+  // PAID only because a failed renewal is still inside its 7-day window.
+  paymentFailed: boolean;
+  pastDueLocksAt: Date | null;
 };
 
 /**
@@ -67,11 +75,29 @@ export function daysLeftUntil(end: Date, now: Date) {
   return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / DAY_MS));
 }
 
+export function pastDueLocksAt(subscription: AccessSubscription) {
+  const since =
+    subscription.pastDueSince ??
+    subscription.currentPeriodEnd ??
+    subscription.createdAt;
+
+  return new Date(since.getTime() + PAST_DUE_GRACE_MS);
+}
+
+function isPastDueWithinGrace(subscription: AccessSubscription, now: Date) {
+  return (
+    subscription.status === SubscriptionStatus.PAST_DUE &&
+    subscription.polarSubscriptionId !== null &&
+    now.getTime() < pastDueLocksAt(subscription).getTime()
+  );
+}
+
 export function isPaidSubscriptionEntitled(
   subscription: AccessSubscription,
   now: Date,
 ) {
   if (isAppTrial(subscription)) return false;
+  if (isPastDueWithinGrace(subscription, now)) return true;
 
   if (
     subscription.status !== SubscriptionStatus.ACTIVE &&
@@ -116,11 +142,17 @@ export function resolveTenantAccess(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   );
 
-  const paid = newestFirst.find((item) =>
+  const entitled = newestFirst.filter((item) =>
     isPaidSubscriptionEntitled(item, now),
   );
+  // A healthy subscription beats one that is only in its past_due window.
+  const paid =
+    entitled.find((item) => item.status !== SubscriptionStatus.PAST_DUE) ??
+    entitled[0];
 
   if (paid) {
+    const paymentFailed = paid.status === SubscriptionStatus.PAST_DUE;
+
     return {
       state: "PAID",
       lockReason: null,
@@ -128,6 +160,8 @@ export function resolveTenantAccess(
       trialStartsAt: null,
       trialEndsAt: null,
       trialDaysLeft: null,
+      paymentFailed,
+      pastDueLocksAt: paymentFailed ? pastDueLocksAt(paid) : null,
     };
   }
 
@@ -142,6 +176,8 @@ export function resolveTenantAccess(
       trialStartsAt: trial.trialStartsAt,
       trialEndsAt: trialEnd,
       trialDaysLeft: daysLeftUntil(trialEnd, now),
+      paymentFailed: false,
+      pastDueLocksAt: null,
     };
   }
 
@@ -157,6 +193,8 @@ export function resolveTenantAccess(
     trialStartsAt: trial?.trialStartsAt ?? null,
     trialEndsAt: trialEnd ?? null,
     trialDaysLeft: trial ? 0 : null,
+    paymentFailed: false,
+    pastDueLocksAt: null,
   };
 }
 

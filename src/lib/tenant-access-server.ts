@@ -29,6 +29,7 @@ export const ACCESS_SUBSCRIPTION_SELECT = {
   trialEndsAt: true,
   currentPeriodEnd: true,
   cancelAtPeriodEnd: true,
+  pastDueSince: true,
   createdAt: true,
 } as const;
 

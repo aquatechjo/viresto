@@ -48,14 +48,6 @@ export interface TenantBillingLimits {
   };
 }
 
-const BLOCKED_STATUSES = new Set([
-  "CANCELLED",
-  "EXPIRED",
-  "UNPAID",
-  "PAST_DUE",
-  "MISSING",
-]);
-
 const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
 
 const NO_ENTITLEMENTS: PlanEntitlements = {
@@ -101,9 +93,6 @@ function effectiveStatusFromAccess(access: TenantAccess, rowStatus: string) {
   return rowStatus;
 }
 
-function statusCanCreate(status: string) {
-  return !BLOCKED_STATUSES.has(status);
-}
 
 function getBlockReason(status: string) {
   switch (status) {
@@ -171,6 +160,7 @@ export async function getTenantBillingLimits(
       trialStartsAt: true,
       trialEndsAt: true,
       cancelAtPeriodEnd: true,
+      pastDueSince: true,
       createdAt: true,
       plan: {
         select: {
@@ -198,7 +188,9 @@ export async function getTenantBillingLimits(
   if (subscription?.plan) {
     const status = effectiveStatusFromAccess(access, subscription.status);
 
-    const canCreate = access.state !== "LOCKED" && statusCanCreate(status);
+    // PAST_DUE inside its 7-day window is still entitled (PAID), so the
+    // access state, not the raw status, decides whether writes are allowed.
+    const canCreate = access.state !== "LOCKED";
     const configuredPlan = getConfiguredPlan(subscription.plan.code);
 
     /**
@@ -235,7 +227,7 @@ export async function getTenantBillingLimits(
       subscriptionId: subscription.id,
       subscriptionStatus: status,
       canCreate,
-      blockReason: getBlockReason(status),
+      blockReason: canCreate ? null : getBlockReason(status),
       plan: {
         id: subscription.plan.id,
         code: subscription.plan.code,
