@@ -9,10 +9,16 @@ test("machine-authenticated handlers bypass the user session check", () => {
     isMachineAuthenticatedPath("/api/cron/generate-notifications"),
     true,
   );
+  assert.equal(
+    isMachineAuthenticatedPath("/api/billing/webhooks/polar"),
+    true,
+  );
 });
 
 test("machine-authenticated path matching stays exact", () => {
   assert.equal(isMachineAuthenticatedPath("/api/health/details"), false);
   assert.equal(isMachineAuthenticatedPath("/api/perf/db"), false);
   assert.equal(isMachineAuthenticatedPath("/api/cron"), false);
+  assert.equal(isMachineAuthenticatedPath("/api/billing/checkout"), false);
+  assert.equal(isMachineAuthenticatedPath("/api/billing/webhooks"), false);
 });
