@@ -1116,6 +1116,17 @@ export default function HomePage() {
           <p className="text-sm text-slate-400">{copy.footer}</p>
           </div>
 
+          <a
+            href={COMPANY_CONTACT.websiteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-bold text-slate-400 transition hover:text-copper-300"
+          >
+            {isArabic
+              ? `Viresto — أحد منتجات ${COMPANY_CONTACT.operatorName}`
+              : `Viresto — a product by ${COMPANY_CONTACT.operatorName}`}
+          </a>
+
           <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold text-slate-400">
             <Link
               href={`/privacy?lang=${locale}`}

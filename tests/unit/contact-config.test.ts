@@ -7,6 +7,8 @@ test("official Aqua Tech contact addresses stay canonical", () => {
   assert.equal(COMPANY_CONTACT.infoEmail, "info@aquatechagency.com");
   assert.equal(COMPANY_CONTACT.supportEmail, "support@aquatechagency.com");
   assert.notEqual(COMPANY_CONTACT.infoEmail, COMPANY_CONTACT.supportEmail);
+  assert.equal(COMPANY_CONTACT.operatorName, "Aqua.Tech");
+  assert.equal(COMPANY_CONTACT.websiteUrl, "https://www.aquatechagency.com");
 });
 
 test("public and transactional contact surfaces use the canonical addresses", () => {
