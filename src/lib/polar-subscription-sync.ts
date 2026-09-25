@@ -232,6 +232,22 @@ export async function syncSubscriptionFromPolar(
     const entitled = isPaidSubscriptionEntitled(record, now);
 
     if (entitled) {
+      // Paying ends the free in-app trial immediately; the paid period is
+      // Polar's, starting at purchase. Trial dates stay on the row as
+      // history, and the row is never deleted.
+      await tx.subscription.updateMany({
+        where: {
+          tenantId,
+          polarSubscriptionId: null,
+          status: SubscriptionStatus.TRIALING,
+        },
+        data: {
+          status: SubscriptionStatus.CANCELLED,
+          cancelledAt: now,
+          currentPeriodEnd: now,
+        },
+      });
+
       await syncTenantSubscriptionMirror(tx, {
         tenantId,
         planCode: plan.code,

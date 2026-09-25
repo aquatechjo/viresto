@@ -48,7 +48,7 @@ const subscriptionUpsert = mock.fn(
   },
 );
 const subscriptionFindMany = mock.fn(async () => tenantSubscriptions);
-const subscriptionUpdateMany = mock.fn(async () => ({ count: 0 }));
+const subscriptionUpdateMany = mock.fn(async (_args: unknown) => ({ count: 0 }));
 const tenantUpdate = mock.fn(async (args: Row) => ({ id: "t", ...args }));
 const activityCreate = mock.fn(async () => ({}));
 const invalidateAuthCacheForTenant = mock.fn();
@@ -275,4 +275,59 @@ test("cancel_at_period_end keeps the subscription entitled until the period ends
   assert.equal(result.ok && result.status, "ACTIVE");
   assert.equal(result.ok && result.entitled, true);
   assert.equal(subscriptionUpsert.mock.calls[0].arguments[0].create.cancelAtPeriodEnd, true);
+});
+
+test("purchase ending trial: an entitled Polar sync closes the in-app trial immediately", async () => {
+  const before = Date.now();
+  await sync(polarSubscription({ status: "active" }));
+
+  assert.equal(subscriptionUpdateMany.mock.callCount(), 1);
+  const args = subscriptionUpdateMany.mock.calls[0].arguments[0] as unknown as {
+    where: Row;
+    data: { status: string; cancelledAt: Date; currentPeriodEnd: Date };
+  };
+
+  assert.deepEqual(args.where, {
+    tenantId: "tenant-meta",
+    polarSubscriptionId: null,
+    status: "TRIALING",
+  });
+  assert.equal(args.data.status, "CANCELLED");
+  assert.ok(args.data.cancelledAt.getTime() >= before);
+  assert.equal(args.data.currentPeriodEnd.getTime(), args.data.cancelledAt.getTime());
+});
+
+test("a non-entitled sync (e.g. canceled) leaves the in-app trial alone", async () => {
+  await sync(polarSubscription({ status: "canceled", currentPeriodEnd: new Date(Date.now() - DAY) }));
+  assert.equal(subscriptionUpdateMany.mock.callCount(), 0);
+});
+
+test("purchase ending trial: after the sync the resolver reports PAID, not TRIAL", async () => {
+  const { resolveTenantAccess } = await import("../../src/lib/tenant-access");
+  const now = new Date();
+  const paidRow = {
+    id: "local-sub",
+    status: "ACTIVE",
+    polarSubscriptionId: "polar_sub_1",
+    trialStartsAt: null,
+    trialEndsAt: null,
+    currentPeriodEnd: new Date(now.getTime() + 30 * DAY),
+    cancelAtPeriodEnd: false,
+    pastDueSince: null,
+    createdAt: now,
+  };
+  const closedTrial = {
+    ...paidRow,
+    id: "trial",
+    status: "CANCELLED",
+    polarSubscriptionId: null,
+    trialStartsAt: new Date(now.getTime() - 3 * DAY),
+    trialEndsAt: new Date(now.getTime() + 11 * DAY),
+    currentPeriodEnd: now,
+    createdAt: new Date(now.getTime() - 3 * DAY),
+  };
+
+  const access = resolveTenantAccess([paidRow, closedTrial], now);
+  assert.equal(access.state, "PAID");
+  assert.equal(access.trialDaysLeft, null);
 });

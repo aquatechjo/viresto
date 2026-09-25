@@ -261,6 +261,7 @@ test("checkout: no Polar-linked subscription creates a new checkout session with
   assert.equal(checkoutsCreateMock.mock.callCount(), 1);
   assert.deepEqual(checkoutsCreateMock.mock.calls[0].arguments[0], {
     products: ["basic_monthly"],
+    allowTrial: false,
     externalCustomerId: "tenant-1",
     successUrl: "https://app.test/dashboard/billing?checkout=success",
     metadata: { tenantId: "tenant-1", planCode: "BASIC", billingCycle: "monthly" },

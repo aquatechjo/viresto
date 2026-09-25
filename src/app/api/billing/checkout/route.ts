@@ -119,6 +119,10 @@ export async function POST(req: NextRequest) {
 
     const checkout = await polar.checkouts.create({
       products: [productId],
+      // No trial on the Polar side: the office already had its in-app
+      // trial, and paying ends it. The products carry no trial either;
+      // this is the safety net if one is ever configured there again.
+      allowTrial: false,
       externalCustomerId: auth.user.tenantId,
       successUrl: `${getAppUrl()}/dashboard/billing?checkout=success`,
       metadata: {
