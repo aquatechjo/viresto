@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-09-24 (تجاوب الموبايل — الجداول، التقويم، التنبيهات)
+> آخر تحديث: 2026-09-25 (تجهيز الإطلاق — أسعار USD، الصفحات القانونية، إصلاح webhook الخاص بـ Polar)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -26,7 +26,7 @@
 **Commits:** `2d5f48a` (التكامل) · `689eadb` (الاختبارات)
 
 ### المراحل
-1. **Products:** 6 منتجات مُنشأة مسبقًا على Polar (كل خطة × دورة فوترة شهري/سنوي)، ومربوطة بـ env vars.
+1. **Products:** 6 منتجات مُنشأة مسبقًا على Polar (كل خطة × دورة فوترة شهري/سنوي). **تصحيح (2026-09-25):** معرّفات المنتجات ليست في env vars، بل مثبتة في `prisma/seed.ts` (`POLAR_PRODUCT_IDS`) وتُكتب في جدول `BillingPlan` عبر `npm run db:seed`.
 2. **Checkout** (`POST /api/billing/checkout`):
    - مشترك جديد ← `checkouts.create()` ينشئ Polar Checkout Session.
    - مستأجر عنده اشتراك `active`/`trialing` ← `subscriptions.update()` مباشرة **مع proration**. هذا يتجنب `AlreadyActiveSubscriptionError`، ويغطي upgrade وdowngrade.
@@ -52,6 +52,10 @@
   - الـ mocking يتم عبر `mock.module()` الموجود في `node:test`، ولهذا أُضيف `--experimental-test-module-mocks` إلى سكربت `test:unit` (Node 24).
 
 ---
+
+### ⚠️ إصلاح حرج — 2026-09-25 (`cf169aa`)
+- **webhooks الخاصة بـ Polar كانت تُرفض بـ 401 من الـ proxy قبل وصولها للـ handler.** `/api/billing/webhooks/polar` لم يكن في `MACHINE_AUTHENTICATED_PATHS` (`src/lib/request-path-policy.ts`) ولا في `publicPaths`، وطلبات Polar لا تحمل كوكي `ld_token`. النتيجة: لم يُزامَن أي اشتراك من الـ webhooks في الإنتاج قبل هذا الـ commit (نجاح الـ checkout لا يعني أن المزامنة نجحت). الـ unit tests لم تكتشف ذلك لأنها تستدعي الـ route مباشرة دون الـ proxy.
+- الإصلاح: إضافة المسار الحرفي إلى القائمة. الـ handler يتحقق من التوقيع أصلًا. تم التحقق على dev: POST غير موقّع ← 403 من الـ handler (كان 401 من الـ proxy)، و`/api/billing/checkout` بدون جلسة ما زال 401.
 
 ## 3. تنظيف نظام الدفع اليدوي القديم (CliQ / تحويل بنكي) — ✅ مكتمل
 
@@ -136,6 +140,23 @@
 
 ---
 
+## 5.1 تجهيز الإطلاق: أسعار USD، الصفحات القانونية، الـ footer — ✅ مكتمل (2026-09-25)
+
+| Commit | ما تم |
+|---|---|
+| `8281e64` | `src/config/plans.ts` صار المصدر الوحيد لأسعار **USD** المطابقة لمنتجات Polar: Basic ‏29/290، Pro ‏59/590، Business ‏119/1190 (الحقول `priceUsd`/`priceYearlyUsd`، و`PLAN_CURRENCY = "USD"`، والمبالغ بالسنت ×100). تقرأ منه: الصفحة الرئيسية، `/pricing`، `api/billing`، `subscription-consistency`، و`prisma/seed.ts`. ملاحظة "وفّر" السنوية صارت تُحسب من الأسعار: **"وفّر قيمة شهرين / save two months"** (السنوي = 10 أشهر)، بدل "شهر" القديمة. `formatMoney` في لوحة الأدمن صار يقسم حسب العملة (كان يقسم مبالغ Polar بالسنت على 1000). حُذف نص تسعير قديم غير مستخدم ($19/$49/Enterprise) من `page.tsx`. |
+| `36abee0` | FAQ: ‏Enterprise ← Business (EN + AR). |
+| `8f6ef2d` | Footer: "Viresto — a product by Aqua.Tech" / "Viresto — أحد منتجات Aqua.Tech" برابط `https://www.aquatechagency.com` (يُقرأ من `COMPANY_CONTACT.websiteUrl`/`operatorName`)، والإيميلات كما هي. |
+| `5070944` | الصفحات القانونية: الاشتراكات بالـ USD عبر Polar، ولا يُقبل CliQ أو التحويل البنكي أو الدفع اليدوي لاشتراكات المنصة (مع التوضيح أن فواتير المكتب لموكليه منفصلة). Polar مُدرج كمعالج دفع في سياسة الخصوصية. المشغّل صار "Aqua.Tech" في كل الصفحات القانونية. **تاريخ النفاذ و`TERMS_VERSION`/`PRIVACY_VERSION` ← `2026-09-25`** (تُسجَّل فقط عند التسجيل، ولا تفرض إعادة موافقة). |
+| `0a44138` | `/pricing`: فواصل الآلاف ($1,190) لتطابق الصفحة الرئيسية. |
+| `cf169aa` | إصلاح webhook الخاص بـ Polar (انظر القسم 2). |
+
+**لم يتغيّر:** فوترة الموكلين داخل التطبيق (فواتير/دفعات المكتب) بقيت بالـ JOD.
+
+**التحقق:** `tsc` والـ unit tests (114/114، منها 2 جديدة للأسعار) قبل كل commit، و`eslint` نظيف للملفات المعدّلة. فحص بالمتصفح للصفحة الرئيسية بالعربي والإنجليزي (الأسعار، ملاحظة التوفير، FAQ، الـ footer) و`/pricing`.
+
+**انحراف:** commit `8f6ef2d` نُفّذ بينما كان `tsc` يفشل، لأن أمر الـ commit لم يكن مشروطًا بنجاح `tsc`. سبب الفشل ملف مولَّد تالف (`.next/dev/types/routes.d.ts`) كتبه dev server أثناء التشغيل، وليس الكود. أُعيد توليد الملف، و`tsc` نظيف على نفس الشجرة. صارت كل الـ commits التالية مشروطة بـ `&&`.
+
 ## 6. توحيد الألوان بين landing page والداشبورد — ✅ مكتمل
 
 ### القرار
@@ -210,14 +231,15 @@
 ## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit للكود/الإعداد:** `796d6e6` — `test: add mobile overflow checks; scope case-list assert to desktop table` (2026-09-24)، ويليه commit تحديث هذا الملف.
-- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة: `5b11d54` → `796d6e6`، ثم commit الـ docs هذا).
+- **آخر commit للكود/الإعداد:** `cf169aa` — `fix: let Polar webhooks through the session proxy` (2026-09-25)، ويليه commit تحديث هذا الملف.
+- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة: `8281e64` → `cf169aa`، ثم commit الـ docs هذا).
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
   - `.claude/` (untracked): فيه `launch.json` لخادم التطوير.
+  - **تعديلات المستخدم غير الملتزمة (لم تُلمس في جلسة 2026-09-25):** `.gitignore`، `playwright.config.ts`، `src/app/admin/page.tsx`، `src/app/dashboard/cases/[id]/page.tsx`، `src/app/dashboard/clients/[id]/page.tsx`، `src/app/dashboard/finance/payments/page.tsx`، `src/lib/rate-limit.ts`، `tests/e2e/*.spec.ts`، و`tests/e2e/global-setup.ts` (untracked).
 
 **تسلسل الـ commits (الأقدم أولًا):**
-`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج ← `1a3da05` تحديث الحالة ← `3609528` CLAUDE.md (قاعدة مزامنة الحالة) ← `71326bb` رسالة تحقق نموذج القضية ← `201cf4e` fail-closed لمهلة Upstash في الإنتاج ← `b506091` اختبار E2E لإنشاء القضية + `seed:e2e` المحمي ← `b345088` تحديث الحالة ← `5b11d54` إصلاح قائمة التنبيهات بالموبايل ← `28f960f` إصلاح تقويم المواعيد بالموبايل ← `24ca222` بطاقات موبايل لـ `VDSDataTable` ← `dab5a9d` `ResponsiveTable` + هجرة جداول المالية ← `e1d3c74` إزالة تكرار سجل النشاط بالموبايل ← `631e2bb` منطقة آمنة لزر المساعد الذكي ← `796d6e6` اختبارات Playwright لتجاوب الموبايل
+`2d5f48a` Polar ← `5fd940d` تنظيف CliQ ← `689eadb` اختبارات الدفع ← `6dd80da` ضغط الشعارات ← `3e98af1` auth cache ← `ee186a9` loading/error boundaries ← `94cb033` viewport + hamburger ← `f507eaf` ألوان Phase 1 ← `714fcbe` إصلاح Sidebar ← `4c3e1f9` `--accent-*` ← `bd4298d` hex → tokens ← `7654314` PROJECT_STATUS.md ← `820b603` إصلاح padding الموبايل ← `15196f2` بحث الـ drawer ← `6cacbc2` حذف GlobalSearch ← `d33fe07` مهلة 30 دقيقة + تحذير ← `9d0179b` تجديد الجلسة بالنشاط فقط ← `e6231db` حد 12 ساعة ← `1a451ad` المسودات ← `2b4f9e0` next آمن ← `8b6b388` رسالة سبب الخروج ← `1a3da05` تحديث الحالة ← `3609528` CLAUDE.md (قاعدة مزامنة الحالة) ← `71326bb` رسالة تحقق نموذج القضية ← `201cf4e` fail-closed لمهلة Upstash في الإنتاج ← `b506091` اختبار E2E لإنشاء القضية + `seed:e2e` المحمي ← `b345088` تحديث الحالة ← `5b11d54` إصلاح قائمة التنبيهات بالموبايل ← `28f960f` إصلاح تقويم المواعيد بالموبايل ← `24ca222` بطاقات موبايل لـ `VDSDataTable` ← `dab5a9d` `ResponsiveTable` + هجرة جداول المالية ← `e1d3c74` إزالة تكرار سجل النشاط بالموبايل ← `631e2bb` منطقة آمنة لزر المساعد الذكي ← `796d6e6` اختبارات Playwright لتجاوب الموبايل ← `3319920` تحديث الحالة ← `8281e64` أسعار USD ← `36abee0` FAQ Business ← `8f6ef2d` footer ‏Aqua.Tech ← `5070944` الصفحات القانونية ← `0a44138` فواصل آلاف `/pricing` ← `cf169aa` إصلاح webhook الخاص بـ Polar
 
 ---
 
@@ -258,6 +280,9 @@
   - `npm run db:seed` (3 خطط) ثم `npm run seed:e2e` (أُنشئ `test-e2e@example.com`، ADMIN في `e2e-test-office` باشتراك PRO فعّال).
   - `E2E_ALLOWED_DATABASE_HOST` في `.env.local` كان مضبوطًا مسبقًا على host الـ pooler لفرع dev.
 
+### ✅ تم (2026-09-25)
+- تجهيز الإطلاق: أسعار USD، FAQ، footer، الصفحات القانونية، وإصلاح webhook الخاص بـ Polar. انظر القسم 5.1 والقسم 2.
+
 ### قيد التنفيذ
 - لا شيء.
 
@@ -270,9 +295,17 @@
 6. **تنظيف:** حذف `clients/new` وحذف CSS التقويم الميت.
 
 ### ⏳ بانتظارك
+- [ ] **🚀 قبل الإطلاق (2026-09-25) — Polar والإنتاج:**
+  - [ ] **نشر `cf169aa` على الإنتاج**، وإلا تبقى الـ webhooks مرفوضة بـ 401.
+  - [ ] **Polar dashboard ← Settings ← Webhooks:** الـ URL بالضبط `https://www.virestojo.com/api/billing/webhooks/polar` (نفس الـ host الأساسي، بدون redirect)، الصيغة Raw/JSON، والأحداث: `subscription.created`، `subscription.active`، `subscription.updated`، `subscription.canceled`، `order.paid`. أي حدث آخر يُقبل (200) ويُتجاهل.
+  - [ ] بعد النشر: "Send test event"/redeliver من Polar، والتأكد من 200 (403 = السر لا يطابق، 401 = النسخة المنشورة قديمة).
+  - [ ] **Vercel (Production) env vars بالاسم:** `POLAR_ACCESS_TOKEN`، `POLAR_WEBHOOK_SECRET`، `POLAR_ORGANIZATION_ID`، `POLAR_ENVIRONMENT` (= `production`)، و`APP_URL` و/أو `NEXT_PUBLIC_APP_URL`.
+  - [ ] **تشغيل `npm run db:seed` على قاعدة الإنتاج** لتحديث `BillingPlan` إلى `USD` والأسعار بالسنت، والتأكد أن معرّفات المنتجات في `prisma/seed.ts` هي منتجات Polar **الإنتاج** (وليست sandbox) وبأسعار 29/290، 59/590، 119/1190.
+  - [ ] مراجعة صياغة الصفحات القانونية (`5070944`)، وقرار ما إذا يُذكر Polar كـ Merchant of Record.
+  - [ ] أي اشتراك أُنشئ قبل `cf169aa` لم يُزامَن من الـ webhooks: التأكد يدويًا من حالته في لوحة الأدمن مقابل Polar.
 - [ ] **⚠️ مفاتيح إنتاج في `.env` المحلي:** الملف ما زال يحتوي مفاتيح **الإنتاج** لـ Polar وResend وCloudinary. **الخطة:** (1) نقل dev إلى **Polar sandbox** ومفاتيح تجريبية/اختبار لـ Resend وCloudinary، (2) بعد ذلك **تدوير (rotate) مفاتيح الإنتاج** الثلاثة، لأنها كانت موجودة على جهاز التطوير.
 - [ ] **نشر الإنتاج:** زر القائمة في الموبايل يظهر أبيض على أبيض في الإنتاج إلى أن يُنشر `714fcbe` والـ commits التي بعده، ومعها إصلاح padding الموبايل `820b603`.
-- [ ] **HawkScan:** لا يعمل لأن `HAWK_API_KEY` غير مضبوط.
+- [ ] **HawkScan:** لا يعمل لأن `HAWK_API_KEY` غير مضبوط (لم يُشغَّل على commits يوم 2026-09-25 لنفس السبب).
 
 ### Bugs موثّقة، لم تُصلح بعد
 - [x] ~~رسالة التحقق في نموذج إنشاء القضية ناقصة~~: أُصلح في `71326bb`.
