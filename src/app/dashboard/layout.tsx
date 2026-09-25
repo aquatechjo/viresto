@@ -4,6 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import SessionGuard from "@/components/security/SessionGuard";
 import SubscriptionGate from "@/components/billing/SubscriptionGate";
+import SubscriptionBanner from "@/components/billing/SubscriptionBanner";
 import DeferredAIAssistant from "@/components/dashboard/DeferredAIAssistant";
 import NavigationPerformance from "@/components/navigation/NavigationPerformance";
 import { useLocale } from "@/lib/useLocale";
@@ -63,6 +64,7 @@ export default function DashboardLayout({
         <TopBar sidebarCollapsed={sidebarCollapsed} />
 
         <main className="dashboard-page-shell min-w-0 w-full max-w-full overflow-x-clip px-3 pb-28 !pt-[76px] sm:px-4 sm:pb-28 sm:!pt-[80px] md:px-5 xl:px-6 xl:pb-10 xl:!pt-[96px]">
+          <SubscriptionBanner />
           {children}
         </main>
       </div>

@@ -6,6 +6,14 @@ import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
 import AppLoader from "@/components/ui/AppLoader";
+import TrialStatusCard, {
+  daysPhrase,
+} from "@/components/billing/TrialStatusCard";
+import { useTenantAccessSummary } from "@/hooks/useTenantAccessSummary";
+import {
+  invalidateTenantWriteAccessCache,
+  type TenantAccessSummary,
+} from "@/lib/tenant-write-access-cache";
 
 type SubscriptionStatus =
   | "TRIALING"
@@ -58,6 +66,7 @@ interface BillingPlan {
 }
 
 interface BillingData {
+  access?: TenantAccessSummary;
   tenant: {
     id: string;
     name: string;
@@ -441,6 +450,10 @@ export default function BillingPage() {
 
   const [data, setData] = useState<BillingData | null>(null);
   const [loading, setLoading] = useState(true);
+  // /api/billing is admin-only; team members get the trial/lock notice
+  // from /api/billing/access instead of the full billing page.
+  const [memberView, setMemberView] = useState(false);
+  const memberAccess = useTenantAccessSummary();
   const [checkoutPending, setCheckoutPending] = useState(false);
   const [checkoutTimedOut, setCheckoutTimedOut] = useState(false);
   const checkoutBaselineRef = useRef<string | null>(null);
@@ -461,7 +474,7 @@ export default function BillingPage() {
     }
 
     if (res.status === 403) {
-      toast.error(billing.adminOnly);
+      setMemberView(true);
       setLoading(false);
       return;
     }
@@ -474,7 +487,10 @@ export default function BillingPage() {
 
     setData(json.data);
     setLoading(false);
-  }, [billing.adminOnly, billing.loadError]);
+    // Keep the dashboard gate and banners in step with what this page shows
+    // (e.g. right after a payment unlocks the office).
+    invalidateTenantWriteAccessCache();
+  }, [billing.loadError]);
 
   useEffect(() => {
     void load();
@@ -563,7 +579,7 @@ export default function BillingPage() {
       return isArabic ? "تنتهي اليوم" : "Ends today";
     }
 
-    return `${billing.daysLeftPrefix} ${data.tenant.trialDaysLeft} ${billing.day}`;
+    return daysPhrase(data.tenant.trialDaysLeft, isArabic);
   }, [data, billing, isArabic]);
 
   async function handleUpgrade(plan: BillingPlan, cycle: BillingCycle) {
@@ -624,6 +640,22 @@ export default function BillingPage() {
     return <AppLoader fullScreen={false} />;
   }
 
+  if (memberView) {
+    return (
+      <div className="space-y-6" dir={isArabic ? "rtl" : "ltr"}>
+        <h1 className="text-3xl font-black">{billing.title}</h1>
+        <TrialStatusCard
+          access={memberAccess}
+          isArabic={isArabic}
+          canSubscribe={false}
+        />
+        <div className="card p-6 text-sm" style={{ color: "var(--muted)" }}>
+          {billing.adminOnly}
+        </div>
+      </div>
+    );
+  }
+
   if (!data) {
     return (
       <div className="card p-6">
@@ -646,7 +678,27 @@ export default function BillingPage() {
   );
 
   const currentTone = getStatusToneFromStatus(currentStatus);
-  const hasLiveSubscription = ["ACTIVE", "TRIALING"].includes(currentStatus);
+  // Only a paid subscription makes a plan "current". The free in-app trial
+  // runs on Pro features but is not a Pro subscription, so every plan stays
+  // purchasable (including Pro monthly) while trialling or locked.
+  const isPaid = !data.access || data.access.state === "PAID";
+  const hasLiveSubscription =
+    isPaid && ["ACTIVE", "TRIALING"].includes(currentStatus);
+  const currentPlanTitle = isPaid
+    ? currentPlan.name
+    : data.access?.state === "TRIAL"
+      ? isArabic
+        ? "تجربة مجانية (مزايا Pro)"
+        : "Free trial (Pro features)"
+      : isArabic
+        ? "لا يوجد اشتراك فعّال"
+        : "No active subscription";
+
+  function scrollToPlans() {
+    document
+      .getElementById("billing-plans")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
     <div className="space-y-6" dir={isArabic ? "rtl" : "ltr"}>
@@ -658,6 +710,15 @@ export default function BillingPage() {
           </p>
         </div>
       </div>
+
+      {!checkoutPending && (
+        <TrialStatusCard
+          access={data.access}
+          isArabic={isArabic}
+          canSubscribe
+          onSubscribe={scrollToPlans}
+        />
+      )}
 
       {checkoutPending && (
         <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-100">
@@ -689,7 +750,7 @@ export default function BillingPage() {
               >
                 {billing.currentPlan}
               </p>
-              <h2 className="mt-1 text-3xl font-black">{currentPlan.name}</h2>
+              <h2 className="mt-1 text-3xl font-black">{currentPlanTitle}</h2>
               <p
                 className="mt-2 text-sm leading-7"
                 style={{ color: "var(--muted)" }}
@@ -825,7 +886,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div>
+      <div id="billing-plans" className="scroll-mt-28">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-black text-emerald-600 dark:text-emerald-300">
@@ -871,7 +932,8 @@ export default function BillingPage() {
 
         <div className="grid items-stretch gap-4 lg:grid-cols-3">
           {data.availablePlans.map((plan) => {
-            const active = plan.isCurrent || plan.id === currentPlan.id;
+            const active =
+              isPaid && (plan.isCurrent || plan.id === currentPlan.id);
             const isCurrentSelection =
               active && hasLiveSubscription && subscription?.interval === billingCycle;
             const features = getPlanFeatures(plan, isArabic);

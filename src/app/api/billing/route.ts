@@ -14,6 +14,8 @@ import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
 import { getAiUsagePeriod } from "@/lib/ai-usage-core";
+import { isTrialEndingSoon } from "@/lib/tenant-access";
+import { getTenantAccess } from "@/lib/tenant-access-server";
 
 type DbPlanLike = {
   id: string;
@@ -449,7 +451,19 @@ export async function GET(req: NextRequest) {
         ? configuredAvailablePlans
         : plans.map((plan) => buildPlanPayload(plan, plan.id === currentDbPlan.id));
 
+    const access = await getTenantAccess(tenant.id);
+
     return ok({
+      // PAID / TRIAL / LOCKED, from the same resolver the API lockout uses.
+      // TRIAL means the free in-app trial, never a paid plan.
+      access: {
+        state: access.state,
+        lockReason: access.lockReason,
+        trialEndsAt: access.trialEndsAt,
+        trialDaysLeft: access.trialDaysLeft,
+        trialEndingSoon: isTrialEndingSoon(access),
+      },
+
       tenant: {
         id: tenant.id,
         name: tenant.name,
