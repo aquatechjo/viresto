@@ -1,5 +1,9 @@
 import { PrismaClient } from "@prisma/client";
-import { PLANS } from "../src/config/plans";
+import {
+  PLANS,
+  PLAN_CURRENCY,
+  PLAN_CURRENCY_MINOR_UNITS,
+} from "../src/config/plans";
 
 const prisma = new PrismaClient();
 
@@ -25,9 +29,9 @@ const plans = PLANS.map((plan, index) => ({
   code: plan.code,
   name: plan.name,
   description: plan.description,
-  currency: "JOD",
-  priceMonthly: plan.priceJod * 1000,
-  priceYearly: plan.priceYearlyJod * 1000,
+  currency: PLAN_CURRENCY,
+  priceMonthly: plan.priceUsd * PLAN_CURRENCY_MINOR_UNITS,
+  priceYearly: plan.priceYearlyUsd * PLAN_CURRENCY_MINOR_UNITS,
   maxUsers: plan.limits.users,
   maxClients: plan.limits.clients,
   maxCases: plan.limits.cases,

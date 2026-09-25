@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { PLANS, formatTokens, getDisplayPrice } from "@/config/plans";
+import {
+  PLANS,
+  formatTokens,
+  getDisplayPrice,
+  formatYearlySavings,
+  getYearlyPrice,
+} from "@/config/plans";
 
 export default function PricingSection() {
   return (
@@ -46,16 +52,17 @@ export default function PricingSection() {
 
                 <div className="mb-6">
                   <div className="flex items-end gap-2">
-                    <span className="text-5xl font-black text-copper-400">
-                      {displayPrice}
+                    <span dir="ltr" className="text-5xl font-black text-copper-400">
+                      ${displayPrice}
                     </span>
                     <span className="pb-2 text-sm text-emerald-100/70">
-                      JOD / شهر
+                      / شهريًا
                     </span>
                   </div>
 
                   <p className="mt-2 text-sm text-emerald-100/55">
-                    {plan.priceYearlyJod} JOD / سنة — وفر قيمة شهر
+                    <span dir="ltr">${getYearlyPrice(plan)}</span> / سنويًا —{" "}
+                    {formatYearlySavings(plan)}
                   </p>
                 </div>
 

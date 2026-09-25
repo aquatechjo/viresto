@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import {
   PLANS,
+  PLAN_CURRENCY,
+  currencyMinorUnits,
   getDisplayPrice,
   getYearlyPrice,
   type PlanCode,
@@ -45,10 +47,6 @@ function getConfiguredPlan(code?: string | null) {
   if (!normalizedCode) return null;
 
   return PLANS.find((plan) => plan.code === normalizedCode) ?? null;
-}
-
-function jodToMinorUnits(amountJod: number) {
-  return Math.round(amountJod * 1000);
 }
 
 function gbToMb(gb: number) {
@@ -114,7 +112,7 @@ function getSubscriptionLabel(status?: string | null) {
 }
 
 function formatAmount(amount: number, currency: string) {
-  const value = amount / 1000;
+  const value = amount / currencyMinorUnits(currency);
 
   const formattedValue = value.toLocaleString("en-US", {
     maximumFractionDigits: 0,
@@ -125,8 +123,8 @@ function formatAmount(amount: number, currency: string) {
     value,
     currency,
 
-    // نستخدم LTR isolate حتى تظهر داخل الواجهة العربية بهذا الترتيب: 20 JOD
-    // وليس JOD 20 بسبب اتجاه النص RTL.
+    // نستخدم LTR isolate حتى تظهر داخل الواجهة العربية بهذا الترتيب: 29 USD
+    // وليس USD 29 بسبب اتجاه النص RTL.
     formatted: `\u2066${formattedValue} ${currency}\u2069`,
   };
 }
@@ -154,15 +152,20 @@ function getPlanLimits(dbPlan: DbPlanLike, configuredPlan: PlanConfig | null) {
 
 function buildPlanPayload(dbPlan: DbPlanLike, isCurrent: boolean) {
   const configuredPlan = getConfiguredPlan(dbPlan.code);
-  const currency = dbPlan.currency || "JOD";
+  // الأسعار المعروضة تأتي من src/config/plans.ts (مطابقة لمنتجات Polar)،
+  // وسجل قاعدة البيانات احتياطي فقط لخطة غير معرّفة هناك.
+  const currency = configuredPlan
+    ? PLAN_CURRENCY
+    : dbPlan.currency || PLAN_CURRENCY;
+  const minorUnits = currencyMinorUnits(currency);
 
-  const displayMonthlyJod = configuredPlan
-    ? getDisplayPrice(configuredPlan)
-    : dbPlan.priceMonthly / 1000;
+  const monthlyMinor = configuredPlan
+    ? getDisplayPrice(configuredPlan) * minorUnits
+    : dbPlan.priceMonthly;
 
-  const yearlyJod = configuredPlan
-    ? getYearlyPrice(configuredPlan)
-    : dbPlan.priceYearly / 1000;
+  const yearlyMinor = configuredPlan
+    ? getYearlyPrice(configuredPlan) * minorUnits
+    : dbPlan.priceYearly;
   const limits = getPlanLimits(dbPlan, configuredPlan);
 
   return {
@@ -173,8 +176,8 @@ function buildPlanPayload(dbPlan: DbPlanLike, isCurrent: boolean) {
     description: configuredPlan?.description ?? dbPlan.description,
     currency,
 
-    priceMonthly: formatAmount(jodToMinorUnits(displayMonthlyJod), currency),
-    priceYearly: formatAmount(jodToMinorUnits(yearlyJod), currency),
+    priceMonthly: formatAmount(monthlyMinor, currency),
+    priceYearly: formatAmount(yearlyMinor, currency),
 
     limits,
     aiEnabled: limits.aiEnabled,

@@ -1,5 +1,10 @@
 export type PlanCode = "BASIC" | "PRO" | "BUSINESS";
 
+// Platform subscriptions are billed in USD through Polar. This is separate
+// from the in-app client invoicing, which stays in JOD.
+export const PLAN_CURRENCY = "USD";
+export const PLAN_CURRENCY_MINOR_UNITS = 100;
+
 export type PlanFeature = {
   label: string;
   included: boolean;
@@ -18,8 +23,9 @@ export type PlanConfig = {
   name: string;
   subtitle: string;
   description: string;
-  priceJod: number;
-  priceYearlyJod: number;
+  /** Must match the Polar product prices exactly. */
+  priceUsd: number;
+  priceYearlyUsd: number;
   badge?: string;
   highlighted?: boolean;
 
@@ -44,8 +50,8 @@ export const PLANS: PlanConfig[] = [
     name: "Basic",
     subtitle: "للمحامي الفردي",
     description: "كل الأساسيات لتبدأ تنظيم عملك القانوني باحترافية.",
-    priceJod: 25,
-    priceYearlyJod: 275,
+    priceUsd: 29,
+    priceYearlyUsd: 290,
     highlighted: false,
     limits: {
       users: 1,
@@ -78,8 +84,8 @@ export const PLANS: PlanConfig[] = [
     name: "Pro",
     subtitle: "للمكاتب الصغيرة",
     description: "الخطة الأنسب لإدارة مكتبك وفريقك بكفاءة.",
-    priceJod: 40,
-    priceYearlyJod: 440,
+    priceUsd: 59,
+    priceYearlyUsd: 590,
     badge: "الأكثر طلبًا",
     highlighted: true,
     limits: {
@@ -113,8 +119,8 @@ export const PLANS: PlanConfig[] = [
     name: "Business",
     subtitle: "للمكاتب المتوسطة والكبيرة",
     description: "حل متكامل للمكاتب التي تحتاج حدودًا أعلى ودعمًا أقوى.",
-    priceJod: 80,
-    priceYearlyJod: 880,
+    priceUsd: 119,
+    priceYearlyUsd: 1190,
     highlighted: false,
     limits: {
       users: 15,
@@ -159,11 +165,38 @@ export function planHasEntitlement(
 }
 
 export function getDisplayPrice(plan: PlanConfig) {
-  return plan.priceJod;
+  return plan.priceUsd;
 }
 
 export function getYearlyPrice(plan: PlanConfig) {
-  return plan.priceYearlyJod;
+  return plan.priceYearlyUsd;
+}
+
+/** Whole months saved by paying yearly instead of 12 × monthly. */
+export function getYearlySavingsMonths(plan: PlanConfig) {
+  return Math.round(12 - plan.priceYearlyUsd / plan.priceUsd);
+}
+
+export function formatYearlySavings(
+  plan: PlanConfig,
+  locale: "ar" | "en" = "ar",
+) {
+  const months = getYearlySavingsMonths(plan);
+
+  if (locale === "ar") {
+    if (months === 1) return "وفّر قيمة شهر";
+    if (months === 2) return "وفّر قيمة شهرين";
+    return `وفّر قيمة ${months} أشهر`;
+  }
+
+  if (months === 1) return "save one month";
+  if (months === 2) return "save two months";
+  return `save ${months} months`;
+}
+
+/** Minor units per major unit: 1000 fils per JOD, 100 cents otherwise. */
+export function currencyMinorUnits(currency: string | null | undefined) {
+  return currency?.toUpperCase() === "JOD" ? 1000 : 100;
 }
 
 export function formatTokens(tokens: number) {

@@ -5,6 +5,8 @@ import {
   type Prisma,
 } from "@prisma/client";
 import {
+  PLAN_CURRENCY,
+  PLAN_CURRENCY_MINOR_UNITS,
   getDisplayPrice,
   getPlanByCode,
   getYearlyPrice,
@@ -49,11 +51,11 @@ export function getBillingPlanConfig(
   return {
     plan,
     legacyPlan,
-    currency: "JOD",
+    currency: PLAN_CURRENCY,
     amount:
       (interval === BillingInterval.YEARLY
         ? getYearlyPrice(plan)
-        : getDisplayPrice(plan)) * 1000,
+        : getDisplayPrice(plan)) * PLAN_CURRENCY_MINOR_UNITS,
     maxUsers: plan.limits.users,
     aiEnabled: plan.limits.aiEnabled,
   };

@@ -2,9 +2,47 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BillingInterval } from "@prisma/client";
 import {
+  PLANS,
+  currencyMinorUnits,
+  formatYearlySavings,
+  getYearlySavingsMonths,
+} from "../../src/config/plans";
+import {
   addBillingPeriod,
+  getBillingPlanConfig,
   parseBillingInterval,
 } from "../../src/lib/subscription-consistency";
+
+test("plan prices match the Polar USD products", () => {
+  const prices = Object.fromEntries(
+    PLANS.map((plan) => [plan.code, [plan.priceUsd, plan.priceYearlyUsd]]),
+  );
+
+  assert.deepEqual(prices, {
+    BASIC: [29, 290],
+    PRO: [59, 590],
+    BUSINESS: [119, 1190],
+  });
+
+  for (const plan of PLANS) {
+    assert.equal(getYearlySavingsMonths(plan), 2);
+    assert.equal(formatYearlySavings(plan, "en"), "save two months");
+    assert.equal(formatYearlySavings(plan, "ar"), "وفّر قيمة شهرين");
+  }
+});
+
+test("billing plan config records USD amounts in cents", () => {
+  assert.deepEqual(
+    [
+      getBillingPlanConfig("pro", BillingInterval.MONTHLY)?.currency,
+      getBillingPlanConfig("pro", BillingInterval.MONTHLY)?.amount,
+      getBillingPlanConfig("BUSINESS", BillingInterval.YEARLY)?.amount,
+    ],
+    ["USD", 5900, 119000],
+  );
+  assert.equal(currencyMinorUnits("USD"), 100);
+  assert.equal(currencyMinorUnits("jod"), 1000);
+});
 
 test("parseBillingInterval rejects missing or malformed intervals", () => {
   assert.equal(

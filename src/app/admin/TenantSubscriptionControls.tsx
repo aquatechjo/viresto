@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { currencyMinorUnits } from "@/config/plans";
 
 type PlanOption = {
   id: string;
@@ -73,7 +74,7 @@ function formatDate(value?: string | null) {
 }
 
 function formatMoney(value: number, currency: string) {
-  return `${(value / 1000).toLocaleString("en-US")} ${currency}`;
+  return `${(value / currencyMinorUnits(currency)).toLocaleString("en-US")} ${currency}`;
 }
 
 const actionPrompts: Record<AdminAction, string> = {

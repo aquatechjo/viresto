@@ -5,6 +5,8 @@ import { COMPANY_CONTACT } from "@/config/contact";
 import {
   PLANS,
   getDisplayPrice,
+  formatYearlySavings,
+  getYearlyPrice,
   type PlanCode,
   type PlanConfig,
 } from "@/config/plans";
@@ -16,14 +18,6 @@ type Feature = {
   icon: string;
   title: string;
   description: string;
-};
-
-type Plan = {
-  name: string;
-  price: string;
-  description: string;
-  features: string[];
-  highlighted?: boolean;
 };
 
 type Faq = {
@@ -77,7 +71,6 @@ const COPY: Record<
       description: string;
       perMonth: string;
       action: string;
-      plans: Plan[];
     };
     faq: {
       eyebrow: string;
@@ -182,45 +175,6 @@ const COPY: Record<
       description: "Start small and scale as your legal operations grow.",
       perMonth: "/mo",
       action: "Get Started",
-      plans: [
-        {
-          name: "Starter",
-          price: "$19",
-          description: "For solo lawyers",
-          features: [
-            "Case management",
-            "Client management",
-            "Document uploads",
-            "Analytics dashboard",
-          ],
-        },
-        {
-          name: "Pro",
-          price: "$49",
-          description: "For growing law firms",
-          highlighted: true,
-          features: [
-            "Case management",
-            "Client management",
-            "Document uploads",
-            "Analytics dashboard",
-            "AI Legal Assistant",
-          ],
-        },
-        {
-          name: "Enterprise",
-          price: "Custom",
-          description: "For larger legal teams",
-          features: [
-            "Case management",
-            "Client management",
-            "Document uploads",
-            "Analytics dashboard",
-            "AI Legal Assistant",
-            "Advanced permissions",
-          ],
-        },
-      ],
     },
     faq: {
       eyebrow: "FAQ",
@@ -345,45 +299,6 @@ const COPY: Record<
       description: "ابدأ بخطة مناسبة وتوسع مع نمو عملياتك القانونية.",
       perMonth: "/شهريًا",
       action: "ابدأ الآن",
-      plans: [
-        {
-          name: "Starter",
-          price: "$19",
-          description: "للمحامين الأفراد",
-          features: [
-            "إدارة القضايا",
-            "إدارة الموكلين",
-            "رفع المستندات",
-            "لوحة تحليلات",
-          ],
-        },
-        {
-          name: "Pro",
-          price: "$49",
-          description: "للمكاتب النامية",
-          highlighted: true,
-          features: [
-            "إدارة القضايا",
-            "إدارة الموكلين",
-            "رفع المستندات",
-            "لوحة تحليلات",
-            "مساعد قانوني ذكي",
-          ],
-        },
-        {
-          name: "Enterprise",
-          price: "حسب الطلب",
-          description: "للفرق القانونية الكبيرة",
-          features: [
-            "إدارة القضايا",
-            "إدارة الموكلين",
-            "رفع المستندات",
-            "لوحة تحليلات",
-            "مساعد قانوني ذكي",
-            "صلاحيات متقدمة",
-          ],
-        },
-      ],
     },
     faq: {
       eyebrow: "الأسئلة الشائعة",
@@ -435,6 +350,7 @@ type PublicPlanView = {
   description: string;
   priceLabel: string;
   yearlyPriceLabel: string;
+  yearlySavingsLabel: string;
   originalPriceLabel?: string | null;
   badge?: string;
   highlighted?: boolean;
@@ -617,24 +533,23 @@ const PLAN_PUBLIC_COPY: Record<
   },
 };
 
-function formatJodPrice(value: number, locale: Locale) {
-  const formatted = value.toLocaleString("en-US");
-  return locale === "ar" ? `${formatted} د.أ` : `${formatted} JOD`;
+// Platform plans are billed in USD via Polar, in both languages.
+function formatUsdPrice(value: number) {
+  return `$${value.toLocaleString("en-US")}`;
 }
 
 
 function getPublicPlans(locale: Locale): PublicPlanView[] {
   return PLANS.map((plan: PlanConfig) => {
     const content = PLAN_PUBLIC_COPY[locale][plan.code];
-    const displayPrice = getDisplayPrice(plan);
-
     return {
       code: plan.code,
       name: plan.name,
       subtitle: content.subtitle,
       description: content.description,
-      priceLabel: formatJodPrice(displayPrice, locale),
-      yearlyPriceLabel: formatJodPrice(plan.priceYearlyJod, locale),
+      priceLabel: formatUsdPrice(getDisplayPrice(plan)),
+      yearlyPriceLabel: formatUsdPrice(getYearlyPrice(plan)),
+      yearlySavingsLabel: formatYearlySavings(plan, locale),
       originalPriceLabel: null,
       badge: content.badge ?? plan.badge,
       highlighted: plan.highlighted,
@@ -1089,9 +1004,8 @@ export default function HomePage() {
 
                   <p className="mt-3 text-sm font-bold text-slate-400">
                     <span dir="ltr">{plan.yearlyPriceLabel}</span>{" "}
-                    {isArabic
-                      ? "/ سنويًا — وفر قيمة شهر"
-                      : "/ yearly — save one month"}
+                    {isArabic ? "/ سنويًا" : "/ yearly"} —{" "}
+                    {plan.yearlySavingsLabel}
                   </p>
                 </div>
 
