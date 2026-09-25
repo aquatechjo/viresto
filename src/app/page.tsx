@@ -193,12 +193,12 @@ const COPY: Record<
         {
           question: "Does Viresto support AI features?",
           answer:
-            "Yes, Pro and Enterprise plans include an AI Legal Assistant for summaries and insights.",
+            "Yes, Pro and Business plans include an AI Legal Assistant for summaries and insights.",
         },
         {
           question: "Can larger firms use Viresto?",
           answer:
-            "Yes, Enterprise is designed for larger teams with advanced permissions and scalability.",
+            "Yes, Business is designed for larger teams with advanced permissions and scalability.",
         },
       ],
     },
@@ -317,12 +317,12 @@ const COPY: Record<
         {
           question: "هل يدعم Viresto مزايا الذكاء الاصطناعي؟",
           answer:
-            "نعم، تتضمن خطط Pro وEnterprise مساعدًا قانونيًا ذكيًا للتلخيص والتحليلات.",
+            "نعم، تتضمن خطط Pro وBusiness مساعدًا قانونيًا ذكيًا للتلخيص والتحليلات.",
         },
         {
           question: "هل يمكن للمكاتب الكبيرة استخدام Viresto؟",
           answer:
-            "نعم، صُممت خطة Enterprise للفرق الأكبر مع صلاحيات متقدمة وقابلية توسع.",
+            "نعم، صُممت خطة Business للفرق الأكبر مع صلاحيات متقدمة وقابلية توسع.",
         },
       ],
     },
