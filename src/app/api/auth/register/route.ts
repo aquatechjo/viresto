@@ -12,8 +12,12 @@ import { sendVerificationEmail } from "@/lib/email";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 import { getPlanByCode } from "@/config/plans";
 import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal-policy";
+import { PLAN_CURRENCY } from "@/config/plans";
+import { APP_TRIAL_DAYS, buildAppTrial } from "@/lib/tenant-access";
 
-const TRIAL_DAYS = 7;
+// Every new office starts on a free in-app trial with PRO-level features.
+// It is not a paid plan: no Polar subscription, amount 0, and it locks the
+// app when it ends unless the office subscribes (see tenant-access.ts).
 const TRIAL_PLAN_CODE = "PRO";
 
 function normalizeJordanPhone(phone: string) {
@@ -26,12 +30,6 @@ function normalizeJordanPhone(phone: string) {
   }
 
   return cleaned;
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
 }
 
 export async function POST(req: NextRequest) {
@@ -138,8 +136,9 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const trialStartsAt = new Date();
-    const trialEndsAt = addDays(trialStartsAt, TRIAL_DAYS);
+    const trial = buildAppTrial();
+    const trialStartsAt = trial.trialStartsAt;
+    const trialEndsAt = trial.trialEndsAt;
 
     const tenant = await prisma.$transaction(async (tx) => {
       const createdTenant = await tx.tenant.create({
@@ -174,13 +173,10 @@ export async function POST(req: NextRequest) {
         data: {
           tenantId: createdTenant.id,
           planId: trialPlan.id,
-          status: "TRIALING",
+          ...trial,
           interval: "MONTHLY",
           amount: 0,
-          currency: "JOD",
-          trialEndsAt: trialEndsAt,
-          currentPeriodStart: trialStartsAt,
-          currentPeriodEnd: trialEndsAt,
+          currency: PLAN_CURRENCY,
         },
       });
 
@@ -205,13 +201,13 @@ export async function POST(req: NextRequest) {
         success: true,
         data: {
           message:
-            "تم إنشاء المكتب. حصلت على تجربة مجانية لمدة 7 أيام، وأرسلنا رمز تأكيد إلى بريدك الإلكتروني.",
+            `تم إنشاء المكتب. حصلت على تجربة مجانية لمدة ${APP_TRIAL_DAYS} يومًا، وأرسلنا رمز تأكيد إلى بريدك الإلكتروني.`,
           requiresVerification: true,
           next: "EMAIL_VERIFICATION",
           email: adminUser.email,
           trial: {
             plan: trialPlan.code,
-            days: TRIAL_DAYS,
+            days: APP_TRIAL_DAYS,
             startsAt: trialStartsAt,
             endsAt: trialEndsAt,
           },

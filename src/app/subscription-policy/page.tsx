@@ -31,7 +31,7 @@ const CONTENT: Record<
       {
         heading: "2. التجربة المجانية",
         paragraphs: [
-          "يحصل المكتب الجديد المؤهل على تجربة مجانية لمدة 7 أيام وفق الخطة المعروضة عند التسجيل. لا تتحول التجربة إلى اشتراك مدفوع إلا بعد اختيار خطة وإتمام الدفع عبر صفحة الدفع. عند انتهاء التجربة دون اشتراك فعال، قد يصبح الحساب للقراءة فقط إلى أن يتم التفعيل.",
+          "يحصل المكتب الجديد المؤهل على تجربة مجانية لمدة 14 يومًا بمزايا خطة Pro دون الحاجة إلى بطاقة، وفق الخطة المعروضة عند التسجيل. لا تتحول التجربة إلى اشتراك مدفوع إلا بعد اختيار خطة وإتمام الدفع عبر صفحة الدفع. عند انتهاء التجربة دون اشتراك فعال، قد يصبح الحساب للقراءة فقط إلى أن يتم التفعيل.",
         ],
       },
       {
@@ -100,7 +100,7 @@ const CONTENT: Record<
       {
         heading: "2. Free trial",
         paragraphs: [
-          "An eligible new office receives a 7-day free trial under the plan shown at registration. The trial becomes paid only after a plan is selected and payment is completed at checkout. When the trial ends without an active subscription, the account may become read-only until activation.",
+          "An eligible new office receives a 14-day free trial with Pro-level features, no card required, under the plan shown at registration. The trial becomes paid only after a plan is selected and payment is completed at checkout. When the trial ends without an active subscription, the account may become read-only until activation.",
         ],
       },
       {

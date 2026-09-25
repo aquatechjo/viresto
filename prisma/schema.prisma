@@ -107,6 +107,8 @@ model Subscription {
   currency String @default("JOD")
   amount   Int    @default(0) // بالفلس
 
+  // Set only on the in-app signup trial (no Polar subscription behind it).
+  trialStartsAt      DateTime?
   trialEndsAt        DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?

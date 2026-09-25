@@ -7,6 +7,11 @@ import {
 } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { hasPlanCapacity } from "@/lib/plan-capacity";
+import {
+  resolveTenantAccess,
+  type TenantAccess,
+  type TenantLockReason,
+} from "@/lib/tenant-access";
 
 type BillingReadClient = Pick<
   Prisma.TransactionClient,
@@ -76,6 +81,26 @@ export function getEffectiveSubscriptionStatus(
   return status;
 }
 
+const LOCK_REASON_STATUS: Record<TenantLockReason, string> = {
+  TRIAL_EXPIRED: "EXPIRED",
+  SUBSCRIPTION_ENDED: "EXPIRED",
+  CANCELLED: "CANCELLED",
+  UNPAID: "UNPAID",
+  PAST_DUE: "PAST_DUE",
+  NO_SUBSCRIPTION: "MISSING",
+};
+
+// Status string the rest of the app (messages, admin UI) already speaks,
+// derived from the shared access decision so the write gate here and the
+// app-wide lockout in api-auth can never disagree.
+function effectiveStatusFromAccess(access: TenantAccess, rowStatus: string) {
+  if (access.state === "LOCKED") {
+    return LOCK_REASON_STATUS[access.lockReason ?? "NO_SUBSCRIPTION"];
+  }
+
+  return rowStatus;
+}
+
 function statusCanCreate(status: string) {
   return !BLOCKED_STATUSES.has(status);
 }
@@ -142,6 +167,11 @@ export async function getTenantBillingLimits(
       id: true,
       status: true,
       currentPeriodEnd: true,
+      polarSubscriptionId: true,
+      trialStartsAt: true,
+      trialEndsAt: true,
+      cancelAtPeriodEnd: true,
+      createdAt: true,
       plan: {
         select: {
           id: true,
@@ -158,25 +188,17 @@ export async function getTenantBillingLimits(
     },
   });
 
+  const access = resolveTenantAccess(subscriptions);
+
   const subscription =
-    subscriptions.find((item) =>
-      ["ACTIVE", "TRIALING"].includes(
-        getEffectiveSubscriptionStatus(item.status, item.currentPeriodEnd),
-      ),
-    ) ??
-    subscriptions.find((item) =>
-      ["ACTIVE", "TRIALING"].includes(item.status),
-    ) ??
+    subscriptions.find((item) => item.id === access.subscriptionId) ??
     subscriptions[0] ??
     null;
 
   if (subscription?.plan) {
-    const status = getEffectiveSubscriptionStatus(
-      subscription.status,
-      subscription.currentPeriodEnd,
-    );
+    const status = effectiveStatusFromAccess(access, subscription.status);
 
-    const canCreate = statusCanCreate(status);
+    const canCreate = access.state !== "LOCKED" && statusCanCreate(status);
     const configuredPlan = getConfiguredPlan(subscription.plan.code);
 
     /**
