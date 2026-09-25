@@ -124,7 +124,9 @@ export async function POST(req: NextRequest) {
       // this is the safety net if one is ever configured there again.
       allowTrial: false,
       externalCustomerId: auth.user.tenantId,
-      successUrl: `${getAppUrl()}/dashboard/billing?checkout=success`,
+      // Polar fills {CHECKOUT_ID}; the billing page posts it to
+      // /api/billing/checkout/confirm for an instant, verified unlock.
+      successUrl: `${getAppUrl()}/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}`,
       metadata: {
         tenantId: auth.user.tenantId,
         planCode,

@@ -502,7 +502,9 @@ export default function BillingPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") !== "success") return;
 
+    const checkoutId = params.get("checkout_id");
     params.delete("checkout");
+    params.delete("checkout_id");
     const query = params.toString();
     window.history.replaceState(
       null,
@@ -511,6 +513,33 @@ export default function BillingPage() {
     );
 
     setCheckoutPending(true);
+
+    // Ask the server to verify this checkout with Polar and unlock now.
+    // If it can't (still processing, any check fails), the polling below
+    // keeps waiting for the webhook as before.
+    if (checkoutId) {
+      void fetch("/api/billing/checkout/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkoutId }),
+      })
+        .then((res) => res.json().catch(() => ({})))
+        .then((json) => {
+          if (json?.data?.synced) {
+            setCheckoutPending(false);
+            toast.success(
+              isArabic
+                ? "تم تفعيل اشتراكك بنجاح"
+                : "Your subscription has been activated",
+            );
+            invalidateTenantWriteAccessCache();
+            void load();
+          }
+        })
+        .catch(() => undefined);
+    }
+    // Runs once on landing; the URL params are removed above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

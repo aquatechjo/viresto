@@ -263,7 +263,8 @@ test("checkout: no Polar-linked subscription creates a new checkout session with
     products: ["basic_monthly"],
     allowTrial: false,
     externalCustomerId: "tenant-1",
-    successUrl: "https://app.test/dashboard/billing?checkout=success",
+    successUrl:
+      "https://app.test/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}",
     metadata: { tenantId: "tenant-1", planCode: "BASIC", billingCycle: "monthly" },
   });
 });
