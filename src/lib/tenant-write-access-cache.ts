@@ -6,7 +6,16 @@ export type TenantAccessEntitlements = {
   fullExport: boolean;
 };
 
+export type TenantAccessSummary = {
+  state: "PAID" | "TRIAL" | "LOCKED";
+  lockReason: string | null;
+  trialEndsAt: string | null;
+  trialDaysLeft: number | null;
+  trialEndingSoon: boolean;
+};
+
 export type TenantAccessPayload = {
+  access?: TenantAccessSummary | null;
   canWrite?: boolean;
   message?: string | null;
   billing?: {

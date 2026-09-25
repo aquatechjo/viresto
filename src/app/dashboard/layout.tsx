@@ -3,6 +3,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import SessionGuard from "@/components/security/SessionGuard";
+import SubscriptionGate from "@/components/billing/SubscriptionGate";
 import DeferredAIAssistant from "@/components/dashboard/DeferredAIAssistant";
 import NavigationPerformance from "@/components/navigation/NavigationPerformance";
 import { useLocale } from "@/lib/useLocale";
@@ -39,6 +40,7 @@ export default function DashboardLayout({
       style={{ background: "var(--bg)" }}
     >
       <SessionGuard />
+      <SubscriptionGate />
       <Suspense fallback={null}>
         <NavigationPerformance />
       </Suspense>

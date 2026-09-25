@@ -15,6 +15,11 @@ import {
   shouldTouchSession,
   userCanUseSession,
 } from "@/lib/session-policy";
+import { isSubscriptionExemptPath } from "@/lib/request-path-policy";
+import {
+  getTenantAccessCached,
+  invalidateTenantAccessCache,
+} from "@/lib/tenant-access-server";
 
 // Short cache to reduce repeated auth DB round-trips within one page load's
 // burst of API calls. Every security-sensitive mutation (logout, session
@@ -191,6 +196,8 @@ export function invalidateAuthCacheForUser(userId: string) {
  * on their next request instead of each needing an individual invalidation.
  */
 export function invalidateAuthCacheForTenant(tenantId: string) {
+  invalidateTenantAccessCache(tenantId);
+
   for (const [key, entry] of authCache.entries()) {
     if (entry.user.tenantId === tenantId) {
       authCache.delete(key);
@@ -443,10 +450,47 @@ export async function requireAuth(req: NextRequest) {
     };
   }
 
+  const locked = await subscriptionLockResponse(req, validation.user);
+
+  if (locked) {
+    return {
+      error: locked,
+      user: null,
+    };
+  }
+
   return {
     error: null,
     user: validation.user,
   };
+}
+
+export const SUBSCRIPTION_REQUIRED_CODE = "SUBSCRIPTION_REQUIRED";
+
+/**
+ * Server-side trial/subscription lockout. Every tenant API route goes
+ * through requireAuth/requireRole, so this is the enforcement point; the
+ * dashboard redirect is only UX on top of it. System admins are exempt, as
+ * are the account/billing routes in isSubscriptionExemptPath.
+ */
+async function subscriptionLockResponse(
+  req: NextRequest,
+  user: AuthenticatedUser,
+) {
+  if (user.isSystemAdmin) return null;
+  if (isSubscriptionExemptPath(req.nextUrl.pathname, req.method)) return null;
+
+  const access = await getTenantAccessCached(user.tenantId);
+  if (access.state !== "LOCKED") return null;
+
+  return err(
+    "انتهت الفترة التجريبية أو الاشتراك. اشترك من صفحة الاشتراك للمتابعة، فبياناتك محفوظة.",
+    402,
+    {
+      code: SUBSCRIPTION_REQUIRED_CODE,
+      reason: access.lockReason,
+    },
+  );
 }
 
 export async function requireRole(req: NextRequest, roles: UserRole[]) {

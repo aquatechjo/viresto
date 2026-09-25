@@ -3,18 +3,29 @@ import { requireAuth } from "@/lib/api-auth";
 import { ok } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
+import { isTrialEndingSoon } from "@/lib/tenant-access";
+import { getTenantAccess } from "@/lib/tenant-access-server";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
     const auth = await requireAuth(req);
     if (auth.error || !auth.user) return auth.error;
 
-    const writeCheck = await assertTenantCanWrite(
-      auth.user.tenantId,
-      "تنفيذ هذا الإجراء",
-    );
+    const [writeCheck, access] = await Promise.all([
+      assertTenantCanWrite(auth.user.tenantId, "تنفيذ هذا الإجراء"),
+      getTenantAccess(auth.user.tenantId),
+    ]);
 
     return ok({
+      // Drives the dashboard lockout redirect and the trial banners. The
+      // server enforces the lockout itself (requireAuth); this is only UX.
+      access: {
+        state: access.state,
+        lockReason: access.lockReason,
+        trialEndsAt: access.trialEndsAt,
+        trialDaysLeft: access.trialDaysLeft,
+        trialEndingSoon: isTrialEndingSoon(access),
+      },
       canWrite: writeCheck.ok,
       message: writeCheck.ok ? null : writeCheck.message,
       entitlements:
