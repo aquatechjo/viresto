@@ -84,6 +84,20 @@ export function addBillingPeriod(start: Date, interval: BillingInterval) {
   return end;
 }
 
+export async function isTenantSuspended(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+) {
+  const tenant = await tx.tenant.findUnique({
+    where: { id: tenantId },
+    select: { isSuspended: true, status: true },
+  });
+
+  return Boolean(
+    tenant && (tenant.isSuspended || tenant.status === TenantStatus.SUSPENDED),
+  );
+}
+
 export async function syncTenantSubscriptionMirror(
   tx: Prisma.TransactionClient,
   input: {
@@ -91,6 +105,8 @@ export async function syncTenantSubscriptionMirror(
     planCode: string;
     status?: TenantStatus;
     trialEndsAt?: Date | null;
+    // Callers that already read the tenant pass this; otherwise it is read.
+    suspended?: boolean;
   },
 ) {
   const legacyPlan = tenantPlanForBillingCode(input.planCode);
@@ -101,11 +117,17 @@ export async function syncTenantSubscriptionMirror(
     throw new Error(`UNSUPPORTED_BILLING_PLAN:${input.planCode}`);
   }
 
+  // A billing change never lifts an admin suspension (only the admin
+  // activateTenant action does): keep isSuspended as is, and keep the
+  // SUSPENDED status while suspended. Plan and limits are still mirrored,
+  // so un-suspending later restores the paid office as it should be.
+  const suspended =
+    input.suspended ?? (await isTenantSuspended(tx, input.tenantId));
+
   return tx.tenant.update({
     where: { id: input.tenantId },
     data: {
-      status: input.status ?? TenantStatus.ACTIVE,
-      isSuspended: false,
+      ...(suspended ? {} : { status: input.status ?? TenantStatus.ACTIVE }),
       trialEndsAt: input.trialEndsAt ?? null,
       plan: legacyPlan,
       maxUsers: configuredPlan.limits.users,

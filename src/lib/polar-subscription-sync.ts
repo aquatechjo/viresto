@@ -141,6 +141,12 @@ function stringOrNull(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+// The sync runs ~9 sequential queries under the tenant lock. Prisma's
+// default interactive-transaction timeout (5 s) leaves little headroom for
+// a slow database round trip, and a timed-out sync answers 500 and is
+// retried by Polar. Webhook syncs are rare, so allow more time.
+const SYNC_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 20_000 };
+
 // Statuses covered by the partial unique index
 // "Subscription_one_current_per_tenant_key" (migration 20260717050000):
 // a tenant may hold at most one row in either of them.
@@ -275,10 +281,14 @@ export async function syncSubscriptionFromPolar(
 
     const tenant = await tx.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true },
+      select: { id: true, isSuspended: true, status: true },
     });
 
     if (!tenant) return null;
+
+    // Billing never lifts or overwrites an admin suspension.
+    const suspended =
+      tenant.isSuspended || tenant.status === TenantStatus.SUSPENDED;
 
     // Only a row that will itself be ACTIVE/TRIALING needs the slot; a
     // canceled/past_due/unpaid event must never close the office's other rows.
@@ -320,11 +330,13 @@ export async function syncSubscriptionFromPolar(
         planCode: plan.code,
         status: TenantStatus.ACTIVE,
         trialEndsAt: null,
+        suspended,
       });
     } else {
       const access = await getTenantAccess(tenantId, tx);
 
-      if (access.state === "LOCKED") {
+      // A suspended office keeps its SUSPENDED status (and suspension).
+      if (access.state === "LOCKED" && !suspended) {
         await tx.tenant.update({
           where: { id: tenantId },
           data: { status: TenantStatus.EXPIRED },
@@ -344,7 +356,7 @@ export async function syncSubscriptionFromPolar(
     });
 
     return { entitled };
-  });
+  }, SYNC_TRANSACTION_OPTIONS);
 
   if (!result) {
     return { ok: false, reason: "tenant_not_found" };

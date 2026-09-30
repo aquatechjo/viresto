@@ -552,3 +552,66 @@ test("a delivery that failed is not marked, so Polar's retry is processed", asyn
   assert.equal(retried.body.duplicate, undefined);
   assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
 });
+
+// --- H2: a Polar sync never lifts an admin suspension --------------------
+
+// Exactly what the system-admin suspendTenant action writes.
+async function suspendOffice(tenantId: string) {
+  await prisma.$transaction([
+    prisma.tenant.update({
+      where: { id: tenantId },
+      data: { isSuspended: true, status: "SUSPENDED" },
+    }),
+    prisma.session.updateMany({
+      where: { tenantId, isActive: true },
+      data: { isActive: false },
+    }),
+  ]);
+}
+
+test("a suspended office stays suspended when an entitled Polar sync arrives", async () => {
+  const office = await registerOffice("suspended-paid");
+  const polarId = `sub_suspended_${office.tenantId}`;
+  await suspendOffice(office.tenantId);
+
+  // e.g. a renewal (order.paid / subscription.updated) while suspended.
+  const result = await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+
+  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: office.tenantId } });
+  assert.equal(tenant.isSuspended, true);
+  assert.equal(tenant.status, "SUSPENDED");
+
+  // The payment itself is still recorded, so lifting the suspension later
+  // restores a paid office.
+  const row = await prisma.subscription.findUniqueOrThrow({
+    where: { polarSubscriptionId: polarId },
+  });
+  assert.equal(row.status, "ACTIVE");
+
+  // And the office is really locked out.
+  assert.equal(await clientsStatus(office), 401);
+  const login = await loginPOST(
+    jsonRequest("/api/auth/login", { email: office.email, password: "Integration#Pass1" }),
+  );
+  assert.equal(login.status, 403);
+});
+
+test("a suspended office keeps its SUSPENDED status when a Polar sync locks it", async () => {
+  const office = await registerOffice("suspended-revoked");
+  const polarId = `sub_suspended_revoked_${office.tenantId}`;
+
+  assert.equal((await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId })).status, 200);
+  await suspendOffice(office.tenantId);
+
+  const revoked = await sendWebhook("subscription.revoked", {
+    id: polarId,
+    tenantId: office.tenantId,
+    status: "canceled",
+  });
+  assert.equal(revoked.status, 200, JSON.stringify(revoked.body));
+
+  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: office.tenantId } });
+  assert.equal(tenant.isSuspended, true);
+  assert.equal(tenant.status, "SUSPENDED", "not overwritten with EXPIRED");
+});
