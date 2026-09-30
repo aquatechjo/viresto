@@ -33,6 +33,15 @@ export default defineConfig([
       "@next/next/no-img-element": "off",
 
       /*
+       * جديدة في eslint-config-next 16.3. كل استخداماتنا لـ window.location.href
+       * هي انتقال كامل مقصود عند حدود المصادقة (انتهاء الجلسة/الخروج ← /login،
+       * وتأكيد البريد ← /dashboard بعد ضبط الكوكي): يمسح حالة وكاش العميل
+       * للجلسة السابقة ويجعل الخادم يقرأ الكوكي الجديد. router.push يبقي تلك
+       * الحالة، فلا يُستبدل بها.
+       */
+      "@next/next/no-location-assign-relative-destination": "off",
+
+      /*
        * تعطيل مؤقت لقواعد React Compiler
        * لحين ترحيل المكونات القديمة تدريجيًا.
        */

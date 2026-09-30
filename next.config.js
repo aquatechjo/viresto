@@ -10,9 +10,10 @@ const nextConfig = {
     },
   },
   images: {
-    // Next 16.2.11 currently installs sharp 0.34.5 internally. Keep the
-    // server-side image optimizer out of the request path until Next ships a
-    // patched transitive version. The application only uses local logo files.
+    // The server-side image optimizer stays out of the request path: the
+    // application only serves small local logo files, so it adds attack
+    // surface (sharp/libvips) for no benefit. Originally disabled while
+    // Next 16.2.11 bundled a vulnerable sharp; Next 16.3.8 uses sharp 0.35.5.
     unoptimized: true,
     remotePatterns: [
       {
