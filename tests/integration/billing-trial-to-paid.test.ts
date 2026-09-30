@@ -10,7 +10,10 @@ import {
 } from "./helpers/database";
 import {
   TEST_PRODUCTS,
+  createFakePolarClient,
+  polarGetCalls,
   polarSubscriptionEvent,
+  setPolarState,
   signedWebhookRequest,
 } from "./helpers/polar";
 
@@ -21,7 +24,9 @@ import {
 // any office still holding its TRIALING signup-trial row, so the webhook
 // returned 500 and the office stayed locked after paying.
 //
-// Only outgoing email is mocked, to read the verification code.
+// Only the outside world is faked: outgoing email (to read the
+// verification code) and Polar's API (helpers/polar.ts holds each
+// subscription's true state; the webhook route re-fetches from it).
 
 const verificationCodes = new Map<string, string>();
 
@@ -35,6 +40,15 @@ mock.module("@/lib/email", {
 });
 
 const ORIGIN = "http://localhost:3000";
+
+let fakePolarClient: Awaited<ReturnType<typeof createFakePolarClient>>;
+
+mock.module("@/lib/polar", {
+  namedExports: {
+    getPolarClient: () => fakePolarClient,
+    getAppUrl: () => ORIGIN,
+  },
+});
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 let database: IntegrationDatabase;
@@ -48,6 +62,7 @@ let webhookPOST: typeof import("../../src/app/api/billing/webhooks/polar/route")
 
 before(async () => {
   database = setupIntegrationDatabase();
+  fakePolarClient = await createFakePolarClient();
 
   // Imported only now: the Prisma singleton reads DATABASE_URL on import.
   ({ prisma } = await import("../../src/lib/prisma"));
@@ -142,8 +157,24 @@ async function registerOffice(label: string): Promise<Office> {
   return { tenantId: user.tenantId, cookie: token, email };
 }
 
-async function sendWebhook(type: string, input: Parameters<typeof polarSubscriptionEvent>[1]) {
-  const response = await webhookPOST(signedWebhookRequest(polarSubscriptionEvent(type, input)));
+type SubscriptionInput = Parameters<typeof polarSubscriptionEvent>[1];
+
+// A normal delivery: Polar's state changes, then it sends the event.
+async function sendWebhook(type: string, input: SubscriptionInput, msgId?: string) {
+  setPolarState(input);
+  return deliverWithoutStateChange(type, input, msgId);
+}
+
+// Delivers a payload without touching Polar's state: a stale, reordered or
+// redelivered event whose payload no longer matches the subscription.
+async function deliverWithoutStateChange(
+  type: string,
+  input: SubscriptionInput,
+  msgId?: string,
+) {
+  const response = await webhookPOST(
+    signedWebhookRequest(polarSubscriptionEvent(type, input), msgId),
+  );
   const body = await response.json();
   return { status: response.status, body };
 }
@@ -393,4 +424,131 @@ test("migrate-offices-to-app-trial --apply handles an office with an older TRIAL
   assert.equal(current[0].status, "TRIALING");
   assert.ok(current[0].trialStartsAt, "moved onto the new explicit trial");
   assert.equal((await getTenantAccess(tenant.id)).state, "TRIAL");
+});
+
+// --- H3: stale / out-of-order / duplicate deliveries ---------------------
+// Polar's delivery is at-least-once and unordered. The route must sync the
+// subscription as Polar holds it now (re-fetched), never the payload.
+
+test("a stale 'active' for an old subscription after a newer one does not change the current state", async () => {
+  const office = await registerOffice("stale-old-sub");
+  const oldId = `sub_old_${office.tenantId}`;
+  const newId = `sub_new_${office.tenantId}`;
+
+  assert.equal((await sendWebhook("subscription.active", { id: oldId, tenantId: office.tenantId })).status, 200);
+
+  // The office moved to a new subscription; Polar ended the old one.
+  setPolarState({ id: oldId, tenantId: office.tenantId, status: "canceled" });
+  assert.equal((await sendWebhook("subscription.active", { id: newId, tenantId: office.tenantId })).status, 200);
+
+  const before = await subscriptionsOf(office.tenantId);
+  const newRow = before.find((row) => row.polarSubscriptionId === newId)!;
+  assert.equal(newRow.status, "ACTIVE");
+
+  // A delayed "active" for the OLD subscription arrives last.
+  const stale = await deliverWithoutStateChange("subscription.active", {
+    id: oldId,
+    tenantId: office.tenantId,
+    status: "active",
+  });
+  assert.equal(stale.status, 200, JSON.stringify(stale.body));
+
+  const after = await subscriptionsOf(office.tenantId);
+  const current = currentRows(after);
+  assert.equal(current.length, 1);
+  assert.equal(current[0].polarSubscriptionId, newId, "the newer subscription stays current");
+  assert.notEqual(
+    after.find((row) => row.polarSubscriptionId === oldId)?.status,
+    "ACTIVE",
+  );
+
+  const access = await getTenantAccess(office.tenantId);
+  assert.equal(access.state, "PAID");
+  assert.equal(access.subscriptionId, newRow.id);
+});
+
+test("a stale 'active' arriving after 'revoked' does not unlock the office", async () => {
+  const office = await registerOffice("stale-after-revoke");
+  const polarId = `sub_revoked_${office.tenantId}`;
+
+  assert.equal((await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId })).status, 200);
+  assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
+
+  // Refund + revoke in Polar.
+  const revoked = await sendWebhook("subscription.revoked", {
+    id: polarId,
+    tenantId: office.tenantId,
+    status: "canceled",
+  });
+  assert.equal(revoked.status, 200, JSON.stringify(revoked.body));
+  assert.equal((await getTenantAccess(office.tenantId)).state, "LOCKED");
+  assert.equal(await clientsStatus(office), 402);
+
+  // The earlier "active" delivery, retried late by Polar.
+  const stale = await deliverWithoutStateChange("subscription.active", {
+    id: polarId,
+    tenantId: office.tenantId,
+    status: "active",
+  });
+  assert.equal(stale.status, 200, JSON.stringify(stale.body));
+
+  const row = (await subscriptionsOf(office.tenantId)).find(
+    (item) => item.polarSubscriptionId === polarId,
+  )!;
+  assert.equal(row.status, "CANCELLED");
+  assert.equal((await getTenantAccess(office.tenantId)).state, "LOCKED");
+  assert.equal(await clientsStatus(office), 402);
+});
+
+test("a redelivered webhook-id is acknowledged without being processed again", async () => {
+  const office = await registerOffice("dedupe");
+  const polarId = `sub_dedupe_${office.tenantId}`;
+  const msgId = `msg_dedupe_${office.tenantId}`;
+  const getsBefore = polarGetCalls.length;
+
+  const first = await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId }, msgId);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.equal(first.body.duplicate, undefined);
+
+  const second = await deliverWithoutStateChange(
+    "subscription.active",
+    { id: polarId, tenantId: office.tenantId },
+    msgId,
+  );
+  assert.equal(second.status, 200);
+  assert.equal(second.body.duplicate, true);
+
+  assert.equal(polarGetCalls.length - getsBefore, 1, "Polar API called once");
+  const syncs = await prisma.activity.count({
+    where: { tenantId: office.tenantId, type: "BILLING_PLAN_CHANGED" },
+  });
+  assert.equal(syncs, 1, "synced once");
+  assert.ok(
+    await prisma.processedWebhook.findUnique({
+      where: { source_webhookId: { source: "polar", webhookId: msgId } },
+    }),
+  );
+});
+
+test("a delivery that failed is not marked, so Polar's retry is processed", async () => {
+  const office = await registerOffice("retry-after-failure");
+  const polarId = `sub_retry_${office.tenantId}`;
+  const msgId = `msg_retry_${office.tenantId}`;
+
+  // Polar's API is unreachable for the first attempt: nothing in the fake.
+  const failed = await deliverWithoutStateChange(
+    "subscription.active",
+    { id: polarId, tenantId: office.tenantId },
+    msgId,
+  );
+  assert.equal(failed.status, 500, "5xx so Polar retries");
+  assert.equal(
+    await prisma.processedWebhook.count({ where: { webhookId: msgId } }),
+    0,
+  );
+
+  const retried = await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId }, msgId);
+  assert.equal(retried.status, 200, JSON.stringify(retried.body));
+  assert.equal(retried.body.duplicate, undefined);
+  assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
 });

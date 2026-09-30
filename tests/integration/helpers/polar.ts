@@ -120,12 +120,49 @@ export function polarSubscriptionEvent(type: string, input: PolarSubscriptionInp
   };
 }
 
+// --- Fake Polar API ------------------------------------------------------
+// What Polar's servers currently hold for each subscription. The webhook
+// route re-fetches every subscription before syncing, so a test can make a
+// delivered payload disagree with this state (a stale or out-of-order
+// event) and check that only this state is ever written.
+
+type PolarSubscriptionData = ReturnType<typeof polarSubscriptionEvent>["data"];
+
+export const polarState = new Map<string, PolarSubscriptionData>();
+export const polarGetCalls: string[] = [];
+
+export function setPolarState(input: PolarSubscriptionInput) {
+  polarState.set(input.id, polarSubscriptionEvent("state", input).data);
+}
+
+export async function createFakePolarClient() {
+  const { subscriptionFromJSON } = await import(
+    "@polar-sh/sdk/models/components/subscription.js"
+  );
+
+  return {
+    subscriptions: {
+      async get({ id }: { id: string }) {
+        polarGetCalls.push(id);
+        const data = polarState.get(id);
+        if (!data) throw new Error(`fake Polar: no subscription ${id}`);
+
+        // The SDK's own parser: the route receives exactly the camelCase
+        // Subscription object subscriptions.get() would return.
+        const parsed = subscriptionFromJSON(JSON.stringify(data));
+        if (!parsed.ok) throw parsed.error;
+        return parsed.value;
+      },
+    },
+  };
+}
+
 let messageCounter = 0;
 
-export function signedWebhookRequest(payload: unknown) {
+export function signedWebhookRequest(payload: unknown, msgId?: string) {
   const secret = process.env.POLAR_WEBHOOK_SECRET!;
   const body = JSON.stringify(payload);
-  const msgId = `msg_it_${Date.now()}_${messageCounter++}`;
+  msgId ??= `msg_it_${Date.now()}_${messageCounter++}`;
   const timestamp = new Date();
   const webhook = new Webhook(Buffer.from(secret, "utf-8").toString("base64"));
 

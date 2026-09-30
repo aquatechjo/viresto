@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateEvent, WebhookVerificationError } from "@polar-sh/sdk/webhooks";
 import { SDKValidationError } from "@polar-sh/sdk/models/errors/sdkvalidationerror.js";
+import { ResourceNotFound } from "@polar-sh/sdk/models/errors/resourcenotfound.js";
 import { getPolarClient } from "@/lib/polar";
 import {
   POLAR_LOG_PREFIX,
@@ -8,6 +9,7 @@ import {
   syncSubscriptionFromPolar,
   type PolarSyncResult,
 } from "@/lib/polar-subscription-sync";
+import { markWebhookProcessed, wasWebhookProcessed } from "@/lib/webhook-dedupe";
 
 export const runtime = "nodejs";
 
@@ -41,6 +43,67 @@ function reportSync(
     // that can never succeed (another app's product, unknown office).
     logFailure(result.reason, context);
   }
+}
+
+// Thrown when Polar's API cannot be reached, so the delivery answers 5xx and
+// Polar retries it later (it is not marked as processed).
+class PolarFetchError extends Error {
+  constructor(readonly causeName: string) {
+    super("Polar subscription fetch failed");
+    this.name = "PolarFetchError";
+  }
+}
+
+/**
+ * Syncs one subscription as Polar holds it *now*, fetched from the API.
+ * Webhook payloads are never synced directly: delivery is at-least-once and
+ * unordered, so a payload can be older than the subscription's real state
+ * (a delayed "active" after "revoked", or for a subscription that has since
+ * been replaced). The product is checked first, from the payload, so
+ * subscriptions of the other app sharing this Polar org are never fetched.
+ */
+async function syncCurrentSubscription(
+  subscriptionId: string,
+  payloadProductId: string | null | undefined,
+  context: { event: string; webhook_id: string | null; order?: string },
+) {
+  const plan = await findBillingPlanForPolarProduct(payloadProductId);
+
+  if (!plan) {
+    logFailure("unknown_product", {
+      ...context,
+      sub: subscriptionId,
+      product: payloadProductId,
+    });
+    return;
+  }
+
+  let subscription;
+
+  try {
+    subscription = await getPolarClient().subscriptions.get({ id: subscriptionId });
+  } catch (error) {
+    // statusCode too: instanceof alone fails if two builds of the SDK
+    // (ESM/CJS) end up loaded side by side.
+    if (
+      error instanceof ResourceNotFound ||
+      (error as { statusCode?: unknown } | null)?.statusCode === 404
+    ) {
+      // Deleted on Polar's side: nothing to sync, and retrying cannot help.
+      logFailure("subscription_not_found", { ...context, sub: subscriptionId });
+      return;
+    }
+
+    throw new PolarFetchError(error instanceof Error ? error.name : "unknown");
+  }
+
+  const result = await syncSubscriptionFromPolar(subscription);
+  reportSync(result, {
+    event: context.event,
+    webhook_id: context.webhook_id,
+    sub: subscription.id,
+    product: subscription.productId,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -88,6 +151,11 @@ export async function POST(req: NextRequest) {
     throw error;
   }
 
+  // The signature covers webhook-id, so it cannot be forged to skip events.
+  if (webhookId && (await wasWebhookProcessed("polar", webhookId))) {
+    return json(200, { duplicate: true });
+  }
+
   const context = { event: event.type, webhook_id: webhookId };
 
   try {
@@ -98,41 +166,17 @@ export async function POST(req: NextRequest) {
       case "subscription.canceled":
       case "subscription.uncanceled":
       case "subscription.revoked":
-      case "subscription.past_due": {
-        const result = await syncSubscriptionFromPolar(event.data);
-        reportSync(result, {
-          ...context,
-          sub: event.data.id,
-          product: event.data.productId,
-        });
+      case "subscription.past_due":
+        await syncCurrentSubscription(event.data.id, event.data.productId, context);
         break;
-      }
 
       case "order.paid": {
         const order = event.data;
         if (!order.subscriptionId) break;
 
-        // Check the product before calling Polar's API: orders for the
-        // other app on this org must be ignored, not fetched.
-        const plan = await findBillingPlanForPolarProduct(order.productId);
-        if (!plan) {
-          logFailure("unknown_product", {
-            event: event.type,
-            webhook_id: webhookId,
-            order: order.id,
-            product: order.productId,
-          });
-          break;
-        }
-
-        const subscription = await getPolarClient().subscriptions.get({
-          id: order.subscriptionId,
-        });
-        const result = await syncSubscriptionFromPolar(subscription);
-        reportSync(result, {
+        await syncCurrentSubscription(order.subscriptionId, order.productId, {
           ...context,
-          sub: subscription.id,
-          product: subscription.productId,
+          order: order.id,
         });
         break;
       }
@@ -141,14 +185,31 @@ export async function POST(req: NextRequest) {
         break;
     }
   } catch (error) {
+    if (error instanceof PolarFetchError) {
+      logFailure("polar_fetch_failed", { ...context, error: error.causeName });
+      return json(500);
+    }
+
     logFailure("sync_failed", {
-      event: event.type,
-      webhook_id: webhookId,
+      ...context,
       // Name/code only: Prisma messages can echo query arguments.
       error: error instanceof Error ? error.name : "unknown",
       code: (error as { code?: unknown } | null)?.code as string | undefined,
     });
     return json(500);
+  }
+
+  if (webhookId) {
+    try {
+      await markWebhookProcessed("polar", webhookId, event.type);
+    } catch (error) {
+      // The event itself was handled; a redelivery would only repeat an
+      // idempotent sync from Polar's current state.
+      logFailure("dedupe_mark_failed", {
+        ...context,
+        error: error instanceof Error ? error.name : "unknown",
+      });
+    }
   }
 
   return json(200);

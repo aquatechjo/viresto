@@ -734,3 +734,17 @@ model PasswordResetCode {
   @@index([userId])
   @@index([expiresAt])
 }
+
+// Webhook deliveries already handled, keyed by the standard-webhooks
+// "webhook-id" header (stable across Polar's retries of one delivery).
+// Written only after a delivery was processed successfully; pruned after
+// 30 days by /api/cron/prune-activity.
+model ProcessedWebhook {
+  source      String
+  webhookId   String
+  eventType   String
+  processedAt DateTime @default(now())
+
+  @@id([source, webhookId])
+  @@index([processedAt])
+}

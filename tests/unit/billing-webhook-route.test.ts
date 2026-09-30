@@ -8,8 +8,9 @@ import { Webhook } from "standardwebhooks";
 // NOT mocked: payloads below are signed with the actual `standardwebhooks`
 // Webhook class (the same one @polar-sh/sdk/webhooks uses internally), and
 // event payloads are validated against the SDK's real zod schemas via the
-// real `validateEvent`. Only the DB-sync helper and the Polar API client
-// are mocked, so no network/DB calls happen.
+// real `validateEvent`. Only the DB-sync helper, the webhook dedupe store
+// and the Polar API client are mocked, so no network/DB calls happen.
+// (tests/integration/ runs the same route against a real Postgres.)
 
 const TEST_SECRET = "w".repeat(32);
 // Pasted env vars often carry a trailing newline; the route trims it.
@@ -29,6 +30,19 @@ const findBillingPlanForPolarProductMock = mock.fn<
   (...args: unknown[]) => Promise<Record<string, unknown> | null>
 >(async (productId) => (productId === "prod_1" ? { id: "plan-pro" } : null));
 const warnMock = mock.method(console, "warn", () => undefined);
+const wasWebhookProcessedMock = mock.fn<(...args: unknown[]) => Promise<boolean>>(
+  async () => false,
+);
+const markWebhookProcessedMock = mock.fn<(...args: unknown[]) => Promise<void>>(
+  async () => undefined,
+);
+
+mock.module("@/lib/webhook-dedupe", {
+  namedExports: {
+    wasWebhookProcessed: wasWebhookProcessedMock,
+    markWebhookProcessed: markWebhookProcessedMock,
+  },
+});
 
 mock.module("@/lib/polar", {
   namedExports: { getPolarClient: getPolarClientMock },
@@ -53,6 +67,9 @@ beforeEach(() => {
   syncSubscriptionFromPolarMock.mock.resetCalls();
   findBillingPlanForPolarProductMock.mock.resetCalls();
   warnMock.mock.resetCalls();
+  wasWebhookProcessedMock.mock.resetCalls();
+  markWebhookProcessedMock.mock.resetCalls();
+  wasWebhookProcessedMock.mock.mockImplementation(async () => false);
   subscriptionsGetMock.mock.mockImplementation(async () => fetchedSubscriptionFixture());
   syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({ ok: true }));
 });
@@ -282,18 +299,109 @@ for (const type of [
   "subscription.revoked",
   "subscription.past_due",
 ]) {
-  test(`webhook: a correctly signed ${type} event passes verification and syncs the subscription`, async () => {
+  test(`webhook: a correctly signed ${type} event re-fetches the subscription from Polar and syncs that`, async () => {
     const payload = subscriptionEventPayload(type);
     const res = await POST(makeRequest(payload));
 
     assert.equal(res.status, 200);
+    assert.equal(subscriptionsGetMock.mock.callCount(), 1);
+    assert.deepEqual(subscriptionsGetMock.mock.calls[0].arguments[0], { id: "sub_1" });
     assert.equal(syncSubscriptionFromPolarMock.mock.callCount(), 1);
-    assert.equal(
-      (syncSubscriptionFromPolarMock.mock.calls[0].arguments[0] as { id: string }).id,
-      "sub_1",
+    // The API's current object, never the (possibly stale) payload.
+    assert.deepEqual(
+      syncSubscriptionFromPolarMock.mock.calls[0].arguments[0],
+      fetchedSubscriptionFixture(),
     );
+    assert.deepEqual(markWebhookProcessedMock.mock.calls[0].arguments, [
+      "polar",
+      "msg_test_1",
+      type,
+    ]);
   });
 }
+
+test("webhook: a stale payload is not what gets synced (Polar's current state wins)", async () => {
+  subscriptionsGetMock.mock.mockImplementation(async () => ({
+    ...fetchedSubscriptionFixture(),
+    status: "canceled",
+  }));
+
+  const res = await POST(
+    makeRequest(subscriptionEventPayload("subscription.active", { status: "active" })),
+  );
+
+  assert.equal(res.status, 200);
+  assert.equal(
+    (syncSubscriptionFromPolarMock.mock.calls[0].arguments[0] as { status: string }).status,
+    "canceled",
+  );
+});
+
+test("webhook: an already-processed webhook-id is acknowledged without fetching or syncing", async () => {
+  wasWebhookProcessedMock.mock.mockImplementation(async () => true);
+
+  const res = await POST(makeRequest(subscriptionEventPayload("subscription.active")));
+  const json = await res.json();
+
+  assert.equal(res.status, 200);
+  assert.equal(json.duplicate, true);
+  assert.deepEqual(wasWebhookProcessedMock.mock.calls[0].arguments, ["polar", "msg_test_1"]);
+  assert.equal(subscriptionsGetMock.mock.callCount(), 0);
+  assert.equal(syncSubscriptionFromPolarMock.mock.callCount(), 0);
+  assert.equal(markWebhookProcessedMock.mock.callCount(), 0);
+});
+
+test("webhook: an unreachable Polar API answers 500 so Polar retries, and marks nothing", async () => {
+  subscriptionsGetMock.mock.mockImplementation(async () => {
+    throw new TypeError("fetch failed");
+  });
+
+  const res = await POST(makeRequest(subscriptionEventPayload("subscription.updated")));
+
+  assert.equal(res.status, 500);
+  assert.equal(syncSubscriptionFromPolarMock.mock.callCount(), 0);
+  assert.equal(markWebhookProcessedMock.mock.callCount(), 0);
+  assert.equal(
+    loggedLines()[0],
+    "[polar-webhook] polar_fetch_failed event=subscription.updated webhook_id=msg_test_1 error=TypeError",
+  );
+});
+
+test("webhook: a subscription Polar no longer has (404) is acknowledged, not retried", async () => {
+  const { ResourceNotFound } = await import(
+    "@polar-sh/sdk/models/errors/resourcenotfound.js"
+  );
+  subscriptionsGetMock.mock.mockImplementation(async () => {
+    throw new ResourceNotFound(
+      { error: "ResourceNotFound", detail: "Not found" },
+      {
+        response: new Response("{}", { status: 404 }),
+        request: new Request("https://api.polar.sh/v1/subscriptions/sub_1"),
+        body: "{}",
+      },
+    );
+  });
+
+  const res = await POST(makeRequest(subscriptionEventPayload("subscription.updated")));
+
+  assert.equal(res.status, 200);
+  assert.equal(syncSubscriptionFromPolarMock.mock.callCount(), 0);
+  assert.equal(
+    loggedLines()[0],
+    "[polar-webhook] subscription_not_found event=subscription.updated webhook_id=msg_test_1 sub=sub_1",
+  );
+});
+
+test("webhook: a failed sync is not marked as processed (Polar's retry must run again)", async () => {
+  syncSubscriptionFromPolarMock.mock.mockImplementation(async () => {
+    throw new Error("db unavailable");
+  });
+
+  const res = await POST(makeRequest(subscriptionEventPayload("subscription.active")));
+
+  assert.equal(res.status, 500);
+  assert.equal(markWebhookProcessedMock.mock.callCount(), 0);
+});
 
 test("webhook: order.paid fetches the full subscription via the Polar API before syncing", async () => {
   const res = await POST(makeRequest(orderPayload("order.paid")));
@@ -332,7 +440,12 @@ test("webhook: a downstream sync failure returns 500 instead of crashing", async
   );
 });
 
-test("webhook: trialing status is passed to the sync (treated as entitled there)", async () => {
+test("webhook: trialing status (as Polar reports it) is passed to the sync (treated as entitled there)", async () => {
+  subscriptionsGetMock.mock.mockImplementation(async () => ({
+    ...fetchedSubscriptionFixture(),
+    status: "trialing",
+  }));
+
   const res = await POST(
     makeRequest(subscriptionEventPayload("subscription.created", { status: "trialing" })),
   );
@@ -344,17 +457,14 @@ test("webhook: trialing status is passed to the sync (treated as entitled there)
   );
 });
 
-test("webhook: foreign product on a subscription event answers 200 and logs unknown_product", async () => {
-  syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({
-    ok: false,
-    reason: "unknown_product",
-  }));
-
+test("webhook: foreign product on a subscription event answers 200 without calling the Polar API", async () => {
   const res = await POST(
     makeRequest(subscriptionEventPayload("subscription.created", { product_id: "prod_other_app" })),
   );
 
   assert.equal(res.status, 200);
+  assert.equal(subscriptionsGetMock.mock.callCount(), 0);
+  assert.equal(syncSubscriptionFromPolarMock.mock.callCount(), 0);
   assert.equal(
     loggedLines()[0],
     "[polar-webhook] unknown_product event=subscription.created webhook_id=msg_test_1 sub=sub_1 product=prod_other_app",

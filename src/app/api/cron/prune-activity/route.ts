@@ -8,6 +8,7 @@ import {
   SECURITY_ACTIVITY_TYPES,
   ACTIVITY_RETENTION_DAYS,
 } from '@/lib/activity-retention'
+import { PROCESSED_WEBHOOK_RETENTION_DAYS } from '@/lib/webhook-dedupe'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +25,11 @@ export async function GET(req: NextRequest) {
     }
 
     const { securityCutoff, defaultCutoff } = getActivityRetentionCutoffs()
+    const webhookCutoff = new Date(
+      Date.now() - PROCESSED_WEBHOOK_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+    )
 
-    const [deletedSecurityLogs, deletedDefaultLogs] = await prisma.$transaction([
+    const [deletedSecurityLogs, deletedDefaultLogs, deletedWebhooks] = await prisma.$transaction([
       prisma.activity.deleteMany({
         where: {
           type: {
@@ -49,6 +53,15 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
+
+      // Webhook dedupe keys: only needed while Polar may still redeliver.
+      prisma.processedWebhook.deleteMany({
+        where: {
+          processedAt: {
+            lt: webhookCutoff,
+          },
+        },
+      }),
     ])
 
     return ok({
@@ -61,6 +74,7 @@ export async function GET(req: NextRequest) {
         securityLogs: deletedSecurityLogs.count,
         defaultLogs: deletedDefaultLogs.count,
         total: deletedSecurityLogs.count + deletedDefaultLogs.count,
+        processedWebhooks: deletedWebhooks.count,
       },
     })
   })
