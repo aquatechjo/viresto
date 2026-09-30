@@ -632,6 +632,32 @@ export default function BillingPage() {
         return;
       }
 
+      // The current subscription's renewal failed: fix the card on it in
+      // Polar's customer portal instead of buying a second subscription.
+      if (res.status === 409 && json.details?.action === "portal") {
+        toast.info(
+          isArabic
+            ? "فشل تجديد اشتراكك الحالي. سننقلك لتحديث وسيلة الدفع."
+            : "Your current subscription's renewal failed. Taking you to update your payment method.",
+        );
+
+        const portal = await fetch("/api/billing/portal", { method: "POST" });
+        const portalJson = await portal.json().catch(() => ({}));
+
+        if (portal.ok && portalJson.data?.url) {
+          window.location.href = portalJson.data.url;
+          return;
+        }
+
+        toast.error(
+          portalJson.message ||
+            (isArabic
+              ? "تعذر فتح صفحة تحديث الدفع"
+              : "Could not open the payment update page"),
+        );
+        return;
+      }
+
       if (!res.ok || !json.success) {
         toast.error(
           json.message ||

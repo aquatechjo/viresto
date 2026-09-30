@@ -11,7 +11,10 @@ import {
 import {
   TEST_PRODUCTS,
   createFakePolarClient,
+  polarCheckoutCreates,
+  polarFailures,
   polarGetCalls,
+  polarSubscriptionUpdates,
   polarSubscriptionEvent,
   setPolarState,
   signedWebhookRequest,
@@ -59,6 +62,7 @@ let verifyEmailPOST: typeof import("../../src/app/api/auth/verify-email/route")[
 let loginPOST: typeof import("../../src/app/api/auth/login/route")["POST"];
 let clientsGET: typeof import("../../src/app/api/clients/route")["GET"];
 let webhookPOST: typeof import("../../src/app/api/billing/webhooks/polar/route")["POST"];
+let checkoutPOST: typeof import("../../src/app/api/billing/checkout/route")["POST"];
 
 before(async () => {
   database = setupIntegrationDatabase();
@@ -72,6 +76,7 @@ before(async () => {
   ({ POST: loginPOST } = await import("../../src/app/api/auth/login/route"));
   ({ GET: clientsGET } = await import("../../src/app/api/clients/route"));
   ({ POST: webhookPOST } = await import("../../src/app/api/billing/webhooks/polar/route"));
+  ({ POST: checkoutPOST } = await import("../../src/app/api/billing/checkout/route"));
 
   await prisma.billingPlan.createMany({
     data: (["BASIC", "PRO", "BUSINESS"] as const).map((code, index) => ({
@@ -614,4 +619,125 @@ test("a suspended office keeps its SUSPENDED status when a Polar sync locks it",
   const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: office.tenantId } });
   assert.equal(tenant.isSuspended, true);
   assert.equal(tenant.status, "SUSPENDED", "not overwritten with EXPIRED");
+});
+
+// --- Item 4: an office with a live Polar subscription never gets a second
+// checkout (it would be a second subscription, billed twice) --------------
+
+async function checkout(office: Office, planId: string, billingCycle = "monthly") {
+  const createsBefore = polarCheckoutCreates.length;
+  const updatesBefore = polarSubscriptionUpdates.length;
+  const response = await checkoutPOST(
+    jsonRequest("/api/billing/checkout", { planId, billingCycle }, office.cookie),
+  );
+  const body = await response.json();
+
+  return {
+    status: response.status,
+    body,
+    checkoutsCreated: polarCheckoutCreates.length - createsBefore,
+    updates: polarSubscriptionUpdates.slice(updatesBefore),
+  };
+}
+
+test("checkout: an office with no subscription anywhere gets a new Polar checkout", async () => {
+  const office = await registerOffice("checkout-new");
+
+  const result = await checkout(office, "PRO");
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(result.body.data.mode, "checkout");
+  assert.equal(result.checkoutsCreated, 1);
+});
+
+test("checkout: an active subscriber changes plan in place, never a second checkout", async () => {
+  const office = await registerOffice("checkout-active");
+  const polarId = `sub_checkout_active_${office.tenantId}`;
+  await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId });
+
+  const same = await checkout(office, "PRO");
+  assert.equal(same.status, 400, JSON.stringify(same.body));
+  assert.equal(same.checkoutsCreated, 0);
+
+  const other = await checkout(office, "BASIC");
+  assert.equal(other.status, 200, JSON.stringify(other.body));
+  assert.equal(other.body.data.mode, "updated");
+  assert.equal(other.checkoutsCreated, 0);
+  assert.deepEqual(other.updates, [{ id: polarId, productId: TEST_PRODUCTS.BASIC.monthly }]);
+});
+
+test("checkout: a PAST_DUE subscriber is sent to the customer portal, never a second checkout", async () => {
+  const office = await registerOffice("checkout-past-due");
+  const polarId = `sub_checkout_past_due_${office.tenantId}`;
+  await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId });
+  await sendWebhook("subscription.past_due", {
+    id: polarId,
+    tenantId: office.tenantId,
+    status: "past_due",
+  });
+
+  const result = await checkout(office, "BUSINESS");
+  assert.equal(result.status, 409, JSON.stringify(result.body));
+  assert.equal(result.body.details.code, "PAYMENT_METHOD_UPDATE_REQUIRED");
+  assert.equal(result.body.details.action, "portal");
+  assert.equal(result.checkoutsCreated, 0);
+  assert.equal(result.updates.length, 0);
+});
+
+test("checkout: DB behind Polar (paid in another tab, not synced yet) still gets no second checkout", async () => {
+  const office = await registerOffice("checkout-db-lag");
+  const polarId = `sub_checkout_lag_${office.tenantId}`;
+
+  // Paid on Polar; no webhook or return-confirm has reached us yet.
+  setPolarState({ id: polarId, tenantId: office.tenantId });
+  assert.equal(
+    await prisma.subscription.count({ where: { polarSubscriptionId: polarId } }),
+    0,
+  );
+
+  const result = await checkout(office, "BASIC");
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(result.body.data.mode, "updated");
+  assert.equal(result.checkoutsCreated, 0);
+  assert.deepEqual(result.updates, [{ id: polarId, productId: TEST_PRODUCTS.BASIC.monthly }]);
+
+  // The live subscription was pulled in on the way.
+  const row = await prisma.subscription.findUniqueOrThrow({
+    where: { polarSubscriptionId: polarId },
+    select: { status: true, plan: { select: { code: true } } },
+  });
+  assert.equal(row.status, "ACTIVE");
+  assert.equal(row.plan.code, "BASIC");
+  assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
+});
+
+test("checkout: a newer non-live Polar row does not hide an older live one", async () => {
+  const office = await registerOffice("checkout-older-live");
+  const liveId = `sub_checkout_live_${office.tenantId}`;
+  await sendWebhook("subscription.active", { id: liveId, tenantId: office.tenantId });
+
+  // A stray canceled subscription (e.g. an abandoned attempt) synced later.
+  await sendWebhook("subscription.canceled", {
+    id: `sub_checkout_stray_${office.tenantId}`,
+    tenantId: office.tenantId,
+    status: "canceled",
+  });
+
+  const result = await checkout(office, "BASIC");
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(result.body.data.mode, "updated");
+  assert.equal(result.checkoutsCreated, 0);
+  assert.deepEqual(result.updates, [{ id: liveId, productId: TEST_PRODUCTS.BASIC.monthly }]);
+});
+
+test("checkout: when Polar cannot be asked, fail closed (503) instead of risking a second subscription", async () => {
+  const office = await registerOffice("checkout-polar-down");
+  polarFailures.list = true;
+
+  try {
+    const result = await checkout(office, "PRO");
+    assert.equal(result.status, 503, JSON.stringify(result.body));
+    assert.equal(result.checkoutsCreated, 0);
+  } finally {
+    polarFailures.list = false;
+  }
 });

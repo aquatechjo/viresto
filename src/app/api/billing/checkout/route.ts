@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { SubscriptionStatus } from "@prisma/client";
 import { PLANS, type PlanCode } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
@@ -11,7 +12,69 @@ import { syncSubscriptionFromPolar } from "@/lib/polar-subscription-sync";
 type BillingCycle = "monthly" | "yearly";
 
 const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
-const ACTIVE_STATUSES = new Set(["ACTIVE", "TRIALING"]);
+
+// A Polar subscription in any of these is still alive (PAST_DUE: Polar is
+// retrying the card), so the office must never be sent to a new checkout:
+// that would create a second subscription and bill it twice.
+const LIVE_STATUSES: SubscriptionStatus[] = [
+  SubscriptionStatus.ACTIVE,
+  SubscriptionStatus.TRIALING,
+  SubscriptionStatus.PAST_DUE,
+];
+const POLAR_LIVE_STATUSES = ["active", "trialing", "past_due"] as const;
+
+// Read by the billing page, which opens the customer portal for it.
+const PAYMENT_METHOD_UPDATE_REQUIRED = "PAYMENT_METHOD_UPDATE_REQUIRED";
+
+function findLiveSubscription(tenantId: string) {
+  return prisma.subscription.findFirst({
+    where: {
+      tenantId,
+      polarSubscriptionId: { not: null },
+      status: { in: LIVE_STATUSES },
+    },
+    orderBy: { createdAt: "desc" },
+    include: { plan: true },
+  });
+}
+
+class PolarLookupError extends Error {}
+
+/**
+ * Our DB can lag Polar (the office paid in another tab and the webhook or
+ * the return-confirm has not synced yet). Before opening a new checkout,
+ * ask Polar whether this office already has a live subscription to one of
+ * our products (checkout metadata.tenantId is copied onto it).
+ */
+async function findLiveSubscriptionInPolar(
+  polar: ReturnType<typeof getPolarClient>,
+  tenantId: string,
+) {
+  const plans = await prisma.billingPlan.findMany({
+    select: { polarMonthlyProductId: true, polarYearlyProductId: true },
+  });
+  const productIds = plans
+    .flatMap((plan) => [plan.polarMonthlyProductId, plan.polarYearlyProductId])
+    .filter((id): id is string => Boolean(id));
+
+  if (productIds.length === 0) return null;
+
+  try {
+    const page = await polar.subscriptions.list({
+      metadata: { tenantId },
+      productId: productIds,
+      status: [...POLAR_LIVE_STATUSES],
+      limit: 10,
+    });
+
+    return page.result.items[0] ?? null;
+  } catch (error) {
+    console.warn(
+      `[polar-checkout] live_subscription_lookup_failed tenant=${tenantId} error=${error instanceof Error ? error.name : "unknown"}`,
+    );
+    throw new PolarLookupError();
+  }
+}
 
 function isBillingCycle(value: unknown): value is BillingCycle {
   return value === "monthly" || value === "yearly";
@@ -75,23 +138,53 @@ export async function POST(req: NextRequest) {
 
     const polar = getPolarClient();
 
-    // Polar rejects a second checkout for a customer who already has an
-    // active subscription in the org (AlreadyActiveSubscriptionError at
-    // confirmation). When the tenant already has a live Polar-linked
-    // subscription, change it in place instead of starting a new checkout.
-    const currentSubscription = await prisma.subscription.findFirst({
-      where: {
-        tenantId: auth.user.tenantId,
-        polarSubscriptionId: { not: null },
-      },
-      orderBy: { createdAt: "desc" },
-      include: { plan: true },
-    });
+    // Never a second subscription: when the office already has a live one,
+    // change it in place (or send them to fix the card) instead.
+    let currentSubscription = await findLiveSubscription(auth.user.tenantId);
 
-    if (
-      currentSubscription?.polarSubscriptionId &&
-      ACTIVE_STATUSES.has(currentSubscription.status)
-    ) {
+    if (!currentSubscription) {
+      let polarLive;
+
+      try {
+        polarLive = await findLiveSubscriptionInPolar(polar, auth.user.tenantId);
+      } catch (error) {
+        if (error instanceof PolarLookupError) {
+          // Fail closed: without knowing, a new checkout could double-bill.
+          return err("تعذر التحقق من الاشتراك الحالي. حاول مرة أخرى بعد قليل.", 503);
+        }
+        throw error;
+      }
+
+      if (polarLive) {
+        await syncSubscriptionFromPolar(polarLive);
+        currentSubscription = await findLiveSubscription(auth.user.tenantId);
+
+        if (!currentSubscription) {
+          // Live in Polar but not attachable to this office (e.g. linked to
+          // another office). Still never open a second checkout.
+          console.warn(
+            `[polar-checkout] live_subscription_unsynced tenant=${auth.user.tenantId} sub=${polarLive.id}`,
+          );
+          return err(
+            "يوجد اشتراك فعّال لهذا المكتب في نظام الدفع. تواصل مع الدعم لإكماله.",
+            409,
+            { code: "SUBSCRIPTION_ALREADY_EXISTS" },
+          );
+        }
+      }
+    }
+
+    if (currentSubscription?.status === SubscriptionStatus.PAST_DUE) {
+      // The renewal failed and Polar is retrying: the fix is a new card on
+      // the existing subscription (customer portal), never a new one.
+      return err(
+        "فشل تجديد اشتراكك الحالي. حدّث وسيلة الدفع من بوابة العميل بدل شراء اشتراك جديد.",
+        409,
+        { code: PAYMENT_METHOD_UPDATE_REQUIRED, action: "portal" },
+      );
+    }
+
+    if (currentSubscription?.polarSubscriptionId) {
       const currentProductId =
         currentSubscription.interval === "YEARLY"
           ? currentSubscription.plan.polarYearlyProductId

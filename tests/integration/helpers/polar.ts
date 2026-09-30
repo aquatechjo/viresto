@@ -130,6 +130,10 @@ type PolarSubscriptionData = ReturnType<typeof polarSubscriptionEvent>["data"];
 
 export const polarState = new Map<string, PolarSubscriptionData>();
 export const polarGetCalls: string[] = [];
+export const polarCheckoutCreates: Array<Record<string, unknown>> = [];
+export const polarSubscriptionUpdates: Array<{ id: string; productId: string }> = [];
+// Flip to make the fake API unreachable for subscriptions.list.
+export const polarFailures = { list: false };
 
 export function setPolarState(input: PolarSubscriptionInput) {
   polarState.set(input.id, polarSubscriptionEvent("state", input).data);
@@ -140,18 +144,63 @@ export async function createFakePolarClient() {
     "@polar-sh/sdk/models/components/subscription.js"
   );
 
+  // The SDK's own parser: routes receive exactly the camelCase Subscription
+  // object the real client would return.
+  function parse(data: PolarSubscriptionData) {
+    const parsed = subscriptionFromJSON(JSON.stringify(data));
+    if (!parsed.ok) throw parsed.error;
+    return parsed.value;
+  }
+
   return {
     subscriptions: {
       async get({ id }: { id: string }) {
         polarGetCalls.push(id);
         const data = polarState.get(id);
         if (!data) throw new Error(`fake Polar: no subscription ${id}`);
+        return parse(data);
+      },
 
-        // The SDK's own parser: the route receives exactly the camelCase
-        // Subscription object subscriptions.get() would return.
-        const parsed = subscriptionFromJSON(JSON.stringify(data));
-        if (!parsed.ok) throw parsed.error;
-        return parsed.value;
+      async list(request: {
+        metadata?: Record<string, unknown>;
+        productId?: string[];
+        status?: string[];
+      }) {
+        if (polarFailures.list) throw new TypeError("fetch failed");
+
+        const items = [...polarState.values()]
+          .filter(
+            (data) =>
+              (!request.metadata?.tenantId ||
+                data.metadata.tenantId === request.metadata.tenantId) &&
+              (!request.productId || request.productId.includes(data.product_id)) &&
+              (!request.status || request.status.includes(data.status)),
+          )
+          .map(parse);
+
+        return { result: { items } };
+      },
+
+      async update({
+        id,
+        subscriptionUpdate,
+      }: {
+        id: string;
+        subscriptionUpdate: { productId: string };
+      }) {
+        const data = polarState.get(id);
+        if (!data) throw new Error(`fake Polar: no subscription ${id}`);
+        polarSubscriptionUpdates.push({ id, productId: subscriptionUpdate.productId });
+        data.product_id = subscriptionUpdate.productId;
+        data.product = product(subscriptionUpdate.productId);
+        return parse(data);
+      },
+    },
+
+    checkouts: {
+      async create(request: Record<string, unknown>) {
+        polarCheckoutCreates.push(request);
+        return { url: `https://polar.test/checkout/${polarCheckoutCreates.length}` };
       },
     },
   };
