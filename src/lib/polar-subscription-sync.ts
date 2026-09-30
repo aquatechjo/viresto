@@ -3,6 +3,7 @@ import {
   BillingInterval,
   SubscriptionStatus,
   TenantStatus,
+  type Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
@@ -140,6 +141,66 @@ function stringOrNull(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+// Statuses covered by the partial unique index
+// "Subscription_one_current_per_tenant_key" (migration 20260717050000):
+// a tenant may hold at most one row in either of them.
+const CURRENT_STATUSES: SubscriptionStatus[] = [
+  SubscriptionStatus.ACTIVE,
+  SubscriptionStatus.TRIALING,
+];
+
+/**
+ * Makes room for this Polar subscription as the tenant's current row by
+ * closing every other ACTIVE/TRIALING row first; otherwise the upsert
+ * violates the one-current-row index (e.g. the signup trial, which stays
+ * TRIALING even after it expires, or an admin-granted row). The row for
+ * this same Polar subscription is never touched, so renewals, plan changes
+ * and redeliveries keep updating it in place.
+ */
+async function supersedeOtherCurrentSubscriptions(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  polarSubscriptionId: string,
+  now: Date,
+) {
+  const others = await tx.subscription.findMany({
+    where: {
+      tenantId,
+      status: { in: CURRENT_STATUSES },
+      // Written as an OR: `not` alone would also skip rows whose
+      // polarSubscriptionId is NULL (SQL three-valued logic).
+      OR: [
+        { polarSubscriptionId: null },
+        { polarSubscriptionId: { not: polarSubscriptionId } },
+      ],
+    },
+    select: { id: true, polarSubscriptionId: true },
+  });
+
+  for (const row of others) {
+    if (row.polarSubscriptionId) {
+      // A second live Polar subscription for the same office: keep the
+      // newest, and leave a trace so the older one can be revoked in Polar.
+      console.warn(
+        `${POLAR_LOG_PREFIX} superseded_subscription tenant=${tenantId} old_sub=${row.polarSubscriptionId} new_sub=${polarSubscriptionId}`,
+      );
+    }
+  }
+
+  if (others.length === 0) return;
+
+  await tx.subscription.updateMany({
+    where: { id: { in: others.map((row) => row.id) } },
+    // Trial dates and period history stay on the rows; nothing is deleted.
+    data: {
+      status: SubscriptionStatus.CANCELLED,
+      cancelledAt: now,
+      currentPeriodEnd: now,
+      cancelAtPeriodEnd: false,
+    },
+  });
+}
+
 export async function syncSubscriptionFromPolar(
   subscription: PolarSubscription,
 ): Promise<PolarSyncResult> {
@@ -218,6 +279,12 @@ export async function syncSubscriptionFromPolar(
     });
 
     if (!tenant) return null;
+
+    // Only a row that will itself be ACTIVE/TRIALING needs the slot; a
+    // canceled/past_due/unpaid event must never close the office's other rows.
+    if (CURRENT_STATUSES.includes(status)) {
+      await supersedeOtherCurrentSubscriptions(tx, tenantId, subscription.id, now);
+    }
 
     const record = await tx.subscription.upsert({
       where: { polarSubscriptionId: subscription.id },

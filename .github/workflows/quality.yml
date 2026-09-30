@@ -103,5 +103,12 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      # Real Postgres, real route handlers: migrates a throwaway schema in
+      # the CI database, runs the billing trial → paid flow, drops it.
+      - name: Integration tests
+        run: npm run test:integration
+        env:
+          INTEGRATION_DATABASE_URL: postgresql://ci:ci@localhost:5432/viresto
+
       - name: Production build
         run: npm run build

@@ -132,6 +132,19 @@ async function main() {
         cancelledAt: null,
       };
 
+      // One ACTIVE/TRIALING row per tenant (Subscription_one_current_per_tenant_key).
+      // Group (a) holds only legacy trial rows, so an older one may still be
+      // TRIALING while the newest (the row reused below) is not: close the
+      // others first, keeping their dates as history.
+      await tx.subscription.updateMany({
+        where: {
+          tenantId: tenant.id,
+          status: { in: ["ACTIVE", "TRIALING"] },
+          ...(legacy ? { id: { not: legacy.id } } : {}),
+        },
+        data: { status: "CANCELLED", cancelledAt: now },
+      });
+
       if (legacy) {
         await tx.subscription.update({
           where: { id: legacy.id },
