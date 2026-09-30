@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-09-25 (نموذج التجربة 14 يومًا + القفل من الخادم + إصلاحات webhook الخاص بـ Polar — القسم 2.1)
+> آخر تحديث: 2026-09-30 (تدقيق ما قبل الإطلاق `AUDIT_REPORT.md` + إصلاح B2 انحراف `publicId` — القسم 2.2)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -96,6 +96,21 @@
 - الـ proxy لا يفحص الاشتراك (لا DB فيه)؛ الحماية في `requireAuth`. الـ server actions الوحيدة (`admin/actions.ts`) خاصة بمدير النظام.
 - الكاش in-memory لكل instance: بعد الدفع قد تبقى instances أخرى دافئة على القفل حتى 5 ثوانٍ.
 - `checkout` لا يعتبر `PAST_DUE` اشتراكًا حيًا، فاختيار خطة أثناء past_due يبدأ checkout جديدًا (قد يرفضه Polar). لم يُعالج.
+
+## 2.2 تدقيق ما قبل الإطلاق (`AUDIT_REPORT.md`) — 🟡 قيد التنفيذ (2026-09-30)
+
+التقرير في `AUDIT_REPORT.md` (غير ملتزم به، ملف عمل): 2 Blockers، 4 High، 7 Medium، 10 Low. خطة المستخدم: إصلاح **B2 ← B1 ← H1** بالترتيب، commit لكل بند، والتوقف للمراجعة بعد كل واحد.
+
+### ✅ B2 — انحراف `publicId` (commit `b552d3c`، غير مرفوع)
+- **المشكلة:** `Client/Case/Invoice.publicId` موجودة في `schema.prisma` وفي قاعدة الإنتاج، لكن لا توجد migration تنشئها (أُضيفت خارج السجل في `679f741`). أي قاعدة تُبنى بـ `migrate deploy` تكون بلا هذه الأعمدة فيفشل كل استعلام عليها، وأول `migrate dev` كان سينتج migration تفشل على الإنتاج ("already exists").
+- **الإصلاح:** `prisma/migrations/20260930000000_add_public_ids` مكتوبة يدويًا لتطابق DDL الإنتاج حرفيًا (من استعلامات المستخدم على الإنتاج): sequences من نوع **bigint** باسم `"<Table>_publicId_seq"` بـ `OWNED BY`، أعمدة `integer NOT NULL DEFAULT nextval(...)`، وفهارس `"<Table>_publicId_key"`. الصفوف الموجودة تُرقَّم حسب `createdAt`. (Prisma كان سيولّد `SERIAL` أي sequences من نوع integer، مخالف للإنتاج.)
+- **انحراف إضافي اكتُشف:** `InvoiceSequence.updatedAt` له `DEFAULT CURRENT_TIMESTAMP` في كل القواعد (من migration `20260717153000`) والـ schema لا يذكره. أُصلح في الـ schema فقط (`@default(now()) @updatedAt`)، بلا أي DDL.
+- **CI:** `quality.yml` ينشئ `viresto_shadow` ويشغّل `prisma migrate diff --from-migrations … --to-schema-datamodel … --exit-code`.
+- **التحقق:** على `viresto_shadow` (فارغة، disposable): migrations حتى `20260925010000` + صفوف اختبار ← الـ migration الجديدة ← الترقيم بالترتيب الصحيح، `nextval` يكمل (4)، والنوع/الملكية/أسماء الفهارس مطابقة لنتائج الإنتاج. فحص الانحراف: exit 2 بدون الـ migration، و0 معها. على فرع dev: الأعمدة موجودة أصلًا (live diff = لا فرق)، فعُلّمت بـ `migrate resolve --applied` و`migrate status` = up to date (بروفة لأمر الإنتاج). lint + tsc نظيفان، و`test:unit` 191/191.
+- **ملاحظة:** `SHADOW_DATABASE_URL` في `.env` يستخدم host الـ **pooler**؛ السكربتات استخدمت الـ host المباشر (بإزالة `-pooler`) في الذاكرة فقط.
+
+### التالي
+- B1 (تعارض فهرس `Subscription_one_current_per_tenant_key` عند شراء مكتب في التجربة؛ الفهرس **موجود على الإنتاج** حسب استعلام المستخدم)، ثم H1 (ترقية `next`).
 
 ## 3. تنظيف نظام الدفع اليدوي القديم (CliQ / تحويل بنكي) — ✅ مكتمل
 
@@ -271,8 +286,8 @@
 ## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit للكود/الإعداد:** `27fee9d` — `chore: add a dry-run-by-default script to move old offices onto the trial` (2026-09-25)، ويليه commit تحديث هذا الملف.
-- **حالة الـ push:** `main` = `origin/main`. **كل الـ commits مرفوعة** (آخر دفعة: `3ac98b7` → `27fee9d`، ثم commit الـ docs هذا). **غير منشورة على الإنتاج بعد.**
+- **آخر commit للكود/الإعداد:** `b552d3c` — `fix(db): add missing publicId migration and CI drift check` (2026-09-30)، ويليه commit تحديث هذا الملف.
+- **حالة الـ push:** `b552d3c` وcommit الـ docs الذي يليه **محليان، غير مرفوعين** (المستخدم لم يطلب push). ما قبلها مرفوع حتى `615024d`. **غير منشورة على الإنتاج بعد.**
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
   - `.claude/` (untracked): فيه `launch.json` لخادم التطوير.
@@ -324,8 +339,11 @@
 - تجهيز الإطلاق: أسعار USD، FAQ، footer، الصفحات القانونية، وإصلاح webhook الخاص بـ Polar. انظر القسم 5.1 والقسم 2.
 - نموذج التجربة 14 يومًا، القفل من الخادم، past_due، الفتح الفوري، وإصلاحات webhook من تسليم الإنتاج (`3ac98b7` → `27fee9d`). انظر القسم 2.1.
 
+### ✅ تم (2026-09-30)
+- تدقيق ما قبل الإطلاق (`AUDIT_REPORT.md`)، و`b552d3c` — إصلاح B2 (انحراف `publicId`) + فحص الانحراف في CI. انظر القسم 2.2.
+
 ### قيد التنفيذ
-- لا شيء.
+- تدقيق ما قبل الإطلاق: B1 ثم H1 (القسم 2.2).
 
 ### التالي (مقترح)
 1. **تشغيل `npx playwright test --workers=1`** (بعد تصفير نافذة الـ 429 — انظر القسم 9) والتأكد من نجاح `login.spec.ts`، `create-case.spec.ts`، و`mobile-responsive.spec.ts` الجديد فعليًا. لم يكتمل تشغيلها بنجاح بهاي الجلسة.
@@ -337,7 +355,9 @@
 
 ### ⏳ بانتظارك
 - [ ] **🚀 نشر نموذج التجربة (القسم 2.1) — بالترتيب:**
-  - [ ] **أولًا `npm run db:deploy` على قاعدة الإنتاج** (migrationان إضافيتان nullable: `trialStartsAt`، `pastDueSince`). **قبل نشر الكود**، لأن `npm run build` لا يطبّق migrations، و`requireAuth` صار يقرأ هذه الأعمدة في كل طلب: نشر الكود قبلها يكسر كل الـ API.
+  - [ ] **لا تنشر قبل إصلاح B1** (القسم 2.2): بدونه أول شراء لأي مكتب في التجربة يفشل ويبقى المكتب مقفولًا بعد الدفع.
+  - [ ] **قبل أي `db:deploy` على الإنتاج (B2):** `npx prisma migrate resolve --applied 20260930000000_add_public_ids` على الإنتاج. **الترتيب إلزامي:** لو شُغّل `db:deploy` أولًا سيحاول إنشاء الـ sequence الموجود، فيفشل ويترك migration فاشلة (P3009) تمنع كل النشرات التالية حتى `migrate resolve --rolled-back`.
+  - [ ] **ثم `npm run db:deploy` على قاعدة الإنتاج.** حسب `_prisma_migrations` على الإنتاج (2026-09-30) المعلّق ثلاث: `20260922020000_drop_subscription_payment`، `20260925000000_subscription_trial_starts_at`، `20260925010000_subscription_past_due_since`. **قبل نشر الكود**، لأن `npm run build` لا يطبّق migrations، و`requireAuth` صار يقرأ هذه الأعمدة في كل طلب: نشر الكود قبلها يكسر كل الـ API.
   - [ ] نشر `27fee9d` (أو أحدث) على Vercel.
   - [ ] **Polar ← Webhooks:** إضافة الأحداث `subscription.revoked`، `subscription.uncanceled`، `subscription.past_due` إلى الموجودة.
   - [ ] إزالة التجربة من المنتجات الستة في Polar (أنت، يدويًا).
