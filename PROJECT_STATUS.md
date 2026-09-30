@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-09-30 (تدقيق ما قبل الإطلاق `AUDIT_REPORT.md` + إصلاح B2 انحراف `publicId` — القسم 2.2)
+> آخر تحديث: 2026-09-30 (تدقيق ما قبل الإطلاق `AUDIT_REPORT.md`: إصلاح B2 انحراف `publicId` وB1 أول شراء لمكتب في التجربة — القسم 2.2)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -109,8 +109,19 @@
 - **التحقق:** على `viresto_shadow` (فارغة، disposable): migrations حتى `20260925010000` + صفوف اختبار ← الـ migration الجديدة ← الترقيم بالترتيب الصحيح، `nextval` يكمل (4)، والنوع/الملكية/أسماء الفهارس مطابقة لنتائج الإنتاج. فحص الانحراف: exit 2 بدون الـ migration، و0 معها. على فرع dev: الأعمدة موجودة أصلًا (live diff = لا فرق)، فعُلّمت بـ `migrate resolve --applied` و`migrate status` = up to date (بروفة لأمر الإنتاج). lint + tsc نظيفان، و`test:unit` 191/191.
 - **ملاحظة:** `SHADOW_DATABASE_URL` في `.env` يستخدم host الـ **pooler**؛ السكربتات استخدمت الـ host المباشر (بإزالة `-pooler`) في الذاكرة فقط.
 
+- **الإنتاج (المستخدم، 2026-09-30):** نُفّذ `migrate resolve --applied 20260930000000_add_public_ids`، و`migrate status` يعرض بالضبط الثلاث المعلّقة المتوقعة. `SHADOW_DATABASE_URL` صار على الـ host المباشر.
+
+### ✅ B1 — أول شراء لمكتب في التجربة يفشل على الفهرس الفريد (commit `bc3ba0b`، غير مرفوع)
+- **المشكلة (أُعيد إنتاجها على Postgres حقيقي قبل الإصلاح):** الفهرس الجزئي `Subscription_one_current_per_tenant_key` (صف `ACTIVE`/`TRIALING` واحد لكل مكتب، **موجود على الإنتاج** حسب استعلام المستخدم) كان يرفض صف Polar الجديد لأن `syncSubscriptionFromPolar` ينشئه قبل إغلاق صف التجربة. صف التجربة يبقى `TRIALING` حتى بعد انتهائها، فكل أول شراء = `P2002` ← الـ webhook يعيد 500 للأبد، و`/api/billing/checkout/confirm` يفشل أيضًا، والمكتب يبقى مقفولًا بعد الدفع. نفس الشيء لصف `ACTIVE` ممنوح من الأدمن.
+- **الإصلاح:** عندما يكون الصف القادم `ACTIVE`/`TRIALING`، تُغلق (`CANCELLED`، `cancelledAt` = `currentPeriodEnd` = الآن) كل الصفوف الحالية الأخرى للمكتب **قبل** الـ upsert في نفس الـ transaction، باستثناء صف نفس اشتراك Polar. التجديد وتغيير الخطة وإعادة التسليم تحدّث نفس الصف. أحداث `canceled`/`past_due` لا تلمس الصفوف الأخرى. اشتراك Polar ثانٍ يُستبدل يُسجَّل كـ `[polar-webhook] superseded_subscription tenant=… old_sub=… new_sub=…` (يستحق إلغاءه يدويًا في Polar إن ظهر). الـ confirm وتغيير الخطة في الـ checkout يمرّان من نفس الدالة.
+- **`scripts/migrate-offices-to-app-trial.ts`:** كان سيصطدم بنفس الفهرس لمكتب فيه صف تجربة قديم أقدم ما زال `TRIALING` (يعيد تفعيل الأحدث). صار يغلق الصفوف الأخرى أولًا.
+- **اختبارات تكامل حقيقية (`npm run test:integration`، `tests/integration/`):** Postgres حقيقي والـ route handlers الحقيقية؛ فقط إرسال البريد mocked لقراءة رمز التحقق. كل تشغيل ينشئ schema مؤقتة `it_*` بـ `migrate deploy` ويحذفها بعده، ولا يقبل إلا `INTEGRATION_DATABASE_URL` على localhost أو `E2E_ALLOWED_DATABASE_HOST`. 6 اختبارات: تسجيل ← تحقق ← دخول ← تجربة ← `subscription.active` ← PAID و`/api/clients` 200؛ تجديد + إعادة تسليم + تغيير خطة (نفس الصف)؛ مكتب انتهت تجربته (402 ← 200)؛ صف أدمن؛ حدث `canceled` لا يلمس التجربة؛ سكربت الترحيل. **قبل الإصلاح 5/6 فشلت بـ `P2002`، وبعده 6/6.** لا schemas متبقية على فرع dev. مضاف لـ `quality.yml` على Postgres الـ CI.
+- lint + tsc نظيفان، `test:unit` 191/191.
+- **للتشغيل محليًا:** ضع `INTEGRATION_DATABASE_URL` (رابط **مباشر** لفرع dev) في `.env.local` (موثّق في `.env.example`). يستغرق ~3 دقائق على Neon.
+
 ### التالي
-- B1 (تعارض فهرس `Subscription_one_current_per_tenant_key` عند شراء مكتب في التجربة؛ الفهرس **موجود على الإنتاج** حسب استعلام المستخدم)، ثم H1 (ترقية `next`).
+- H1 (ترقية `next` و`eslint-config-next` ≥ 16.3.8 + `npm audit fix` بدون `--force`).
+- بنود التقرير الأخرى لم تُلمس بعد، وأهمها قبل النشر: H2 (webhook يلغي تعليق الأدمن)، H3 (ترتيب أحداث الـ webhook)، M1 (أوامر الأدمن على اشتراكات Polar).
 
 ## 3. تنظيف نظام الدفع اليدوي القديم (CliQ / تحويل بنكي) — ✅ مكتمل
 
@@ -286,8 +297,8 @@
 ## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit للكود/الإعداد:** `b552d3c` — `fix(db): add missing publicId migration and CI drift check` (2026-09-30)، ويليه commit تحديث هذا الملف.
-- **حالة الـ push:** `b552d3c` وcommit الـ docs الذي يليه **محليان، غير مرفوعين** (المستخدم لم يطلب push). ما قبلها مرفوع حتى `615024d`. **غير منشورة على الإنتاج بعد.**
+- **آخر commit للكود/الإعداد:** `bc3ba0b` — `fix(billing): let a trial office's first Polar purchase through the one-current-subscription index` (2026-09-30)، ويليه commit تحديث هذا الملف.
+- **حالة الـ push:** `b552d3c`، `ce4aa18` (docs)، `bc3ba0b`، وcommit الـ docs الذي يليه **محلية، غير مرفوعة** (المستخدم لم يطلب push). ما قبلها مرفوع حتى `615024d`. **غير منشورة على الإنتاج بعد.**
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
   - `.claude/` (untracked): فيه `launch.json` لخادم التطوير.
@@ -341,9 +352,10 @@
 
 ### ✅ تم (2026-09-30)
 - تدقيق ما قبل الإطلاق (`AUDIT_REPORT.md`)، و`b552d3c` — إصلاح B2 (انحراف `publicId`) + فحص الانحراف في CI. انظر القسم 2.2.
+- `bc3ba0b` — إصلاح B1 (أول شراء لمكتب في التجربة) + اختبارات تكامل على Postgres حقيقي. انظر القسم 2.2.
 
 ### قيد التنفيذ
-- تدقيق ما قبل الإطلاق: B1 ثم H1 (القسم 2.2).
+- تدقيق ما قبل الإطلاق: H1 (القسم 2.2).
 
 ### التالي (مقترح)
 1. **تشغيل `npx playwright test --workers=1`** (بعد تصفير نافذة الـ 429 — انظر القسم 9) والتأكد من نجاح `login.spec.ts`، `create-case.spec.ts`، و`mobile-responsive.spec.ts` الجديد فعليًا. لم يكتمل تشغيلها بنجاح بهاي الجلسة.
@@ -355,8 +367,9 @@
 
 ### ⏳ بانتظارك
 - [ ] **🚀 نشر نموذج التجربة (القسم 2.1) — بالترتيب:**
-  - [ ] **لا تنشر قبل إصلاح B1** (القسم 2.2): بدونه أول شراء لأي مكتب في التجربة يفشل ويبقى المكتب مقفولًا بعد الدفع.
-  - [ ] **قبل أي `db:deploy` على الإنتاج (B2):** `npx prisma migrate resolve --applied 20260930000000_add_public_ids` على الإنتاج. **الترتيب إلزامي:** لو شُغّل `db:deploy` أولًا سيحاول إنشاء الـ sequence الموجود، فيفشل ويترك migration فاشلة (P3009) تمنع كل النشرات التالية حتى `migrate resolve --rolled-back`.
+  - [x] ~~إصلاح B1 قبل النشر~~: `bc3ba0b` (القسم 2.2). **النشر يجب أن يشمل `bc3ba0b`**، وإلا أول شراء لأي مكتب في التجربة يفشل.
+  - [x] ~~`migrate resolve --applied 20260930000000_add_public_ids` على الإنتاج (B2)~~: نفّذه المستخدم 2026-09-30.
+  - [ ] **push** لـ `b552d3c` و`bc3ba0b` (وcommits الـ docs)، والتأكد أن CI أخضر: فحص الانحراف واختبارات التكامل صارت فيه.
   - [ ] **ثم `npm run db:deploy` على قاعدة الإنتاج.** حسب `_prisma_migrations` على الإنتاج (2026-09-30) المعلّق ثلاث: `20260922020000_drop_subscription_payment`، `20260925000000_subscription_trial_starts_at`، `20260925010000_subscription_past_due_since`. **قبل نشر الكود**، لأن `npm run build` لا يطبّق migrations، و`requireAuth` صار يقرأ هذه الأعمدة في كل طلب: نشر الكود قبلها يكسر كل الـ API.
   - [ ] نشر `27fee9d` (أو أحدث) على Vercel.
   - [ ] **Polar ← Webhooks:** إضافة الأحداث `subscription.revoked`، `subscription.uncanceled`، `subscription.past_due` إلى الموجودة.
