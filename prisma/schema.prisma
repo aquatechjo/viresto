@@ -524,7 +524,9 @@ model InvoiceSequence {
   year       Int
   nextNumber Int      @default(1)
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  // Matches the DB: the column has had DEFAULT CURRENT_TIMESTAMP since
+  // migration 20260717153000, so the schema declares it too (no drift).
+  updatedAt  DateTime @default(now()) @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 

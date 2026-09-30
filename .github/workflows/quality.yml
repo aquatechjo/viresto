@@ -79,6 +79,21 @@ jobs:
       - name: Apply database migrations
         run: npm run db:deploy
 
+      # Fails when schema.prisma and prisma/migrations disagree (e.g. a column
+      # added with `db push` but never migrated). Prisma replays every
+      # migration into a throwaway shadow database and diffs the result
+      # against the schema; --exit-code returns 2 on any difference.
+      - name: Create shadow database
+        run: PGPASSWORD=ci createdb -h localhost -U ci viresto_shadow
+
+      - name: Check migrations match schema (drift)
+        run: >-
+          npx prisma migrate diff
+          --from-migrations prisma/migrations
+          --to-schema-datamodel prisma/schema.prisma
+          --shadow-database-url postgresql://ci:ci@localhost:5432/viresto_shadow
+          --exit-code
+
       - name: Lint
         run: npm run lint
 
