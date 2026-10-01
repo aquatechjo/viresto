@@ -12,15 +12,13 @@ import { getLocationFromHeaders } from "@/lib/geo";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
+import { getClientIp } from "@/lib/client-ip";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      req.headers.get("x-real-ip") ??
-      "unknown";
+    const ip = getClientIp(req) || "unknown";
 
     // Started before the body is parsed so every request (including invalid
     // ones) still counts against the IP limit, and so it runs in parallel

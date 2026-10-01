@@ -16,6 +16,7 @@ import {
   userCanUseSession,
 } from "@/lib/session-policy";
 import { isSubscriptionExemptPath } from "@/lib/request-path-policy";
+import { getClientIp } from "@/lib/client-ip";
 import {
   getTenantAccessCached,
   invalidateTenantAccessCache,
@@ -93,10 +94,7 @@ const authCache =
     new Map<string, AuthCacheEntry>());
 
 export function getRequestMeta(req: NextRequest) {
-  const forwardedFor = req.headers.get("x-forwarded-for");
-  const realIp = req.headers.get("x-real-ip");
-
-  const ipAddress = forwardedFor?.split(",")[0]?.trim() || realIp || "unknown";
+  const ipAddress = getClientIp(req) || "unknown";
   const userAgent = req.headers.get("user-agent") || "unknown";
 
   return {

@@ -4,6 +4,7 @@ import { err, ok } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { requireAuth } from "@/lib/api-auth";
 import { verifySameOrigin } from "@/lib/csrf";
+import { getClientIp } from "@/lib/client-ip";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -16,10 +17,7 @@ export async function POST(req: NextRequest) {
       return auth.error ?? err("انتهت الجلسة. يرجى تسجيل الدخول مجددًا.", 401);
     }
 
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      req.headers.get("x-real-ip") ||
-      "unknown";
+    const ip = getClientIp(req) || "unknown";
 
     const updated = await prisma.session.updateMany({
       where: {

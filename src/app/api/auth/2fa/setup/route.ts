@@ -9,7 +9,7 @@ import { apiHandler } from "@/lib/api-handler";
 import { encryptText } from "@/lib/encryption";
 import { verifySameOrigin } from "@/lib/csrf";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { getClientIp } from "@/lib/turnstile";
+import { getClientIp } from "@/lib/client-ip";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {

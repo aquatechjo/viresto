@@ -6,6 +6,7 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createVerificationCode } from "@/lib/verification";
 import { sendVerificationEmail } from "@/lib/email";
+import { getClientIp } from "@/lib/client-ip";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -26,10 +27,7 @@ export async function POST(req: NextRequest) {
       return err("البريد الإلكتروني غير صالح", 400);
     }
 
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      req.headers.get("x-real-ip") ||
-      "unknown";
+    const ip = getClientIp(req) || "unknown";
 
     const rl = await checkRateLimit(`${ip}:${email}`, {
       keyPrefix: "resend-verification",

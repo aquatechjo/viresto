@@ -9,15 +9,6 @@ type TurnstileVerifyResponse = {
   "error-codes"?: string[]
 }
 
-export function getClientIp(request: Request) {
-  return (
-    request.headers.get("cf-connecting-ip") ||
-    request.headers.get("x-real-ip") ||
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    undefined
-  )
-}
-
 export async function verifyTurnstileToken(
   token: string | null | undefined,
   remoteIp?: string

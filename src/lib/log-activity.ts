@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getLocationFromHeaders } from '@/lib/geo'
+import { getClientIp } from '@/lib/client-ip'
 
 type LogActivityInput = {
   req?: NextRequest
@@ -14,13 +15,7 @@ type LogActivityInput = {
 }
 
 function getIpAddress(req?: NextRequest) {
-  if (!req) return null
-
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    null
-  )
+  return req ? getClientIp(req) : null
 }
 
 export async function logActivity(input: LogActivityInput) {

@@ -8,7 +8,7 @@ import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { decryptText } from "@/lib/encryption";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { getClientIp } from "@/lib/turnstile";
+import { getClientIp } from "@/lib/client-ip";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {

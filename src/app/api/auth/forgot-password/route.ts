@@ -7,7 +7,7 @@ import {
   checkRateLimit,
   hashRateLimitIdentifier,
 } from "@/lib/rate-limit";
-import { getClientIp } from "@/lib/turnstile";
+import { getClientIp } from "@/lib/client-ip";
 
 export const runtime = "nodejs";
 

@@ -11,9 +11,9 @@ function normalizeGeoHeader(value: string | null, decode = false) {
 
 export function getLocationFromHeaders(headers: Headers) {
   return {
-    country: normalizeGeoHeader(
-      headers.get("x-vercel-ip-country") || headers.get("cf-ipcountry"),
-    ),
+    // Vercel's geo headers only: cf-ipcountry is client-controlled here
+    // (see client-ip.ts).
+    country: normalizeGeoHeader(headers.get("x-vercel-ip-country")),
     city: normalizeGeoHeader(headers.get("x-vercel-ip-city"), true),
   };
 }

@@ -9,6 +9,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { signToken, buildCookie } from "@/lib/auth";
 import { getLocationFromHeaders } from "@/lib/geo";
 import { logActivity } from "@/lib/log-activity";
+import { getClientIp } from "@/lib/client-ip";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -23,10 +24,7 @@ export async function POST(req: NextRequest) {
 
     const code = String(body.code || "").trim();
 
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      req.headers.get("x-real-ip") ||
-      "unknown";
+    const ip = getClientIp(req) || "unknown";
 
     const rl = await checkRateLimit(`${ip}:${email || "unknown"}`, {
       keyPrefix: "verify-email",
