@@ -14,6 +14,13 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
 import { getClientIp } from "@/lib/client-ip";
 
+// A real bcrypt hash (cost 12, like every stored password) of a random
+// throwaway value. Compared against when the email has no account, so the
+// response takes as long as a wrong password and does not reveal which
+// emails are registered.
+const DUMMY_PASSWORD_HASH =
+  "$2a$12$HqMYw2hnXrtbfho8b7YUC.dZhyVV.BaI.ogKXpI7Ghblh04fi6IM6";
+
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
@@ -89,7 +96,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    const passwordMatches = await bcrypt.compare(
+      password,
+      user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    );
+
+    if (!user || !passwordMatches) {
       if (user) {
         await logActivity({
           req,
