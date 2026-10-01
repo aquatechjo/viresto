@@ -23,7 +23,7 @@ export function buildContentSecurityPolicy(nonce: string, isDev: boolean) {
     script-src-elem ${scriptSources};
     script-src-attr 'none';
     img-src 'self' data: blob: https://res.cloudinary.com;
-    connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://api.openai.com https://*.upstash.io https://*.vercel-insights.com https://*.vercel-analytics.com ${TURNSTILE_ORIGIN};
+    connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://*.upstash.io https://*.vercel-insights.com https://*.vercel-analytics.com ${TURNSTILE_ORIGIN};
     frame-src 'self' https://res.cloudinary.com ${TURNSTILE_ORIGIN};
     frame-ancestors 'none';
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;

@@ -38,3 +38,11 @@ test("development CSP permits eval without weakening inline scripts", () => {
 test("CSP nonces differ between requests", () => {
   assert.notEqual(createCspNonce(), createCspNonce());
 });
+
+test("connect-src does not allow api.openai.com (only the server calls OpenAI)", () => {
+  const policy = buildContentSecurityPolicy("abcdefghijklmnop1234", false);
+  const connectSrc = policy.split(";").find((part) => part.trim().startsWith("connect-src"));
+
+  assert.ok(connectSrc);
+  assert.equal(connectSrc.includes("openai"), false);
+});
