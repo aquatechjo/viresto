@@ -63,6 +63,9 @@ let loginPOST: typeof import("../../src/app/api/auth/login/route")["POST"];
 let clientsGET: typeof import("../../src/app/api/clients/route")["GET"];
 let webhookPOST: typeof import("../../src/app/api/billing/webhooks/polar/route")["POST"];
 let checkoutPOST: typeof import("../../src/app/api/billing/checkout/route")["POST"];
+let clientsPOST: typeof import("../../src/app/api/clients/route")["POST"];
+let casesPOST: typeof import("../../src/app/api/cases/route")["POST"];
+let casePATCH: typeof import("../../src/app/api/cases/[id]/route")["PATCH"];
 
 before(async () => {
   database = setupIntegrationDatabase();
@@ -77,6 +80,9 @@ before(async () => {
   ({ GET: clientsGET } = await import("../../src/app/api/clients/route"));
   ({ POST: webhookPOST } = await import("../../src/app/api/billing/webhooks/polar/route"));
   ({ POST: checkoutPOST } = await import("../../src/app/api/billing/checkout/route"));
+  ({ POST: clientsPOST } = await import("../../src/app/api/clients/route"));
+  ({ POST: casesPOST } = await import("../../src/app/api/cases/route"));
+  ({ PATCH: casePATCH } = await import("../../src/app/api/cases/[id]/route"));
 
   await prisma.billingPlan.createMany({
     data: (["BASIC", "PRO", "BUSINESS"] as const).map((code, index) => ({
@@ -740,4 +746,79 @@ test("checkout: when Polar cannot be asked, fail closed (503) instead of risking
   } finally {
     polarFailures.list = false;
   }
+});
+
+// --- M2: editing a case reached by its short publicId --------------------
+
+function patchRequest(pathname: string, body: unknown, cookie: string) {
+  const request = jsonRequest(pathname, body, cookie);
+  return new NextRequest(request.url, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    headers: request.headers,
+  });
+}
+
+test("cases: editing a numbered case through its publicId URL keeps its own case number", async () => {
+  const office = await registerOffice("case-public-id");
+  const admin = await prisma.user.findUniqueOrThrow({
+    where: { email: office.email },
+    select: { id: true },
+  });
+
+  const client = await clientsPOST(
+    jsonRequest(
+      "/api/clients",
+      {
+        name: "IT Client",
+        phone: `07${String(randomInt(1e8)).padStart(8, "0")}`,
+        nationalId: String(randomInt(1e9, 1e10)),
+      },
+      office.cookie,
+    ),
+  );
+  const clientBody = await client.json();
+  assert.equal(client.status, 201, JSON.stringify(clientBody));
+
+  const caseNumber = `IT-${randomInt(1e6)}`;
+  const created = await casesPOST(
+    jsonRequest(
+      "/api/cases",
+      {
+        clientId: clientBody.data.id,
+        leadLawyerId: admin.id,
+        title: "IT Case",
+        caseNumber,
+      },
+      office.cookie,
+    ),
+  );
+  const caseBody = await created.json();
+  assert.ok(created.status === 200 || created.status === 201, JSON.stringify(caseBody));
+  const publicId = String(caseBody.data.publicId);
+
+  // The case page reached from a client links by publicId and re-sends the
+  // unchanged caseNumber with every edit.
+  const edited = await casePATCH(
+    patchRequest(`/api/cases/${publicId}`, { title: "IT Case (edited)", caseNumber }, office.cookie),
+    { params: Promise.resolve({ id: publicId }) },
+  );
+  const editedBody = await edited.json();
+  assert.equal(edited.status, 200, JSON.stringify(editedBody));
+  assert.equal(editedBody.data.title, "IT Case (edited)");
+
+  // A real duplicate is still rejected.
+  const other = await casesPOST(
+    jsonRequest(
+      "/api/cases",
+      { clientId: clientBody.data.id, leadLawyerId: admin.id, title: "Other", caseNumber: `${caseNumber}-B` },
+      office.cookie,
+    ),
+  );
+  const otherBody = await other.json();
+  const clash = await casePATCH(
+    patchRequest(`/api/cases/${otherBody.data.publicId}`, { caseNumber }, office.cookie),
+    { params: Promise.resolve({ id: String(otherBody.data.publicId) }) },
+  );
+  assert.equal(clash.status, 409);
 });

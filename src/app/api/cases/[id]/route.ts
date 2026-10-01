@@ -302,7 +302,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         where: {
           tenantId: auth.user.tenantId,
           caseNumber: parsed.data.caseNumber,
-          NOT: { id },
+          // The resolved id: the URL segment may be the short publicId.
+          NOT: { id: exists.id },
         },
         select: { id: true },
       });
