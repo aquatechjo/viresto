@@ -5,7 +5,7 @@ import { signToken, buildCookie } from "@/lib/auth";
 import { updateProfileSchema } from "@/lib/validations";
 import { err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireAuth } from "@/lib/api-auth";
+import { invalidateAuthCacheForUser, requireAuth } from "@/lib/api-auth";
 import { verifySameOrigin } from "@/lib/csrf";
 import { logActivity } from "@/lib/log-activity";
 
@@ -54,15 +54,30 @@ const user = await prisma.user.findFirst({
       }
     }
 
-    const updated = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        ...(name ? { name } : {}),
-        ...(newPassword
-          ? { passwordHash: await bcrypt.hash(newPassword, 12) }
-          : {}),
-      },
+    const passwordHash = newPassword ? await bcrypt.hash(newPassword, 12) : null;
+    const { sessionId } = auth.user;
+
+    // A new password ends every other session, like a password reset does,
+    // so a stolen session cookie stops working. This session stays signed in.
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          ...(name ? { name } : {}),
+          ...(passwordHash ? { passwordHash } : {}),
+        },
+      });
+
+      if (passwordHash) {
+        await tx.session.deleteMany({
+          where: { userId: user.id, id: { not: sessionId } },
+        });
+      }
+
+      return row;
     });
+
+    if (passwordHash) invalidateAuthCacheForUser(user.id);
 
     if (newPassword) {
       await logActivity({
