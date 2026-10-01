@@ -445,19 +445,19 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return notFound("المهمة غير موجودة");
     }
 
-    if (exists.caseId) {
-      await logActivity({
-        actorId: auth.user.userId,
-        ipAddress: meta.ipAddress,
-        userAgent: meta.userAgent,
-        tenantId: auth.user.tenantId,
-        type: "CASE_UPDATED",
-        title: "تم حذف مهمة",
-        message: exists.title,
-        entityType: "CASE",
-        entityId: exists.caseId,
-      });
-    }
+    // Every deletion is audited. Linked to the case when there is one, so
+    // it still shows in that case's timeline.
+    await logActivity({
+      actorId: auth.user.userId,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+      tenantId: auth.user.tenantId,
+      type: "TASK_DELETED",
+      title: "تم حذف مهمة",
+      message: exists.title,
+      entityType: exists.caseId ? "CASE" : "TASK",
+      entityId: exists.caseId ?? exists.id,
+    });
 
     return ok({ deleted: true });
   });

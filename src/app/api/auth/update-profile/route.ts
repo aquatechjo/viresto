@@ -7,6 +7,7 @@ import { err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { requireAuth } from "@/lib/api-auth";
 import { verifySameOrigin } from "@/lib/csrf";
+import { logActivity } from "@/lib/log-activity";
 
 export async function PATCH(req: NextRequest) {
   return apiHandler(async () => {
@@ -62,6 +63,19 @@ const user = await prisma.user.findFirst({
           : {}),
       },
     });
+
+    if (newPassword) {
+      await logActivity({
+        req,
+        tenantId: updated.tenantId,
+        actorId: updated.id,
+        type: "PASSWORD_CHANGED",
+        title: "تم تغيير كلمة المرور",
+        message: updated.email,
+        entityType: "AUTH",
+        entityId: updated.id,
+      });
+    }
 
     const token = await signToken({
       userId: updated.id,

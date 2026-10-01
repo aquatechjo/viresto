@@ -4,9 +4,9 @@ import { err, ok } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
 import { isBearerSecretAuthorized } from '@/lib/bearer-secret'
 import {
-  getActivityRetentionCutoffs,
-  SECURITY_ACTIVITY_TYPES,
   ACTIVITY_RETENTION_DAYS,
+  auditActivityWhere,
+  getActivityRetentionCutoffs,
 } from '@/lib/activity-retention'
 import { PROCESSED_WEBHOOK_RETENTION_DAYS } from '@/lib/webhook-dedupe'
 
@@ -24,33 +24,23 @@ export async function GET(req: NextRequest) {
       return err('Unauthorized', 401)
     }
 
-    const { securityCutoff, defaultCutoff } = getActivityRetentionCutoffs()
+    const { auditCutoff, defaultCutoff } = getActivityRetentionCutoffs()
     const webhookCutoff = new Date(
       Date.now() - PROCESSED_WEBHOOK_RETENTION_DAYS * 24 * 60 * 60 * 1000,
     )
 
-    const [deletedSecurityLogs, deletedDefaultLogs, deletedWebhooks] = await prisma.$transaction([
+    const [deletedAuditLogs, deletedDefaultLogs, deletedWebhooks] = await prisma.$transaction([
+      // Audit events (deletions, money, billing, admin, team, security): 1 year.
       prisma.activity.deleteMany({
         where: {
-          type: {
-            in: [...SECURITY_ACTIVITY_TYPES],
-          },
-          createdAt: {
-            lt: securityCutoff,
-          },
+          AND: [auditActivityWhere(), { createdAt: { lt: auditCutoff } }],
         },
       }),
 
+      // Everything else: 30 days.
       prisma.activity.deleteMany({
         where: {
-          NOT: {
-            type: {
-              in: [...SECURITY_ACTIVITY_TYPES],
-            },
-          },
-          createdAt: {
-            lt: defaultCutoff,
-          },
+          AND: [{ NOT: auditActivityWhere() }, { createdAt: { lt: defaultCutoff } }],
         },
       }),
 
@@ -67,13 +57,13 @@ export async function GET(req: NextRequest) {
     return ok({
       message: 'Activity logs pruned successfully',
       retention: {
-        securityDays: ACTIVITY_RETENTION_DAYS.security,
+        auditDays: ACTIVITY_RETENTION_DAYS.audit,
         defaultDays: ACTIVITY_RETENTION_DAYS.default,
       },
       deleted: {
-        securityLogs: deletedSecurityLogs.count,
+        auditLogs: deletedAuditLogs.count,
         defaultLogs: deletedDefaultLogs.count,
-        total: deletedSecurityLogs.count + deletedDefaultLogs.count,
+        total: deletedAuditLogs.count + deletedDefaultLogs.count,
         processedWebhooks: deletedWebhooks.count,
       },
     })

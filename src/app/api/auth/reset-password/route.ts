@@ -10,6 +10,7 @@ import {
 } from "@/lib/rate-limit";
 import { strongPasswordSchema } from "@/lib/validations";
 import { getClientIp } from "@/lib/client-ip";
+import { logActivity } from "@/lib/log-activity";
 
 export const runtime = "nodejs";
 
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
       },
       select: {
         id: true,
+        tenantId: true,
         isActive: true,
       },
     });
@@ -169,6 +171,17 @@ export async function POST(request: NextRequest) {
     });
 
     invalidateAuthCacheForUser(user.id);
+
+    await logActivity({
+      req: request,
+      tenantId: user.tenantId,
+      actorId: user.id,
+      type: "PASSWORD_RESET",
+      title: "تمت إعادة تعيين كلمة المرور برمز البريد",
+      message: email,
+      entityType: "AUTH",
+      entityId: user.id,
+    });
 
     return NextResponse.json({
       success: true,

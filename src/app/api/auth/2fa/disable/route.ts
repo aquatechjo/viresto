@@ -9,6 +9,7 @@ import { apiHandler } from "@/lib/api-handler";
 import { decryptText } from "@/lib/encryption";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
+import { logActivity } from "@/lib/log-activity";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -91,6 +92,17 @@ export async function POST(req: NextRequest) {
         twoFactorEnabled: false,
         twoFactorSecret: null,
       },
+    });
+
+    await logActivity({
+      req,
+      tenantId: auth.user.tenantId,
+      actorId: auth.user.userId,
+      type: "TWO_FACTOR_DISABLED",
+      title: "تم إيقاف التحقق الثنائي",
+      message: auth.user.email,
+      entityType: "AUTH",
+      entityId: auth.user.userId,
     });
 
     return ok({

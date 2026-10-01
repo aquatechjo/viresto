@@ -4,6 +4,7 @@ import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { invalidateAuthCacheForUser, requireAuth } from "@/lib/api-auth";
 import { verifySameOrigin } from "@/lib/csrf";
+import { logActivity } from "@/lib/log-activity";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
       return err("جلسة غير صالحة", 401);
     }
 
-    await prisma.session.updateMany({
+    const revoked = await prisma.session.updateMany({
       where: {
         userId: auth.user.userId,
         tenantId: auth.user.tenantId,
@@ -29,6 +30,17 @@ export async function POST(req: NextRequest) {
       data: {
         isActive: false,
       },
+    });
+
+    await logActivity({
+      req,
+      tenantId: auth.user.tenantId,
+      actorId: auth.user.userId,
+      type: "SESSIONS_REVOKED",
+      title: "تم إنهاء باقي الجلسات",
+      message: `${auth.user.email} (${revoked.count})`,
+      entityType: "SESSION",
+      entityId: auth.user.sessionId,
     });
 
     invalidateAuthCacheForUser(auth.user.userId);
