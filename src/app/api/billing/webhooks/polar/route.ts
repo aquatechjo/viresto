@@ -106,6 +106,58 @@ async function syncCurrentSubscription(
   });
 }
 
+const POLAR_LIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
+
+/**
+ * A fully refunded subscription order ends the subscription (decision
+ * 2026-10-01): revoke it in Polar, then sync the result so the office locks
+ * now instead of on the follow-up subscription.revoked webhook. Polar stays
+ * the source of truth, so a later re-fetch can never reopen it.
+ */
+async function revokeRefundedSubscription(
+  subscriptionId: string,
+  context: { event: string; webhook_id: string | null; order: string },
+) {
+  const polar = getPolarClient();
+  let subscription;
+
+  try {
+    subscription = await polar.subscriptions.revoke({ id: subscriptionId });
+  } catch (revokeError) {
+    // Usually already ended (revoked by hand while refunding). Check
+    // before acknowledging: a refund must never be acked while still live.
+    let current;
+    try {
+      current = await polar.subscriptions.get({ id: subscriptionId });
+    } catch (error) {
+      throw new PolarFetchError(error instanceof Error ? error.name : "unknown");
+    }
+
+    if (POLAR_LIVE_STATUSES.has(current.status)) {
+      logFailure("refund_revoke_failed", {
+        ...context,
+        sub: subscriptionId,
+        error: revokeError instanceof Error ? revokeError.name : "unknown",
+      });
+      throw new PolarFetchError("revoke_failed");
+    }
+
+    subscription = current;
+  }
+
+  console.info(
+    `${POLAR_LOG_PREFIX} refund_revoked order=${context.order} sub=${subscriptionId}`,
+  );
+
+  const result = await syncSubscriptionFromPolar(subscription);
+  reportSync(result, {
+    event: context.event,
+    webhook_id: context.webhook_id,
+    sub: subscription.id,
+    product: subscription.productId,
+  });
+}
+
 export async function POST(req: NextRequest) {
   // Exactly as Polar shows it (e.g. "polar_whs_..."), trimmed only because
   // a pasted env var can pick up a trailing newline; real secrets never
@@ -175,6 +227,40 @@ export async function POST(req: NextRequest) {
         if (!order.subscriptionId) break;
 
         await syncCurrentSubscription(order.subscriptionId, order.productId, {
+          ...context,
+          order: order.id,
+        });
+        break;
+      }
+
+      case "order.refunded": {
+        const order = event.data;
+        // One-time orders have no subscription to end.
+        if (!order.subscriptionId) break;
+
+        if (!(await findBillingPlanForPolarProduct(order.productId))) {
+          logFailure("unknown_product", {
+            ...context,
+            order: order.id,
+            sub: order.subscriptionId,
+            product: order.productId,
+          });
+          break;
+        }
+
+        // Partial refunds (goodwill, proration) keep access: log only.
+        if (order.status !== "refunded") {
+          logFailure("order_partially_refunded", {
+            ...context,
+            order: order.id,
+            sub: order.subscriptionId,
+            refunded: order.refundedAmount,
+            total: order.totalAmount,
+          });
+          break;
+        }
+
+        await revokeRefundedSubscription(order.subscriptionId, {
           ...context,
           order: order.id,
         });

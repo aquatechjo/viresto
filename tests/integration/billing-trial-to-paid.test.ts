@@ -14,6 +14,8 @@ import {
   polarCheckoutCreates,
   polarFailures,
   polarGetCalls,
+  polarOrderEvent,
+  polarRevokes,
   polarSubscriptionUpdates,
   polarSubscriptionEvent,
   setPolarState,
@@ -935,4 +937,119 @@ test("admin: END_NOW never lifts a suspension", async () => {
   assert.equal(tenant.isSuspended, true);
   assert.equal(tenant.status, "SUSPENDED");
   assert.equal((await getTenantAccess(office.tenantId)).state, "LOCKED");
+});
+
+// --- L6: refunds ---------------------------------------------------------
+// User decision (2026-10-01): a FULL refund revokes the subscription in
+// Polar (the office locks through the normal path); a PARTIAL refund keeps
+// access and is only logged.
+
+async function deliverOrder(payload: ReturnType<typeof polarOrderEvent>) {
+  const response = await webhookPOST(signedWebhookRequest(payload));
+  return { status: response.status, body: await response.json() };
+}
+
+async function paidOffice(label: string) {
+  const office = await registerOffice(label);
+  const polarId = `sub_${label}_${office.tenantId}`;
+  await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId });
+  assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
+  return { office, polarId };
+}
+
+test("refund: a full refund revokes the subscription in Polar and locks the office", async () => {
+  const { office, polarId } = await paidOffice("refund-full");
+
+  const result = await deliverOrder(
+    polarOrderEvent("order.refunded", {
+      id: `order_full_${office.tenantId}`,
+      tenantId: office.tenantId,
+      subscriptionId: polarId,
+      status: "refunded",
+    }),
+  );
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+
+  assert.deepEqual(polarRevokes.filter((id) => id === polarId), [polarId]);
+  const row = await prisma.subscription.findUniqueOrThrow({ where: { polarSubscriptionId: polarId } });
+  assert.equal(row.status, "CANCELLED");
+  assert.equal((await getTenantAccess(office.tenantId)).state, "LOCKED");
+  assert.equal(await clientsStatus(office), 402);
+
+  // A late "active" for the refunded subscription cannot reopen it (H3).
+  await deliverWithoutStateChange("subscription.active", { id: polarId, tenantId: office.tenantId });
+  assert.equal((await getTenantAccess(office.tenantId)).state, "LOCKED");
+});
+
+test("refund: a partial refund keeps access and does not revoke", async () => {
+  const { office, polarId } = await paidOffice("refund-partial");
+
+  const result = await deliverOrder(
+    polarOrderEvent("order.refunded", {
+      id: `order_partial_${office.tenantId}`,
+      tenantId: office.tenantId,
+      subscriptionId: polarId,
+      status: "partially_refunded",
+      refundedAmount: 1000,
+    }),
+  );
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+
+  assert.equal(polarRevokes.includes(polarId), false);
+  assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
+  assert.equal(await clientsStatus(office), 200);
+});
+
+test("refund: a full refund for a subscription already revoked in Polar still locks (no retry loop)", async () => {
+  const { office, polarId } = await paidOffice("refund-already-revoked");
+  // Revoked by hand in the Polar dashboard while refunding; that webhook
+  // has not reached us yet.
+  setPolarState({ id: polarId, tenantId: office.tenantId, status: "canceled" });
+
+  const result = await deliverOrder(
+    polarOrderEvent("order.refunded", {
+      id: `order_already_${office.tenantId}`,
+      tenantId: office.tenantId,
+      subscriptionId: polarId,
+      status: "refunded",
+    }),
+  );
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal((await getTenantAccess(office.tenantId)).state, "LOCKED");
+});
+
+test("refund: if Polar refuses the revoke and the subscription is still live, answer 500 so Polar retries", async () => {
+  const { office, polarId } = await paidOffice("refund-revoke-fails");
+  polarFailures.revoke = true;
+
+  try {
+    const result = await deliverOrder(
+      polarOrderEvent("order.refunded", {
+        id: `order_fail_${office.tenantId}`,
+        tenantId: office.tenantId,
+        subscriptionId: polarId,
+        status: "refunded",
+      }),
+    );
+    assert.equal(result.status, 500, JSON.stringify(result.body));
+  } finally {
+    polarFailures.revoke = false;
+  }
+});
+
+test("refund: another app's product is ignored and nothing is revoked", async () => {
+  const { office, polarId } = await paidOffice("refund-foreign");
+
+  const result = await deliverOrder(
+    polarOrderEvent("order.refunded", {
+      id: `order_foreign_${office.tenantId}`,
+      tenantId: office.tenantId,
+      subscriptionId: polarId,
+      productId: "prod_other_app",
+      status: "refunded",
+    }),
+  );
+  assert.equal(result.status, 200);
+  assert.equal(polarRevokes.includes(polarId), false);
+  assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
 });

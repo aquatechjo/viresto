@@ -96,10 +96,10 @@ export function polarSubscriptionEvent(type: string, input: PolarSubscriptionInp
       trial_start: null,
       trial_end: null,
       cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
-      canceled_at: null,
+      canceled_at: null as string | null,
       started_at: now.toISOString(),
-      ends_at: null,
-      ended_at: null,
+      ends_at: null as string | null,
+      ended_at: null as string | null,
       pause_at_period_end: false,
       paused_at: null,
       resumes_at: null,
@@ -132,8 +132,9 @@ export const polarState = new Map<string, PolarSubscriptionData>();
 export const polarGetCalls: string[] = [];
 export const polarCheckoutCreates: Array<Record<string, unknown>> = [];
 export const polarSubscriptionUpdates: Array<{ id: string; productId: string }> = [];
-// Flip to make the fake API unreachable for subscriptions.list.
-export const polarFailures = { list: false };
+export const polarRevokes: string[] = [];
+// Flip to make the fake API fail: list unreachable; revoke rejected.
+export const polarFailures = { list: false, revoke: false };
 
 export function setPolarState(input: PolarSubscriptionInput) {
   polarState.set(input.id, polarSubscriptionEvent("state", input).data);
@@ -195,6 +196,26 @@ export async function createFakePolarClient() {
         data.product = product(subscriptionUpdate.productId);
         return parse(data);
       },
+
+      // Like Polar: ends the subscription immediately; an already-ended one
+      // is rejected (AlreadyCanceledSubscription).
+      async revoke({ id }: { id: string }) {
+        const data = polarState.get(id);
+        if (!data) throw new Error(`fake Polar: no subscription ${id}`);
+        if (polarFailures.revoke || data.status === "canceled") {
+          throw Object.assign(new Error("AlreadyCanceledSubscription"), {
+            statusCode: 403,
+          });
+        }
+
+        polarRevokes.push(id);
+        const now = new Date().toISOString();
+        data.status = "canceled";
+        data.canceled_at = now;
+        data.ended_at = now;
+        data.ends_at = now;
+        return parse(data);
+      },
     },
 
     checkouts: {
@@ -225,4 +246,66 @@ export function signedWebhookRequest(payload: unknown, msgId?: string) {
       "webhook-signature": webhook.sign(msgId, timestamp, body),
     },
   });
+}
+
+// An order webhook (shape accepted by the SDK's validateEvent, like the
+// fixtures in tests/unit/billing-webhook-route.test.ts).
+export function polarOrderEvent(
+  type: "order.refunded" | "order.paid",
+  input: {
+    id: string;
+    tenantId: string;
+    subscriptionId: string | null;
+    productId?: string;
+    status: "paid" | "refunded" | "partially_refunded";
+    totalAmount?: number;
+    refundedAmount?: number;
+  },
+) {
+  const now = new Date().toISOString();
+  const total = input.totalAmount ?? 5900;
+
+  return {
+    type,
+    timestamp: now,
+    data: {
+      id: input.id,
+      created_at: now,
+      modified_at: null,
+      status: input.status,
+      paid: true,
+      subtotal_amount: total,
+      discount_amount: 0,
+      net_amount: total,
+      tax_amount: 0,
+      total_amount: total,
+      applied_balance_amount: 0,
+      due_amount: 0,
+      refunded_amount: input.refundedAmount ?? (input.status === "refunded" ? total : 0),
+      refunded_tax_amount: 0,
+      currency: "usd",
+      billing_reason: "subscription_cycle",
+      billing_name: null,
+      billing_address: null,
+      invoice_number: null,
+      is_invoice_generated: false,
+      receipt_number: null,
+      customer_id: `cust_${input.tenantId}`,
+      product_id: input.productId ?? TEST_PRODUCTS.PRO.monthly,
+      discount_id: null,
+      subscription_id: input.subscriptionId,
+      checkout_id: null,
+      metadata: {},
+      platform_fee_amount: 0,
+      platform_fee_currency: null,
+      customer: customer(input.tenantId),
+      product: null,
+      discount: null,
+      subscription: null,
+      items: [],
+      description: "Subscription",
+      refundable_amount: 0,
+      refundable_tax_amount: 0,
+    },
+  };
 }
