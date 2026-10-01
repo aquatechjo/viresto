@@ -36,6 +36,14 @@ const localStore = new Map<string, { count: number; resetAt: number }>()
 
 const limiters = new Map<string, Ratelimit>()
 
+// Opt-in escape hatch for local/E2E runs, where several Playwright workers
+// (or a worker plus a developer poking at the app by hand) can trip the
+// per-IP login limit within seconds. Requires an explicit flag on top of a
+// non-production NODE_ENV so a misconfigured/missing NODE_ENV can never
+// disable rate limiting in production.
+const RATE_LIMIT_BYPASSED =
+  process.env.NODE_ENV !== 'production' && process.env.E2E_RATE_LIMIT_BYPASS === '1'
+
 let warnedAboutLocalFallback = false
 let reportedProductionFailure = false
 
@@ -136,6 +144,14 @@ export async function checkRateLimit(
     windowMs: options.windowMs ?? 15 * 60 * 1000,
     max: options.max ?? 20,
     keyPrefix: options.keyPrefix ?? 'rl',
+  }
+
+  if (RATE_LIMIT_BYPASSED) {
+    return {
+      allowed: true,
+      remaining: normalizedOptions.max,
+      resetAt: Date.now() + normalizedOptions.windowMs,
+    }
   }
 
   // Never send raw IP addresses, emails, user IDs, or compound identifiers to Redis.
