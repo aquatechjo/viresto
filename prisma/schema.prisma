@@ -72,10 +72,12 @@ model BillingPlan {
   code        String  @unique
   name        String
   description String?
-  currency    String  @default("JOD")
+  // Subscription prices are in USD (Polar). Client invoicing stays in JOD
+  // (Invoice/Payment, Decimal with 3 decimals), unrelated to these fields.
+  currency    String  @default("USD")
 
-  priceMonthly Int @default(0) // بالفلس: 15000 = 15 JOD
-  priceYearly  Int @default(0) // بالفلس
+  priceMonthly Int @default(0) // minor units of currency: USD cents (2900 = 29 USD)
+  priceYearly  Int @default(0) // minor units of currency: USD cents
 
   maxUsers     Int     @default(1)
   maxClients   Int     @default(25)
@@ -104,8 +106,8 @@ model Subscription {
   status   SubscriptionStatus @default(TRIALING)
   interval BillingInterval    @default(MONTHLY)
 
-  currency String @default("JOD")
-  amount   Int    @default(0) // بالفلس
+  currency String @default("USD")
+  amount   Int    @default(0) // minor units of currency: USD cents (from Polar)
 
   // Set only on the in-app signup trial (no Polar subscription behind it).
   trialStartsAt      DateTime?
