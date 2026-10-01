@@ -6,9 +6,10 @@ const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
 const TEST_EMAIL = __ENV.TEST_EMAIL;
 const TEST_PASSWORD = __ENV.TEST_PASSWORD;
 
-const pingTrend = new Trend("perf_ping_duration");
-const dbTrend = new Trend("perf_db_duration");
-const authTrend = new Trend("perf_auth_duration");
+// /api/perf/* were debug-only endpoints and are gone: measure a public page
+// and the session-validated /api/auth/me (JWT + Session/User DB reads).
+const pageTrend = new Trend("public_page_duration");
+const authTrend = new Trend("auth_me_duration");
 
 export const options = {
   stages: [
@@ -20,9 +21,8 @@ export const options = {
   ],
   thresholds: {
     http_req_failed: ["rate<0.02"],
-    perf_ping_duration: ["p(95)<100"],
-    perf_db_duration: ["p(95)<350"],
-    perf_auth_duration: ["p(95)<500"],
+    public_page_duration: ["p(95)<500"],
+    auth_me_duration: ["p(95)<500"],
   },
 };
 
@@ -63,36 +63,25 @@ export default function (data) {
     Origin: BASE_URL,
   };
 
-  const ping = http.get(`${BASE_URL}/api/perf/ping`, {
-    tags: { name: "GET /api/perf/ping" },
+  const page = http.get(`${BASE_URL}/login`, {
+    tags: { name: "GET /login" },
   });
 
-  pingTrend.add(ping.timings.duration);
+  pageTrend.add(page.timings.duration);
 
-  check(ping, {
-    "ping 200": (r) => r.status === 200,
+  check(page, {
+    "login page 200": (r) => r.status === 200,
   });
 
-  const db = http.get(`${BASE_URL}/api/perf/db`, {
+  const auth = http.get(`${BASE_URL}/api/auth/me`, {
     headers: authHeaders,
-    tags: { name: "GET /api/perf/db" },
-  });
-
-  dbTrend.add(db.timings.duration);
-
-  check(db, {
-    "db 200": (r) => r.status === 200,
-  });
-
-  const auth = http.get(`${BASE_URL}/api/perf/auth`, {
-    headers: authHeaders,
-    tags: { name: "GET /api/perf/auth" },
+    tags: { name: "GET /api/auth/me" },
   });
 
   authTrend.add(auth.timings.duration);
 
   check(auth, {
-    "auth 200": (r) => r.status === 200,
+    "auth/me 200": (r) => r.status === 200,
   });
 
   sleep(0.3);

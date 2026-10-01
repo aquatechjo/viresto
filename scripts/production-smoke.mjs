@@ -13,9 +13,9 @@ const checks = [
   { name: "terms", path: "/terms", status: 200, contentType: "text/html" },
   { name: "subscription policy", path: "/subscription-policy", status: 200, contentType: "text/html" },
   { name: "sitemap", path: "/sitemap.xml", status: 200, contentType: "xml" },
-  { name: "liveness", path: "/api/perf/ping", status: 200, jsonOk: true },
-  { name: "protected auth", path: "/api/perf/auth", status: 401 },
-  { name: "protected database", path: "/api/perf/db", status: 401 },
+  // Anonymous requests to session-protected APIs must be refused.
+  { name: "protected session", path: "/api/auth/me", status: 401 },
+  { name: "protected tenant data", path: "/api/cases", status: 401 },
   { name: "protected readiness", path: "/api/health", status: 401 },
   { name: "protected notification cron", path: "/api/cron/generate-notifications", status: 401 },
   { name: "protected retention cron", path: "/api/cron/prune-activity", status: 401 },

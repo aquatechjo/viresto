@@ -29,14 +29,9 @@ const publicPaths = [
   "/api/auth/team-invitation",
 ];
 
-const exactPublicPaths = new Set(["/api/perf/ping"]);
-
 function isPublicPath(pathname: string) {
-  return (
-    exactPublicPaths.has(pathname) ||
-    publicPaths.some(
-      (path) => pathname === path || pathname.startsWith(`${path}/`),
-    )
+  return publicPaths.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
 }
 
