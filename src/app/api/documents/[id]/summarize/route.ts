@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { requireRole } from "@/lib/api-auth";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { SUMMARIZE_RATE_LIMIT } from "@/lib/expensive-route-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import openai from "@/lib/openai";
@@ -53,6 +55,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
     if (auth.error || !auth.user) return auth.error;
+
+    const limit = await checkRateLimit(auth.user.userId, SUMMARIZE_RATE_LIMIT);
+    if (!limit.allowed) {
+      return err("تم تجاوز الحد المسموح لتلخيص المستندات، حاول لاحقًا", 429);
+    }
 
     const writeCheck = await assertTenantCanWrite(
       auth.user.tenantId,

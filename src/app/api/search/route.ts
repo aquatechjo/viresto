@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { ok } from '@/lib/api-response'
+import { ok, err } from '@/lib/api-response'
 import { requireRole } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-handler'
 import {
@@ -13,6 +13,8 @@ import {
   buildCaseAccessWhere,
   buildClientAccessWhere,
 } from '@/lib/access-control'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { SEARCH_RATE_LIMIT } from '@/lib/expensive-route-limits'
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -24,6 +26,11 @@ export async function GET(req: NextRequest) {
 
     if (!q) {
       return ok({ clients: [] })
+    }
+
+    const limit = await checkRateLimit(auth.user.userId, SEARCH_RATE_LIMIT)
+    if (!limit.allowed) {
+      return err('عدد كبير من عمليات البحث، حاول بعد دقيقة', 429)
     }
 
     const normalizedEmail = normalizeEmail(q)
