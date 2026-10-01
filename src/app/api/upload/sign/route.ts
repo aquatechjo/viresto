@@ -12,7 +12,10 @@ import {
   assertTenantCanCreate,
   assertTenantCanUseStorage,
 } from "@/lib/billing-limits";
-import { documentUploadIntentSchema } from "@/lib/document-upload";
+import {
+  DOCUMENT_ALLOWED_FORMATS,
+  documentUploadIntentSchema,
+} from "@/lib/document-upload";
 import { buildCaseAccessWhere } from "@/lib/access-control";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -113,8 +116,13 @@ export async function POST(req: NextRequest) {
     const folder = `Viresto/${auth.user.tenantId}/documents`;
     const publicId = randomUUID();
     const type = "authenticated" as const;
+    // Cloudinary has no per-upload size limit; size is enforced when the
+    // upload is finalized (/api/upload) and never-finalized assets are
+    // deleted after 24h (cleanupOrphanUploads). allowed_formats IS enforced
+    // by Cloudinary because it is part of the signature.
     const signature = cloudinary.utils.api_sign_request(
       {
+        allowed_formats: DOCUMENT_ALLOWED_FORMATS,
         folder,
         overwrite: false,
         public_id: publicId,
@@ -132,6 +140,7 @@ export async function POST(req: NextRequest) {
       folder,
       publicId,
       type,
+      allowedFormats: DOCUMENT_ALLOWED_FORMATS,
     });
   });
 }

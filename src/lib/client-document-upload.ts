@@ -15,6 +15,7 @@ type SignedUpload = {
   folder: string;
   publicId: string;
   type: "authenticated";
+  allowedFormats: string;
 };
 
 type CloudinaryUploadResponse = {
@@ -93,6 +94,8 @@ export async function uploadDocumentDirect(input: {
   uploadForm.append("public_id", signed.publicId);
   uploadForm.append("type", signed.type);
   uploadForm.append("overwrite", "false");
+  // Signed server-side: must be sent exactly as returned.
+  uploadForm.append("allowed_formats", signed.allowedFormats);
 
   const cloudinaryResponse = await fetch(signed.uploadUrl, {
     method: "POST",

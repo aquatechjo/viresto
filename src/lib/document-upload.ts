@@ -11,6 +11,11 @@ export const DOCUMENT_UPLOAD_MIME_TYPE_VALUES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
 
+// File extensions Cloudinary accepts for document uploads. Bound into the
+// upload signature (allowed_formats), so Cloudinary rejects anything else
+// before storing it. Matches DOCUMENT_UPLOAD_MIME_TYPE_VALUES.
+export const DOCUMENT_ALLOWED_FORMATS = "pdf,png,jpg,jpeg,webp,docx";
+
 export const cloudinaryResourceTypeSchema = z.enum(["image", "raw", "video"]);
 
 export type CloudinaryResourceType = z.infer<

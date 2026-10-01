@@ -9,6 +9,7 @@ import {
   getActivityRetentionCutoffs,
 } from '@/lib/activity-retention'
 import { PROCESSED_WEBHOOK_RETENTION_DAYS } from '@/lib/webhook-dedupe'
+import { cleanupOrphanUploads } from '@/lib/server/cleanup-orphan-uploads'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,8 +55,22 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
+    // Also the daily home of upload cleanup (a separate cron would exceed the
+    // two Vercel Hobby crons). A Cloudinary failure must not fail the prune;
+    // it is logged and simply retried the next day.
+    let uploads: Awaited<ReturnType<typeof cleanupOrphanUploads>> | { status: 'failed' }
+    try {
+      uploads = await cleanupOrphanUploads()
+    } catch (error) {
+      console.error(
+        `[upload-cleanup] failed error=${error instanceof Error ? error.name : 'unknown'}`,
+      )
+      uploads = { status: 'failed' }
+    }
+
     return ok({
       message: 'Activity logs pruned successfully',
+      uploads,
       retention: {
         auditDays: ACTIVITY_RETENTION_DAYS.audit,
         defaultDays: ACTIVITY_RETENTION_DAYS.default,
