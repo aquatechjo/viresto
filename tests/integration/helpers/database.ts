@@ -44,7 +44,10 @@ const TEST_ENV: Record<string, string> = {
   APP_URL: "http://localhost:3000",
 };
 
-// Never talk to external services from an integration test.
+// Never talk to external services from an integration test. These are set
+// to "" rather than deleted: importing @prisma/client loads the root .env and
+// fills in any variable that is missing, which used to bring the real keys
+// (including Upstash, so rate-limit counters persisted across runs) back.
 const STRIPPED_ENV = [
   "ENCRYPTION_PREVIOUS_KEYS",
   "UPSTASH_REDIS_REST_URL",
@@ -83,7 +86,7 @@ export function setupIntegrationDatabase(): IntegrationDatabase {
   url.searchParams.set("schema", schema);
   const schemaUrl = url.toString();
 
-  for (const name of STRIPPED_ENV) delete process.env[name];
+  for (const name of STRIPPED_ENV) process.env[name] = "";
   Object.assign(process.env, TEST_ENV, {
     DATABASE_URL: schemaUrl,
     DIRECT_URL: schemaUrl,
