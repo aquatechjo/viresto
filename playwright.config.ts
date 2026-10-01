@@ -13,6 +13,7 @@ const baseURL = process.env.E2E_BASE_URL || "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false, // معطّل مبدئيًا لأنه فيه سيناريوهات تعتمد على بيانات مشتركة (تسجيل دخول)
@@ -40,5 +41,14 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+    env: {
+      // فقط لتشغيل E2E محليًا — src/lib/rate-limit.ts نفسه بيرفض تفعيله
+      // إلا إذا NODE_ENV مش production، فما في خطر تسرّب للإنتاج.
+      E2E_RATE_LIMIT_BYPASS: "1",
+      // اختياري: لتشغيل سيرفر E2E مخصص على منفذ غير 3000 (بدون التعارض
+      // مع خادم تطوير شغّال أصلًا)، اضبط PORT و E2E_BASE_URL بنفس القيمة
+      // قبل تشغيل الأمر، مثلًا: PORT=3100 E2E_BASE_URL=http://localhost:3100
+      ...(process.env.PORT ? { PORT: process.env.PORT } : {}),
+    },
   },
 });

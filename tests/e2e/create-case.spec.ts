@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { AUTH_FILE } from "./global-setup";
 
 /**
  * سيناريو 2 من 5 — إنشاء قضية جديدة
@@ -33,25 +34,21 @@ const EMAIL = process.env.E2E_TEST_EMAIL;
 const PASSWORD = process.env.E2E_TEST_PASSWORD;
 const BASE_URL = process.env.E2E_BASE_URL || "http://localhost:3000";
 
-// Login takes 8–15 s against the dev server, so the login wait and the
-// overall test budget are sized for that, not for production.
-const LOGIN_TIMEOUT_MS = 45_000;
 const UI_TIMEOUT_MS = 15_000;
+// طلب حفظ القضية (POST /api/cases) بطيء بنفس طريقة تسجيل الدخول على هالسيرفر
+// المشترك — 15 ثانية مو كافية أحيانًا لإغلاق المودال بعد نجاح الحفظ.
+const SAVE_TIMEOUT_MS = 30_000;
 
 test.describe("إنشاء قضية جديدة", () => {
-  test.setTimeout(120_000); // dev mode compile + slow login — مش مشكلة كود
+  // مسجّل دخول مسبقًا عبر tests/e2e/global-setup.ts (مرة وحدة لكل السويت)
+  // بدل ما يسجّل كل اختبار دخول لحاله — تسجيل الدخول بطيء بالتطوير.
+  test.use({ storageState: AUTH_FILE });
+
+  test.setTimeout(120_000); // dev mode compile — مش مشكلة كود
   test.skip(
     !EMAIL || !PASSWORD,
     "لازم تضبط E2E_TEST_EMAIL و E2E_TEST_PASSWORD بملف .env.local",
   );
-
-  test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.locator('input[type="email"]').fill(EMAIL!);
-    await page.locator('input[type="password"]').fill(PASSWORD!);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL(/\/dashboard/, { timeout: LOGIN_TIMEOUT_MS });
-  });
 
   test("إنشاء قضية جديدة بعميل ومحامي مسؤول تظهر بالقائمة", async ({
     page,
@@ -105,7 +102,7 @@ test.describe("إنشاء قضية جديدة", () => {
     await modal.getByRole("button", { name: /حفظ|Save/ }).click();
 
     // النجاح: المودال لازم يسكر (closeCreateCaseModal بعد نجاح الطلب)
-    await expect(modal).not.toBeVisible({ timeout: UI_TIMEOUT_MS });
+    await expect(modal).not.toBeVisible({ timeout: SAVE_TIMEOUT_MS });
 
     // والقضية الجديدة لازم تظهر بالقائمة بعد إعادة التحميل التلقائي (load())
     // الجدول عنده نسخة mobile-cards ونسخة desktop-table بنفس الوقت بالـ DOM

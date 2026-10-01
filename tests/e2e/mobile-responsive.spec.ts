@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { AUTH_FILE } from "./global-setup";
 
 /**
  * اختبار عدم وجود تمرير أفقي (horizontal overflow) في الصفحات التي
@@ -6,21 +7,22 @@ import { test, expect, type Page } from "@playwright/test";
  * وسجل النشاط.
  *
  * محجوب بنفس شرط login.spec.ts: لازم E2E_TEST_EMAIL/PASSWORD بـ .env.local.
+ * الدخول نفسه صار مرة وحدة بـ tests/e2e/global-setup.ts (storageState).
  */
 
 const EMAIL = process.env.E2E_TEST_EMAIL;
 const PASSWORD = process.env.E2E_TEST_PASSWORD;
 
-const LOGIN_TIMEOUT_MS = 45_000;
-
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
 
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.locator('input[type="email"]').fill(EMAIL!);
-  await page.locator('input[type="password"]').fill(PASSWORD!);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/dashboard/, { timeout: LOGIN_TIMEOUT_MS });
+// ملاحظة: ما منستخدم waitForLoadState("networkidle") — Next.js dev يبقي
+// اتصال WebSocket مفتوح للـ HMR/Fast Refresh، فـ "networkidle" ما بيتحقق
+// أبدًا ويعلّق الاختبار لحد timeout. "load" + مهلة قصيرة لـ fetch/render
+// الجانب-العميل كافية هون.
+async function gotoAndSettle(page: Page, path: string) {
+  await page.goto(path);
+  await page.waitForLoadState("load");
+  await page.waitForTimeout(1500);
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -37,16 +39,12 @@ async function expectNoHorizontalOverflow(page: Page) {
 
 test.describe("تجاوب الموبايل — بدون تمرير أفقي", () => {
   test.setTimeout(90_000);
-  test.use({ viewport: MOBILE_VIEWPORT });
+  test.use({ viewport: MOBILE_VIEWPORT, storageState: AUTH_FILE });
 
   test.skip(
     !EMAIL || !PASSWORD,
     "لازم تضبط E2E_TEST_EMAIL و E2E_TEST_PASSWORD بملف .env.local (حساب تجريبي مخصص للاختبارات فقط)",
   );
-
-  test.beforeEach(async ({ page }) => {
-    await login(page);
-  });
 
   const pages: Array<{ name: string; path: string }> = [
     { name: "الرئيسية", path: "/dashboard" },
@@ -62,8 +60,7 @@ test.describe("تجاوب الموبايل — بدون تمرير أفقي", ()
 
   for (const { name, path } of pages) {
     test(`${name} (${path}) بدون تمرير أفقي على 390px`, async ({ page }) => {
-      await page.goto(path);
-      await page.waitForLoadState("networkidle");
+      await gotoAndSettle(page, path);
 
       await expectNoHorizontalOverflow(page);
 
@@ -77,8 +74,7 @@ test.describe("تجاوب الموبايل — بدون تمرير أفقي", ()
   test("قائمة التنبيهات (bell) لا تخرج عن الشاشة على 390px", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
-    await page.waitForLoadState("networkidle");
+    await gotoAndSettle(page, "/dashboard");
 
     await page.getByRole("button", { name: /التنبيهات|Notifications/i }).click();
 
@@ -97,8 +93,7 @@ test.describe("تجاوب الموبايل — بدون تمرير أفقي", ()
   });
 
   test("التقويم الشهري لا يمرّر أفقيًا على 390px", async ({ page }) => {
-    await page.goto("/dashboard/appointments");
-    await page.waitForLoadState("networkidle");
+    await gotoAndSettle(page, "/dashboard/appointments");
 
     const calendar = page.locator(".appointments-calendar");
     await expect(calendar).toBeVisible();
