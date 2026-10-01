@@ -61,8 +61,10 @@ test.describe("إنشاء قضية جديدة", () => {
       headers: { origin: BASE_URL },
       data: {
         name: clientName,
-        phone: "0791234567",
-        nationalId: "9988776655",
+        // Unique per run: the API rejects a second client with the same
+        // phone or national ID in the office (CLIENT_DUPLICATE).
+        phone: `07${String(uniqueSuffix).slice(-8)}`,
+        nationalId: `99${String(uniqueSuffix).slice(-8)}`,
       },
     });
 
