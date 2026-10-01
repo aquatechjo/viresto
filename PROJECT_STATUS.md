@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-09-30 (تدقيق ما قبل الإطلاق `AUDIT_REPORT.md`: B2 انحراف `publicId`، B1 أول شراء لمكتب في التجربة، H1 ترقية `next`، H3 أحداث webhook قديمة/مكررة، H2 التعليق، منع checkout ثانٍ، والدفعة الثانية H4/M1/M2/M6/L2–L8 — القسم 2.2)
+> آخر تحديث: 2026-10-01 (تدقيق ما قبل الإطلاق `AUDIT_REPORT.md`: B1، B2، H1–H4، منع checkout ثانٍ، M1، M2، M6، L2–L8 — القسم 2.2)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -167,11 +167,14 @@
 - **التحقق النهائي:** lint، typecheck، `test:unit` **218/218**، `test:integration` **23/23**. فحص الانحراف = لا فرق. الاختبارات كتبت حمراء أولًا وفشلت قبل كل إصلاح (H4، M2، M1، M6، L8، L2، L5).
 - **فرع dev:** طُبّقت `20261001000000_subscription_currency_default_usd`. حُذف `.next/dev/types` المحلي القديم (artifact مولّد يشير لمسارات محذوفة، يُعاد توليده تلقائيًا).
 
-### ⏳ L6 — `order.refunded` (بانتظار قرار المستخدم)
-- **لماذا يحتاج قرارًا:** بعد H3 حالة المكتب تتبع حالة **الاشتراك** في Polar. إن استُرد طلب وبقي الاشتراك حيًا في Polar، أي قفل محلي ستلغيه أول مزامنة تالية. الخيارات: (أ) عند استرداد كامل، إلغاء (revoke) الاشتراك في Polar عبر الـ API فيقفل المكتب عبر `subscription.revoked` العادي؛ (ب) علامة "مُسترد" ثابتة عندنا تقفل حتى دفعة لاحقة (تنحرف عن Polar)؛ (ج) لا أتمتة: log/تنبيه فقط، والاسترداد يُرفق دائمًا بإلغاء الاشتراك يدويًا في Polar. والاسترداد الجزئي؟
+### ✅ L6 — `order.refunded` (commit `c06d4ba`، غير مرفوع)
+- **قرار المستخدم (2026-10-01):** الاسترداد **الكامل** يلغي (revoke) الاشتراك في Polar؛ الاسترداد **الجزئي** يُبقي الوصول ويُسجَّل فقط.
+- **السبب:** بعد H3 حالة المكتب تتبع حالة الاشتراك في Polar، فأي قفل محلي كانت ستلغيه المزامنة التالية.
+- **التنفيذ:** `order.refunded` لمنتج من منتجاتنا بحالة `refunded` ← `subscriptions.revoke` ثم مزامنة الاشتراك الملغى فورًا (القفل الآن لا عند وصول `subscription.revoked`)، log `refund_revoked`. إن رُفض الـ revoke: يُجلب الاشتراك؛ إن كان منتهيًا أصلًا (أُلغي يدويًا) ← مزامنة و200؛ إن كان حيًا ← log `refund_revoke_failed` و500 ليعيد Polar (لا يُقبل استرداد والوصول مستمر). `partially_refunded` ← log `order_partially_refunded` بالمبالغ. الطلبات بلا اشتراك ومنتجات التطبيق الآخر ← تجاهل.
+- **الاختبارات:** 5 اختبارات تكامل (Polar API مُزيّف بـ `revoke`): كامل ← revoke + LOCKED + 402 (و`active` متأخر لا يعيد فتحه)؛ جزئي ← PAID؛ مُلغى مسبقًا ← LOCKED و200؛ revoke مرفوض والاشتراك حي ← 500؛ منتج أجنبي ← تجاهل. **حالات الاسترداد الكامل الثلاث فشلت قبل التغيير.** التكامل **28/28**، الوحدة 218/218، lint + tsc نظيفان.
 
 ### التالي
-- L6 بعد قرار المستخدم. ثم البنود الباقية من التقرير: M3 (سجل التدقيق: الاحتفاظ والتغطية)، M4 (تصدير/حذف بيانات المكتب ذاتيًا)، M5 (تكميل اختبارات العزل بين المكاتب على مسارات `[id]`)، M7 (رفعات Cloudinary اليتيمة)، L1، L9، L10.
+- البنود الباقية من التقرير: M3 (سجل التدقيق: الاحتفاظ والتغطية)، M4 (تصدير/حذف بيانات المكتب ذاتيًا)، M5 (تكميل اختبارات العزل بين المكاتب على مسارات `[id]`)، M7 (رفعات Cloudinary اليتيمة)، L1، L9، L10.
 
 ## 3. تنظيف نظام الدفع اليدوي القديم (CliQ / تحويل بنكي) — ✅ مكتمل
 
@@ -347,7 +350,7 @@
 ## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit للكود/الإعداد:** `ced6ceb` — `fix(validation): cap free-text lengths and validate appointment date-times` (2026-10-01)، ويليه commit تحديث هذا الملف.
+- **آخر commit للكود/الإعداد:** `c06d4ba` — `feat(billing): a fully refunded subscription order revokes the subscription in Polar` (2026-10-01)، ويليه commit تحديث هذا الملف.
 - **حالة الـ push:** كل الـ commits من `b552d3c` (2026-09-30) حتى commit الـ docs الأخير (2026-10-01) **محلية، غير مرفوعة** (المستخدم لم يطلب push). ما قبلها مرفوع حتى `615024d`. **غير منشورة على الإنتاج بعد.**
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
@@ -409,10 +412,10 @@
 - `731389b` — البند 4: لا checkout ثانٍ لمكتب عنده اشتراك Polar حي. انظر القسم 2.2.
 
 ### ✅ تم (2026-10-01)
-- الدفعة الثانية من التقرير: H4، M2، M1، M6، L3، L4، L7، L8، L2، L5 (`80b4764` → `ced6ceb`، و`54537d3` لبنية الاختبار). انظر القسم 2.2.
+- الدفعة الثانية من التقرير: H4، M2، M1، M6، L3، L4، L7، L8، L2، L5، L6 (`80b4764` → `c06d4ba`، و`54537d3` لبنية الاختبار). انظر القسم 2.2.
 
 ### قيد التنفيذ
-- L6 (`order.refunded`): بانتظار قرار المستخدم (القسم 2.2).
+- لا شيء. المقترح التالي من التقرير: M3، M4، M5، M7 (القسم 2.2).
 
 ### التالي (مقترح)
 1. **تشغيل `npx playwright test --workers=1`** (بعد تصفير نافذة الـ 429 — انظر القسم 9) والتأكد من نجاح `login.spec.ts`، `create-case.spec.ts`، و`mobile-responsive.spec.ts` الجديد فعليًا. لم يكتمل تشغيلها بنجاح بهاي الجلسة.
@@ -436,7 +439,7 @@
   - [ ] بعد النشر: مراقبة `[polar-webhook]` في Vercel logs.
 - [ ] **🚀 قبل الإطلاق (2026-09-25) — Polar والإنتاج:**
   - [ ] **نشر `cf169aa` على الإنتاج**، وإلا تبقى الـ webhooks مرفوضة بـ 401.
-  - [ ] **Polar dashboard ← Settings ← Webhooks:** الـ URL بالضبط `https://www.virestojo.com/api/billing/webhooks/polar` (نفس الـ host الأساسي، بدون redirect)، الصيغة Raw/JSON، والأحداث: `subscription.created`، `subscription.active`، `subscription.updated`، `subscription.canceled`، `subscription.uncanceled`، `subscription.revoked`، `subscription.past_due`، `order.paid`. أي حدث آخر يُقبل (200) ويُتجاهل.
+  - [ ] **Polar dashboard ← Settings ← Webhooks:** الـ URL بالضبط `https://www.virestojo.com/api/billing/webhooks/polar` (نفس الـ host الأساسي، بدون redirect)، الصيغة Raw/JSON، والأحداث: `subscription.created`، `subscription.active`، `subscription.updated`، `subscription.canceled`، `subscription.uncanceled`، `subscription.revoked`، `subscription.past_due`، `order.paid`، و**`order.refunded`** (L6، `c06d4ba`). أي حدث آخر يُقبل (200) ويُتجاهل.
   - [ ] بعد النشر: "Send test event"/redeliver من Polar، والتأكد من 200 (403 = السر لا يطابق، 401 = النسخة المنشورة قديمة).
   - [ ] **Vercel (Production) env vars بالاسم:** `POLAR_ACCESS_TOKEN`، `POLAR_WEBHOOK_SECRET`، `POLAR_ENVIRONMENT` (= `production`، **صار إلزاميًا: البناء يفشل بغيره منذ `3ca156e`**)، و`APP_URL` و/أو `NEXT_PUBLIC_APP_URL`. `POLAR_ORGANIZATION_ID` لم يعد مطلوبًا ويمكن حذفه.
   - [ ] **تشغيل `npm run db:seed` على قاعدة الإنتاج** لتحديث `BillingPlan` إلى `USD` والأسعار بالسنت، والتأكد أن معرّفات المنتجات في `prisma/seed.ts` هي منتجات Polar **الإنتاج** (وليست sandbox) وبأسعار 29/290، 59/590، 119/1190.
