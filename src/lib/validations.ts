@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { hasValidJodPrecision, MAX_JOD_AMOUNT } from "@/lib/money";
 
+// Upper bounds for free text, so one request cannot store megabytes per field.
+export const SHORT_TEXT_MAX = 200;
+export const LONG_TEXT_MAX = 10_000;
+const DATE_STRING_MAX = 40;
+
 export const strongPasswordSchema = z
   .string()
   .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
@@ -54,7 +59,13 @@ export const registerSchema = z.object({
 export const clientSchema = z.object({
   name: z.string().trim().min(1, "Client name is required").max(120),
 
-  email: z.string().trim().email("Invalid email").optional().or(z.literal("")),
+  email: z
+    .string()
+    .trim()
+    .email("Invalid email")
+    .max(160, "Email is too long")
+    .optional()
+    .or(z.literal("")),
 
   phone: z
     .string()
@@ -66,21 +77,28 @@ export const clientSchema = z.object({
     .trim()
     .regex(/^\d{10}$/, "National ID must be exactly 10 digits"),
 
-  address: z.string().trim().optional().or(z.literal("")),
-  notes: z.string().trim().optional().or(z.literal("")),
+  address: z.string().trim().max(500, "Address is too long").optional().or(z.literal("")),
+  notes: z
+    .string()
+    .trim()
+    .max(LONG_TEXT_MAX, "Notes are too long")
+    .optional()
+    .or(z.literal("")),
 });
 
-const optionalText = z.preprocess((value) => {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
+function optionalText(max: number) {
+  return z.preprocess((value) => {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
 
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed === "" ? null : trimmed;
-  }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed === "" ? null : trimmed;
+    }
 
-  return value;
-}, z.string().nullable().optional());
+    return value;
+  }, z.string().max(max, "النص طويل جدًا").nullable().optional());
+}
 const optionalId = z.preprocess((value) => {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -95,12 +113,27 @@ const optionalId = z.preprocess((value) => {
 
 const optionalDateString = z
   .string()
+  .max(DATE_STRING_MAX, "التاريخ غير صالح")
   .optional()
   .nullable()
   .refine((value) => {
     if (!value) return true;
     return !Number.isNaN(new Date(value).getTime());
   }, "التاريخ غير صالح");
+
+// An ISO 8601 date-time with an explicit timezone (Z or ±hh:mm) that
+// parses to a real instant, e.g. "2026-10-01T09:00:00.000Z". A local time
+// without timezone is ambiguous for the office's time zone, so it is refused.
+const isoDateTimeWithZone = z
+  .string()
+  .trim()
+  .max(DATE_STRING_MAX, "التاريخ غير صالح")
+  .refine(
+    (value) =>
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?([zZ]|[+-]\d{2}:\d{2})$/.test(value) &&
+      !Number.isNaN(Date.parse(value)),
+    "التاريخ يجب أن يكون بصيغة ISO مع المنطقة الزمنية",
+  );
 
 const nonNegativeMoney = z.coerce
   .number({ invalid_type_error: "القيمة يجب أن تكون رقمًا" })
@@ -139,15 +172,15 @@ export const caseSchema = z.object({
     .array(z.string().min(1))
     .max(50, "عدد المشاركين أكبر من المسموح")
     .optional(),
-  title: z.string().min(1, "العنوان مطلوب"),
+  title: z.string().min(1, "العنوان مطلوب").max(SHORT_TEXT_MAX, "العنوان طويل جدًا"),
 
-  caseNumber: optionalText,
-  court: optionalText,
-  judgeName: optionalText,
-  plaintiffName: optionalText,
-  defendantName: optionalText,
+  caseNumber: optionalText(SHORT_TEXT_MAX),
+  court: optionalText(SHORT_TEXT_MAX),
+  judgeName: optionalText(SHORT_TEXT_MAX),
+  plaintiffName: optionalText(SHORT_TEXT_MAX),
+  defendantName: optionalText(SHORT_TEXT_MAX),
 
-  description: optionalText,
+  description: optionalText(LONG_TEXT_MAX),
   status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"]).optional(),
   feeAgreed: nonNegativeMoney.optional(),
 });
@@ -192,11 +225,11 @@ export const appointmentSchema = z.object({
   clientId: optionalId,
   caseId: optionalId,
   assignedToId: optionalId,
-  title: z.string().min(1, "العنوان مطلوب"),
-  description: z.string().optional(),
-  startTime: z.string(),
-  endTime: z.string().optional(),
-  location: z.string().optional(),
+  title: z.string().min(1, "العنوان مطلوب").max(SHORT_TEXT_MAX, "العنوان طويل جدًا"),
+  description: z.string().max(LONG_TEXT_MAX, "الوصف طويل جدًا").optional(),
+  startTime: isoDateTimeWithZone,
+  endTime: isoDateTimeWithZone.optional(),
+  location: z.string().max(300, "المكان طويل جدًا").optional(),
   type: z
     .enum(["MEETING", "COURT_SESSION", "PHONE_CALL", "DEADLINE", "OTHER"])
     .optional(),
@@ -226,13 +259,13 @@ export const taskSchema = z.object({
 });
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(2).optional(),
-  email: z.string().email().optional(),
+  name: z.string().min(2).max(120).optional(),
+  email: z.string().email().max(160).optional(),
   currentPassword: z.string().optional(),
   newPassword: strongPasswordSchema.optional(),
 });
 export const invoiceItemSchema = z.object({
-  description: z.string().trim().min(1, "وصف البند مطلوب"),
+  description: z.string().trim().min(1, "وصف البند مطلوب").max(500, "وصف البند طويل جدًا"),
   quantity: positiveQuantity,
   unitPrice: nonNegativeMoney,
 });
