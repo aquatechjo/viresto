@@ -28,7 +28,6 @@ function validEnvironment() {
     TURNSTILE_ENABLED: "false",
     POLAR_ACCESS_TOKEN: "polar_pat_" + "a".repeat(32),
     POLAR_WEBHOOK_SECRET: "w".repeat(32),
-    POLAR_ORGANIZATION_ID: "org-viresto",
     POLAR_ENVIRONMENT: "sandbox",
   };
 }
@@ -89,4 +88,35 @@ test("environment validation rejects weak or reused health-check secrets", () =>
   assert.ok(
     reusedResult.errors.some((message) => message.includes("must use different secrets")),
   );
+});
+
+test("a Vercel production deployment must use Polar's production environment", () => {
+  const sandbox = validEnvironment();
+  sandbox.VERCEL_ENV = "production";
+  sandbox.POLAR_ENVIRONMENT = "sandbox";
+  assert.ok(
+    validateEnvironment(sandbox).errors.some((message) =>
+      message.includes('POLAR_ENVIRONMENT must be "production"'),
+    ),
+  );
+
+  const live = validEnvironment();
+  live.VERCEL_ENV = "production";
+  live.POLAR_ENVIRONMENT = "production";
+  assert.deepEqual(validateEnvironment(live).errors, []);
+});
+
+test("preview deployments and local builds may still use the Polar sandbox", () => {
+  for (const vercelEnv of ["preview", "development", undefined]) {
+    const env = validEnvironment();
+    if (vercelEnv) env.VERCEL_ENV = vercelEnv;
+    env.POLAR_ENVIRONMENT = "sandbox";
+    assert.deepEqual(validateEnvironment(env).errors, [], String(vercelEnv));
+  }
+});
+
+test("POLAR_ORGANIZATION_ID is not required (the app never reads it)", () => {
+  const env = validEnvironment();
+  delete env.POLAR_ORGANIZATION_ID;
+  assert.deepEqual(validateEnvironment(env).errors, []);
 });

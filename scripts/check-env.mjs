@@ -15,7 +15,6 @@ const REQUIRED_VALUES = [
   "EMAIL_FROM",
   "CRON_SECRET",
   "ALLOWED_SERVER_ACTION_ORIGINS",
-  "POLAR_ORGANIZATION_ID",
   "POLAR_ENVIRONMENT",
 ];
 
@@ -140,6 +139,17 @@ export function validateEnvironment(env) {
     polarEnvironment !== "sandbox"
   ) {
     errors.push('POLAR_ENVIRONMENT must be "production" or "sandbox"');
+  }
+
+  // Only Vercel's Production environment: Preview builds also run with
+  // NODE_ENV=production and may legitimately use the Polar sandbox.
+  if (
+    valueOf("VERCEL_ENV") === "production" &&
+    polarEnvironment !== "production"
+  ) {
+    errors.push(
+      'POLAR_ENVIRONMENT must be "production" on the production deployment (real customers would otherwise be sent to sandbox checkouts)',
+    );
   }
 
   const appUrl = valueOf("APP_URL") || valueOf("NEXT_PUBLIC_APP_URL");
