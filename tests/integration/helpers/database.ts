@@ -103,6 +103,43 @@ export function setupIntegrationDatabase(): IntegrationDatabase {
     throw new Error(`prisma migrate deploy failed:\n${result.stdout}\n${result.stderr}`);
   }
 
+  // Prisma qualifies every table with the test schema, but trigger
+  // functions (e.g. set_payment_client_id_from_case) name tables
+  // unqualified and would resolve them through the session's default
+  // search_path, i.e. the real public schema. Pin each function to the test
+  // schema. (Production uses public only, so it is unaffected.)
+  const pinned = spawnSync(
+    process.execPath,
+    [
+      path.join(ROOT, "node_modules/prisma/build/index.js"),
+      "db",
+      "execute",
+      "--url",
+      schemaUrl,
+      "--stdin",
+    ],
+    {
+      cwd: ROOT,
+      env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: "1" },
+      encoding: "utf8",
+      input: `DO $$
+DECLARE fn record;
+BEGIN
+  FOR fn IN
+    SELECT p.oid::regprocedure AS signature
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = '${schema}'
+  LOOP
+    EXECUTE format('ALTER FUNCTION %s SET search_path = %I', fn.signature, '${schema}');
+  END LOOP;
+END $$;`,
+    },
+  );
+
+  if (pinned.status !== 0) {
+    throw new Error(`pinning function search_path failed:\n${pinned.stdout}\n${pinned.stderr}`);
+  }
+
   return { url: schemaUrl, schema };
 }
 
