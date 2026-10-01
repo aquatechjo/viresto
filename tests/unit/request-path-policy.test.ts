@@ -42,4 +42,11 @@ test("a locked office keeps only account, billing and the settings read", async 
   assert.equal(isSubscriptionExemptPath("/api/data-requests/deletion", "GET"), false);
   assert.equal(isSubscriptionExemptPath("/api/data-requests/other", "GET"), false);
   assert.equal(isSubscriptionExemptPath("/api/data-requests", "GET"), false);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/documents", "GET"), true);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/documents", "POST"), false);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/documents/abc123", "GET"), true);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/documents/abc123", "DELETE"), false);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/documents/abc123/x", "GET"), false);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/documents/", "GET"), false);
+  assert.equal(isSubscriptionExemptPath("/api/documents/abc123", "GET"), false);
 });

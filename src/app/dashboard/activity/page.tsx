@@ -162,6 +162,7 @@ const COPY = {
       SESSION_REVOKED: "إلغاء جلسة",
       SESSIONS_REVOKED: "إلغاء الجلسات",
       DATA_EXPORTED: "تصدير بيانات المكتب",
+      DOCUMENT_FILE_EXPORTED: "تنزيل ملف مستند (تصدير)",
       OFFICE_DELETION_REQUESTED: "طلب حذف المكتب",
       TENANT_SUSPENDED: "تعليق المكتب",
       TENANT_ACTIVATED: "تفعيل المكتب",
@@ -290,6 +291,7 @@ const COPY = {
       SESSION_REVOKED: "Session revoked",
       SESSIONS_REVOKED: "Sessions revoked",
       DATA_EXPORTED: "Office data exported",
+      DOCUMENT_FILE_EXPORTED: "Document file downloaded (export)",
       OFFICE_DELETION_REQUESTED: "Office deletion requested",
       TENANT_SUSPENDED: "Office suspended",
       TENANT_ACTIVATED: "Office activated",
@@ -405,6 +407,8 @@ const RAW_ACTIVITY_ALIASES: Record<string, keyof typeof COPY.ar.activities> = {
 
   "تصدير بيانات المكتب": "DATA_EXPORTED",
   "Office data exported": "DATA_EXPORTED",
+  "تنزيل ملف مستند (تصدير)": "DOCUMENT_FILE_EXPORTED",
+  "Document file downloaded (export)": "DOCUMENT_FILE_EXPORTED",
   "طلب حذف المكتب": "OFFICE_DELETION_REQUESTED",
   "Office deletion requested": "OFFICE_DELETION_REQUESTED",
 };

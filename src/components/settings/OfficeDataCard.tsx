@@ -12,13 +12,19 @@ type Locale = "ar" | "en";
 
 const COPY = {
   ar: {
-    title: "بيانات المكتب",
+    title: "تصدير البيانات وحذف المكتب",
     description:
-      "نزّل نسخة كاملة من بيانات المكتب بصيغة JSON: الموكلون والقضايا والمواعيد والمهام والفواتير والدفعات وبيانات المستندات وسجل النشاط والفريق والاشتراك. ملفات المستندات نفسها لا تدخل في هذا الملف؛ اطلبها من الدعم إن احتجتها.",
+      "نزّل نسخة كاملة من بيانات المكتب بصيغة JSON: الموكلون والقضايا والمواعيد والمهام والفواتير والدفعات وبيانات المستندات وسجل النشاط والفريق والاشتراك. ملفات المستندات نفسها تُنزَّل من القائمة أدناه.",
     exportButton: "تنزيل بيانات المكتب",
     exporting: "جارٍ التجهيز...",
     exportFailed: "تعذر تنزيل بيانات المكتب",
     exportDone: "تم تنزيل بيانات المكتب",
+    filesTitle: "ملفات المستندات",
+    filesButton: "عرض ملفات المستندات",
+    filesLoading: "جارٍ التحميل...",
+    filesMore: "عرض المزيد",
+    filesEmpty: "لا توجد مستندات في المكتب.",
+    filesFailed: "تعذر تحميل قائمة المستندات",
     deletionTitle: "طلب حذف المكتب",
     deletionDescription:
       "يُرسل الطلب إلى إدارة Viresto، ولا يُحذف شيء فورًا. سنتواصل معك عبر البريد قبل الحذف. الحذف نهائي ويشمل كل بيانات المكتب وحسابات فريقه، فنزّل نسخة من البيانات أولًا.",
@@ -31,13 +37,19 @@ const COPY = {
     deletionFailed: "تعذر إرسال طلب الحذف",
   },
   en: {
-    title: "Office data",
+    title: "Data export and office deletion",
     description:
-      "Download a complete copy of the office data as JSON: clients, cases, appointments, tasks, invoices, payments, document details, the activity log, the team and the subscription. The document files themselves are not in this file; ask support if you need them.",
+      "Download a complete copy of the office data as JSON: clients, cases, appointments, tasks, invoices, payments, document details, the activity log, the team and the subscription. Download the document files themselves from the list below.",
     exportButton: "Download office data",
     exporting: "Preparing...",
     exportFailed: "Could not download the office data",
     exportDone: "Office data downloaded",
+    filesTitle: "Document files",
+    filesButton: "Show document files",
+    filesLoading: "Loading...",
+    filesMore: "Show more",
+    filesEmpty: "The office has no documents.",
+    filesFailed: "Could not load the document list",
     deletionTitle: "Request office deletion",
     deletionDescription:
       "The request goes to the Viresto team; nothing is deleted right away. We will contact you by email before deleting. Deletion is permanent and covers all office data and team accounts, so download a copy first.",
@@ -56,6 +68,14 @@ function filenameFrom(response: Response) {
   return /filename="([^"]+)"/.exec(header)?.[1] ?? "viresto-export.json";
 }
 
+type ExportDocument = { id: string; fileName: string; fileSize: number | null };
+
+function formatSize(bytes: number | null) {
+  if (!bytes) return "";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 async function messageFrom(response: Response, fallback: string) {
   const data = await response.json().catch(() => null);
   return typeof data?.message === "string" ? data.message : fallback;
@@ -68,6 +88,28 @@ export default function OfficeDataCard({ locale }: { locale: Locale }) {
   const [confirmed, setConfirmed] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentMessage, setSentMessage] = useState<string | null>(null);
+  const [files, setFiles] = useState<ExportDocument[] | null>(null);
+  const [filesCursor, setFilesCursor] = useState<string | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+
+  async function loadFiles(cursor: string | null) {
+    setLoadingFiles(true);
+    try {
+      const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+      const response = await fetch(`/api/data-requests/documents${query}`, { cache: "no-store" });
+      if (!response.ok) {
+        toast.error(await messageFrom(response, copy.filesFailed));
+        return;
+      }
+      const data = (await response.json())?.data;
+      setFiles((current) => [...(cursor ? current ?? [] : []), ...(data?.documents ?? [])]);
+      setFilesCursor(data?.nextCursor ?? null);
+    } catch {
+      toast.error(copy.filesFailed);
+    } finally {
+      setLoadingFiles(false);
+    }
+  }
 
   async function downloadExport() {
     setExporting(true);
@@ -135,6 +177,60 @@ export default function OfficeDataCard({ locale }: { locale: Locale }) {
       >
         {exporting ? copy.exporting : copy.exportButton}
       </button>
+
+      <div className="mt-5">
+        <h3 className="text-sm font-black" style={{ color: "var(--text)" }}>
+          {copy.filesTitle}
+        </h3>
+        {files === null ? (
+          <button
+            type="button"
+            onClick={() => loadFiles(null)}
+            disabled={loadingFiles}
+            className="btn btn-ghost mt-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingFiles ? copy.filesLoading : copy.filesButton}
+          </button>
+        ) : files.length === 0 ? (
+          <p className="mt-2 text-sm" style={{ color: "var(--text-3)" }}>
+            {copy.filesEmpty}
+          </p>
+        ) : (
+          <>
+            <ul
+              className="mt-2 max-h-72 divide-y overflow-y-auto rounded-2xl border"
+              style={{ borderColor: "var(--border)" }}
+            >
+              {files.map((file) => (
+                <li key={file.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <a
+                    href={`/api/data-requests/documents/${encodeURIComponent(file.id)}`}
+                    download
+                    dir="auto"
+                    className="min-w-0 truncate font-bold underline-offset-2 hover:underline"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {file.fileName}
+                  </a>
+                  <span dir="ltr" className="shrink-0 text-xs" style={{ color: "var(--text-3)" }}>
+                    {formatSize(file.fileSize)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {filesCursor ? (
+              <button
+                type="button"
+                onClick={() => loadFiles(filesCursor)}
+                disabled={loadingFiles}
+                className="btn btn-ghost mt-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingFiles ? copy.filesLoading : copy.filesMore}
+              </button>
+            ) : null}
+          </>
+        )}
+      </div>
 
       <div
         className="mt-6 rounded-2xl border p-4"

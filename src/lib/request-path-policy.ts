@@ -14,11 +14,15 @@ export function isMachineAuthenticatedPath(pathname: string) {
 }
 
 // The office ADMIN's data requests (AUDIT_REPORT.md M4): a locked office
-// can still download its data and ask for deletion. Exact path + method.
+// can still download its data and document files, and ask for deletion.
+// Exact path + method.
 const DATA_REQUEST_ROUTES = new Set([
   "GET /api/data-requests/export",
   "POST /api/data-requests/deletion",
+  "GET /api/data-requests/documents",
 ]);
+// GET /api/data-requests/documents/<id>: one segment, no further path.
+const DATA_REQUEST_DOCUMENT_FILE = /^\/api\/data-requests\/documents\/[^/]+$/;
 
 // Routes a locked office (trial over, no paid subscription) can still
 // reach: its own account/session endpoints (/api/auth/*, including logout
@@ -36,6 +40,10 @@ export function isSubscriptionExemptPath(pathname: string, method: string) {
   }
 
   if (DATA_REQUEST_ROUTES.has(`${method.toUpperCase()} ${pathname}`)) {
+    return true;
+  }
+
+  if (method.toUpperCase() === "GET" && DATA_REQUEST_DOCUMENT_FILE.test(pathname)) {
     return true;
   }
 

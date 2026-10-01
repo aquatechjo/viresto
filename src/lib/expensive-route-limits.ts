@@ -18,3 +18,12 @@ export const SUMMARIZE_RATE_LIMIT = {
   windowMs: 60 * MINUTE,
   max: 20,
 } as const;
+
+// A locked or leaving office downloading its document files one by one
+// (GET /api/data-requests/documents/[id]); per office, not per user. Each
+// download fetches the file from private storage.
+export const DOCUMENT_FILE_EXPORT_RATE_LIMIT = {
+  keyPrefix: "doc-file-export",
+  windowMs: 60 * MINUTE,
+  max: 500,
+} as const;

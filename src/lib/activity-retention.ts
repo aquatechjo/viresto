@@ -39,6 +39,7 @@ export const AUDIT_ACTIVITY_TYPES = [
 
   // Office data requests (export, deletion)
   "DATA_EXPORTED",
+  "DOCUMENT_FILE_EXPORTED",
   "OFFICE_DELETION_REQUESTED",
 
   // Team and roles
