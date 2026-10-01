@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-09-30 (تدقيق ما قبل الإطلاق `AUDIT_REPORT.md`: B2 انحراف `publicId`، B1 أول شراء لمكتب في التجربة، H1 ترقية `next`، H3 أحداث webhook قديمة/مكررة، H2 التعليق، منع checkout ثانٍ — القسم 2.2)
+> آخر تحديث: 2026-09-30 (تدقيق ما قبل الإطلاق `AUDIT_REPORT.md`: B2 انحراف `publicId`، B1 أول شراء لمكتب في التجربة، H1 ترقية `next`، H3 أحداث webhook قديمة/مكررة، H2 التعليق، منع checkout ثانٍ، والدفعة الثانية H4/M1/M2/M6/L2–L8 — القسم 2.2)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -149,8 +149,29 @@
 - **لم يُتحقق منه في المتصفح:** تحويل صفحة الاشتراك لبوابة العميل عند 409، لأن الضغط يستدعي Polar API الحقيقي بمفاتيح الإنتاج الموجودة في `.env` المحلي. التحقق عبر اختبارات الـ route + `next build` فقط.
 - **حد متبقٍّ:** جلستا checkout فُتحتا **قبل** أن يدفع المكتب أيًا منهما (تبويبان) يمكن دفعهما معًا؛ هذا لا يُمنع من طرفنا. إن ظهر، الثاني يُسجَّل `[polar-webhook] superseded_subscription` (B1). **للمراجعة في Polar dashboard:** إعداد المنظمة الخاص بالسماح بعدة اشتراكات لنفس العميل (لم أتحقق من وجوده/اسمه).
 
+### ✅ الدفعة الثانية من التقرير (2026-10-01، غير مرفوعة)
+| Commit | البند | ما تم |
+|---|---|---|
+| `80b4764` | **H4** | `src/lib/client-ip.ts` مصدر واحد للـ IP: `x-real-ip` ثم أول `x-forwarded-for` (يضبطهما Vercel ويكتب فوق قيم العميل). لا قراءة لـ `cf-connecting-ip` ولا `cf-ipcountry` بعد الآن (لا Cloudflare أمام التطبيق، فكانا قابلين للتزوير ويتجاوزان حدود المعدل لكل IP). استُبدلت كل النسخ (turnstile، `getRequestMeta`، log-activity، login، verify-email، resend-verification، session/activity). 5 اختبارات وحدة. |
+| `54537d3` | بنية الاختبار | `PRISMA_TRANSACTION_TIMEOUT_MS` اختياري في `src/lib/prisma.ts` (غير مضبوط في الإنتاج = سلوك Prisma الافتراضي 5 ثوانٍ). اختبارات التكامل تضبطه 30 ثانية لأنها تعمل من جهاز تطوير على Neon (ظهر `P2028` في `POST /api/cases`). |
+| `60a5589` | **M2** | فحص تكرار رقم القضية يستثني `exists.id` بدل الـ id الخام من الرابط. **أُعيد إنتاجه:** تعديل قضية مرقّمة عبر `publicId` كان يعطي 409 دائمًا. فُحصت كل مسارات `[id]`: فقط cases/clients/invoices تقبل `publicId`، وهذه كانت الحالة الوحيدة. اختبار تكامل. |
+| `6a057cd` | **M1** | مسار أدمن الاشتراكات: أي مكتب عنده اشتراك Polar حي ← كل الأوامر الستة 409 `POLAR_MANAGED` (تُدار من لوحة Polar والـ webhooks تزامن). `RENEW`/`CANCEL_AT_PERIOD_END`/`UNDO_CANCEL`/`END_NOW` مرفوضة أيضًا على صف Polar منتهٍ. `END_NOW` لا يلمس `isSuspended` ويبقي `SUSPENDED` (**قرار المستخدم**: فقط `activateTenant` يرفع التعليق). الأوامر الناجحة تمسح كاش المكتب. **أُعيد إنتاجه:** `ACTIVATE` كان يلغي اشتراك Polar محليًا وPolar يستمر بالخصم، و`RENEW` كان يعيد اشتراكًا مُلغى (revoked) إلى ACTIVE مجانًا. 4 اختبارات تكامل. |
+| `3ca156e` | **M6** | `check-env.mjs`: عندما `VERCEL_ENV=production` يجب `POLAR_ENVIRONMENT=production` وإلا يفشل البناء (Preview يبقى حرًّا مع sandbox). حُذف `POLAR_ORGANIZATION_ID` من المطلوب ومن `.env.example` (لا يُقرأ في أي مكان). |
+| `eb6ac2e` | **L3** | حُذفت `/api/perf/{ping,auth,db}`. `production-smoke` صار يفحص `/api/auth/me` و`/api/cases` ← 401، والـ homepage يغطي الـ liveness. k6 baseline يقيس `/login` و`/api/auth/me`. |
+| `cc3217e` | **L4** | حُذفت: `renew-subscription.js` (نموذج محذوف)، `activate-subscription*.js` و`backfill-subscriptions.js` (تكتب ACTIVE متجاوزة Polar والفهرس وM1)، `onboard-customer.js` (معطّل)، `preflight-finance-migration.js` (لـ migration طُبّقت في يوليو). بقي `find-tenant-by-user-email.js` (قراءة فقط). |
+| `df7d7b5` | **L7** | تعليقات الـ schema: مبالغ الاشتراك = USD cents (لا فلس). migration `20261001000000_subscription_currency_default_usd`: الافتراضي `USD` لـ `BillingPlan.currency` و`Subscription.currency` (افتراضي فقط). طُبّقت على dev. العرض كان يحترم العملة أصلًا. |
+| `2741a6e` | **L8** | حُذف `api.openai.com` من `connect-src` في الـ CSP (OpenAI يُستدعى من الخادم فقط). |
+| `184e353` | **L2** | الدخول يقارن bcrypt مع hash وهمي بنفس الكلفة (12) عندما لا يوجد البريد، فلا يكشف التوقيت الحسابات المسجلة. اختبار وحدة. |
+| `ced6ceb` | **L5** | حدود طول للنصوص (عناوين 200، أوصاف/ملاحظات 10,000، عنوان الموكل 500، مكان الموعد 300، بند فاتورة 500، بريد 160) و`startTime`/`endTime` للمواعيد يجب أن تكون ISO مع منطقة زمنية. اختبارات وحدة. |
+
+- **التحقق النهائي:** lint، typecheck، `test:unit` **218/218**، `test:integration` **23/23**. فحص الانحراف = لا فرق. الاختبارات كتبت حمراء أولًا وفشلت قبل كل إصلاح (H4، M2، M1، M6، L8، L2، L5).
+- **فرع dev:** طُبّقت `20261001000000_subscription_currency_default_usd`. حُذف `.next/dev/types` المحلي القديم (artifact مولّد يشير لمسارات محذوفة، يُعاد توليده تلقائيًا).
+
+### ⏳ L6 — `order.refunded` (بانتظار قرار المستخدم)
+- **لماذا يحتاج قرارًا:** بعد H3 حالة المكتب تتبع حالة **الاشتراك** في Polar. إن استُرد طلب وبقي الاشتراك حيًا في Polar، أي قفل محلي ستلغيه أول مزامنة تالية. الخيارات: (أ) عند استرداد كامل، إلغاء (revoke) الاشتراك في Polar عبر الـ API فيقفل المكتب عبر `subscription.revoked` العادي؛ (ب) علامة "مُسترد" ثابتة عندنا تقفل حتى دفعة لاحقة (تنحرف عن Polar)؛ (ج) لا أتمتة: log/تنبيه فقط، والاسترداد يُرفق دائمًا بإلغاء الاشتراك يدويًا في Polar. والاسترداد الجزئي؟
+
 ### التالي
-- المستخدم لم يحدد التالي بعد. من التقرير: **M1** (أوامر الأدمن على اشتراكات Polar + `END_NOW` لا يرفع التعليق)، ثم M2 (تعديل قضية عبر `publicId` يعطي 409)، M3–M7.
+- L6 بعد قرار المستخدم. ثم البنود الباقية من التقرير: M3 (سجل التدقيق: الاحتفاظ والتغطية)، M4 (تصدير/حذف بيانات المكتب ذاتيًا)، M5 (تكميل اختبارات العزل بين المكاتب على مسارات `[id]`)، M7 (رفعات Cloudinary اليتيمة)، L1، L9، L10.
 
 ## 3. تنظيف نظام الدفع اليدوي القديم (CliQ / تحويل بنكي) — ✅ مكتمل
 
@@ -326,8 +347,8 @@
 ## 8. Git — حالة الـ commits
 
 - **الفرع:** `main`
-- **آخر commit للكود/الإعداد:** `731389b` — `fix(billing): never open a second Polar checkout for an office with a live subscription` (2026-09-30)، ويليه commit تحديث هذا الملف.
-- **حالة الـ push:** `b552d3c`، `ce4aa18` (docs)، `bc3ba0b`، `2ce2965` (docs)، `af047ed`، `3d7b3e9` (docs)، `2faddf2`، `97ce162` (docs)، `8df75ee`، `172043b` (docs)، `731389b`، وcommit الـ docs الذي يليه **محلية، غير مرفوعة** (المستخدم لم يطلب push). ما قبلها مرفوع حتى `615024d`. **غير منشورة على الإنتاج بعد.**
+- **آخر commit للكود/الإعداد:** `ced6ceb` — `fix(validation): cap free-text lengths and validate appointment date-times` (2026-10-01)، ويليه commit تحديث هذا الملف.
+- **حالة الـ push:** كل الـ commits من `b552d3c` (2026-09-30) حتى commit الـ docs الأخير (2026-10-01) **محلية، غير مرفوعة** (المستخدم لم يطلب push). ما قبلها مرفوع حتى `615024d`. **غير منشورة على الإنتاج بعد.**
 - **معلّق محليًا (غير ملتزم، عن قصد):**
   - `next-env.d.ts`: عدّله dev server تلقائيًا، لا يُلتزم به.
   - `.claude/` (untracked): فيه `launch.json` لخادم التطوير.
@@ -387,8 +408,11 @@
 - `8df75ee` — H2: مزامنة Polar لا ترفع تعليق الأدمن ولا تستبدله. انظر القسم 2.2.
 - `731389b` — البند 4: لا checkout ثانٍ لمكتب عنده اشتراك Polar حي. انظر القسم 2.2.
 
+### ✅ تم (2026-10-01)
+- الدفعة الثانية من التقرير: H4، M2، M1، M6، L3، L4، L7، L8، L2، L5 (`80b4764` → `ced6ceb`، و`54537d3` لبنية الاختبار). انظر القسم 2.2.
+
 ### قيد التنفيذ
-- لا شيء (بانتظار المستخدم لتحديد البند التالي؛ المقترح M1).
+- L6 (`order.refunded`): بانتظار قرار المستخدم (القسم 2.2).
 
 ### التالي (مقترح)
 1. **تشغيل `npx playwright test --workers=1`** (بعد تصفير نافذة الـ 429 — انظر القسم 9) والتأكد من نجاح `login.spec.ts`، `create-case.spec.ts`، و`mobile-responsive.spec.ts` الجديد فعليًا. لم يكتمل تشغيلها بنجاح بهاي الجلسة.
@@ -402,8 +426,8 @@
 - [ ] **🚀 نشر نموذج التجربة (القسم 2.1) — بالترتيب:**
   - [x] ~~إصلاح B1 قبل النشر~~: `bc3ba0b` (القسم 2.2). **النشر يجب أن يشمل `bc3ba0b`**، وإلا أول شراء لأي مكتب في التجربة يفشل.
   - [x] ~~`migrate resolve --applied 20260930000000_add_public_ids` على الإنتاج (B2)~~: نفّذه المستخدم 2026-09-30.
-  - [ ] **push** لـ `b552d3c` و`bc3ba0b` و`af047ed` و`2faddf2` و`8df75ee` و`731389b` (وcommits الـ docs)، والتأكد أن CI أخضر: فحص الانحراف واختبارات التكامل صارت فيه.
-  - [ ] **ثم `npm run db:deploy` على قاعدة الإنتاج.** المعلّق الآن **أربع**: `20260922020000_drop_subscription_payment`، `20260925000000_subscription_trial_starts_at`، `20260925010000_subscription_past_due_since`، و`20260930010000_processed_webhook` (H3، جدول جديد فقط). **قبل نشر الكود**، لأن `npm run build` لا يطبّق migrations: `requireAuth` يقرأ أعمدة التجربة في كل طلب (بدونها ينكسر كل الـ API)، وwebhook الـ Polar يقرأ `ProcessedWebhook` في كل تسليم (بدونه كل webhook = 500، فيعيدها Polar ولا تضيع، لكن لا شيء يُزامن).
+  - [ ] **push** لكل الـ commits المحلية من `b552d3c` حتى آخر commit docs (منها الدفعة الثانية `80b4764` → `ced6ceb`)، والتأكد أن CI أخضر: فحص الانحراف واختبارات التكامل صارت فيه.
+  - [ ] **ثم `npm run db:deploy` على قاعدة الإنتاج.** المعلّق الآن **خمس**: `20260922020000_drop_subscription_payment`، `20260925000000_subscription_trial_starts_at`، `20260925010000_subscription_past_due_since`، `20260930010000_processed_webhook` (H3، جدول جديد فقط)، و`20261001000000_subscription_currency_default_usd` (L7، تغيير قيم افتراضية فقط). **قبل نشر الكود**، لأن `npm run build` لا يطبّق migrations: `requireAuth` يقرأ أعمدة التجربة في كل طلب (بدونها ينكسر كل الـ API)، وwebhook الـ Polar يقرأ `ProcessedWebhook` في كل تسليم (بدونه كل webhook = 500، فيعيدها Polar ولا تضيع، لكن لا شيء يُزامن).
   - [ ] نشر `27fee9d` (أو أحدث) على Vercel.
   - [ ] **Polar ← Webhooks:** إضافة الأحداث `subscription.revoked`، `subscription.uncanceled`، `subscription.past_due` إلى الموجودة.
   - [ ] إزالة التجربة من المنتجات الستة في Polar (أنت، يدويًا).
@@ -414,7 +438,7 @@
   - [ ] **نشر `cf169aa` على الإنتاج**، وإلا تبقى الـ webhooks مرفوضة بـ 401.
   - [ ] **Polar dashboard ← Settings ← Webhooks:** الـ URL بالضبط `https://www.virestojo.com/api/billing/webhooks/polar` (نفس الـ host الأساسي، بدون redirect)، الصيغة Raw/JSON، والأحداث: `subscription.created`، `subscription.active`، `subscription.updated`، `subscription.canceled`، `subscription.uncanceled`، `subscription.revoked`، `subscription.past_due`، `order.paid`. أي حدث آخر يُقبل (200) ويُتجاهل.
   - [ ] بعد النشر: "Send test event"/redeliver من Polar، والتأكد من 200 (403 = السر لا يطابق، 401 = النسخة المنشورة قديمة).
-  - [ ] **Vercel (Production) env vars بالاسم:** `POLAR_ACCESS_TOKEN`، `POLAR_WEBHOOK_SECRET`، `POLAR_ORGANIZATION_ID`، `POLAR_ENVIRONMENT` (= `production`)، و`APP_URL` و/أو `NEXT_PUBLIC_APP_URL`.
+  - [ ] **Vercel (Production) env vars بالاسم:** `POLAR_ACCESS_TOKEN`، `POLAR_WEBHOOK_SECRET`، `POLAR_ENVIRONMENT` (= `production`، **صار إلزاميًا: البناء يفشل بغيره منذ `3ca156e`**)، و`APP_URL` و/أو `NEXT_PUBLIC_APP_URL`. `POLAR_ORGANIZATION_ID` لم يعد مطلوبًا ويمكن حذفه.
   - [ ] **تشغيل `npm run db:seed` على قاعدة الإنتاج** لتحديث `BillingPlan` إلى `USD` والأسعار بالسنت، والتأكد أن معرّفات المنتجات في `prisma/seed.ts` هي منتجات Polar **الإنتاج** (وليست sandbox) وبأسعار 29/290، 59/590، 119/1190.
   - [ ] مراجعة صياغة الصفحات القانونية (`5070944`)، وقرار ما إذا يُذكر Polar كـ Merchant of Record.
   - [ ] أي اشتراك أُنشئ قبل `cf169aa` لم يُزامَن من الـ webhooks: التأكد يدويًا من حالته في لوحة الأدمن مقابل Polar.
