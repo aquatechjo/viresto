@@ -66,6 +66,7 @@ let checkoutPOST: typeof import("../../src/app/api/billing/checkout/route")["POS
 let clientsPOST: typeof import("../../src/app/api/clients/route")["POST"];
 let casesPOST: typeof import("../../src/app/api/cases/route")["POST"];
 let casePATCH: typeof import("../../src/app/api/cases/[id]/route")["PATCH"];
+let adminSubscriptionPATCH: typeof import("../../src/app/api/admin/tenants/[id]/subscription/route")["PATCH"];
 
 before(async () => {
   database = setupIntegrationDatabase();
@@ -83,6 +84,9 @@ before(async () => {
   ({ POST: clientsPOST } = await import("../../src/app/api/clients/route"));
   ({ POST: casesPOST } = await import("../../src/app/api/cases/route"));
   ({ PATCH: casePATCH } = await import("../../src/app/api/cases/[id]/route"));
+  ({ PATCH: adminSubscriptionPATCH } = await import(
+    "../../src/app/api/admin/tenants/[id]/subscription/route"
+  ));
 
   await prisma.billingPlan.createMany({
     data: (["BASIC", "PRO", "BUSINESS"] as const).map((code, index) => ({
@@ -821,4 +825,114 @@ test("cases: editing a numbered case through its publicId URL keeps its own case
     { params: Promise.resolve({ id: String(otherBody.data.publicId) }) },
   );
   assert.equal(clash.status, 409);
+});
+
+// --- M1: system-admin subscription actions vs Polar-managed billing ------
+
+let systemAdminCookie: string | null = null;
+
+async function systemAdmin() {
+  if (systemAdminCookie) return systemAdminCookie;
+
+  const office = await registerOffice("system-admin");
+  await prisma.user.update({
+    where: { email: office.email },
+    data: { isSystemAdmin: true },
+  });
+
+  // Log in again so the session reflects the flag.
+  const loggedIn = await loginPOST(
+    jsonRequest("/api/auth/login", { email: office.email, password: "Integration#Pass1" }),
+  );
+  systemAdminCookie = loggedIn.headers
+    .getSetCookie()
+    .find((value) => value.startsWith("ld_token="))!
+    .split(";")[0];
+  return systemAdminCookie;
+}
+
+async function adminAction(tenantId: string, body: Record<string, unknown>) {
+  const cookie = await systemAdmin();
+  const response = await adminSubscriptionPATCH(
+    patchRequest(
+      `/api/admin/tenants/${tenantId}/subscription`,
+      { reason: "integration test", ...body },
+      cookie,
+    ),
+    { params: Promise.resolve({ id: tenantId }) },
+  );
+  return { status: response.status, body: await response.json() };
+}
+
+test("admin: every subscription action is refused for an office billed by Polar", async () => {
+  const office = await registerOffice("admin-polar");
+  const polarId = `sub_admin_polar_${office.tenantId}`;
+  await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId });
+  const pro = await prisma.billingPlan.findUniqueOrThrow({ where: { code: "PRO" } });
+
+  const before = await subscriptionsOf(office.tenantId);
+
+  for (const action of [
+    "ACTIVATE",
+    "CHANGE_PLAN",
+    "RENEW",
+    "CANCEL_AT_PERIOD_END",
+    "UNDO_CANCEL",
+    "END_NOW",
+  ]) {
+    const result = await adminAction(office.tenantId, {
+      action,
+      planId: pro.id,
+      interval: "MONTHLY",
+    });
+    assert.equal(result.status, 409, `${action}: ${JSON.stringify(result.body)}`);
+    assert.equal(result.body.details?.code, "POLAR_MANAGED", action);
+  }
+
+  assert.deepEqual(await subscriptionsOf(office.tenantId), before, "nothing changed");
+  assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
+});
+
+test("admin: actions on an ended Polar subscription's row are refused too", async () => {
+  const office = await registerOffice("admin-polar-ended");
+  const polarId = `sub_admin_ended_${office.tenantId}`;
+  await sendWebhook("subscription.active", { id: polarId, tenantId: office.tenantId });
+  await sendWebhook("subscription.revoked", {
+    id: polarId,
+    tenantId: office.tenantId,
+    status: "canceled",
+  });
+
+  const renew = await adminAction(office.tenantId, { action: "RENEW" });
+  assert.equal(renew.status, 409, JSON.stringify(renew.body));
+  assert.equal(
+    (await prisma.subscription.findUniqueOrThrow({ where: { polarSubscriptionId: polarId } })).status,
+    "CANCELLED",
+  );
+});
+
+test("admin: an office not billed by Polar can still be granted a subscription manually", async () => {
+  const office = await registerOffice("admin-manual");
+  const pro = await prisma.billingPlan.findUniqueOrThrow({ where: { code: "PRO" } });
+
+  const result = await adminAction(office.tenantId, {
+    action: "ACTIVATE",
+    planId: pro.id,
+    interval: "MONTHLY",
+  });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal((await getTenantAccess(office.tenantId)).state, "PAID");
+});
+
+test("admin: END_NOW never lifts a suspension", async () => {
+  const office = await registerOffice("admin-end-now-suspended");
+  await suspendOffice(office.tenantId);
+
+  const result = await adminAction(office.tenantId, { action: "END_NOW" });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+
+  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: office.tenantId } });
+  assert.equal(tenant.isSuspended, true);
+  assert.equal(tenant.status, "SUSPENDED");
+  assert.equal((await getTenantAccess(office.tenantId)).state, "LOCKED");
 });

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { BillingInterval, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { invalidateAuthCacheForTenant, requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
@@ -10,6 +10,7 @@ import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import {
   addBillingPeriod,
   getBillingPlanConfig,
+  isTenantSuspended,
   syncTenantSubscriptionMirror,
 } from "@/lib/subscription-consistency";
 
@@ -44,6 +45,21 @@ function normalizeInterval(value: unknown): BillingInterval | null {
 
   return null;
 }
+
+// Statuses in which a Polar subscription is still billing.
+const POLAR_LIVE_STATUSES: SubscriptionStatus[] = [
+  SubscriptionStatus.ACTIVE,
+  SubscriptionStatus.TRIALING,
+  SubscriptionStatus.PAST_DUE,
+];
+
+// Actions that edit the office's current subscription row in place.
+const ROW_EDIT_ACTIONS: AdminSubscriptionAction[] = [
+  "RENEW",
+  "CANCEL_AT_PERIOD_END",
+  "UNDO_CANCEL",
+  "END_NOW",
+];
 
 const actionLabels: Record<AdminSubscriptionAction, string> = {
   ACTIVATE: "تفعيل الاشتراك إداريًا",
@@ -131,6 +147,20 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         return { error: "PROTECTED_TENANT" as const };
       }
 
+      // Polar is the source of truth for Polar-billed offices: a local
+      // change here would not stop (or start) billing in Polar, and the next
+      // webhook would overwrite it or collide with it. Such offices are
+      // managed in the Polar dashboard; the webhooks sync the result.
+      if (
+        tenant.subscriptions.some(
+          (subscription) =>
+            subscription.polarSubscriptionId !== null &&
+            POLAR_LIVE_STATUSES.includes(subscription.status),
+        )
+      ) {
+        return { error: "POLAR_MANAGED" as const };
+      }
+
       const currentSubscription =
         tenant.subscriptions.find((subscription) =>
           ["ACTIVE", "TRIALING"].includes(
@@ -145,6 +175,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         ) ??
         tenant.subscriptions[0] ??
         null;
+
+      if (
+        ROW_EDIT_ACTIONS.includes(action) &&
+        currentSubscription?.polarSubscriptionId
+      ) {
+        // e.g. RENEW on a revoked Polar subscription would grant free access.
+        return { error: "POLAR_MANAGED" as const };
+      }
 
       let updatedSubscription;
 
@@ -311,13 +349,16 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             },
           });
 
+          // Ending billing never lifts an admin suspension; only the
+          // explicit "activate office" action (activateTenant) does.
+          const suspended = await isTenantSuspended(tx, tenantId);
+
           await tx.tenant.update({
             where: {
               id: tenantId,
             },
             data: {
-              status: "EXPIRED",
-              isSuspended: false,
+              ...(suspended ? {} : { status: "EXPIRED" as const }),
               trialEndsAt: null,
               aiEnabled: false,
               aiConsentAt: null,
@@ -360,8 +401,17 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           return err("لا يوجد اشتراك لهذا المكتب", 404);
         case "PERIOD_ALREADY_ENDED":
           return err("انتهت مدة الاشتراك بالفعل", 409);
+        case "POLAR_MANAGED":
+          return err(
+            "اشتراك هذا المكتب يُدار عبر Polar. نفّذ الإلغاء أو الاسترداد أو تغيير الخطة من لوحة Polar، وستُزامَن الحالة هنا تلقائيًا.",
+            409,
+            { code: "POLAR_MANAGED" },
+          );
       }
     }
+
+    // Lock or unlock on the very next request, not after the cache TTL.
+    invalidateAuthCacheForTenant(tenantId);
 
     return ok({
       message: `تم تنفيذ: ${actionLabels[action]}`,
