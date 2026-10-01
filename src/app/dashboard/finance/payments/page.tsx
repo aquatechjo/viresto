@@ -1189,10 +1189,13 @@ export default function PaymentsPage() {
             </span>
           </div>
 
-          {/* Mobile: stacked cards, one per row */}
+          {/* Mobile: stacked cards, one per row — same actions as the desktop table */}
           <div className="divide-y md:hidden" data-vds-view="mobile-cards" style={{ borderColor: 'var(--border)' }}>
             {filteredPayments.map((payment) => {
               const canOpen = Boolean(payment.invoice?.id || payment.case?.id)
+              const isUpdating = updatingPaymentId === payment.id
+              const draftStatus = draftStatuses[payment.id] ?? payment.status
+              const statusChanged = draftStatus !== payment.status
 
               return (
                 <div
@@ -1224,12 +1227,75 @@ export default function PaymentsPage() {
                     <bdi dir={isRtl ? 'rtl' : 'ltr'}>
                       {formatPaymentDate(payment.paidAt || payment.createdAt, locale)}
                     </bdi>
-                    <span
-                      className="rounded-full px-2.5 py-1 text-[11px] font-black"
-                      style={statusStyle(payment.status)}
+                  </div>
+
+                  <div
+                    className="flex flex-wrap items-center gap-2"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <select
+                      aria-label={`${copy.table.status}: ${payment.client?.name || ''}`}
+                      value={draftStatus}
+                      onChange={(event) => {
+                        const nextStatus = event.target.value as PaymentStatus
+
+                        setDraftStatuses((current) => ({
+                          ...current,
+                          [payment.id]: nextStatus,
+                        }))
+                      }}
+                      disabled={
+                        !writeAccess.canWrite ||
+                        isUpdating ||
+                        payment.status === 'CANCELLED'
+                      }
+                      dir={isRtl ? 'rtl' : 'ltr'}
+                      className="h-10 flex-1 rounded-xl text-start text-xs font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
+                      style={{
+                        ...statusStyle(draftStatus),
+                        direction: isRtl ? 'rtl' : 'ltr',
+                        textAlign: isRtl ? 'right' : 'left',
+                        backgroundPosition: isRtl ? 'left 12px center' : 'right 12px center',
+                        paddingInlineStart: '12px',
+                        paddingInlineEnd: '34px',
+                      }}
                     >
-                      {copy.statuses[payment.status]}
-                    </span>
+                      {editablePaymentStatuses(payment.status).map((paymentStatus) => (
+                        <option key={paymentStatus} value={paymentStatus}>
+                          {copy.statuses[paymentStatus]}
+                        </option>
+                      ))}
+                    </select>
+
+                    {isUpdating ? (
+                      <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>
+                        {copy.actions.updating}
+                      </span>
+                    ) : statusChanged ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => updatePaymentStatus(payment, draftStatus)}
+                          className="h-9 rounded-lg bg-[var(--landing-copper)] px-3 text-[11px] font-black text-[var(--landing-canvas)] transition hover:bg-[var(--landing-copper-hover)]"
+                        >
+                          {copy.actions.saveStatus}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDraftStatuses((current) => {
+                              const next = { ...current }
+                              delete next[payment.id]
+                              return next
+                            })
+                          }
+                          className="h-9 rounded-lg border px-3 text-[11px] font-black"
+                          style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}
+                        >
+                          {copy.actions.cancelStatus}
+                        </button>
+                      </>
+                    ) : null}
                   </div>
 
                   {canOpen ? (
