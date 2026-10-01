@@ -38,6 +38,9 @@ const TEST_ENV: Record<string, string> = {
   PUBLIC_REGISTER_ENABLED: "true",
   TURNSTILE_ENABLED: "false",
   AUTH_CACHE_TTL_MS: "0",
+  // Remote DB from a dev machine: allow multi-query transactions to finish
+  // (production keeps Prisma's 5 s default; see src/lib/prisma.ts).
+  PRISMA_TRANSACTION_TIMEOUT_MS: "30000",
   APP_URL: "http://localhost:3000",
 };
 
