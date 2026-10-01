@@ -706,7 +706,63 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  {/* Mobile: stacked cards, one per row (this is a Server Component,
+                      so the client-only ResponsiveTable can't be used here) */}
+                  <div className="divide-y md:hidden" data-vds-view="mobile-cards" style={{ borderColor: "var(--border)" }}>
+                    {tenant.users.map((user) => (
+                      <div key={user.id} className="space-y-2.5 p-4">
+                        <div>
+                          <p className="font-black" style={{ color: "var(--text)" }}>
+                            {user.name}
+                          </p>
+                          <p className="mt-1 truncate text-xs" style={{ color: "var(--text-3)" }}>
+                            {user.email}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                          <span>{roleLabels[user.role] ?? user.role}</span>
+                          {user.isSystemAdmin ? (
+                            <span className="badge badge-blue">مدير النظام</span>
+                          ) : null}
+                          {user.isActive ? (
+                            <span className="badge badge-green">نشط</span>
+                          ) : (
+                            <span className="badge badge-red">معطل</span>
+                          )}
+                          <span style={{ color: "var(--text-3)" }}>
+                            {formatDate(user.createdAt)}
+                          </span>
+                        </div>
+
+                        {user.isSystemAdmin ? (
+                          <span
+                            className="inline-flex rounded-xl px-3 py-1 text-sm font-bold"
+                            style={{
+                              background: "var(--input-bg)",
+                              color: "var(--text-3)",
+                            }}
+                          >
+                            محمي
+                          </span>
+                        ) : user.isActive ? (
+                          <form action={deactivateUser.bind(null, user.id)}>
+                            <button className="w-full rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 dark:border-red-400/40 dark:text-red-300 dark:hover:bg-red-500/10">
+                              تعطيل
+                            </button>
+                          </form>
+                        ) : (
+                          <form action={activateUser.bind(null, user.id)}>
+                            <button className="w-full rounded-xl border border-emerald-200 px-3 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-400/40 dark:text-emerald-200 dark:hover:bg-emerald-500/10">
+                              تفعيل
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden overflow-x-auto md:block" data-vds-view="desktop-table">
                     <table className="data-table">
                       <thead>
                         <tr>

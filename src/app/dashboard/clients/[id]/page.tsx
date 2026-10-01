@@ -9,6 +9,7 @@ import { getApiMessage } from "@/lib/plan-ui";
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
+import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import { initials } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
@@ -1258,124 +1259,118 @@ export default function ClientDetailPage() {
                 />
               </div>
             ) : (
-              <div className="max-w-full overflow-x-auto">
-                <table className="data-table min-w-[860px]">
-                  <thead>
-                    <tr>
-                      <th>{text.cases.columns.case}</th>
-                      <th>{text.cases.columns.fees}</th>
-                      <th>{text.cases.columns.paid}</th>
-                      <th>{text.cases.columns.remaining}</th>
-                      <th>{text.cases.columns.collectionRate}</th>
-                      <th>{text.cases.columns.status}</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {filteredCases.map((item) => {
-                      const paid = getPaidAmount(item);
+              <ResponsiveTable
+                isRtl={isRtl}
+                rows={filteredCases}
+                getRowId={(item) => item.id}
+                emptyMessage={text.cases.noResults}
+                onRowClick={(item) =>
+                  router.push(`/dashboard/cases/${item.publicId ?? item.id}`)
+                }
+                tableClassName="data-table min-w-[860px]"
+                columns={[
+                  {
+                    id: "case",
+                    header: text.cases.columns.case,
+                    cell: (item) => (
+                      <div>
+                        <p className="font-black" style={{ color: "var(--text)" }}>
+                          {item.title}
+                        </p>
+                        <p className="mt-1 font-mono text-xs" style={{ color: "var(--text-3)" }}>
+                          {item.caseNumber ?? `#${item.id.slice(-4)}`}
+                        </p>
+                      </div>
+                    ),
+                  },
+                  {
+                    id: "fees",
+                    header: text.cases.columns.fees,
+                    cell: (item) => (
+                      <span dir="ltr" className="whitespace-nowrap">
+                        {formatMoney(item.feeAgreed, localeKey)}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "paid",
+                    header: text.cases.columns.paid,
+                    cell: (item) => (
+                      <span
+                        dir="ltr"
+                        className="whitespace-nowrap font-bold"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {formatMoney(getPaidAmount(item), localeKey)}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "remaining",
+                    header: text.cases.columns.remaining,
+                    cell: (item) => {
                       const remaining = getRemainingAmount(item);
-                      const percent = getCollectionPercent(item);
-
                       return (
-                        <tr
-                          key={item.id}
-                          onClick={() =>
-                            router.push(
-                              `/dashboard/cases/${item.publicId ?? item.id}`,
-                            )
-                          }
-                          className="cursor-pointer"
+                        <span
+                          dir="ltr"
+                          className="whitespace-nowrap font-bold"
+                          style={{
+                            color: remaining > 0 ? "var(--danger)" : "var(--text)",
+                          }}
                         >
-                          <td>
-                            <div>
-                              <p
-                                className="font-black"
-                                style={{ color: "var(--text)" }}
-                              >
-                                {item.title}
-                              </p>
-
-                              <p
-                                className="mt-1 font-mono text-xs"
-                                style={{ color: "var(--text-3)" }}
-                              >
-                                {item.caseNumber ?? `#${item.id.slice(-4)}`}
-                              </p>
-                            </div>
-                          </td>
-
-                          <td
-                            dir="ltr"
-                            className={`whitespace-nowrap ${isRtl ? "text-right" : "text-left"}`}
-                          >
-                            {formatMoney(item.feeAgreed, localeKey)}
-                          </td>
-
-                          <td
-                            dir="ltr"
-                            className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
-                            style={{ color: "var(--text)" }}
-                          >
-                            {formatMoney(paid, localeKey)}
-                          </td>
-
-                          <td
-                            dir="ltr"
-                            className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
-                            style={{
-                              color: remaining > 0 ? "var(--danger)" : "var(--text)",
-                            }}
-                          >
-                            {formatMoney(remaining, localeKey)}
-                          </td>
-
-                          <td>
-                            <div className="flex min-w-[120px] items-center gap-2">
-                              <div
-                                className="h-2 flex-1 overflow-hidden rounded-full"
-                                style={{ background: "var(--input-bg)" }}
-                              >
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{
-                                    width: `${percent}%`,
-                                    background:
-                                      percent >= 100
-                                        ? "#5bb8b3"
-                                        : percent >= 60
-                                          ? "#f59e0b"
-                                          : "var(--danger)",
-                                  }}
-                                />
-                              </div>
-
-                              <span
-                                dir="ltr"
-                                className="w-9 text-xs font-bold"
-                                style={{ color: "var(--text-2)" }}
-                              >
-                                {Math.round(percent)}%
-                              </span>
-                            </div>
-                          </td>
-
-                          <td>
-                            <span
-                              className={STATUS_BADGE_CLASS}
-                              style={statusBadgeStyle(item.status)}
-                            >
-                              {text.filters.statuses[
-                                item.status as keyof typeof text.filters.statuses
-                              ] ?? item.status}
-                            </span>
-                          </td>
-                        </tr>
+                          {formatMoney(remaining, localeKey)}
+                        </span>
                       );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                    },
+                  },
+                  {
+                    id: "collectionRate",
+                    header: text.cases.columns.collectionRate,
+                    cell: (item) => {
+                      const percent = getCollectionPercent(item);
+                      return (
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div
+                            className="h-2 flex-1 overflow-hidden rounded-full"
+                            style={{ background: "var(--input-bg)" }}
+                          >
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${percent}%`,
+                                background:
+                                  percent >= 100
+                                    ? "#5bb8b3"
+                                    : percent >= 60
+                                      ? "#f59e0b"
+                                      : "var(--danger)",
+                              }}
+                            />
+                          </div>
+                          <span
+                            dir="ltr"
+                            className="w-9 shrink-0 text-xs font-bold"
+                            style={{ color: "var(--text-2)" }}
+                          >
+                            {Math.round(percent)}%
+                          </span>
+                        </div>
+                      );
+                    },
+                  },
+                  {
+                    id: "status",
+                    header: text.cases.columns.status,
+                    cell: (item) => (
+                      <span className={STATUS_BADGE_CLASS} style={statusBadgeStyle(item.status)}>
+                        {text.filters.statuses[
+                          item.status as keyof typeof text.filters.statuses
+                        ] ?? item.status}
+                      </span>
+                    ),
+                  },
+                ]}
+              />
             )}
           </div>
         </div>

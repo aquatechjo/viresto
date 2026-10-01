@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import AppLoader from "@/components/ui/AppLoader";
 import Modal from "@/components/ui/Modal";
+import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import FormField from "@/components/ui/FormField";
 import { fileSizeLabel, formatDate, formatTime } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
@@ -2143,88 +2144,87 @@ export default function CaseDetailPage() {
             {c.invoices.length === 0 ? (
               <EmptyLine text={pageText.noInvoices} />
             ) : (
-              <div className="max-w-full overflow-x-auto">
-                <table className="data-table min-w-[760px]">
-                  <thead>
-                    <tr>
-                      <th>{pageText.invoiceNumber}</th>
-                      <th>{pageText.status}</th>
-                      <th>{pageText.total}</th>
-                      <th>{pageText.dueDate}</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {c.invoices.map((invoice) => (
-                      <tr key={invoice.id}>
-                        <td className="font-mono font-bold">
-                          {invoice.invoiceNumber}
-                        </td>
-
-                        <td>
-                          <span
-                            className={BADGE_CLASS}
-                            style={badgeVisualStyle(invoice.status)}
-                          >
-                            {invoiceStatusText[invoice.status] ||
-                              invoice.status}
-                          </span>
-                        </td>
-
-                        <td
-                          dir="ltr"
-                          className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
+              <ResponsiveTable
+                isRtl={isRtl}
+                rows={c.invoices}
+                getRowId={(invoice) => invoice.id}
+                emptyMessage={pageText.noInvoices}
+                tableClassName="data-table min-w-[760px]"
+                columns={[
+                  {
+                    id: "invoiceNumber",
+                    header: pageText.invoiceNumber,
+                    cell: (invoice) => (
+                      <span className="font-mono font-bold">{invoice.invoiceNumber}</span>
+                    ),
+                  },
+                  {
+                    id: "status",
+                    header: pageText.status,
+                    cell: (invoice) => (
+                      <span className={BADGE_CLASS} style={badgeVisualStyle(invoice.status)}>
+                        {invoiceStatusText[invoice.status] || invoice.status}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "total",
+                    header: pageText.total,
+                    cell: (invoice) => (
+                      <span
+                        dir="ltr"
+                        className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
+                      >
+                        {formatMoney(invoice.total)}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "dueDate",
+                    header: pageText.dueDate,
+                    cell: (invoice) => (invoice.dueDate ? formatDate(invoice.dueDate) : "-"),
+                  },
+                  {
+                    id: "actions",
+                    header: "",
+                    cell: (invoice) => (
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/dashboard/invoices/${invoice.publicId ?? invoice.id}`}
+                          className="inline-flex items-center rounded-lg border px-2 py-1 text-xs font-bold hover:underline"
+                          style={{
+                            background: "var(--green-soft)",
+                            color: "var(--text)",
+                            borderColor: "var(--border)",
+                          }}
                         >
-                          {formatMoney(invoice.total)}
-                        </td>
+                          {pageText.open}
+                        </Link>
 
-                        <td>
-                          {invoice.dueDate ? formatDate(invoice.dueDate) : "-"}
-                        </td>
-
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <Link
-                              href={`/dashboard/invoices/${invoice.publicId ?? invoice.id}`}
-                              className="inline-flex items-center rounded-lg border px-2 py-1 text-xs font-bold hover:underline"
-                              style={{
-                                background: "var(--green-soft)",
-                                color: "var(--text)",
-                                borderColor: "var(--border)",
-                              }}
-                            >
-                              {pageText.open}
-                            </Link>
-
-                            <button
-                              type="button"
-                              onClick={() => deleteInvoice(invoice)}
-                              disabled={
-                                invoice.payments.length > 0 || caseArchived
-                              }
-                              title={
-                                caseArchived
-                                  ? pageText.archivedInvoiceBlocked
-                                  : invoice.payments.length > 0
-                                    ? isArabic
-                                      ? "لا يمكن حذف فاتورة مرتبطة بدفعة"
-                                      : "Cannot delete an invoice linked to a payment"
-                                    : isArabic
-                                      ? "حذف الفاتورة"
-                                      : "Delete invoice"
-                              }
-                              className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              {pageText.delete}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        <button
+                          type="button"
+                          onClick={() => deleteInvoice(invoice)}
+                          disabled={invoice.payments.length > 0 || caseArchived}
+                          title={
+                            caseArchived
+                              ? pageText.archivedInvoiceBlocked
+                              : invoice.payments.length > 0
+                                ? isArabic
+                                  ? "لا يمكن حذف فاتورة مرتبطة بدفعة"
+                                  : "Cannot delete an invoice linked to a payment"
+                                : isArabic
+                                  ? "حذف الفاتورة"
+                                  : "Delete invoice"
+                          }
+                          className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {pageText.delete}
+                        </button>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
             )}
           </SectionCard>
 
@@ -2245,114 +2245,118 @@ export default function CaseDetailPage() {
             {c.payments.length === 0 ? (
               <EmptyLine text={pageText.noPayments} />
             ) : (
-              <div className="max-w-full overflow-x-auto">
-                <table className="data-table min-w-[760px]">
-                  <thead>
-                    <tr>
-                      <th>{pageText.date}</th>
-                      <th>{pageText.amount}</th>
-                      <th>{pageText.method}</th>
-                      <th>{pageText.status}</th>
-                      <th>{pageText.invoice}</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {c.payments.map((payment) => (
-                      <tr key={payment.id}>
-                        <td className="text-sm">
-                          {payment.paidAt ? formatDate(payment.paidAt) : "-"}
-                        </td>
-
-                        <td
-                          dir="ltr"
-                          className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
+              <ResponsiveTable
+                isRtl={isRtl}
+                rows={c.payments}
+                getRowId={(payment) => payment.id}
+                emptyMessage={pageText.noPayments}
+                tableClassName="data-table min-w-[760px]"
+                columns={[
+                  {
+                    id: "date",
+                    header: pageText.date,
+                    cell: (payment) => (
+                      <span className="text-sm">
+                        {payment.paidAt ? formatDate(payment.paidAt) : "-"}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "amount",
+                    header: pageText.amount,
+                    cell: (payment) => (
+                      <span
+                        dir="ltr"
+                        className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
+                      >
+                        {formatMoney(payment.amount)}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "method",
+                    header: pageText.method,
+                    cell: (payment) => (
+                      <span style={{ color: "var(--text-2)" }}>
+                        {methodText[payment.method] || payment.method}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "status",
+                    header: pageText.status,
+                    cell: (payment) => (
+                      <span className={BADGE_CLASS} style={badgeVisualStyle(payment.status)}>
+                        {paymentStatusText[payment.status] || payment.status}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "invoice",
+                    header: pageText.invoice,
+                    cell: (payment) =>
+                      payment.invoice ? (
+                        <Link
+                          href={`/dashboard/invoices/${payment.invoice.publicId ?? payment.invoice.id}`}
+                          className="inline-flex items-center rounded-lg border px-2 py-1 text-xs font-bold hover:underline"
+                          style={{
+                            background: "var(--green-soft)",
+                            color: "var(--text)",
+                            borderColor: "var(--border)",
+                          }}
                         >
-                          {formatMoney(payment.amount)}
-                        </td>
+                          {payment.invoice.invoiceNumber}
+                        </Link>
+                      ) : (
+                        "-"
+                      ),
+                  },
+                  {
+                    id: "actions",
+                    header: "",
+                    cell: (payment) => (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (caseArchived) {
+                            toast.error(pageText.archivedPaymentDeleteBlocked);
+                            return;
+                          }
 
-                        <td style={{ color: "var(--text-2)" }}>
-                          {methodText[payment.method] || payment.method}
-                        </td>
+                          if (payment.invoice) {
+                            toast.error(
+                              isArabic
+                                ? "لا يمكن حذف دفعة مرتبطة بفاتورة. افتح الفاتورة وغيّر حالتها أولًا."
+                                : "Cannot delete a payment linked to an invoice. Open the invoice and change its status first.",
+                            );
+                            return;
+                          }
 
-                        <td>
-                          <span
-                            className={BADGE_CLASS}
-                            style={badgeVisualStyle(payment.status)}
-                          >
-                            {paymentStatusText[payment.status] ||
-                              payment.status}
-                          </span>
-                        </td>
-
-                        <td>
-                          {payment.invoice ? (
-                            <Link
-                              href={`/dashboard/invoices/${payment.invoice.publicId ?? payment.invoice.id}`}
-                              className="inline-flex items-center rounded-lg border px-2 py-1 text-xs font-bold hover:underline"
-                              style={{
-                                background: "var(--green-soft)",
-                                color: "var(--text)",
-                                borderColor: "var(--border)",
-                              }}
-                            >
-                              {payment.invoice.invoiceNumber}
-                            </Link>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (caseArchived) {
-                                toast.error(
-                                  pageText.archivedPaymentDeleteBlocked,
-                                );
-                                return;
-                              }
-
-                              if (payment.invoice) {
-                                toast.error(
-                                  isArabic
-                                    ? isArabic
-                                      ? "لا يمكن حذف دفعة مرتبطة بفاتورة. افتح الفاتورة وغيّر حالتها أولًا."
-                                      : "Cannot delete a payment linked to an invoice. Open the invoice and change its status first."
-                                    : "Cannot delete a payment linked to an invoice. Open the invoice and change its status first.",
-                                );
-                                return;
-                              }
-
-                              setDeleteId(payment.id);
-                            }}
-                            title={
-                              caseArchived
-                                ? pageText.archivedPaymentDeleteBlocked
-                                : payment.invoice
-                                  ? isArabic
-                                    ? "دفعة مرتبطة بفاتورة"
-                                    : "Payment linked to an invoice"
-                                  : isArabic
-                                    ? "حذف الدفعة"
-                                    : "Delete payment"
-                            }
-                            className={`text-sm transition-colors ${
-                              payment.invoice || caseArchived
-                                ? "cursor-not-allowed text-gray-300"
-                                : "text-red-400 hover:text-red-600"
-                            }`}
-                          >
-                            🗑
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          setDeleteId(payment.id);
+                        }}
+                        title={
+                          caseArchived
+                            ? pageText.archivedPaymentDeleteBlocked
+                            : payment.invoice
+                              ? isArabic
+                                ? "دفعة مرتبطة بفاتورة"
+                                : "Payment linked to an invoice"
+                              : isArabic
+                                ? "حذف الدفعة"
+                                : "Delete payment"
+                        }
+                        className={`text-sm transition-colors ${
+                          payment.invoice || caseArchived
+                            ? "cursor-not-allowed text-gray-300"
+                            : "text-red-400 hover:text-red-600"
+                        }`}
+                      >
+                        🗑
+                      </button>
+                    ),
+                  },
+                ]}
+              />
             )}
           </SectionCard>
 
