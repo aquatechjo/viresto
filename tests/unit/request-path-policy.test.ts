@@ -36,4 +36,10 @@ test("a locked office keeps only account, billing and the settings read", async 
   assert.equal(isSubscriptionExemptPath("/api/billingx", "GET"), false);
   assert.equal(isSubscriptionExemptPath("/api/authx", "GET"), false);
   assert.equal(isSubscriptionExemptPath("/api/cases", "GET"), false);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/export", "GET"), true);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/export", "POST"), false);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/deletion", "POST"), true);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/deletion", "GET"), false);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests/other", "GET"), false);
+  assert.equal(isSubscriptionExemptPath("/api/data-requests", "GET"), false);
 });

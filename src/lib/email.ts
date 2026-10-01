@@ -342,3 +342,74 @@ export async function sendTeamInvitationEmail({
 
   return response.json().catch(() => ({ ok: true }));
 }
+
+type SendOfficeDeletionRequestEmailInput = {
+  to: string[];
+  officeName: string;
+  officeSlug: string;
+  tenantId: string;
+  requestedByName: string;
+  requestedByEmail: string;
+  reason?: string | null;
+};
+
+// To the system admins when an office ADMIN asks for the office to be
+// deleted (POST /api/data-requests/deletion). Procedure: docs/data-requests.md.
+export async function sendOfficeDeletionRequestEmail({
+  to,
+  officeName,
+  officeSlug,
+  tenantId,
+  requestedByName,
+  requestedByEmail,
+  reason,
+}: SendOfficeDeletionRequestEmailInput) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const adminUrl = `${getAppUrl()}/admin?q=${encodeURIComponent(officeSlug)}`;
+
+  if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV OFFICE DELETION REQUEST] to=${to.join(",")} tenant=${tenantId}`);
+      return { skipped: true };
+    }
+
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  const reasonLine = reason ? `السبب: ${reason}` : "لم يُذكر سبب.";
+
+  const response = await externalFetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: getEmailFrom(),
+      reply_to: requestedByEmail,
+      to,
+      subject: `طلب حذف مكتب: ${officeName} - ${getAppName()}`,
+      text: `طلب ${requestedByName} (${requestedByEmail}) حذف المكتب "${officeName}" (${officeSlug}، ${tenantId}).\n${reasonLine}\nلوحة الإدارة: ${adminUrl}\nالإجراء: docs/data-requests.md`,
+      html: `
+        <div dir="rtl" style="font-family:Arial,sans-serif;background:#f3f7f6;padding:32px;color:#123f40;">
+          <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #dbe8e5;border-radius:20px;padding:28px;">
+            <h1 style="margin:0 0 12px;font-size:22px;color:#082c2d;">طلب حذف مكتب</h1>
+            <p style="margin:0 0 12px;font-size:15px;line-height:1.8;color:#617e7c;">طلب ${escapeHtml(requestedByName)} (<span dir="ltr">${escapeHtml(requestedByEmail)}</span>) حذف المكتب <b>${escapeHtml(officeName)}</b>.</p>
+            <p style="margin:0 0 12px;font-size:13px;line-height:1.8;color:#617e7c;" dir="ltr">${escapeHtml(officeSlug)} · ${escapeHtml(tenantId)}</p>
+            <p style="margin:0 0 22px;font-size:14px;line-height:1.8;color:#617e7c;">${escapeHtml(reasonLine)}</p>
+            <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#b87333;color:#071f20;text-decoration:none;font-weight:800;border-radius:14px;padding:13px 22px;">فتح لوحة الإدارة</a>
+            <p style="margin:22px 0 0;font-size:12px;line-height:1.8;color:#789c99;">لم يُحذف شيء بعد. اتبع الإجراء في docs/data-requests.md.</p>
+          </div>
+        </div>`,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Failed to send office deletion request email: ${response.status} ${errorText}`,
+    );
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}

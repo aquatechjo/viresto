@@ -10,6 +10,7 @@ import { initials } from "@/lib/utils";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { AI_DATA_POLICY_VERSION } from "@/lib/ai-consent";
+import OfficeDataCard from "@/components/settings/OfficeDataCard";
 
 type Locale = "ar" | "en";
 type EmailChangeStep = "OLD_CODE" | "NEW_EMAIL" | "NEW_CODE";
@@ -1616,6 +1617,9 @@ export default function SettingsPage() {
                 </div>
               )}
             </VDSCard>
+
+            {/* Office data: export and deletion request (ADMIN) */}
+            {user.role === "ADMIN" ? <OfficeDataCard locale={locale} /> : null}
           </div>
         </div>
       </div>

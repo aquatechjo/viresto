@@ -37,6 +37,10 @@ export const AUDIT_ACTIVITY_TYPES = [
   // Billing
   "BILLING_PLAN_CHANGED",
 
+  // Office data requests (export, deletion)
+  "DATA_EXPORTED",
+  "OFFICE_DELETION_REQUESTED",
+
   // Team and roles
   "TEAM_MEMBER_UPDATED",
   "TEAM_MEMBER_DISABLED",
