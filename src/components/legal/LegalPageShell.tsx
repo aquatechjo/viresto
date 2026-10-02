@@ -15,7 +15,22 @@ type LegalPageShellProps = {
   title: string;
   description: string;
   sections: LegalSection[];
+  /** ISO date (YYYY-MM-DD), the policy version in src/lib/legal-policy.ts. */
+  effectiveDate: string;
 };
+
+const MONTHS = {
+  ar: ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"],
+  en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+} as const;
+
+function formatEffectiveDate(isoDate: string, locale: LegalLocale) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const monthName = MONTHS[locale][month - 1];
+  return locale === "ar"
+    ? `تاريخ النفاذ: ${day} ${monthName} ${year}`
+    : `Effective date: ${monthName} ${day}, ${year}`;
+}
 
 const NAVIGATION = {
   ar: {
@@ -24,7 +39,6 @@ const NAVIGATION = {
     terms: "الشروط والأحكام",
     subscription: "الاشتراك والإلغاء والاسترداد",
     language: "English",
-    effective: "تاريخ النفاذ: 25 سبتمبر 2026",
     operator: "Viresto منصة تُشغّلها Aqua.Tech — عمّان، الأردن",
     infoContact: "للاستفسارات العامة والقانونية:",
     supportContact: "لطلبات الخصوصية والدعم والإبلاغ الأمني:",
@@ -35,7 +49,6 @@ const NAVIGATION = {
     terms: "Terms & Conditions",
     subscription: "Subscription, Cancellation & Refunds",
     language: "العربية",
-    effective: "Effective date: September 25, 2026",
     operator: "Viresto is operated by Aqua.Tech — Amman, Jordan",
     infoContact: "For general and legal enquiries:",
     supportContact: "For privacy, support, and security reports:",
@@ -48,6 +61,7 @@ export default function LegalPageShell({
   title,
   description,
   sections,
+  effectiveDate,
 }: LegalPageShellProps) {
   const isArabic = locale === "ar";
   const copy = NAVIGATION[locale];
@@ -106,7 +120,7 @@ export default function LegalPageShell({
         <article className="min-w-0 rounded-[2rem] border border-emerald-300/10 bg-[#0b292a]/85 p-6 shadow-2xl shadow-black/25 sm:p-10">
           <div className="border-b border-emerald-300/10 pb-8">
             <p className="text-sm font-bold text-copper-300">
-              {copy.effective}
+              {formatEffectiveDate(effectiveDate, locale)}
             </p>
             <h1 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
               {title}

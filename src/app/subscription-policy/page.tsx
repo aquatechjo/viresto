@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from "@/lib/legal-policy";
 import type { Metadata } from "next";
 import LegalPageShell, {
   type LegalLocale,
@@ -173,6 +174,7 @@ export default async function SubscriptionPolicyPage({
       title={content.title}
       description={content.description}
       sections={content.sections}
+      effectiveDate={TERMS_VERSION}
     />
   );
 }

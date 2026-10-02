@@ -1,3 +1,4 @@
+import { PRIVACY_VERSION } from "@/lib/legal-policy";
 import type { Metadata } from "next";
 import LegalPageShell, {
   type LegalLocale,
@@ -76,6 +77,7 @@ const CONTENT: Record<
         ],
         paragraphs: [
           "يمكن إرسال طلبات الوصول أو التصحيح أو المحو أو الاعتراض إلى support@aquatechagency.com. قد نطلب معلومات مناسبة للتحقق من الهوية والصلاحية، خصوصًا عندما يتعلق الطلب ببيانات يديرها مكتب محاماة داخل حسابه.",
+          "نعالج طلبات تصدير البيانات وحذفها خلال 30 يومًا من تاريخ استلام الطلب.",
         ],
       },
       {
@@ -152,6 +154,7 @@ const CONTENT: Record<
         ],
         paragraphs: [
           "Privacy and data-rights requests may be sent to support@aquatechagency.com. We may request appropriate information to verify identity and authority, particularly where the request concerns data controlled by a law office inside its account.",
+          "We process data export and deletion requests within 30 days of receiving the request.",
         ],
       },
       {
@@ -186,6 +189,7 @@ export default async function PrivacyPage({
       title={content.title}
       description={content.description}
       sections={content.sections}
+      effectiveDate={PRIVACY_VERSION}
     />
   );
 }

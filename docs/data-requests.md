@@ -70,5 +70,4 @@ no one again.
 6. **Confirm to the requester** by email that the office was deleted. Database
    backups (Neon point-in-time history) age out on their own schedule.
 
-The time from request to deletion is not yet stated in the privacy policy;
-see PROJECT_STATUS.md for that open decision.
+The privacy policy (section 6, version `2026-10-02`) commits to processing export and deletion requests within 30 days of receiving them. Count from the date the request email arrives.
