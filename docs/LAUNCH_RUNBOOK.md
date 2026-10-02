@@ -44,9 +44,9 @@ neonctl branches list --project-id <NEON_PROJECT_ID>
 - [ ] A **production** env file for the scripts in §4 and §7, outside the
       repo, e.g. `C:\secure\viresto-prod.env`, containing only
       `DATABASE_URL` and `DIRECT_URL` (direct, non-pooler host) of the
-      Production branch, plus `ENCRYPTION_KEY`, `ENCRYPTION_KEY_ID`,
-      `ENCRYPTION_PREVIOUS_KEYS` and `SEARCH_HASH_SECRET` with the values
-      **after** §1. Delete it at the end of the day.
+      Production branch, plus `ENCRYPTION_KEY`, `ENCRYPTION_KEY_ID` and
+      `SEARCH_HASH_SECRET` with the values **after** §1. Delete it at the end
+      of the day.
 
 ---
 
@@ -105,48 +105,42 @@ Effects: `JWT_SECRET` signs everyone out (fine before launch);
 `CRON_SECRET` is sent by Vercel Cron automatically; `HEALTHCHECK_SECRET` must
 also be updated in the `Production smoke` GitHub secret / monitor.
 
+`SEARCH_HASH_SECRET` is rotated too. It keys the HMACs stored in
+`Client.emailHash` / `phoneHash` / `nationalIdHash` (search and duplicate
+detection), and there is no re-hash script, but production has **zero
+clients** (checked 2026-10-02), so no stored hash depends on the old value.
+Once clients exist, rotating it needs a re-hash script first.
+
 ```powershell
-foreach ($n in "JWT_SECRET","VERIFICATION_SECRET","PASSWORD_RESET_SECRET","CRON_SECRET","HEALTHCHECK_SECRET") {
+foreach ($n in "JWT_SECRET","VERIFICATION_SECRET","PASSWORD_RESET_SECRET","CRON_SECRET","HEALTHCHECK_SECRET","SEARCH_HASH_SECRET") {
   Set-ProdEnv $n (New-Secret)
 }
 ```
 
-**Do not rotate `SEARCH_HASH_SECRET`.** Client email, phone and national-ID
-search and duplicate detection use HMACs stored in the database
-(`emailHash`, `phoneHash`, `nationalIdHash`); there is no re-hash script, so a
-new secret would silently break search and duplicate checks for every
-existing client. (Deferred: write a re-hash script, then rotate.)
+### 1c. `ENCRYPTION_KEY`: clean rotation (no previous keys)
 
-### 1c. `ENCRYPTION_KEY` via the keyring (keep the old key)
+Decision (2026-10-02): a new key, and the old one is **not** kept. Production
+holds exactly one encrypted value: one user's 2FA secret, in the legacy
+format, under a key that is not available (Vercel hides sensitive values). No
+client rows exist. That user's 2FA is cleared in §4 and they re-enroll after
+launch, so nothing needs the old key.
 
-Client email, phone, national ID, address, notes and 2FA secrets are
-AES-256-GCM encrypted. Values carry the key id (`enc:v2:<keyId>:…`), and the
-app decrypts with `ENCRYPTION_KEY` (id `ENCRYPTION_KEY_ID`, default
-`primary`) or any key in `ENCRYPTION_PREVIOUS_KEYS` (`id=base64,…`). There is
-**no re-encryption script**: existing rows stay under the old key, so the old
-key must stay in `ENCRYPTION_PREVIOUS_KEYS` indefinitely.
-
-1. Read the current values in Vercel → Settings → Environment Variables →
-   Production: `ENCRYPTION_KEY` and `ENCRYPTION_KEY_ID` (if unset, the id is
-   `primary`). Also check `ENCRYPTION_PREVIOUS_KEYS` (usually empty).
-2. Rotate:
+`check-env` requires standard base64 (`A-Z a-z 0-9 + /`, `=` padding) that
+decodes to exactly 32 bytes; `ENCRYPTION_KEY_ID` must match
+`^[A-Za-z0-9._-]{1,40}$`. The generator below produces that (44 characters).
 
 ```powershell
-$oldId  = Read-Host "Current ENCRYPTION_KEY_ID (blank = primary)"; if (-not $oldId) { $oldId = "primary" }
-$oldKey = Read-Host "Current ENCRYPTION_KEY (base64)"
-$oldPrevious = Read-Host "Current ENCRYPTION_PREVIOUS_KEYS (blank if none)"
-$newId  = "k" + (Get-Date -Format "yyyyMMdd")
-$newKey = node -e "process.stdout.write(require('crypto').randomBytes(32).toString('base64'))"
-$previous = (@("$oldId=$oldKey") + ($oldPrevious -split "," | Where-Object { $_ })) -join ","
-
-Set-ProdEnv ENCRYPTION_KEY_ID $newId
+$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); $newKey = [Convert]::ToBase64String($b); Remove-Variable b
 Set-ProdEnv ENCRYPTION_KEY $newKey
-Set-ProdEnv ENCRYPTION_PREVIOUS_KEYS $previous
-Remove-Variable oldKey, newKey, previous
+Set-ProdEnv ENCRYPTION_KEY_ID ("k" + (Get-Date -Format "yyyyMMdd"))
+vercel env rm ENCRYPTION_PREVIOUS_KEYS production --yes 2>$null   # must not exist
+Remove-Variable newKey
 ```
 
-3. Store the new key and the full previous-keys value in the password
-   manager. Losing any of them makes the matching rows unreadable.
+Store the new key in the password manager. From now on it is the only key
+that can read client fields and 2FA secrets; losing it makes them
+unreadable. Rotating it again later must use the keyring
+(`ENCRYPTION_PREVIOUS_KEYS`) once real data exists.
 
 ### 1d. Variables to set, check or delete
 
@@ -228,6 +222,31 @@ Then:
 npm run db:deploy
 npx prisma migrate status      # "Database schema is up to date!"
 ```
+
+**Clear the one 2FA enrolment** (§1c) now, before the new deployment goes
+live: the new `ENCRYPTION_KEY` cannot decrypt the old secret, so that user
+could not complete a 2FA login. In the Neon SQL editor on the Production
+branch, first see who it is:
+
+```sql
+SELECT "email", "role", "isSystemAdmin"
+FROM "User"
+WHERE "twoFactorEnabled" = true OR "twoFactorSecret" IS NOT NULL;
+```
+
+Expect exactly one row. Then clear it (the same columns the app's own
+"disable 2FA" clears; there are no backup or recovery codes in the schema):
+
+```sql
+UPDATE "User"
+SET "twoFactorEnabled" = false,
+    "twoFactorSecret"  = NULL,
+    "updatedAt"        = now()
+WHERE "twoFactorEnabled" = true OR "twoFactorSecret" IS NOT NULL;
+```
+
+It must report `UPDATE 1`. Run the `SELECT` again: no rows. After launch,
+that user signs in with email and password and re-enables 2FA in Settings.
 
 If `db:deploy` fails, go to §9.2. Do **not** deploy the app (§5) on a
 partially migrated database: `requireAuth` reads the trial columns on every
@@ -372,7 +391,7 @@ announce the launch until 1-5 pass.
   → **Instant Rollback** (or `vercel rollback <PREVIOUS_DEPLOYMENT_URL>`),
   then `npm run smoke:production`.
   - Caveat: a rolled-back deployment uses its **old** env, i.e. the old
-    `ENCRYPTION_KEY` without the new one. Client fields written by the new
+    `ENCRYPTION_KEY` (and old `SEARCH_HASH_SECRET`) without the new ones. Client fields written by the new
     version are then unreadable until you roll forward. If real offices have
     written data, prefer a roll-forward fix over a rollback.
   - The old deployment also has the old Polar webhook secret: webhooks return
