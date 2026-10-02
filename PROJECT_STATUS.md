@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-10-01 (تدقيق ما قبل الإطلاق `AUDIT_REPORT.md`: كل البنود عدا L1 (مقبول كما هو) — آخرها الدفعة الثالثة: M3، M4، M5، M7، L9، L10 + إنهاء الجلسات عند تغيير كلمة المرور — القسم 2.2)
+> آخر تحديث: 2026-10-02 (الوضع الداكن الدائم للصفحات العامة، وفحص ما قبل الإطلاق النهائي، و`docs/LAUNCH_RUNBOOK.md` — القسم 2.2. تدقيق `AUDIT_REPORT.md`: كل البنود مغلقة أو مقبولة، والمفتوح مذكور في القسم 2.2)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -97,7 +97,7 @@
 - الكاش in-memory لكل instance: بعد الدفع قد تبقى instances أخرى دافئة على القفل حتى 5 ثوانٍ.
 - ~~`checkout` لا يعتبر `PAST_DUE` اشتراكًا حيًا، فاختيار خطة أثناء past_due يبدأ checkout جديدًا~~: أُصلح في `731389b` (القسم 2.2، البند 4).
 
-## 2.2 تدقيق ما قبل الإطلاق (`AUDIT_REPORT.md`) — 🟡 قيد التنفيذ (2026-09-30)
+## 2.2 تدقيق ما قبل الإطلاق (`AUDIT_REPORT.md`) — ✅ مكتمل (2026-10-02)، ⏳ غير مرفوع وغير منشور
 
 التقرير في `AUDIT_REPORT.md` (غير ملتزم به، ملف عمل): 2 Blockers، 4 High، 7 Medium، 10 Low. خطة المستخدم: إصلاح **B2 ← B1 ← H1** بالترتيب، commit لكل بند، والتوقف للمراجعة بعد كل واحد.
 
@@ -214,6 +214,47 @@
 - **لم يُلتزم به عمدًا:** `.claude/` (`launch.json` و`scheduled_tasks.lock`)، `AUDIT_REPORT.md` (ملف عمل)، و**`CLAUDE.md`**: `next dev` 16.3 يضيف له تلقائيًا كتلة `nextjs-agent-rules` (تحققت من `node_modules/next/dist/server/lib/generate-agent-files.js`). قرارك: التزام بها، أو `agentRules: false` في `next.config.js` لإيقافها.
 - **معروف، قديم، لم يُصلح:** `npx playwright test` **يعلق بعد انتهاء كل الاختبارات** عندما يشغّل Playwright سيرفر `npm run dev` بنفسه على Windows (تكرر بإعدادات HEAD أيضًا، أي ليس من تغييراتك): لا يطبع الملخص ويبقى سيرفر next على المنفذ 3000. مع سيرفر يعمل مسبقًا (`reuseExistingServer`) ينتهي طبيعيًا. وأيضًا `P2024` (مهلة pool الاتصالات) في سجل السيرفر أثناء E2E من جهاز التطوير إلى Neon.
 - **بناء Vercel:** `build` = `prisma generate && next build` (و`prebuild` = فحص env)؛ لا `vercel-build` ولا `buildCommand` في `vercel.json`. **أي أن البناء لا يشغّل `prisma migrate deploy`**؛ الـ migrations تُطبّق يدويًا بـ `npm run db:deploy`. لم أستطع قراءة إعدادات مشروع Vercel نفسه (اتصال Vercel هنا ليس له صلاحية على فريق `aqua-tech`)، فإن كان هناك Build Command مخصص في لوحة Vercel فهو يغلب على هذا.
+
+### ✅ الوضع الداكن الدائم للصفحة الرئيسية والصفحات العامة (2026-10-02، غير مرفوع)
+| Commit | ما تم |
+|---|---|
+| `85d5d84` | الصفحة الرئيسية `/` داكنة دائمًا. **كانت معطوبة في الوضع الفاتح:** `--brand-canvas` يصير `#f3f7f6` خلف نص أبيض، و`color-scheme` فاتح. الثيم مخصص (لا next-themes): Tailwind `darkMode: 'class'` + متغيرات `globals.css` + `localStorage["theme"]`. `src/lib/theme.ts`: `FORCED_DARK_PATHS` و`resolveTheme` و`applyTheme` والسكربت السابق للرسم مبني من نفس القائمة؛ على المسارات المفروضة: `dark` و`color-scheme: dark` بلا قراءة أو كتابة لـ `localStorage`. `ThemeProvider` يعيد التطبيق مع كل تغيير مسار (layout effect، فلا وميض عند التنقل). لا يوجد زر ثيم في الصفحة الرئيسية (فقط في TopBar الداشبورد). أول زيارة للرئيسية لم تعد تحفظ تفضيل النظام. |
+| `ee2af27` | **قرار المستخدم:** كل الصفحات العامة داكنة أيضًا: `/pricing`، `/login`، `/register`، `/forgot-password`، `/reset-password`، `/verify-email`، `/join-team`، `/privacy`، `/terms`، `/subscription-policy`. قبلها في الوضع الفاتح: عنوان forgot-password داكن على داكن، بطاقة Pro في التسعير باهتة، والصفحات القانونية بطاقات داكنة على خلفية فاتحة. `/dashboard` و`/admin` تتبع ثيم المستخدم. |
+| `d2367bf` | التزام كتلة `nextjs-agent-rules` في `CLAUDE.md` (يضيفها `next dev` 16.3). |
+
+- **التحقق:** اختبار وحدة يشغّل السكربت الحقيقي في sandbox (كل المسارات العامة × كل الحالات المخزنة × OS، بلا وصول للتخزين). headless بثيم التطبيق فاتح وOS فاتح: الصفحات الـ 11 داكنة من أول حالة مرصودة (لا وميض)، و`theme` المخزن يبقى `light`، و`/dashboard` و`/dashboard/settings` فاتحة بعد الدخول.
+- **ملاحظة:** أي صفحة عامة جديدة لاحقًا يجب إضافتها إلى `FORCED_DARK_PATHS` (مسارات دقيقة، بلا مسارات فرعية حاليًا). صفحة 404 لا يراها الزائر غير المسجّل (المسارات المجهولة تُحوَّل إلى `/login`).
+
+### ✅ فحص ما قبل الإطلاق النهائي (2026-10-02)
+- **الشجرة:** نظيفة عدا `.claude/` و`AUDIT_REPORT.md` و`next-env.d.ts` (يتقلّب بين نسختي `next dev` و`next build`).
+- **الفحوص:** lint نظيف، typecheck نظيف، `test:unit` **229/229**، `test:integration` **41/41** (8 ملفات)، `next build` ناجح (تحذيرا Upstash محليًا فقط لأن `.env.local` يفرغهما)، فحص الانحراف (`migrate diff` على `viresto_shadow`) = **لا فرق**، `npm audit` = **0 ثغرات**.
+- **`AUDIT_REPORT.md`:** B1 `bc3ba0b`، B2 `b552d3c`، H1 `af047ed`، H2 `8df75ee`، H3 `2faddf2`، H4 `80b4764`، M1 `6a057cd`، M2 `60a5589`، M3 `e5b6bc7`، M4 `ffbfe03` + `e6dd74c`، M5 `9885e82`، M6 `3ca156e`، M7 `38ab3e7`، L1 مقبول (قرار المستخدم)، L2 `184e353`، L3 `eb6ac2e`، L4 `cc3217e`، L5 `ced6ceb`، L6 `c06d4ba`، L7 `df7d7b5`، L8 `2741a6e`، L9 `db1fe8a`، L10 `a2d7920`؛ وبند الـ checkout الثاني `731389b`. تحققت أن كل commit موجود في `main`.
+- **ما زال مفتوحًا من التقرير (يحتاج قرارك أو مؤجَّل صراحةً):**
+  - **L2 (جزئي):** التسجيل ما زال يعطي 409 مختلفة للبريد والهاتف (تعداد الحسابات). التقرير: اقبله أو ادمج الرسائل. لا قرار مسجّل.
+  - **L8 (جزئي):** `style-src 'unsafe-inline'` باقٍ؛ التقرير نفسه يعتبره مقبولًا حاليًا.
+  - **L9 (جزئي):** `/api/dashboard-stats` و`/api/activity?withTotal=1` بلا حد معدل (التقرير أوصى بالبحث والتلخيص فقط، وهما مُنفّذان).
+  - **M5 (جزئي):** E2E في CI ما زال على pull requests وتشغيل يدوي فقط، لا على push.
+  - **M4:** مهلة 30 يومًا في سياسة الخصوصية (بانتظارك).
+  - "ملاحظات النشر" في التقرير (نقطة استرجاع، `migrate status`، شراء حقيقي): مغطاة في `docs/LAUNCH_RUNBOOK.md`.
+- **نظرة جديدة على ما أضافته الإصلاحات (لا مشاكل جديدة مانعة):**
+  - الفوترة والـ webhooks: معالجة الأحداث كما بعد H3/L6 (جلب الحالة من Polar، منع التكرار بعد النجاح فقط، الاسترداد الكامل يلغي). لا تغيير منذ ذلك.
+  - إعفاءات القفل: مسارات دقيقة + method، وكلها ADMIN فقط (الـ 402 يُتخطّى، والدور ما زال يُفحص). مسار ملف المستند `^/api/data-requests/documents/[^/]+$` GET فقط.
+  - مسارات التصدير: محصورة بالمكتب، لا أسرار، محدودة المعدل ومسجّلة؛ فشل القراءة يقطع التنزيل.
+  - L10: غلاف `fetch` يمس فقط `/api/` من نفس الأصل برد 402 وكود `SUBSCRIPTION_REQUIRED` على صفحات غير مسموحة؛ طلبات RSC وأي 402 آخر تمر كما هي.
+  - الثيم: لا `trailingSlash` ولا redirects ولا `basePath` في `next.config.js`، فالمسارات الدقيقة كافية. `ThemeProvider` صار يكتب `localStorage["theme"]` عند كل تنقل لصفحة غير مفروضة (نفس القيمة؛ كان يكتبها عند التحميل فقط).
+  - **خطر نشر مكتشف:** migration `20260922020000_drop_subscription_payment` تحذف جدول `SubscriptionPayment`. الكود قبل `5fd940d` (2026-09-22) كان يستخدمه في `/admin` وحذف المكتب. إن كان الإنتاج على commit أقدم من `5fd940d` فستتعطل هاتان بين `db:deploy` والنشر. `origin/main` (`615024d`) لا يستخدمه. الـ runbook يطلب التحقق من commit الإنتاج وأن الجدول فارغ.
+- **migrations الإنتاج (`db:deploy`) بالترتيب** (حسب آخر `migrate status` للمستخدم بعد B2، بالإضافة لما أُضيف بعده؛ لم أتصل بقاعدة الإنتاج):
+  1. `20260922020000_drop_subscription_payment` (حذف جدول)
+  2. `20260925000000_subscription_trial_starts_at` (عمود nullable)
+  3. `20260925010000_subscription_past_due_since` (عمود nullable)
+  4. `20260930010000_processed_webhook` (جدول جديد)
+  5. `20261001000000_subscription_currency_default_usd` (قيم افتراضية فقط)
+  و`20260930000000_add_public_ids` معلَّمة مسبقًا كمطبّقة على الإنتاج.
+- **متغيرات Vercel Production:**
+  - **مطلوبة (فحص env يفشل البناء بدونها):** `DATABASE_URL`، `DIRECT_URL`، `CLOUDINARY_CLOUD_NAME`، `CLOUDINARY_API_KEY`، `CLOUDINARY_API_SECRET`، `UPSTASH_REDIS_REST_URL`، `UPSTASH_REDIS_REST_TOKEN`، `RESEND_API_KEY`، `EMAIL_FROM`، `CRON_SECRET`، `ALLOWED_SERVER_ACTION_ORIGINS`، `POLAR_ENVIRONMENT` (= `production`)، `JWT_SECRET`، `PASSWORD_RESET_SECRET`، `VERIFICATION_SECRET`، `SEARCH_HASH_SECRET`، `POLAR_ACCESS_TOKEN`، `POLAR_WEBHOOK_SECRET` (كلها ≥ 32 حرفًا، مختلفة، وليست placeholders)، `ENCRYPTION_KEY` (base64 لـ 32 بايت)، `APP_URL` أو `NEXT_PUBLIC_APP_URL` (https)، و`PUBLIC_REGISTER_ENABLED` = `NEXT_PUBLIC_REGISTER_ENABLED`؛ ومع التسجيل العام: `TURNSTILE_ENABLED=true` و`TURNSTILE_SECRET_KEY` و`NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
+  - **اختيارية:** `ENCRYPTION_KEY_ID` (افتراضي `primary`)، `ENCRYPTION_PREVIOUS_KEYS`، `HEALTHCHECK_SECRET` (مطلوب لـ `/api/health` وsmoke)، `OPENAI_API_KEY` (بدونه AI = 503)، `EMAIL_REPLY_TO`، `APP_NAME`، `AUTH_CACHE_TTL_MS`.
+  - **تغيّرت منذ `origin/main` (`615024d`):** حُذف `POLAR_ORGANIZATION_ID` (لم يعد يُقرأ). **صار إلزاميًا:** `POLAR_ENVIRONMENT=production` على الإنتاج (`3ca156e`). **جديدة ويجب ألا تُضبط في الإنتاج:** `E2E_RATE_LIMIT_BYPASS` (مُتجاهَل في الإنتاج أصلًا)، `PRISMA_TRANSACTION_TIMEOUT_MS` (للاختبارات). **قيم جديدة مطلوبة:** كل المفاتيح التي كانت على جهاز التطوير (التدوير في `docs/LAUNCH_RUNBOOK.md` §1). لا يوجد متغير جديد إلزامي آخر. لم أستطع قراءة متغيرات Vercel الفعلية (لا صلاحية على فريق `aqua-tech`)، ولا أعرف commit الإنتاج الحالي بالضبط (أقدم من `714fcbe` حسب هذا الملف)، فالمقارنة مع `origin/main`.
+- **`docs/LAUNCH_RUNBOOK.md` (`9fbbaf3`):** خطوات يوم الإطلاق بالترتيب بأوامر PowerShell: تدوير المفاتيح (منها `ENCRYPTION_KEY` عبر الـ keyring مع إبقاء القديم في `ENCRYPTION_PREVIOUS_KEYS`؛ و**عدم** تدوير `SEARCH_HASH_SECRET` لعدم وجود سكربت إعادة حساب)، فرع Neon احتياطي، `migrate status` والـ migrations الخمس، `db:deploy` قبل النشر، smoke وPolar وترحيل المكاتب للتجربة، شراء حقيقي واسترداد كامل، والتراجع (فشل البناء، نشر سيئ، فشل `db:deploy`). **تنبيه في الـ runbook:** الـ Instant Rollback يعيد env النشر القديم، أي بدون `ENCRYPTION_KEY` الجديد، فبيانات الموكلين المكتوبة بعد الإطلاق لن تُقرأ عليه؛ الأفضل الإصلاح للأمام بعد أول كتابة حقيقية.
 
 ## 3. تنظيف نظام الدفع اليدوي القديم (CliQ / تحويل بنكي) — ✅ مكتمل
 
@@ -455,8 +496,11 @@
 - الدفعة الثالثة: M5 `9885e82`، M3 `e5b6bc7`، M7 `38ab3e7`، إنهاء الجلسات عند تغيير كلمة المرور `14db6b4`، M4 `ffbfe03`، بنية الاختبار `3af4815`، L9 `db1fe8a`، L10 `a2d7920`، ملفات المستندات للمكتب المقفول `e6dd74c`. انظر القسم 2.2.
 - مراجعة والتزام تغييرات المستخدم: `f0a3315`، `b6d940b`، `d6341a7`، `9b7997d`، `d6cdbc1`، وإصلاح `create-case.spec` `0cacc5c`. انظر القسم 2.2.
 
+### ✅ تم (2026-10-02)
+- الوضع الداكن الدائم للرئيسية (`85d5d84`) ولكل الصفحات العامة (`ee2af27`، قرار المستخدم)؛ `CLAUDE.md` (`d2367bf`)؛ فحص ما قبل الإطلاق النهائي؛ `docs/LAUNCH_RUNBOOK.md` (`9fbbaf3`). انظر القسم 2.2.
+
 ### قيد التنفيذ
-- لا شيء.
+- لا شيء. التالي: الإطلاق باتباع `docs/LAUNCH_RUNBOOK.md` (بعد push، بقرار المستخدم).
 
 ### التالي (مقترح)
 1. ~~تشغيل E2E~~: 16/16 (2026-10-01). باقٍ: تعليق Playwright بعد الانتهاء على Windows عندما يشغّل السيرفر بنفسه (القسم 2.2).
@@ -468,7 +512,9 @@
 
 ### ⏳ بانتظارك
 - [ ] **سياسة الخصوصية: إضافة مهلة 30 يومًا لتنفيذ طلب حذف المكتب** (المستخدم سيضيفها بنفسه، 2026-10-01). بعدها يُحدَّث السطر الأخير في `docs/data-requests.md` الذي يقول إن المهلة غير مذكورة.
-- [ ] **`CLAUDE.md`:** التزام بكتلة `nextjs-agent-rules` التي يضيفها `next dev`، أو `agentRules: false` في `next.config.js` (القسم 2.2).
+- [x] ~~`CLAUDE.md`: كتلة `nextjs-agent-rules`~~: التُزمت في `d2367bf`.
+- [ ] **الإطلاق:** اتبع `docs/LAUNCH_RUNBOOK.md` بالترتيب؛ يغطي البنود التفصيلية أدناه (النشر، Polar، الـ seed، ترحيل المكاتب، المفاتيح). قبله: **push** لكل الـ commits المحلية (`main` متقدم 49 commit على origin بعد commit هذا الملف) والتأكد أن CI أخضر.
+- [ ] **قرارات مفتوحة من التقرير:** L2 (رسائل 409 للتسجيل: قبول أو دمج)، حد معدل لـ `dashboard-stats` و`activity?withTotal=1` (L9)، تشغيل E2E على push (M5)، وسكربت إعادة حساب hashes البحث قبل أي تدوير لـ `SEARCH_HASH_SECRET`.
 - [ ] **🚀 نشر نموذج التجربة (القسم 2.1) — بالترتيب:**
   - [x] ~~إصلاح B1 قبل النشر~~: `bc3ba0b` (القسم 2.2). **النشر يجب أن يشمل `bc3ba0b`**، وإلا أول شراء لأي مكتب في التجربة يفشل.
   - [x] ~~`migrate resolve --applied 20260930000000_add_public_ids` على الإنتاج (B2)~~: نفّذه المستخدم 2026-09-30.
