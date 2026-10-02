@@ -3,16 +3,29 @@
 // user's choice lives in localStorage["theme"] (ThemeToggle writes it);
 // without one the OS preference is used.
 //
-// Some public pages always render dark whatever that choice is (their
-// palette is built for a dark canvas). They never read or write the stored
+// Public pages always render dark whatever that choice is (their palettes
+// are built for a dark canvas). They never read or write the stored
 // choice, so the dashboard keeps the user's own theme.
 
 export type Theme = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "theme";
 
-// Exact pathnames. "/" is the landing page.
-export const FORCED_DARK_PATHS: readonly string[] = ["/"];
+// Exact pathnames: the landing page and every public (signed-out) page.
+// The dashboard and /admin follow the user's theme.
+export const FORCED_DARK_PATHS: readonly string[] = [
+  "/",
+  "/pricing",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+  "/join-team",
+  "/privacy",
+  "/terms",
+  "/subscription-policy",
+];
 
 export function isForcedDarkPath(pathname: string) {
   return FORCED_DARK_PATHS.includes(pathname);

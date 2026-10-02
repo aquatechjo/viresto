@@ -8,8 +8,8 @@ import {
   resolveTheme,
 } from "../../src/lib/theme";
 
-// The landing page is always dark; every other page follows the user's
-// stored theme, else the OS. The inline pre-paint script must make the same
+// The landing page and the public pages are always dark; every other page
+// follows the user's stored theme, else the OS. The inline pre-paint script must make the same
 // decision as resolveTheme, and must not touch localStorage on a
 // forced-dark page.
 
@@ -53,19 +53,35 @@ function runInitScript(pathname: string, stored: string | null, osPrefersDark: b
   };
 }
 
-test("the landing page is dark whatever the stored theme and OS preference", () => {
-  assert.deepEqual(FORCED_DARK_PATHS, ["/"]);
+const PUBLIC_PAGES = [
+  "/",
+  "/pricing",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+  "/join-team",
+  "/privacy",
+  "/terms",
+  "/subscription-policy",
+];
 
-  for (const stored of ["light", "dark", null, "garbage"]) {
-    for (const osPrefersDark of [true, false]) {
-      assert.equal(resolveTheme("/", stored, osPrefersDark), "dark");
+test("the landing and public pages are dark whatever the stored theme and OS preference", () => {
+  assert.deepEqual([...FORCED_DARK_PATHS].sort(), [...PUBLIC_PAGES].sort());
 
-      const run = runInitScript("/", stored, osPrefersDark);
-      assert.equal(run.theme, "dark", `stored=${stored} os=${osPrefersDark}`);
-      assert.equal(run.colorScheme, "dark");
-      assert.deepEqual(run.storageReads, [], "landing must not read the stored theme");
-      assert.deepEqual(run.storageWrites, [], "landing must not write the stored theme");
-      assert.equal(run.mediaQueried, false);
+  for (const pathname of PUBLIC_PAGES) {
+    for (const stored of ["light", "dark", null, "garbage"]) {
+      for (const osPrefersDark of [true, false]) {
+        assert.equal(resolveTheme(pathname, stored, osPrefersDark), "dark");
+
+        const run = runInitScript(pathname, stored, osPrefersDark);
+        assert.equal(run.theme, "dark", `${pathname} stored=${stored} os=${osPrefersDark}`);
+        assert.equal(run.colorScheme, "dark");
+        assert.deepEqual(run.storageReads, [], `${pathname} must not read the stored theme`);
+        assert.deepEqual(run.storageWrites, [], `${pathname} must not write the stored theme`);
+        assert.equal(run.mediaQueried, false);
+      }
     }
   }
 });
@@ -79,7 +95,7 @@ test("every other page follows the stored theme, else the OS, in the script and 
     ["garbage", false, "light"],
   ];
 
-  for (const pathname of ["/dashboard", "/login", "/pricing", "/dashboard/settings"]) {
+  for (const pathname of ["/dashboard", "/dashboard/settings", "/dashboard/billing", "/admin"]) {
     assert.equal(isForcedDarkPath(pathname), false, pathname);
     for (const [stored, osPrefersDark, expected] of cases) {
       assert.equal(resolveTheme(pathname, stored, osPrefersDark), expected);
@@ -91,8 +107,8 @@ test("every other page follows the stored theme, else the OS, in the script and 
   }
 });
 
-test("only the exact landing path is forced", () => {
-  for (const pathname of ["/x", "/dashboard", "//", "/index"]) {
+test("only the exact public paths are forced", () => {
+  for (const pathname of ["/x", "/dashboard", "//", "/index", "/login/x", "/pricing/", "/privacyx"]) {
     assert.equal(isForcedDarkPath(pathname), false, pathname);
   }
 });
