@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { Toaster } from "sonner";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import DynamicDocumentTitle from "@/components/DynamicDocumentTitle";
 import LatinDigitsInputBoundary from "@/components/LatinDigitsInputBoundary";
 
@@ -183,7 +184,7 @@ export default async function RootLayout({
           data-viresto-theme-init
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var root=document.documentElement;var stored=localStorage.getItem("theme");var theme=stored==="light"||stored==="dark"?stored:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");root.classList.toggle("dark",theme==="dark");root.dataset.theme="viresto";root.style.colorScheme=theme;}catch(error){}})();`,
+            __html: THEME_INIT_SCRIPT,
           }}
         />
         <script
