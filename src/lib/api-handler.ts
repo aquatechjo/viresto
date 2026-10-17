@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { err } from '@/lib/api-response'
 import { RateLimitUnavailableError } from '@/lib/rate-limit'
+import { reportError } from '@/lib/monitoring'
 
 export async function apiHandler(handler: () => Promise<Response>) {
   try {
@@ -12,6 +13,7 @@ export async function apiHandler(handler: () => Promise<Response>) {
     }
 
     console.error('[API_ERROR]', error)
+    reportError(error, { handler: 'apiHandler' })
 
     if (error instanceof Prisma.PrismaClientInitializationError) {
       return err('تعذر الاتصال بقاعدة البيانات. حاول مرة أخرى بعد قليل.', 503)

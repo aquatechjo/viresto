@@ -4,6 +4,7 @@ import { SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPolarClient } from "@/lib/polar";
 import { mapPolarStatus, syncSubscriptionFromPolar } from "@/lib/polar-subscription-sync";
+import { reportBillingIssue } from "@/lib/monitoring";
 
 // Daily safety net behind the Polar webhooks (AUDIT_REPORT.md H2). Webhooks
 // can be lost for longer than the 48 h renewal grace (a rotated secret, a
@@ -54,8 +55,19 @@ function log(event: string, fields: Record<string, unknown> = {}) {
     .join(" ");
   const message = `${RECONCILE_LOG_PREFIX} ${event}${line ? ` ${line}` : ""}`;
 
-  if (event === "done" || event === "skipped") console.info(message);
-  else console.warn(message);
+  if (event === "done" || event === "skipped") {
+    console.info(message);
+    return;
+  }
+
+  console.warn(message);
+  // Any drift means a webhook was lost: worth knowing even when fixed.
+  reportBillingIssue(
+    "polar-reconcile",
+    event === "drift" ? `drift_${String(fields.reason)}` : event,
+    event === "drift" || event === "not_found" ? "warning" : "error",
+    fields,
+  );
 }
 
 /** Why our row no longer matches Polar, or null when it does. */

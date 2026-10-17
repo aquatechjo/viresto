@@ -234,6 +234,12 @@ export function validateEnvironment(env) {
     );
   }
 
+  if (!valueOf("NEXT_PUBLIC_SENTRY_DSN")) {
+    warnings.push(
+      "NEXT_PUBLIC_SENTRY_DSN is missing; server and browser errors (including billing webhook failures) will not reach Sentry",
+    );
+  }
+
   return {
     errors: [...new Set(errors)],
     warnings: [...new Set(warnings)],

@@ -46,3 +46,12 @@ test("connect-src does not allow api.openai.com (only the server calls OpenAI)",
   assert.ok(connectSrc);
   assert.equal(connectSrc.includes("openai"), false);
 });
+
+test("connect-src allows Sentry ingest for browser error reports, nothing broader", () => {
+  const policy = buildContentSecurityPolicy("abcdefghijklmnop", false);
+  const connectSrc = policy.split(";").find((part) => part.trim().startsWith("connect-src")) ?? "";
+
+  assert.match(connectSrc, /https:\/\/\*\.ingest\.sentry\.io/);
+  assert.match(connectSrc, /https:\/\/\*\.ingest\.de\.sentry\.io/);
+  assert.equal(connectSrc.includes("https://*.sentry.io"), false);
+});

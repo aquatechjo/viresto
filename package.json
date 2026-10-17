@@ -36,6 +36,7 @@
     "@marsidev/react-turnstile": "^1.5.3",
     "@polar-sh/sdk": "^0.49.0",
     "@prisma/client": "^5.22.0",
+    "@sentry/nextjs": "11.4.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "bcryptjs": "^2.4.3",

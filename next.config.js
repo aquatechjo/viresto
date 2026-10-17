@@ -1,3 +1,5 @@
+const { withSentryConfig } = require('@sentry/nextjs')
+
 const allowedOrigins = process.env.ALLOWED_SERVER_ACTION_ORIGINS
   ? process.env.ALLOWED_SERVER_ACTION_ORIGINS.split(',').map((origin) => origin.trim())
   : []
@@ -24,4 +26,21 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Source maps go to Sentry only when all three are set (Vercel build env);
+// without them the build skips the upload instead of failing.
+const uploadSourceMaps = Boolean(
+  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT,
+)
+
+module.exports = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  telemetry: false,
+  widenClientFileUpload: true,
+  sourcemaps: {
+    disable: !uploadSourceMaps,
+    deleteSourcemapsAfterUpload: true,
+  },
+})

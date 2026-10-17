@@ -10,6 +10,7 @@ import {
   type PolarSyncResult,
 } from "@/lib/polar-subscription-sync";
 import { markWebhookProcessed, wasWebhookProcessed } from "@/lib/webhook-dedupe";
+import { reportBillingIssue } from "@/lib/monitoring";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,30 @@ function logFailure(reason: string, details: Record<string, unknown> = {}) {
     .join(" ");
 
   console.warn(`${POLAR_LOG_PREFIX} ${reason}${fields ? ` ${fields}` : ""}`);
+
+  const level = ALERT_LEVELS[reason];
+  if (level) reportBillingIssue("polar-webhook", reason, level, details);
 }
+
+// Which failures reach Sentry (area=billing). "error": an office may be
+// locked after paying, or open after a refund, until someone acts.
+// "warning": worth a look (a burst of bad signatures usually means the
+// secret no longer matches). Routine reasons (another app's product, a
+// partial refund, a duplicate) stay in the logs only.
+const ALERT_LEVELS: Record<string, "error" | "warning" | undefined> = {
+  secret_missing: "error",
+  verification_error: "error",
+  sync_failed: "error",
+  polar_fetch_failed: "error",
+  refund_revoke_failed: "error",
+  tenant_missing: "error",
+  tenant_conflict: "error",
+  tenant_not_found: "error",
+  signature_invalid: "warning",
+  unparseable_event: "warning",
+  subscription_not_found: "warning",
+  dedupe_mark_failed: "warning",
+};
 
 function json(status: number, body: Record<string, unknown> = {}) {
   return NextResponse.json({ success: status < 400, ...body }, { status });

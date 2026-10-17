@@ -3,6 +3,7 @@ import { err, ok } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { isBearerSecretAuthorized } from "@/lib/bearer-secret";
 import { RECONCILE_LOG_PREFIX, reconcilePolarSubscriptions } from "@/lib/polar-reconcile";
+import { reportBillingIssue } from "@/lib/monitoring";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,9 +26,9 @@ export async function GET(req: NextRequest) {
     } catch (error) {
       // Polar unreachable or the listing failed: nothing was half-applied
       // (each sync is its own transaction). Tomorrow's run retries.
-      console.error(
-        `${RECONCILE_LOG_PREFIX} run_failed error=${error instanceof Error ? error.name : "unknown"}`,
-      );
+      const name = error instanceof Error ? error.name : "unknown";
+      console.error(`${RECONCILE_LOG_PREFIX} run_failed error=${name}`);
+      reportBillingIssue("polar-reconcile", "run_failed", "error", { error: name });
       return err("Billing reconciliation failed", 502);
     }
   });
