@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-10-17 (إصلاح تباين pills التقويم في light mode `78d6918` — القسم 6. سابقًا 2026-10-02: الوضع الداكن الدائم للصفحات العامة، وفحص ما قبل الإطلاق النهائي، و`docs/LAUNCH_RUNBOOK.md` — القسم 2.2. تدقيق `AUDIT_REPORT.md`: كل البنود مغلقة أو مقبولة، والمفتوح مذكور في القسم 2.2)
+> آخر تحديث: 2026-10-17 (إصلاح تباين pills التقويم في light mode `78d6918`، وتوحيد الحالات الفارغة في مكوّن واحد `eb6560b` — القسم 6. سابقًا 2026-10-02: الوضع الداكن الدائم للصفحات العامة، وفحص ما قبل الإطلاق النهائي، و`docs/LAUNCH_RUNBOOK.md` — القسم 2.2. تدقيق `AUDIT_REPORT.md`: كل البنود مغلقة أو مقبولة، والمفتوح مذكور في القسم 2.2)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -392,6 +392,8 @@
 - **أزرار FullCalendar — تعديلات أُلغيت (revert):** عدّلتُ زر "اليوم" والأزرار النشطة (شهر/أسبوع/يوم) في `globals.css` لتستخدم `--accent-*`، ثم أُلغيت هذه التعديلات قبل الـ commit لأنها بلا أي أثر بصري. السبب أن قواعد موجودة تتغلب عليها: الأزرار النشطة يحكمها `.fc .fc-button-primary:not(:disabled).fc-button-active { background: var(--sidebar-dark) !important }` ذات specificity أعلى، وزر "اليوم" في dark يحكمه `.dark .fc-button`. النتيجة: الزر النشط `#041819` في light (بلا تغيير) و`#020e0f` في dark (من Phase 1). القواعد الأضعف التي تشير لـ `--sidebar` صارت dead CSS، ويمكن حذفها لاحقًا.
 - `RevenueChart` يستخدم `#b87333` كـ SVG attribute، فلا يمكن استبداله بـ `var()` هناك.
 - **pills التقويم — أُصلح 2026-10-17 (`78d6918`):** `.fc .fc-event` كان يفرض `background: var(--sidebar)` (داكن في الوضعين)، والأبيض كان على `.fc-event-title/-time` فقط، بينما `eventContent` المخصص في `AppointmentsCalendar.tsx` يستخدم `.appointment-event-*` فيرث `--text` ← داكن على داكن في light (1.06:1). الآن الخلفية `--accent-fill` والنص `--sidebar-text` على العنصر نفسه (14.3:1 light، 8.4:1 dark). تحقق بـ `getComputedStyle` في الوضعين، وبصريًا *(حسب المستخدم)*.
+- **الحالات الفارغة — موحّدة 2026-10-17 (`eb6560b`):** مكوّن واحد مشترك `src/components/ui/EmptyState.tsx` (props: `icon`، `title`، `description`، `action` — أُعيدت تسمية `sub` إلى `description` في كل المستدعين). emoji بحجم `text-5xl` (48px)، بلا إطار، والزر في المنتصف تحت النص. أُزيل منه `border-dashed border-white/10 bg-white/[0.03]` الثابت (غير مرئي في light، وإطار باهت في dark). `VDSTableEmpty` صار يعرض المكوّن المشترك بدل `VDSEmptyState` (كان أيقونة `Inbox` صغيرة في صندوق منقّط، والزر مسحوب فوق حافته بـ `-mt-2`)، و`VDSDataTable` أخذ prop جديد `emptyIcon`. الأيقونات: الموكلون 👥، القضايا ⚖️، المستندات 📄، المهام ✅، سجل النشاط 🕒، الفريق 🧑‍💼. تحقق بسكربت Playwright (APIs القوائم stubbed لتظهر الحالة الفارغة الأولى): الصفحات الست × ar/en × light/dark، أي 24 حالة، كلها 48px، بلا إطار، والاتجاه صحيح، والزر في المنتصف داخل الكتلة. Activity بلا زر (لم يكن له زر أصلًا). زر Team معطّل لحساب E2E لأن خطته بلا `teamManagement` (سلوك قائم).
+  - `VDSEmptyState` (صندوق منقّط) ما زال مستخدمًا في بطاقات الداشبورد الرئيسية (`RecentCases`، `RecentDocuments`، `TodayAppointments`، `UpcomingTasks`) وفي `appointments/page.tsx:1635`، وهذا مقصود لأنها بطاقات صغيرة وليست حالات فارغة لصفحات كاملة. يمكن مراجعتها ضمن تدقيق الألوان/الواجهة الكامل.
 - **ملاحظة:** ألوان `TYPE_COLOR` لكل نوع موعد (`appointments/page.tsx:78`) لا تظهر في التقويم لأن `!important` يتغلب على `backgroundColor` الذي يمرره FullCalendar، فكل الـ pills بلون واحد (سلوك قائم قبل الإصلاح).
 
 ---
@@ -503,6 +505,7 @@
 
 ### ✅ تم (2026-10-17)
 - إصلاح تباين pills التقويم في light mode: `78d6918` — `fix(calendar): theme-aware event pill colors`. انظر القسم 6.
+- توحيد الحالات الفارغة (الموكلون، القضايا، المستندات، المهام، سجل النشاط، الفريق): `eb6560b` — `refactor(ui): shared borderless EmptyState`. انظر القسم 6.
 
 ### قيد التنفيذ
 - لا شيء. التالي: الإطلاق باتباع `docs/LAUNCH_RUNBOOK.md` (بعد push، بقرار المستخدم).
