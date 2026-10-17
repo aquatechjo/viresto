@@ -272,7 +272,13 @@
 | `837218d` | **H4** | حدود الدخول (`src/lib/login-rate-limits.ts`): لكل IP **30** كل 15 دقيقة (كانت 5)، ولكل حساب **15** كما هي. خطوة رمز 2FA لها دلوان مستقلان (30 لكل IP، **5 لكل حساب**)، فدخول 2FA يُحتسب مرة واحدة من رصيد الـ IP المشترك للمكتب، وتخمين الرموز محدود بـ 5 محاولات لكل حساب. اختبار وحدة جديد (5 حالات) **فشل 4 منها على الكود القديم**. tsc وlint نظيفان، `test:unit` **239/239**. |
 | `1ed0f68` | **H2** | cron يومي جديد `/api/cron/reconcile-billing` (02:40 UTC، `CRON_SECRET`) و`src/lib/polar-reconcile.ts`: يجلب اشتراكات Polar الحية لمنتجاتنا الستة ويقارنها بصفوفنا. حي في Polar وناقص/قديم عندنا (شراء أو تجديد أو تغيير خطة أو إلغاء/تراجع ضاع webhook) ← إعادة مزامنة من حالة Polar الحالية. حي عندنا ولم يعد حيًا في Polar (إلغاء/revoke/انتهاء ضاع) ← جلبه ومزامنته. كلها عبر `syncSubscriptionFromPolar` (نفس مسار الـ webhooks)، والمكاتب المتطابقة لا تُلمس. سطر log لكل انحراف أو فشل وملخص لكل تشغيل بالبادئة `[polar-reconcile]` (معرّفات فقط). **cron ثالث في `vercel.json`:** إن كانت خطة Vercel لا تسمح به (C2)، يُدمج في `prune-activity`. `test:unit` **241/241**. اختبار تكامل جديد `billing-reconcile.test.ts` (شراء ضائع، تجديد ضائع، revoke ضائع، مكتب متطابق لا يُلمس، الحماية بالسر): **لم يُشغَّل بعد** وقت الـ commit لأن تشغيل التكامل الكامل كان يحجز قفل الـ migrations على فرع dev (`P1002`). |
 
+| `b394c1a` | **H3** | Sentry (`@sentry/nextjs` 11.4.0 مثبت): الخادم/edge (`src/instrumentation.ts` + `onRequestError`)، المتصفح (`src/instrumentation-client.ts`)، `global-error.tsx`، وكل خطأ يحوّله `apiHandler` إلى 5xx. معطّل بلا `NEXT_PUBLIC_SENTRY_DSN`. بلا session replay، والأحداث بلا كوكيز/أجسام/query/عناوين IP ورسائل Prisma validation. إخفاقات الفوترة رسائل بوسم `area=billing` (أخطاء الـ webhook الحرجة error، التوقيع الخاطئ وما شابه warning، وكل انحراف/فشل في الـ reconcile). CSP يسمح بـ ingest الخاص بـ Sentry. رفع source maps فقط مع `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT` (البناء لا يفشل بدونها). `test:unit` **242/242**. |
+
 **التحقق (H1):** tsc وlint نظيفان، `test:unit` **234/234** (5 جديدة)، واختبار تكامل جديد `seat-limits.test.ts` **3/3** على Postgres حقيقي (فرع dev، schema مؤقتة): تجربة + 3 مستخدمين ← شراء Basic ← المالك يكتب والاثنان 403 ويقرآن ← التعطيل يعمل بلا `teamManagement` ← الحالة تُرفع؛ أدمن للقراءة فقط يعطّل ولا يغيّر أدوارًا؛ الترقية لـ Pro ترفع القيد. فحص بصري (APIs مُستبدلة في المتصفح، بلا تعديل بيانات): الشريط عربي/داكن وإنجليزي/فاتح، وأزرار التعطيل مفعّلة. تشغيل التكامل الكامل جارٍ وقت الـ commit.
+
+**تشغيل التكامل الكامل (بعد H1، 2026-10-17):** 34/44 نجحت. الـ 10 الفاشلة كلها من تعديلات كانت قيد العمل أثناء التشغيل وليست انحدارًا من H1: 7 بـ `Cannot find module '@sentry/nextjs'` (عُدّل `api-handler` قبل تثبيت الحزمة)، و3 بـ 400 لأن `register` صار يكتب `signupPlanCode` (M1 غير الملتزم) قبل `prisma generate`. **يجب إعادة تشغيل `npm run test:integration` كاملًا** (ومعه `billing-reconcile.test.ts` الذي لم يعمل بعد بسبب `P1002`).
+
+**متبقٍّ غير ملتزم في الشجرة (عمل جارٍ، لم يُتحقق منه بالكامل):** SEO (`page.tsx`، `layout.tsx`، `proxy.ts`، `pricing`، layouts لـ login/register، `robots.ts`؛ تحققت يدويًا من SSR العربي/الإنجليزي والـ canonical)، M1 (`signupPlanCode` + migration `20261017000000_tenant_signup_plan_code` لم تُطبّق على dev بعد، `trial-copy.ts`، صفحتا التسجيل والاشتراك)، تحضير C1 (`scripts/check-dev-keys.mjs` + اختبار؛ لم يُربط بعد كـ `predev` في `package.json`).
 
 **ملاحظات:**
 - `INTEGRATION_DATABASE_URL` غير مضبوط في `.env.local`؛ شغّلت التكامل بضبطه في الذاكرة فقط على `DIRECT_URL` (فرع dev).
@@ -531,7 +537,7 @@
 - توحيد الحالات الفارغة (الموكلون، القضايا، المستندات، المهام، سجل النشاط، الفريق): `eb6560b` — `refactor(ui): shared borderless EmptyState`. انظر القسم 6.
 
 ### قيد التنفيذ
-- إصلاحات التدقيق الثاني على الفرع `audit` (القسم 2.3): تم H1 وH4 وH2؛ التالي H3 ← SEO ← M1 ← تحضير C1.
+- إصلاحات التدقيق الثاني على الفرع `audit` (القسم 2.3): تم H1 وH4 وH2 وH3؛ المتبقي SEO ← M1 ← تحضير C1 (مكتوبة جزئيًا وغير ملتزمة)، ثم إعادة تشغيل التكامل الكامل.
 
 ### التالي (مقترح)
 1. ~~تشغيل E2E~~: 16/16 (2026-10-01). باقٍ: تعليق Playwright بعد الانتهاء على Windows عندما يشغّل السيرفر بنفسه (القسم 2.2).
