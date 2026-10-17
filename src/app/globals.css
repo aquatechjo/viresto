@@ -2138,8 +2138,13 @@ select.input {
   background: var(--gold-soft) !important;
 }
 
+/* Pill colors are set on the event itself so custom eventContent
+   (.appointment-event-*) inherits them instead of the theme's --text,
+   which rendered dark-on-dark in light mode. --accent-fill is dark in both
+   themes, so --sidebar-text keeps AA contrast (14.3:1 light, 8.4:1 dark). */
 .fc .fc-event {
-  background: var(--sidebar) !important;
+  background: var(--accent-fill) !important;
+  color: var(--sidebar-text) !important;
   border: none !important;
   border-radius: 8px !important;
   padding: 3px 7px !important;
@@ -2153,7 +2158,7 @@ select.input {
 }
 .fc .fc-event-title,
 .fc .fc-event-time {
-  color: #fff !important;
+  color: var(--sidebar-text) !important;
 }
 
 /* Mini calendar cells */
