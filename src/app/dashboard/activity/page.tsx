@@ -1113,6 +1113,7 @@ export default function ActivityPage() {
             emptyTitle: copy.empty.title,
             emptyDescription: copy.empty.sub,
           }}
+          emptyIcon="🕒"
         />
 
         {activities.length > 0 ? (

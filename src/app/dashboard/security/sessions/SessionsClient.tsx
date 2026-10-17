@@ -419,7 +419,7 @@ export default function SessionsClient() {
           <EmptyState
             icon="💻"
             title="لا توجد جلسات"
-            sub={
+            description={
               sessions.length === 0
                 ? "لا توجد جلسات نشطة حاليًا."
                 : "لا توجد جلسات مطابقة للبحث الحالي."

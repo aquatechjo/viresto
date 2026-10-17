@@ -1084,7 +1084,7 @@ export default function TasksPage() {
           <EmptyState
             icon="✅"
             title={taskCopy.empty.title}
-            sub={
+            description={
               stats.total === 0
                 ? taskCopy.empty.first
                 : taskCopy.empty.filtered

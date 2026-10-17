@@ -25,6 +25,7 @@ interface VDSDataTableProps<T> {
   actions?: ReactNode;
   search?: ReactNode;
   emptyAction?: ReactNode;
+  emptyIcon?: ReactNode;
   selectable?: boolean;
   selectedIds?: Set<VDSRowId>;
   onSelectionChange?: (ids: Set<VDSRowId>) => void;
@@ -49,6 +50,7 @@ export default function VDSDataTable<T>({
   actions,
   search,
   emptyAction,
+  emptyIcon,
   selectable = false,
   selectedIds: controlledSelectedIds,
   onSelectionChange,
@@ -156,6 +158,7 @@ export default function VDSDataTable<T>({
         <VDSTableEmpty
           title={labels.emptyTitle}
           description={labels.emptyDescription}
+          icon={emptyIcon}
           action={emptyAction}
         />
       ) : (

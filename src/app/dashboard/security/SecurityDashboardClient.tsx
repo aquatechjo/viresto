@@ -401,7 +401,7 @@ export default function SecurityDashboardClient() {
             <EmptyState
               icon="🛡️"
               title="لا توجد سجلات"
-              sub={
+              description={
                 activities.length === 0
                   ? 'لم يتم العثور على أي نشاط أمني.'
                   : 'لا توجد نتائج مطابقة للفلاتر الحالية.'

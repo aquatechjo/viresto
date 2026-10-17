@@ -1235,7 +1235,7 @@ export default function ClientDetailPage() {
                 <EmptyState
                   icon="⚖️"
                   title={text.cases.emptyTitle}
-                  sub={
+                  description={
                     (client.cases ?? []).length === 0
                       ? text.cases.noCases
                       : text.cases.noResults

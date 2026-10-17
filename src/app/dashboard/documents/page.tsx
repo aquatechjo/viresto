@@ -1326,7 +1326,7 @@ export default function DocumentsPage() {
           <EmptyState
             icon="📄"
             title={d.empty.title}
-            sub={docs.length === 0 ? d.empty.first : d.empty.filtered}
+            description={docs.length === 0 ? d.empty.first : d.empty.filtered}
             action={
               docs.length === 0 ? (
                 <button

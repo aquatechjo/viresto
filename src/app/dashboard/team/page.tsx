@@ -1073,6 +1073,7 @@ export default function TeamPage() {
                   ? copy.list.emptyNoUsers
                   : copy.list.emptyFiltered,
             }}
+            emptyIcon="🧑‍💼"
             emptyAction={
               users.length === 0 ? (
                 <button

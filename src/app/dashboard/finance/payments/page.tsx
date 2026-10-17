@@ -1151,7 +1151,7 @@ export default function PaymentsPage() {
           <EmptyState
             icon="💳"
             title={copy.labels.empty}
-            sub={copy.labels.emptySubtitle}
+            description={copy.labels.emptySubtitle}
             action={
               search || status ? (
                 <button

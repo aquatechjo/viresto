@@ -1088,6 +1088,7 @@ export default function ClientsPage() {
                 ? `صفحة ${current} من ${total}`
                 : `Page ${current} of ${total}`,
           }}
+          emptyIcon="👥"
           emptyAction={
             loadError ? (
               <button type="button" onClick={() => load()} className="btn btn-primary">

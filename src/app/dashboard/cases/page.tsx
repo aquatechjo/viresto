@@ -1253,6 +1253,7 @@ export default function CasesPage() {
           pageLabel: (current, total) =>
             localeKey === "ar" ? `صفحة ${current} من ${total}` : `Page ${current} of ${total}`,
         }}
+        emptyIcon="⚖️"
         emptyAction={
           loadError ? (
             <button type="button" onClick={() => load()} className="btn btn-primary">

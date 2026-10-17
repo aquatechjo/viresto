@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { Inbox } from "lucide-react";
-import VDSEmptyState from "../VDSEmptyState";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface VDSTableEmptyProps {
   title?: string;
@@ -12,22 +11,17 @@ interface VDSTableEmptyProps {
 export default function VDSTableEmpty({
   title = "No records found",
   description,
-  icon = <Inbox className="h-6 w-6" />,
+  icon,
   action,
 }: VDSTableEmptyProps) {
   return (
-    <div className="p-6">
-      <VDSEmptyState
+    <div className="p-8">
+      <EmptyState
         title={title}
         description={description}
         icon={icon}
+        action={action}
       />
-
-      {action ? (
-        <div className="-mt-2 flex justify-center pb-2">
-          {action}
-        </div>
-      ) : null}
     </div>
   );
 }

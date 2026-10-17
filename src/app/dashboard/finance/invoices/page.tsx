@@ -1654,7 +1654,7 @@ export default function InvoicesPage() {
           <EmptyState
             icon="🧾"
             title={copy.empty.title}
-            sub={invoices.length === 0 ? copy.empty.first : copy.empty.filtered}
+            description={invoices.length === 0 ? copy.empty.first : copy.empty.filtered}
             action={
               invoices.length === 0 ? (
                 <button
