@@ -13,6 +13,12 @@ import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { decryptText } from "@/lib/encryption";
 import { getClientIp } from "@/lib/client-ip";
+import {
+  LOGIN_2FA_ACCOUNT_LIMIT,
+  LOGIN_2FA_IP_LIMIT,
+  LOGIN_ACCOUNT_LIMIT,
+  LOGIN_IP_LIMIT,
+} from "@/lib/login-rate-limits";
 
 // A real bcrypt hash (cost 12, like every stored password) of a random
 // throwaway value. Compared against when the email has no account, so the
@@ -26,20 +32,22 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
     const ip = getClientIp(req) || "unknown";
+    const body = await req.json().catch(() => ({}));
 
-    // Started before the body is parsed so every request (including invalid
-    // ones) still counts against the IP limit, and so it runs in parallel
-    // with the per-account check below instead of adding its latency.
-    const ipLimitPromise = checkRateLimit(ip, {
-      keyPrefix: "login",
-      max: 5,
-      windowMs: 15 * 60 * 1000,
-    });
-    // Prevent an unhandled rejection if it fails while the body is parsed;
-    // the error is re-thrown where the result is awaited.
+    // The 2FA code step has its own buckets (login-rate-limits.ts), so a
+    // 2FA login costs the office's shared IP budget once, not twice.
+    const isCodeStep = String(body?.code ?? "").trim() !== "";
+    const ipBucket = isCodeStep ? LOGIN_2FA_IP_LIMIT : LOGIN_IP_LIMIT;
+    const accountBucket = isCodeStep ? LOGIN_2FA_ACCOUNT_LIMIT : LOGIN_ACCOUNT_LIMIT;
+
+    // Started before validation so every request (including invalid ones)
+    // still counts against the IP limit, and so it runs in parallel with
+    // the per-account check below instead of adding its latency.
+    const ipLimitPromise = checkRateLimit(ip, ipBucket);
+    // Prevent an unhandled rejection if it fails during validation; the
+    // error is re-thrown where the result is awaited.
     ipLimitPromise.catch(() => {});
 
-    const body = await req.json().catch(() => ({}));
     const parsed = loginSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -61,11 +69,7 @@ export async function POST(req: NextRequest) {
      */
     const [rl, accountLimit] = await Promise.all([
       ipLimitPromise,
-      checkRateLimit(email, {
-        keyPrefix: "login-account",
-        max: 15,
-        windowMs: 15 * 60 * 1000,
-      }),
+      checkRateLimit(email, accountBucket),
     ]);
 
     if (!rl.allowed || !accountLimit.allowed) {
