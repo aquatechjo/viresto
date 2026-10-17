@@ -10,6 +10,10 @@ test("machine-authenticated handlers bypass the user session check", () => {
     true,
   );
   assert.equal(
+    isMachineAuthenticatedPath("/api/cron/reconcile-billing"),
+    true,
+  );
+  assert.equal(
     isMachineAuthenticatedPath("/api/billing/webhooks/polar"),
     true,
   );

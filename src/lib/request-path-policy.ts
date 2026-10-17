@@ -4,6 +4,7 @@ const MACHINE_AUTHENTICATED_PATHS = new Set([
   "/api/health",
   "/api/cron/prune-activity",
   "/api/cron/generate-notifications",
+  "/api/cron/reconcile-billing",
   // Polar webhooks carry no session cookie; the handler verifies the
   // standard-webhooks signature against POLAR_WEBHOOK_SECRET.
   "/api/billing/webhooks/polar",
