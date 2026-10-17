@@ -11,6 +11,11 @@ import {
 } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import {
+  SEAT_LIMIT_READ_ONLY_CODE,
+  SEAT_LIMIT_READ_ONLY_MESSAGE,
+  invalidateTenantSeatCache,
+} from "@/lib/tenant-seats";
 
 const allowedRoles = [UserRole.ADMIN, UserRole.LAWYER, UserRole.STAFF] as const;
 
@@ -22,7 +27,9 @@ export async function PATCH(
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    // An admin can always deactivate members, even from a read-only seat
+    // (office over its plan's user limit): that is how the office fixes it.
+    const auth = await requireRole(req, ["ADMIN"], { allowReadOnlySeat: true });
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -48,6 +55,11 @@ export async function PATCH(
     }
     if (id === auth.user.userId && body.isActive === false) {
       return err("لا يمكنك تعطيل حسابك الحالي", 400);
+    }
+    if (auth.seatReadOnly && (hasRoleUpdate || body.isActive !== false)) {
+      return err(SEAT_LIMIT_READ_ONLY_MESSAGE, 403, {
+        code: SEAT_LIMIT_READ_ONLY_CODE,
+      });
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -208,6 +220,7 @@ export async function PATCH(
     }
 
     invalidateAuthCacheForUser(id);
+    invalidateTenantSeatCache(auth.user.tenantId);
 
     return ok(result.updated);
   });
@@ -221,7 +234,7 @@ export async function DELETE(
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requireRole(req, ["ADMIN"], { allowReadOnlySeat: true });
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -305,6 +318,7 @@ export async function DELETE(
     }
 
     invalidateAuthCacheForUser(id);
+    invalidateTenantSeatCache(auth.user.tenantId);
 
     return ok({ disabled: true, message: "تم تعطيل المستخدم بنجاح" });
   });

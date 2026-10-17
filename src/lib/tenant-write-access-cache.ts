@@ -15,11 +15,22 @@ export type TenantAccessSummary = {
   paymentFailed?: boolean;
   pastDueLocksAt?: string | null;
   canManageBilling?: boolean;
+  seats?: TenantSeatSummary;
+};
+
+export type TenantSeatSummary = {
+  limit: number | null;
+  activeCount: number;
+  planName: string;
+  overLimit: boolean;
+  readOnly: boolean;
+  readOnlyUsers: Array<{ id: string; name: string }>;
 };
 
 export type TenantAccessPayload = {
   access?: TenantAccessSummary | null;
   canWrite?: boolean;
+  writeBlockCode?: "SUBSCRIPTION" | "SEAT_LIMIT_READ_ONLY" | null;
   message?: string | null;
   billing?: {
     blockReason?: string | null;
@@ -29,6 +40,8 @@ export type TenantAccessPayload = {
 };
 
 const ACCESS_CACHE_TTL_MS = 30_000;
+
+export const TENANT_ACCESS_EVENT = "viresto-tenant-access";
 
 let cachedAccess: {
   payload: TenantAccessPayload;
@@ -80,6 +93,8 @@ export async function requestTenantWriteAccess(
         payload,
         expiresAt: Date.now() + ACCESS_CACHE_TTL_MS,
       };
+      // Banners re-read it at once (e.g. after an admin deactivates a member).
+      window.dispatchEvent(new Event(TENANT_ACCESS_EVENT));
 
       return payload;
     })

@@ -49,3 +49,24 @@ export function isSubscriptionExemptPath(pathname: string, method: string) {
 
   return pathname === "/api/settings" && method.toUpperCase() === "GET";
 }
+
+// Writes a read-only seat (more active users than the plan allows, see
+// tenant-seats.ts) can still make: its own account and session (including
+// logout and the idle-activity ping), billing (so an admin can upgrade),
+// marking its notifications read, and the office data requests. Team
+// member deactivation opts in inside its own handler.
+export function isSeatLimitExemptPath(pathname: string, method: string) {
+  if (pathname === "/api/auth" || pathname.startsWith("/api/auth/")) {
+    return true;
+  }
+
+  if (pathname === "/api/billing" || pathname.startsWith("/api/billing/")) {
+    return true;
+  }
+
+  if (pathname.startsWith("/api/notifications/")) {
+    return true;
+  }
+
+  return DATA_REQUEST_ROUTES.has(`${method.toUpperCase()} ${pathname}`);
+}

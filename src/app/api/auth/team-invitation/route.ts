@@ -20,6 +20,7 @@ import {
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import { strongPasswordSchema } from "@/lib/validations";
 import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal-policy";
+import { invalidateTenantSeatCache } from "@/lib/tenant-seats";
 
 function normalizeToken(value: unknown) {
   const token = String(value ?? "").trim();
@@ -253,6 +254,8 @@ export async function POST(req: NextRequest) {
       }
       return err("الدعوة غير صالحة أو منتهية", 404);
     }
+
+    invalidateTenantSeatCache(preview.tenantId);
 
     return ok({
       message: "تم تفعيل حسابك. يمكنك تسجيل الدخول الآن.",

@@ -16,8 +16,16 @@ interface TenantWriteAccessState {
   message: string | null;
   subscriptionStatus: string | null;
   entitlements: TenantAccessEntitlements | null;
+  // The office has more active users than its plan allows and this user is
+  // beyond the limit (tenant-seats.ts): read-only until an admin fixes it.
+  seatReadOnly: boolean;
   refresh: () => Promise<void>;
 }
+
+const SEAT_READ_ONLY_MESSAGE: Record<LocaleKey, string> = {
+  ar: "حسابك للقراءة فقط: عدد المستخدمين الفعّالين في المكتب أكبر من حد خطته. اطلب من مدير المكتب تعطيل بعض المستخدمين أو ترقية الخطة.",
+  en: "Your account is read-only: the office has more active users than its plan allows. Ask your office admin to deactivate some users or upgrade the plan.",
+};
 
 const FALLBACK_MESSAGE: Record<LocaleKey, string> = {
   ar: "انتهى الاشتراك. يمكنك عرض البيانات فقط إلى حين تجديد الاشتراك.",
@@ -57,10 +65,22 @@ function resolveState(payload: TenantAccessPayload | null, locale: LocaleKey) {
       message: null,
       subscriptionStatus: null,
       entitlements: null,
+      seatReadOnly: false,
     };
   }
 
   const canWrite = payload.canWrite !== false;
+  const seatReadOnly = payload.writeBlockCode === "SEAT_LIMIT_READ_ONLY";
+
+  if (seatReadOnly) {
+    return {
+      canWrite,
+      message: SEAT_READ_ONLY_MESSAGE[locale],
+      subscriptionStatus: payload.billing?.subscriptionStatus ?? null,
+      entitlements: payload.entitlements ?? null,
+      seatReadOnly,
+    };
+  }
   const subscriptionStatus = payload.billing?.subscriptionStatus ?? null;
   const translatedStatusMessage = subscriptionStatus
     ? STATUS_MESSAGES[locale][subscriptionStatus]
@@ -77,6 +97,7 @@ function resolveState(payload: TenantAccessPayload | null, locale: LocaleKey) {
         FALLBACK_MESSAGE[locale],
     subscriptionStatus,
     entitlements: payload.entitlements ?? null,
+    seatReadOnly: false,
   };
 }
 
@@ -93,6 +114,7 @@ export function useTenantWriteAccess(locale?: string): TenantWriteAccessState {
   );
   const [entitlements, setEntitlements] =
     useState<TenantAccessEntitlements | null>(initialState.entitlements);
+  const [seatReadOnly, setSeatReadOnly] = useState(initialState.seatReadOnly);
 
   const applyPayload = useCallback(
     (payload: TenantAccessPayload | null) => {
@@ -102,6 +124,7 @@ export function useTenantWriteAccess(locale?: string): TenantWriteAccessState {
       setMessage(next.message);
       setSubscriptionStatus(next.subscriptionStatus);
       setEntitlements(next.entitlements);
+      setSeatReadOnly(next.seatReadOnly);
     },
     [localeKey],
   );
@@ -142,6 +165,7 @@ export function useTenantWriteAccess(locale?: string): TenantWriteAccessState {
     message,
     subscriptionStatus,
     entitlements,
+    seatReadOnly,
     refresh,
   };
 }

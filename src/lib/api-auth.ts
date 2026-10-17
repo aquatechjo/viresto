@@ -15,12 +15,22 @@ import {
   shouldTouchSession,
   userCanUseSession,
 } from "@/lib/session-policy";
-import { isSubscriptionExemptPath } from "@/lib/request-path-policy";
+import {
+  isSeatLimitExemptPath,
+  isSubscriptionExemptPath,
+} from "@/lib/request-path-policy";
 import { getClientIp } from "@/lib/client-ip";
 import {
   getTenantAccessCached,
   invalidateTenantAccessCache,
 } from "@/lib/tenant-access-server";
+import {
+  SEAT_LIMIT_READ_ONLY_CODE,
+  SEAT_LIMIT_READ_ONLY_MESSAGE,
+  getTenantSeatStateCached,
+  invalidateTenantSeatCache,
+  isReadOnlySeat,
+} from "@/lib/tenant-seats";
 
 // Short cache to reduce repeated auth DB round-trips within one page load's
 // burst of API calls. Every security-sensitive mutation (logout, session
@@ -195,6 +205,7 @@ export function invalidateAuthCacheForUser(userId: string) {
  */
 export function invalidateAuthCacheForTenant(tenantId: string) {
   invalidateTenantAccessCache(tenantId);
+  invalidateTenantSeatCache(tenantId);
 
   for (const [key, entry] of authCache.entries()) {
     if (entry.user.tenantId === tenantId) {
@@ -418,7 +429,18 @@ export async function validateSessionPayload(
   };
 }
 
-export async function requireAuth(req: NextRequest) {
+export type RequireAuthOptions = {
+  /**
+   * Let a read-only seat (tenant-seats.ts) through a write; the handler
+   * then checks `seatReadOnly` itself (team member deactivation).
+   */
+  allowReadOnlySeat?: boolean;
+};
+
+export async function requireAuth(
+  req: NextRequest,
+  options: RequireAuthOptions = {},
+) {
   const token = req.cookies.get(COOKIE)?.value;
 
   if (!token) {
@@ -457,10 +479,36 @@ export async function requireAuth(req: NextRequest) {
     };
   }
 
+  const seatReadOnly = await isReadOnlySeatWrite(req, validation.user);
+
+  if (seatReadOnly && !options.allowReadOnlySeat) {
+    return {
+      error: err(SEAT_LIMIT_READ_ONLY_MESSAGE, 403, {
+        code: SEAT_LIMIT_READ_ONLY_CODE,
+      }),
+      user: null,
+    };
+  }
+
   return {
     error: null,
     user: validation.user,
+    seatReadOnly,
   };
+}
+
+/**
+ * Server-side seat limit: a write by a user beyond the plan's user limit
+ * (tenant-seats.ts). Reads are never limited, and only writes pay for the
+ * (cached) seat lookup.
+ */
+async function isReadOnlySeatWrite(req: NextRequest, user: AuthenticatedUser) {
+  if (user.isSystemAdmin) return false;
+  if (!isActivityRequestMethod(req.method)) return false;
+  if (isSeatLimitExemptPath(req.nextUrl.pathname, req.method)) return false;
+
+  const seats = await getTenantSeatStateCached(user.tenantId);
+  return isReadOnlySeat(seats, user.userId);
 }
 
 export const SUBSCRIPTION_REQUIRED_CODE = "SUBSCRIPTION_REQUIRED";
@@ -491,8 +539,12 @@ async function subscriptionLockResponse(
   );
 }
 
-export async function requireRole(req: NextRequest, roles: UserRole[]) {
-  const auth = await requireAuth(req);
+export async function requireRole(
+  req: NextRequest,
+  roles: UserRole[],
+  options: RequireAuthOptions = {},
+) {
+  const auth = await requireAuth(req, options);
 
   if (auth.error || !auth.user) {
     return auth;
@@ -508,5 +560,6 @@ export async function requireRole(req: NextRequest, roles: UserRole[]) {
   return {
     error: null,
     user: auth.user,
+    seatReadOnly: auth.seatReadOnly ?? false,
   };
 }

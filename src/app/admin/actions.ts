@@ -12,6 +12,7 @@ import {
   getEffectiveSubscriptionStatus,
 } from "@/lib/billing-limits";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import { invalidateTenantSeatCache } from "@/lib/tenant-seats";
 
 export async function suspendTenant(id: string) {
   const admin = await requireSystemAdmin();
@@ -210,6 +211,7 @@ export async function deactivateUser(id: string) {
   });
 
   invalidateAuthCacheForUser(id);
+  invalidateTenantSeatCache(user.tenantId);
 
   revalidatePath("/admin");
 }
@@ -279,6 +281,8 @@ export async function activateUser(id: string) {
       },
     });
   });
+
+  invalidateTenantSeatCache(user.tenantId);
 
   revalidatePath("/admin");
 }

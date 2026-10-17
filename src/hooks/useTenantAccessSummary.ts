@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  TENANT_ACCESS_EVENT,
   getCachedTenantWriteAccess,
   requestTenantWriteAccess,
   type TenantAccessSummary,
@@ -24,8 +25,16 @@ export function useTenantAccessSummary(refreshKey?: string) {
       if (!cancelled) setSummary(payload?.access ?? null);
     });
 
+    function handleAccessChange() {
+      if (cancelled) return;
+      setSummary(getCachedTenantWriteAccess()?.access ?? null);
+    }
+
+    window.addEventListener(TENANT_ACCESS_EVENT, handleAccessChange);
+
     return () => {
       cancelled = true;
+      window.removeEventListener(TENANT_ACCESS_EVENT, handleAccessChange);
     };
   }, [refreshKey]);
 

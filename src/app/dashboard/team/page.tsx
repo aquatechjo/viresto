@@ -119,6 +119,9 @@ const TEAM_COPY = {
       roleChangeAria: "تغيير صلاحية المستخدم",
       roleChangeTitle: "تغيير صلاحية المستخدم",
       systemAdminFixed: "منصب مدير النظام ثابت",
+      readOnlySeat: "للقراءة فقط",
+      readOnlySeatTitle: "خارج حد المستخدمين في الخطة: يستطيع العرض فقط إلى أن تعطّل أعضاء أو ترقّي الخطة",
+      owner: "المالك",
       deactivate: "تعطيل",
       activate: "تفعيل",
       unknownInitial: "؟",
@@ -220,6 +223,9 @@ const TEAM_COPY = {
       roleChangeAria: "Change user role",
       roleChangeTitle: "Change user role",
       systemAdminFixed: "The system admin role is fixed",
+      readOnlySeat: "Read-only",
+      readOnlySeatTitle: "Beyond the plan's user limit: can only view until you deactivate members or upgrade the plan",
+      owner: "Owner",
       deactivate: "Disable",
       activate: "Enable",
       unknownInitial: "?",
@@ -235,6 +241,9 @@ interface TeamUser {
   isActive: boolean;
   isSystemAdmin: boolean;
   createdAt: string;
+  // Beyond the plan's user limit (tenant-seats.ts).
+  readOnly?: boolean;
+  isOwner?: boolean;
 }
 
 interface TeamInvitation {
@@ -324,6 +333,9 @@ export default function TeamPage() {
   const writeAccess = useTenantWriteAccess(locale);
   const canManageTeam =
     writeAccess.canWrite && writeAccess.entitlements?.teamManagement === true;
+  // Deactivating needs no plan feature and works from a read-only seat:
+  // it is how an office over its plan's user limit gets back under it.
+  const canDeactivate = writeAccess.canWrite || writeAccess.seatReadOnly;
   const teamAccessMessage =
     writeAccess.message || getTeamFeatureFallback(locale);
   const fieldStyle = {
@@ -356,9 +368,9 @@ export default function TeamPage() {
 
   const [form, setForm] = useState(INIT_FORM);
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (options: { silent?: boolean } = {}) => {
     try {
-      setLoading(true);
+      if (!options.silent) setLoading(true);
 
       const response = await fetch("/api/team");
       const data = await response.json().catch(() => ({}));
@@ -476,9 +488,17 @@ export default function TeamPage() {
       sortable: true,
       align: "center",
       cell: (user) => (
-        <VDSBadge tone={user.isActive ? "teal" : "red"}>
-          {user.isActive ? copy.status.active : copy.status.inactive}
-        </VDSBadge>
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          <VDSBadge tone={user.isActive ? "teal" : "red"}>
+            {user.isActive ? copy.status.active : copy.status.inactive}
+          </VDSBadge>
+          {user.isOwner && <VDSBadge tone="purple">{copy.list.owner}</VDSBadge>}
+          {user.readOnly && (
+            <span title={copy.list.readOnlySeatTitle}>
+              <VDSBadge tone="gold">{copy.list.readOnlySeat}</VDSBadge>
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -527,8 +547,12 @@ export default function TeamPage() {
 
             <button
               type="button"
-              disabled={!canManageTeam}
-              title={!canManageTeam ? teamAccessMessage : undefined}
+              disabled={user.isActive ? !canDeactivate : !canManageTeam}
+              title={
+                (user.isActive ? !canDeactivate : !canManageTeam)
+                  ? teamAccessMessage
+                  : undefined
+              }
               onClick={() =>
                 updateUser(user.id, {
                   isActive: !user.isActive,
@@ -624,7 +648,10 @@ export default function TeamPage() {
   }
 
   async function updateUser(id: string, payload: Partial<TeamUser>) {
-    if (!canManageTeam) {
+    const isDeactivation =
+      payload.isActive === false && payload.role === undefined;
+
+    if (isDeactivation ? !canDeactivate : !canManageTeam) {
       toast.error(teamAccessMessage);
       return;
     }
@@ -643,6 +670,9 @@ export default function TeamPage() {
         setUsers((previous) =>
           previous.map((user) => (user.id === id ? data.data : user)),
         );
+        // Seats may have changed: re-read who is read-only, and the banner.
+        void loadUsers({ silent: true });
+        void writeAccess.refresh();
       } else {
         toast.error(getApiMessage(data, copy.messages.updateError));
       }

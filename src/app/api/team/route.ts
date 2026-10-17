@@ -16,6 +16,7 @@ import {
   teamInvitationExpiresAt,
 } from "@/lib/team-invitations";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import { getTenantSeatStateCached } from "@/lib/tenant-seats";
 
 const allowedRoles = [UserRole.ADMIN, UserRole.LAWYER, UserRole.STAFF] as const;
 
@@ -62,11 +63,8 @@ export async function GET(req: NextRequest) {
     }
 
     const now = new Date();
-    const [tenant, users, pendingInvitations] = await Promise.all([
-      prisma.tenant.findUnique({
-        where: { id: auth.user.tenantId },
-        select: { maxUsers: true },
-      }),
+    const [seatState, users, pendingInvitations] = await Promise.all([
+      getTenantSeatStateCached(auth.user.tenantId),
       prisma.user.findMany({
         where: { tenantId: auth.user.tenantId },
         orderBy: [{ isSystemAdmin: "desc" }, { createdAt: "desc" }],
@@ -99,14 +97,22 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    const readOnlyIds = new Set(seatState.readOnlyUsers.map((user) => user.id));
+
     return ok({
       currentRole: auth.user.role,
-      users,
+      users: users.map((user) => ({
+        ...user,
+        // Beyond the plan's user limit: can sign in and read, not write.
+        readOnly: readOnlyIds.has(user.id),
+        isOwner: user.id === seatState.ownerId,
+      })),
       pendingInvitations,
       seats: {
         used: users.filter((user) => user.isActive).length,
         pending: pendingInvitations.length,
-        limit: tenant?.maxUsers ?? null,
+        limit: seatState.limit,
+        overLimit: readOnlyIds.size > 0,
       },
     });
   });
