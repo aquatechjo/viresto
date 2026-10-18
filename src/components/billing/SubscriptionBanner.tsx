@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTenantAccessSummary } from "@/hooks/useTenantAccessSummary";
 import { useLocale } from "@/lib/useLocale";
+import { useDemoMode } from "@/lib/demo/client";
 
 // Dashboard-wide warning in the last days of the free trial. Hidden on the
 // billing page itself, which shows the full trial card instead.
@@ -12,7 +13,10 @@ export default function SubscriptionBanner() {
   const access = useTenantAccessSummary(pathname);
   const { locale } = useLocale();
   const isArabic = locale === "ar";
+  // In demo mode the trial is the real office's, and billing is closed.
+  const demo = useDemoMode();
 
+  if (demo?.inDemo) return null;
   if (pathname.startsWith("/dashboard/billing")) return null;
   if (!access || access.state !== "TRIAL" || !access.trialEndingSoon) {
     return null;

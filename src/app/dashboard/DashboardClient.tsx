@@ -25,6 +25,7 @@ import type { Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
 import { getCurrentUser } from "@/lib/client-session";
 import AppLoader from "@/components/ui/AppLoader";
+import DemoModeCard from "@/components/demo/DemoModeCard";
 import MetricCard from "@/components/dashboard/MetricCard";
 import AttentionPanel from "@/components/dashboard/AttentionPanel";
 import TodayAppointments from "@/components/dashboard/TodayAppointments";
@@ -1318,6 +1319,8 @@ export default function DashboardPage() {
           {t.loadingFailed}
         </div>
       )}
+
+      <DemoModeCard />
 
       {stats?.role === "ADMIN" && accountAccess && (
         <Link

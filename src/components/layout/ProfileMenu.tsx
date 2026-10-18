@@ -12,6 +12,7 @@ import {
 } from "@/lib/client-session";
 import { invalidateTenantWriteAccessCache } from "@/lib/tenant-write-access-cache";
 import { clearAllDrafts } from "@/lib/form-draft";
+import { isDemoEmail } from "@/lib/demo/constants";
 
 const COPY = {
   ar: {
@@ -37,6 +38,14 @@ export default function ProfileMenu() {
   const ref = useRef<HTMLDivElement>(null);
   const { locale, isRtl } = useLocale();
   const text = COPY[locale === "ar" ? "ar" : "en"];
+  // In demo mode the user is the sandbox's stand-in, whose address is a
+  // reserved placeholder: say what it is instead.
+  const shownEmail =
+    user?.email && isDemoEmail(user.email)
+      ? locale === "ar"
+        ? "حساب المكتب التجريبي"
+        : "Sample office account"
+      : (user?.email ?? "");
 
   useEffect(() => {
     let cancelled = false;
@@ -116,7 +125,7 @@ export default function ProfileMenu() {
           </p>
 
           <p className="truncate text-xs font-semibold text-slate-500 dark:text-emerald-200">
-            {user?.email ?? ""}
+            {shownEmail}
           </p>
         </div>
 
@@ -150,7 +159,7 @@ export default function ProfileMenu() {
             </p>
 
             <p className="mt-1 truncate text-sm text-slate-500 dark:text-emerald-100/60">
-              {user?.email}
+              {shownEmail}
             </p>
           </div>
 

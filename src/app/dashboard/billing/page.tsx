@@ -15,6 +15,7 @@ import {
   invalidateTenantWriteAccessCache,
   type TenantAccessSummary,
 } from "@/lib/tenant-write-access-cache";
+import { DEMO_BLOCKED_CODE, DEMO_BLOCKED_MESSAGE } from "@/lib/demo/constants";
 
 type SubscriptionStatus =
   | "TRIALING"
@@ -455,6 +456,8 @@ export default function BillingPage() {
   // /api/billing is admin-only; team members get the trial/lock notice
   // from /api/billing/access instead of the full billing page.
   const [memberView, setMemberView] = useState(false);
+  // Billing is closed inside demo mode (src/lib/demo): explain, not "admins only".
+  const [demoBlocked, setDemoBlocked] = useState(false);
   const memberAccess = useTenantAccessSummary();
   const [checkoutPending, setCheckoutPending] = useState(false);
   const [checkoutTimedOut, setCheckoutTimedOut] = useState(false);
@@ -476,7 +479,8 @@ export default function BillingPage() {
     }
 
     if (res.status === 403) {
-      setMemberView(true);
+      if (json?.details?.code === DEMO_BLOCKED_CODE) setDemoBlocked(true);
+      else setMemberView(true);
       setLoading(false);
       return;
     }
@@ -695,6 +699,19 @@ export default function BillingPage() {
 
   if (loading) {
     return <AppLoader fullScreen={false} />;
+  }
+
+  if (demoBlocked) {
+    return (
+      <div className="space-y-6" dir={isArabic ? "rtl" : "ltr"}>
+        <h1 className="text-3xl font-black">{billing.title}</h1>
+        <div className="card p-6 text-sm font-semibold" style={{ color: "var(--muted)" }}>
+          {isArabic
+            ? DEMO_BLOCKED_MESSAGE
+            : "Billing is not available in demo mode. Go back to your office to use it."}
+        </div>
+      </div>
+    );
   }
 
   if (memberView) {
