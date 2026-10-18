@@ -47,10 +47,10 @@ export default function DemoModeBanner() {
         role="region"
         aria-label={isArabic ? "وضع التجربة" : "Demo mode"}
         data-testid="demo-mode-banner"
-        className="sticky top-[68px] z-30 mb-4 flex flex-col gap-3 rounded-2xl border border-indigo-300 bg-indigo-600 p-3 text-white shadow-lg sm:top-[72px] sm:flex-row sm:items-center sm:justify-between xl:top-[84px] dark:border-indigo-400/40 dark:bg-indigo-700"
+        className="sticky top-[68px] z-30 mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--landing-copper)] bg-teal-950 p-3 text-white shadow-lg sm:top-[72px] sm:flex-row sm:items-center sm:justify-between xl:top-[84px]"
       >
         <span className="flex min-w-0 items-center gap-2 text-sm font-black">
-          <FlaskConical className="h-5 w-5 shrink-0" aria-hidden />
+          <FlaskConical className="h-5 w-5 shrink-0 text-[var(--landing-copper)]" aria-hidden />
           {isArabic
             ? "أنت في وضع التجربة — البيانات وهمية"
             : "You are in demo mode — the data is fake"}
@@ -61,7 +61,7 @@ export default function DemoModeBanner() {
             onClick={() => run("exit")}
             disabled={busy !== null}
             data-testid="demo-exit"
-            className="inline-flex min-h-10 items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-black text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[var(--landing-copper)] text-[var(--landing-canvas)] hover:bg-[var(--landing-copper-hover)] px-4 py-2 text-sm font-black transition disabled:opacity-60"
           >
             {isArabic ? "رجوع لمكتبي" : "Back to my office"}
           </button>
@@ -101,7 +101,7 @@ export default function DemoModeBanner() {
             type="button"
             onClick={() => run("reset")}
             data-testid="demo-reset-confirm"
-            className="min-h-10 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-black text-white hover:bg-indigo-700"
+            className="min-h-10 rounded-xl bg-[var(--landing-copper)] text-[var(--landing-canvas)] hover:bg-[var(--landing-copper-hover)] px-4 py-2 text-sm font-black"
           >
             {isArabic ? "إعادة الضبط" : "Reset"}
           </button>

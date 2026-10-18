@@ -29,7 +29,7 @@ export default function DemoLoadingOverlay({
         className="flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl border p-8 text-center shadow-2xl"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
       >
-        <Loader2 className="h-10 w-10 text-indigo-600 motion-safe:animate-spin dark:text-indigo-300" aria-hidden />
+        <Loader2 className="h-10 w-10 text-[var(--landing-copper)] motion-safe:animate-spin" aria-hidden />
         <p className="text-base font-black" style={{ color: "var(--text)" }}>
           {title}
         </p>

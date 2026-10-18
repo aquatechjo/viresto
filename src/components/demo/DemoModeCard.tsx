@@ -30,19 +30,19 @@ export default function DemoModeCard() {
     <>
       <section
         data-testid="demo-mode-card"
-        className="flex min-w-0 flex-col gap-4 rounded-2xl border border-indigo-300 bg-gradient-to-l from-indigo-50 to-white p-5 sm:flex-row sm:items-center sm:justify-between dark:border-indigo-400/30 dark:from-indigo-500/15 dark:to-transparent"
+        className="flex min-w-0 flex-col gap-4 rounded-2xl border border-teal-600/25 bg-teal-50 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-teal-300/20 dark:bg-teal-400/10"
       >
         <div className="flex min-w-0 items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-indigo-600 text-white dark:bg-indigo-500">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[var(--landing-copper)] text-[var(--landing-canvas)]">
             <FlaskConical className="h-5 w-5" aria-hidden />
           </span>
           <div className="min-w-0">
-            <h2 className="text-base font-black text-indigo-950 dark:text-indigo-50">
+            <h2 className="text-base font-black text-teal-950 dark:text-teal-50">
               {isArabic
                 ? "شوف كيف بيكون شكل مكتبك مع بيانات"
                 : "See what your office looks like with data"}
             </h2>
-            <p className="mt-1 text-sm font-semibold leading-relaxed text-indigo-900/80 dark:text-indigo-100/80">
+            <p className="mt-1 text-sm font-semibold leading-relaxed text-teal-900/80 dark:text-teal-50/75">
               {isArabic
                 ? "مكتب تجريبي فيه موكلين وقضايا وجلسات ومهام وفواتير وهمية. جرّب كل الميزات بحرية، ومكتبك الحقيقي ما بيتأثر."
                 : "A sample office with fake clients, cases, sessions, tasks and invoices. Try every feature freely; your real office is not affected."}
@@ -54,7 +54,7 @@ export default function DemoModeCard() {
           onClick={enter}
           disabled={busy}
           data-testid="demo-enter"
-          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 px-5 py-2 text-sm font-black text-white transition hover:bg-indigo-700 disabled:opacity-60 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[var(--landing-copper)] text-[var(--landing-canvas)] hover:bg-[var(--landing-copper-hover)] px-5 py-2 text-sm font-black transition disabled:opacity-60"
         >
           {isArabic ? "جرّب ببيانات تجريبية" : "Try with sample data"}
         </button>
