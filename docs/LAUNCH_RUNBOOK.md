@@ -160,6 +160,28 @@ Confirm in the list: `DATABASE_URL`, `DIRECT_URL`, `APP_URL` and/or
 `PRISMA_TRANSACTION_TIMEOUT_MS` (test-only). `AUTH_CACHE_TTL_MS` is optional
 (default 5000 ms).
 
+**Sentry (error monitoring and billing alerts).** Create a free Sentry
+project (platform: Next.js), then:
+
+```powershell
+Set-ProdEnv NEXT_PUBLIC_SENTRY_DSN "<the project's DSN>"     # required for any reporting
+# Optional: readable stack traces (source maps uploaded at build time).
+Set-ProdEnv SENTRY_ORG "<org slug>"
+Set-ProdEnv SENTRY_PROJECT "<project slug>"
+Set-ProdEnv SENTRY_AUTH_TOKEN "<org auth token with project:releases>"
+```
+
+Without the DSN the app runs normally and the build only warns. Leave
+`NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` unset (0: errors only, fits the free
+tier). In Sentry → Alerts, create one issue alert: "an event is seen" with
+filter tag `area` equals `billing` → email. Every webhook, sync and
+reconciliation failure carries that tag.
+
+**Crons.** `vercel.json` now has three daily crons (`generate-notifications`
+02:00, `prune-activity` 02:20, `reconcile-billing` 02:40 UTC). Check the plan
+allows three (Vercel → Settings → Cron Jobs after the deploy). All use
+`CRON_SECRET`; nothing else to set.
+
 ---
 
 ## 2. Neon restore point
@@ -187,7 +209,7 @@ Get-Content C:\secure\viresto-prod.env | ForEach-Object {
 npx prisma migrate status
 ```
 
-Expected: exactly these five pending, in this order (nothing else, nothing
+Expected: exactly these six pending, in this order (nothing else, nothing
 failed):
 
 1. `20260922020000_drop_subscription_payment`: drops the `SubscriptionPayment` table (destructive; see §4).
@@ -195,6 +217,7 @@ failed):
 3. `20260925010000_subscription_past_due_since`: adds nullable `Subscription.pastDueSince`.
 4. `20260930010000_processed_webhook`: new table `ProcessedWebhook` (webhook de-duplication).
 5. `20261001000000_subscription_currency_default_usd`: column defaults only (`USD`).
+6. `20261017000000_tenant_signup_plan_code`: adds nullable `Tenant.signupPlanCode` (the plan picked at signup).
 
 (`20260930000000_add_public_ids` must already show as applied: it was marked
 with `migrate resolve --applied` on 2026-09-30.) If the list differs, stop.
@@ -247,10 +270,13 @@ WHERE "twoFactorEnabled" = true OR "twoFactorSecret" IS NOT NULL;
 
 It must report `UPDATE 1`. Run the `SELECT` again: no rows. After launch,
 that user signs in with email and password and re-enables 2FA in Settings.
+(Since `6cd54c0` the login page has the code step; before it, a 2FA account
+could not sign in through the UI at all.)
 
 If `db:deploy` fails, go to §9.2. Do **not** deploy the app (§5) on a
 partially migrated database: `requireAuth` reads the trial columns on every
-request, and the Polar webhook reads `ProcessedWebhook` on every delivery.
+request, the Polar webhook reads `ProcessedWebhook` on every delivery, and
+registration writes `Tenant.signupPlanCode`.
 
 ---
 
@@ -290,6 +316,16 @@ npm run smoke:production
 
 All checks must pass (public pages 200, protected APIs 401, authenticated
 `/api/health` 200).
+
+Run the billing reconciliation once by hand (it is idempotent) and check the
+function log shows `[polar-reconcile] done ... failed=0`:
+
+```powershell
+vercel crons run /api/cron/reconcile-billing
+```
+
+If `NEXT_PUBLIC_SENTRY_DSN` is set: Sentry → Issues should stay empty after
+the smoke; a test event can be sent from Sentry's project settings.
 
 ### 6b. Billing catalogue and Polar
 
@@ -369,8 +405,15 @@ announce the launch until 1-5 pass.
 - [ ] Give the dev machine its own keys (Polar sandbox, test Resend /
       Cloudinary / Turnstile keys, new local secrets, `APP_URL=http://localhost:3000`).
       `ENCRYPTION_KEY` locally must be the key the dev-branch data uses.
-- [ ] Watch Vercel logs for `[polar-webhook]`, `[API_ERROR]` and
-      `[RATE_LIMIT_UNAVAILABLE]` for the first days.
+- [ ] Give the dev machine its own keys first: since `2263947`,
+      `npm run dev` refuses to start with the production Polar token, a
+      Resend key sending from virestojo.com, or a production `APP_URL`.
+- [ ] Watch Vercel logs for `[polar-webhook]`, `[polar-reconcile]`,
+      `[API_ERROR]` and `[RATE_LIMIT_UNAVAILABLE]` for the first days, and
+      the Sentry billing alert.
+- [ ] The day after launch: Vercel → Cron Jobs → `reconcile-billing` ran,
+      and its log has `[polar-reconcile] done` with `failed=0`. Any `drift`
+      line means a webhook was lost: check Polar → Webhooks → deliveries.
 - [ ] Keep the Neon backup branch for at least 7 days, then delete it:
       `neonctl branches delete $backup --project-id $neonProject`.
 - [ ] Update `PROJECT_STATUS.md` (deployed commit, date, anything that
