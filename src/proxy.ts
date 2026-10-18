@@ -119,6 +119,12 @@ export async function proxy(req: NextRequest) {
   // Next.js reads the request CSP/nonce and adds it to framework scripts.
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
+  // The root layout's <html lang/dir> for the first render: Arabic unless
+  // the link asks for English (?lang=en). Pages switch it client-side too.
+  requestHeaders.set(
+    "x-viresto-lang",
+    req.nextUrl.searchParams.get("lang") === "en" ? "en" : "ar",
+  );
 
   const isAsset =
     pathname.startsWith("/_next") ||

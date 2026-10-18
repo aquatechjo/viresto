@@ -82,7 +82,8 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: "Viresto",
     type: "website",
-    locale: "en_US",
+    locale: "ar_JO",
+    alternateLocale: ["en_US"],
     images: [
       {
         url: "/og-image.png",
@@ -167,12 +168,15 @@ export default async function RootLayout({
 }: {
   children: ReactNode;
 }) {
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const requestHeaders = await headers();
+  const nonce = requestHeaders.get("x-nonce") ?? undefined;
+  // Set by the proxy from ?lang: Arabic (RTL) unless the link asks for English.
+  const lang = requestHeaders.get("x-viresto-lang") === "en" ? "en" : "ar";
 
   return (
     <html
-      lang="ar"
-      dir="rtl"
+      lang={lang}
+      dir={lang === "ar" ? "rtl" : "ltr"}
       className="dark"
       suppressHydrationWarning
       data-scroll-behavior="smooth"

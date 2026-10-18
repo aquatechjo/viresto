@@ -10,7 +10,7 @@ import {
   type PlanCode,
   type PlanConfig,
 } from "@/config/plans";
-import { useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 
 type Locale = "ar" | "en";
 
@@ -561,15 +561,18 @@ function getPublicPlans(locale: Locale): PublicPlanView[] {
 
 const STORAGE_KEYS = ["locale", "viresto-locale", "preferred-locale"];
 
-function getStoredLocale(): Locale {
-  if (typeof window === "undefined") return "en";
+function parseLocale(value: unknown): Locale | null {
+  return value === "ar" || value === "en" ? value : null;
+}
 
+// A visitor's earlier choice; only read after the first (Arabic) render.
+function getStoredLocale(): Locale | null {
   for (const key of STORAGE_KEYS) {
-    const value = window.localStorage.getItem(key);
-    if (value === "ar" || value === "en") return value;
+    const value = parseLocale(window.localStorage.getItem(key));
+    if (value) return value;
   }
 
-  return document.documentElement.lang === "ar" ? "ar" : "en";
+  return null;
 }
 
 function VirestoLogo() {
@@ -594,15 +597,25 @@ function VirestoLogo() {
   );
 }
 
-export default function HomePage() {
-  const [locale, setLocale] = useState<Locale>("en");
+export default function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ lang?: string | string[] }>;
+}) {
+  // Rendered on the server in Arabic (RTL) so search engines and first-time
+  // visitors get the Arabic page; ?lang=en renders English from the start.
+  const requestedLocale = parseLocale(use(searchParams).lang);
+  const [locale, setLocale] = useState<Locale>(requestedLocale ?? "ar");
   const copy = COPY[locale];
   const isArabic = locale === "ar";
   const publicPlans = useMemo(() => getPublicPlans(locale), [locale]);
 
   useEffect(() => {
-    setLocale(getStoredLocale());
-  }, []);
+    // A link's ?lang wins; otherwise a returning visitor's own choice.
+    if (requestedLocale) return;
+    const stored = getStoredLocale();
+    if (stored) setLocale(stored);
+  }, [requestedLocale]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -620,6 +633,11 @@ export default function HomePage() {
 
   function changeLanguage() {
     setLocale(nextLocale);
+
+    // Keep the address shareable and in step with the server render.
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", nextLocale);
+    window.history.replaceState(null, "", url.toString());
   }
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
