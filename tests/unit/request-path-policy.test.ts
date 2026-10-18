@@ -54,3 +54,48 @@ test("a locked office keeps only account, billing and the settings read", async 
   assert.equal(isSubscriptionExemptPath("/api/data-requests/documents/", "GET"), false);
   assert.equal(isSubscriptionExemptPath("/api/documents/abc123", "GET"), false);
 });
+
+test("a demo office cannot reach billing, account security, invitations or data requests", async () => {
+  const { isDemoBlockedPath } = await import("../../src/lib/request-path-policy");
+
+  for (const [path, method] of [
+    ["/api/billing", "GET"],
+    ["/api/billing/checkout", "POST"],
+    ["/api/billing/checkout/confirm", "POST"],
+    ["/api/billing/portal", "POST"],
+    ["/api/data-requests/export", "GET"],
+    ["/api/data-requests/deletion", "POST"],
+    ["/api/settings/ai", "PATCH"],
+    ["/api/team", "POST"],
+    ["/api/team/invitations/abc", "POST"],
+    ["/api/auth/2fa/setup", "POST"],
+    ["/api/auth/session/revoke-others", "POST"],
+    ["/api/auth/change-email", "POST"],
+    ["/api/auth/update-profile", "PATCH"],
+  ]) {
+    assert.equal(isDemoBlockedPath(path, method), true, `${method} ${path}`);
+  }
+});
+
+test("a demo office keeps every working feature and the access read", async () => {
+  const { isDemoBlockedPath } = await import("../../src/lib/request-path-policy");
+
+  for (const [path, method] of [
+    ["/api/billing/access", "GET"],
+    ["/api/clients", "POST"],
+    ["/api/cases/abc", "PATCH"],
+    ["/api/invoices", "POST"],
+    ["/api/payments/abc", "DELETE"],
+    ["/api/documents", "POST"],
+    ["/api/upload/sign", "POST"],
+    ["/api/ai/chat", "POST"],
+    ["/api/team", "GET"],
+    ["/api/settings", "GET"],
+    ["/api/settings/ai", "GET"],
+    ["/api/auth/me", "GET"],
+    ["/api/auth/session/activity", "POST"],
+    ["/api/auth/logout", "POST"],
+  ]) {
+    assert.equal(isDemoBlockedPath(path, method), false, `${method} ${path}`);
+  }
+});

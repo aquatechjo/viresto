@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { err } from "@/lib/api-response";
-import { COOKIE, verifyToken } from "@/lib/auth";
+import { COOKIE, buildCookie, clearCookie, verifyToken } from "@/lib/auth";
 import type { JWTPayload } from "@/lib/auth";
 import type { UserRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -16,9 +17,23 @@ import {
   userCanUseSession,
 } from "@/lib/session-policy";
 import {
+  isDemoBlockedPath,
   isSeatLimitExemptPath,
   isSubscriptionExemptPath,
 } from "@/lib/request-path-policy";
+import {
+  DEMO_BLOCKED_CODE,
+  DEMO_BLOCKED_MESSAGE,
+  DEMO_ENDED_CODE,
+  DEMO_ENDED_HEADER,
+} from "@/lib/demo/constants";
+import {
+  closeDemoSession,
+  deleteDemoSandboxForUser,
+  findUsableRealSession,
+  isOfficeOnTrial,
+  restoreRealSession,
+} from "@/lib/demo/sandbox";
 import { getClientIp } from "@/lib/client-ip";
 import {
   getTenantAccessCached,
@@ -76,6 +91,11 @@ export type AuthenticatedUser = {
   isSystemAdmin: boolean;
   sessionId: string;
   profile: AuthenticatedUserProfile;
+  // Demo mode (src/lib/demo): a sandbox office. billingTenantId is the
+  // office whose trial, plan limits and AI quota apply: the owner's real
+  // office for a sandbox, the user's own office otherwise.
+  isDemo: boolean;
+  billingTenantId: string;
 };
 
 type AuthCacheEntry = {
@@ -98,6 +118,9 @@ export type SessionValidationResult =
       ok: false;
       message: string;
     };
+
+const DEMO_ENDED_MESSAGE =
+  "انتهى وضع التجربة. تمت إعادتك إلى مكتبك.";
 
 const authCache =
   ((globalThis as GlobalWithAuthCache).__virestoAuthCache ??=
@@ -183,6 +206,15 @@ export function invalidateAuthCacheForSession(
   authCache.delete(getCacheKey(sessionId, userId, tenantId));
 }
 
+/** Like invalidateAuthCacheForSession, when only the session id is known. */
+export function invalidateAuthCacheForSessionId(sessionId: string) {
+  for (const [key, entry] of authCache.entries()) {
+    if (entry.user.sessionId === sessionId) {
+      authCache.delete(key);
+    }
+  }
+}
+
 /**
  * Call whenever a user's security context changes in a way that isn't
  * scoped to one known session id: password/email change, "sign out other
@@ -261,6 +293,7 @@ export async function validateSessionPayload(
         isActive: true,
         lastActivityAt: true,
         createdAt: true,
+        parentSessionId: true,
       },
     }),
 
@@ -288,6 +321,9 @@ export async function validateSessionPayload(
             isSuspended: true,
             status: true,
             trialEndsAt: true,
+            isDemo: true,
+            demoOwnerTenantId: true,
+            demoOwnerUserId: true,
           },
         },
       },
@@ -365,6 +401,39 @@ export async function validateSessionPayload(
     };
   }
 
+  // A demo session lives only while its real session does and the owner's
+  // office is on its trial; when the trial is over, the sandbox goes too.
+  const isDemo = dbUser.tenant.isDemo;
+
+  if (isDemo) {
+    const ownerTenantId = dbUser.tenant.demoOwnerTenantId;
+    const ownerUserId = dbUser.tenant.demoOwnerUserId;
+    const realSession = ownerTenantId && ownerUserId
+      ? await findUsableRealSession(session.parentSessionId)
+      : null;
+    const onTrial = ownerTenantId ? await isOfficeOnTrial(ownerTenantId) : false;
+
+    if (
+      !realSession ||
+      realSession.userId !== ownerUserId ||
+      realSession.tenantId !== ownerTenantId ||
+      !onTrial
+    ) {
+      authCache.delete(cacheKey);
+
+      await prisma.session.updateMany({
+        where: { id: tokenUser.sessionId },
+        data: { isActive: false },
+      });
+
+      if (!onTrial && ownerUserId) {
+        await deleteDemoSandboxForUser(ownerUserId);
+      }
+
+      return { ok: false, message: DEMO_ENDED_MESSAGE };
+    }
+  }
+
   let lastActivityAtForCache = session.lastActivityAt;
 
   if (options.touch && shouldTouchSession(session.lastActivityAt)) {
@@ -373,12 +442,21 @@ export async function validateSessionPayload(
 
     lastActivityAtForCache = now;
 
+    // Activity in the sandbox keeps the real session underneath alive too,
+    // so "back to my office" never lands on an idle-expired session.
+    const touched: Prisma.SessionWhereInput[] = [
+      {
+        id: tokenUser.sessionId,
+        userId: tokenUser.userId,
+        tenantId: tokenUser.tenantId,
+      },
+    ];
+    if (session.parentSessionId) touched.push({ id: session.parentSessionId });
+
     void prisma.session
       .updateMany({
         where: {
-          id: tokenUser.sessionId,
-          userId: tokenUser.userId,
-          tenantId: tokenUser.tenantId,
+          OR: touched,
           isActive: true,
           lastActivityAt: {
             lt: touchBefore,
@@ -401,6 +479,8 @@ export async function validateSessionPayload(
     role: dbUser.role as UserRole,
     isSystemAdmin: dbUser.isSystemAdmin,
     sessionId: tokenUser.sessionId,
+    isDemo,
+    billingTenantId: isDemo ? dbUser.tenant.demoOwnerTenantId! : dbUser.tenantId,
     profile: {
       id: dbUser.id,
       name: dbUser.name,
@@ -464,8 +544,25 @@ export async function requireAuth(
   });
 
   if (!validation.ok) {
+    if (tokenUser.parentSessionId) {
+      return {
+        error: await demoEndedResponse(tokenUser.sessionId, tokenUser.parentSessionId),
+        user: null,
+      };
+    }
+
     return {
       error: err(validation.message, 401),
+      user: null,
+    };
+  }
+
+  if (
+    validation.user.isDemo &&
+    isDemoBlockedPath(req.nextUrl.pathname, req.method)
+  ) {
+    return {
+      error: err(DEMO_BLOCKED_MESSAGE, 403, { code: DEMO_BLOCKED_CODE }),
       user: null,
     };
   }
@@ -495,6 +592,30 @@ export async function requireAuth(
     user: validation.user,
     seatReadOnly,
   };
+}
+
+/**
+ * A demo session that may no longer be used (sandbox gone, trial over, or
+ * the real session ended): end it and, in this same response, switch the
+ * cookie back to the real session when it is still usable. The user lands
+ * in their real office on their next request even if the client ignores
+ * the code; otherwise the cookie is cleared and they log in again.
+ */
+export async function demoEndedResponse(
+  sessionId: string | undefined,
+  parentSessionId: string,
+) {
+  if (sessionId) await closeDemoSession(sessionId);
+
+  const realToken = await restoreRealSession(parentSessionId);
+  const res = err(DEMO_ENDED_MESSAGE, realToken ? 409 : 401, {
+    code: DEMO_ENDED_CODE,
+  });
+
+  res.headers.set(DEMO_ENDED_HEADER, "1");
+  res.cookies.set(realToken ? buildCookie(realToken) : clearCookie());
+
+  return res;
 }
 
 /**

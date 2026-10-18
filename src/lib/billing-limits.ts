@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { subscriptionOwnerWhere } from "@/lib/tenant-access-server";
 import {
   PLANS,
   type PlanCode,
@@ -149,7 +150,7 @@ export async function getTenantBillingLimits(
   db: BillingReadClient = prisma,
 ): Promise<TenantBillingLimits> {
   const subscriptions = await db.subscription.findMany({
-    where: { tenantId },
+    where: subscriptionOwnerWhere(tenantId),
     orderBy: { createdAt: "desc" },
     take: 20,
     select: {

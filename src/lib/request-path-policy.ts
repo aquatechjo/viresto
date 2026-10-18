@@ -71,3 +71,31 @@ export function isSeatLimitExemptPath(pathname: string, method: string) {
 
   return DATA_REQUEST_ROUTES.has(`${method.toUpperCase()} ${pathname}`);
 }
+
+// Routes a demo office (src/lib/demo) may not use: everything that sends
+// email, touches billing or Polar, or changes the account or its security.
+// The sandbox user is a stand-in for the real one, so these belong to the
+// real office only. Reading the access state stays allowed (the dashboard
+// gate and banners need it); the demo enter/exit/reset routes check the
+// session themselves.
+export function isDemoBlockedPath(pathname: string, method: string) {
+  const upper = method.toUpperCase();
+  const isRead = upper === "GET" || upper === "HEAD";
+
+  if (pathname === "/api/billing/access" && isRead) return false;
+  if (pathname === "/api/billing" || pathname.startsWith("/api/billing/")) {
+    return true;
+  }
+
+  if (pathname.startsWith("/api/data-requests/")) return true;
+  if (pathname === "/api/settings/ai" && !isRead) return true;
+  if (pathname === "/api/team" && !isRead) return true;
+  if (pathname.startsWith("/api/team/invitations/")) return true;
+  if (pathname.startsWith("/api/auth/2fa/")) return true;
+  if (pathname.startsWith("/api/auth/session/revoke")) return true;
+
+  return (
+    pathname === "/api/auth/change-email" ||
+    pathname === "/api/auth/update-profile"
+  );
+}

@@ -1,10 +1,18 @@
 import { externalFetch } from "@/lib/external-fetch";
 import { COMPANY_CONTACT } from "@/config/contact";
+import { isDemoEmail } from "@/lib/demo/constants";
 
 type SendVerificationEmailInput = {
   to: string;
   code: string;
 };
+
+// Demo-mode sandbox users (src/lib/demo) have undeliverable addresses, and
+// their routes that send email are blocked in api-auth.ts. This is the
+// last line: nothing addressed to them ever reaches Resend.
+function isDemoRecipient(to: string | string[]) {
+  return (Array.isArray(to) ? to : [to]).some(isDemoEmail);
+}
 
 function getAppName() {
   return process.env.APP_NAME || "Viresto";
@@ -57,6 +65,8 @@ export async function sendVerificationEmail({
     throw new Error("Missing RESEND_API_KEY");
   }
 
+  if (isDemoRecipient(to)) return { skipped: true };
+
   const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -102,6 +112,8 @@ export async function sendPasswordResetEmail({
 
     throw new Error("Missing RESEND_API_KEY");
   }
+
+  if (isDemoRecipient(to)) return { skipped: true };
 
   const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
@@ -163,6 +175,8 @@ export async function sendEmailChangeCode({
 
     throw new Error("Missing RESEND_API_KEY");
   }
+
+  if (isDemoRecipient(to)) return { skipped: true };
 
   const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
@@ -232,6 +246,8 @@ export async function sendEmailChangeCompletedEmail({
 
     throw new Error("Missing RESEND_API_KEY");
   }
+
+  if (isDemoRecipient(to)) return { skipped: true };
 
   const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
@@ -308,6 +324,8 @@ export async function sendTeamInvitationEmail({
     throw new Error("Missing RESEND_API_KEY");
   }
 
+  if (isDemoRecipient(to)) return { skipped: true };
+
   const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -377,6 +395,8 @@ export async function sendOfficeDeletionRequestEmail({
   }
 
   const reasonLine = reason ? `السبب: ${reason}` : "لم يُذكر سبب.";
+
+  if (isDemoRecipient(to)) return { skipped: true };
 
   const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",

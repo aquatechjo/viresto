@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const tenant = await prisma.tenant.findUnique({
-      where: { id: auth.user.tenantId },
+      where: { id: auth.user.billingTenantId },
       select: {
         aiEnabled: true,
         aiConsentAt: true,
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     }
 
     const aiCheck = await assertTenantCanUseAi(
-      auth.user.tenantId,
+      auth.user.billingTenantId,
       "استخدام المساعد الذكي",
     );
 
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     const rl = await checkRateLimit(
-      `${auth.user.tenantId}:${auth.user.userId}`,
+      `${auth.user.billingTenantId}:${auth.user.userId}`,
       {
         keyPrefix: "ai-chat",
         windowMs: 60 * 60 * 1000,
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
       500,
     );
     const reservation = await reserveAiUsage({
-      tenantId: auth.user.tenantId,
+      tenantId: auth.user.billingTenantId,
       limitTokens,
       requestedTokens,
     });
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
       });
     } catch (error) {
       await releaseAiUsage({
-        tenantId: auth.user.tenantId,
+        tenantId: auth.user.billingTenantId,
         reservationId: reservation.reservation.id,
       }).catch((releaseError) => {
         console.error("Failed to release AI chat reservation:", releaseError);
@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
     }
 
     const usage = await commitAiUsage({
-      tenantId: auth.user.tenantId,
+      tenantId: auth.user.billingTenantId,
       reservationId: reservation.reservation.id,
       limitTokens,
       actualTokens: completion.usage?.total_tokens,

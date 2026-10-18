@@ -10,6 +10,9 @@ export interface JWTPayload {
   role: string;
   sessionId?: string;
   isSystemAdmin?: boolean;
+  // Demo mode (src/lib/demo): the real session to return to. Kept in the
+  // signed token so exit still works after the sandbox is deleted.
+  parentSessionId?: string;
 }
 
 export const COOKIE = "ld_token";

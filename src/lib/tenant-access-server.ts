@@ -33,12 +33,27 @@ export const ACCESS_SUBSCRIPTION_SELECT = {
   createdAt: true,
 } as const;
 
+/**
+ * The subscriptions that decide an office's access and plan limits. A demo
+ * sandbox (src/lib/demo) has none of its own: it runs on its owner's
+ * office, which is how it inherits the trial's limits and AI quota. No
+ * other office matches, so a real office reads only its own rows.
+ */
+export function subscriptionOwnerWhere(tenantId: string): Prisma.SubscriptionWhereInput {
+  return {
+    OR: [
+      { tenantId },
+      { tenant: { demoSandboxes: { some: { id: tenantId, isDemo: true } } } },
+    ],
+  };
+}
+
 export async function getTenantAccess(
   tenantId: string,
   db: AccessReadClient = prisma,
 ): Promise<TenantAccess> {
   const subscriptions = await db.subscription.findMany({
-    where: { tenantId },
+    where: subscriptionOwnerWhere(tenantId),
     orderBy: { createdAt: "desc" },
     take: 20,
     select: ACCESS_SUBSCRIPTION_SELECT,
