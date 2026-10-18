@@ -31,6 +31,15 @@ model Tenant {
   email                  String?
   logoUrl                String?
   phone                  String?
+  // Demo mode ("try with sample data", src/lib/demo): a sandbox office
+  // generated for one user of an office on its in-app trial. Never billed,
+  // never counted, deleted with its owner, on subscribe and on trial end.
+  isDemo                 Boolean           @default(false)
+  demoOwnerTenantId      String?
+  demoOwnerUserId        String?           @unique
+  demoOwnerTenant        Tenant?           @relation("DemoSandbox", fields: [demoOwnerTenantId], references: [id], onDelete: Cascade)
+  demoOwnerUser          User?             @relation("DemoSandboxOwner", fields: [demoOwnerUserId], references: [id], onDelete: Cascade)
+  demoSandboxes          Tenant[]          @relation("DemoSandbox")
   activities             Activity[]
   aiUsagePeriods         AiUsagePeriod[]
   appointments           Appointment[]
@@ -48,6 +57,9 @@ model Tenant {
   users                  User[]
 
   subscriptions Subscription[]
+
+  @@index([isDemo])
+  @@index([demoOwnerTenantId])
 }
 
 model TeamInvitation {
@@ -174,25 +186,25 @@ model AiUsageReservation {
 }
 
 model User {
-  id                String   @id @default(cuid())
-  tenantId          String
-  name              String
-  email             String   @unique
-  phone             String?
-  emailVerifiedAt   DateTime?
-  phoneVerifiedAt   DateTime?
-  passwordHash      String
-  termsAcceptedAt   DateTime?
-  termsVersion      String?
-  privacyAcceptedAt DateTime?
-  privacyVersion    String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  isActive          Boolean  @default(true)
-  role              UserRole @default(LAWYER)
-  twoFactorEnabled  Boolean  @default(false)
-  twoFactorSecret   String?
-  isSystemAdmin     Boolean  @default(false)
+  id                   String               @id @default(cuid())
+  tenantId             String
+  name                 String
+  email                String               @unique
+  phone                String?
+  emailVerifiedAt      DateTime?
+  phoneVerifiedAt      DateTime?
+  passwordHash         String
+  termsAcceptedAt      DateTime?
+  termsVersion         String?
+  privacyAcceptedAt    DateTime?
+  privacyVersion       String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  isActive             Boolean              @default(true)
+  role                 UserRole             @default(LAWYER)
+  twoFactorEnabled     Boolean              @default(false)
+  twoFactorSecret      String?
+  isSystemAdmin        Boolean              @default(false)
   sessions             Session[]
   tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   verificationCodes    VerificationCode[]
@@ -208,6 +220,7 @@ model User {
   createdAppointments  Appointment[]        @relation("AppointmentCreator")
   notifications        Notification[]
   invitedTeamMembers   TeamInvitation[]     @relation("TeamInvitationInviter")
+  demoSandbox          Tenant?              @relation("DemoSandboxOwner")
 
   @@unique([tenantId, email])
   @@unique([id, tenantId])
@@ -403,10 +416,10 @@ model Document {
   client       Client?   @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, publicId])
   @@index([tenantId])
   @@index([tenantId, createdAt])
   @@index([tenantId, caseId, createdAt])
-  @@unique([tenantId, publicId])
 }
 
 model Task {
@@ -505,19 +518,22 @@ model Notification {
 }
 
 model Session {
-  id             String   @id @default(cuid())
-  userId         String
-  tenantId       String
-  tokenHash      String   @unique
-  ipAddress      String?
-  userAgent      String?
-  isActive       Boolean  @default(true)
-  lastActivityAt DateTime @default(now())
-  createdAt      DateTime @default(now())
-  city           String?
-  country        String?
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user           User     @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  userId          String
+  tenantId        String
+  tokenHash       String   @unique
+  ipAddress       String?
+  userAgent       String?
+  isActive        Boolean  @default(true)
+  lastActivityAt  DateTime @default(now())
+  createdAt       DateTime @default(now())
+  city            String?
+  country         String?
+  // A demo-mode session (src/lib/demo): the user's real session, which
+  // stays active underneath and is restored on exit.
+  parentSessionId String?
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   @@index([userId])
   @@index([tenantId])
