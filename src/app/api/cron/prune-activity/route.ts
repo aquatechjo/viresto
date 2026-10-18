@@ -10,8 +10,12 @@ import {
 } from '@/lib/activity-retention'
 import { PROCESSED_WEBHOOK_RETENTION_DAYS } from '@/lib/webhook-dedupe'
 import { cleanupOrphanUploads } from '@/lib/server/cleanup-orphan-uploads'
+import { RECONCILE_LOG_PREFIX, reconcilePolarSubscriptions } from '@/lib/polar-reconcile'
+import { reportBillingIssue } from '@/lib/monitoring'
 
 export const dynamic = 'force-dynamic'
+// The Polar reconciliation below lists Polar's live subscriptions.
+export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -68,9 +72,23 @@ export async function GET(req: NextRequest) {
       uploads = { status: 'failed' }
     }
 
+    // And of the billing reconciliation (/api/cron/reconcile-billing stays
+    // for manual runs). Polar being unreachable must not fail the prune:
+    // nothing is half-applied, and tomorrow's run retries.
+    let billing: Awaited<ReturnType<typeof reconcilePolarSubscriptions>> | { status: 'failed' }
+    try {
+      billing = await reconcilePolarSubscriptions()
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'unknown'
+      console.error(`${RECONCILE_LOG_PREFIX} run_failed error=${name}`)
+      reportBillingIssue('polar-reconcile', 'run_failed', 'error', { error: name })
+      billing = { status: 'failed' }
+    }
+
     return ok({
       message: 'Activity logs pruned successfully',
       uploads,
+      billing,
       retention: {
         auditDays: ACTIVITY_RETENTION_DAYS.audit,
         defaultDays: ACTIVITY_RETENTION_DAYS.default,

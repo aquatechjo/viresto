@@ -8,10 +8,6 @@
     {
       "path": "/api/cron/prune-activity",
       "schedule": "20 2 * * *"
-    },
-    {
-      "path": "/api/cron/reconcile-billing",
-      "schedule": "40 2 * * *"
     }
   ]
 }

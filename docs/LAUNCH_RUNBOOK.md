@@ -177,10 +177,11 @@ tier). In Sentry → Alerts, create one issue alert: "an event is seen" with
 filter tag `area` equals `billing` → email. Every webhook, sync and
 reconciliation failure carries that tag.
 
-**Crons.** `vercel.json` now has three daily crons (`generate-notifications`
-02:00, `prune-activity` 02:20, `reconcile-billing` 02:40 UTC). Check the plan
-allows three (Vercel → Settings → Cron Jobs after the deploy). All use
-`CRON_SECRET`; nothing else to set.
+**Crons.** `vercel.json` has two daily crons, the Vercel Hobby limit
+(`generate-notifications` 02:00, `prune-activity` 02:20 UTC). `prune-activity`
+also runs the upload cleanup and the Polar billing reconciliation.
+`/api/cron/reconcile-billing` is kept for manual runs only.
+All use `CRON_SECRET`; nothing else to set.
 
 ---
 
@@ -321,7 +322,7 @@ Run the billing reconciliation once by hand (it is idempotent) and check the
 function log shows `[polar-reconcile] done ... failed=0`:
 
 ```powershell
-vercel crons run /api/cron/reconcile-billing
+curl.exe -H "Authorization: Bearer $env:CRON_SECRET" https://virestojo.com/api/cron/reconcile-billing
 ```
 
 If `NEXT_PUBLIC_SENTRY_DSN` is set: Sentry → Issues should stay empty after
@@ -411,7 +412,7 @@ announce the launch until 1-5 pass.
 - [ ] Watch Vercel logs for `[polar-webhook]`, `[polar-reconcile]`,
       `[API_ERROR]` and `[RATE_LIMIT_UNAVAILABLE]` for the first days, and
       the Sentry billing alert.
-- [ ] The day after launch: Vercel → Cron Jobs → `reconcile-billing` ran,
+- [ ] The day after launch: Vercel → Cron Jobs → `prune-activity` ran,
       and its log has `[polar-reconcile] done` with `failed=0`. Any `drift`
       line means a webhook was lost: check Polar → Webhooks → deliveries.
 - [ ] Keep the Neon backup branch for at least 7 days, then delete it:
