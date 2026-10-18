@@ -84,6 +84,9 @@ export async function POST(req: NextRequest) {
 
     const qrCode = await QRCode.toDataURL(secret.otpauth_url);
 
-    return ok({ qrCode });
+    // The same secret as the QR code, for authenticator apps set up by
+    // typing it (no camera, desktop apps). Shown once, to the signed-in
+    // user who just confirmed their password.
+    return ok({ qrCode, manualKey: secret.base32 });
   });
 }

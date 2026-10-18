@@ -194,6 +194,7 @@ const COPY = {
     creating: "جاري الإنشاء...",
     enable2FA: "تفعيل 2FA",
     qrAlt: "رمز QR للتحقق الثنائي",
+    twoFAManualKeyLabel: "أو أدخل هذا المفتاح يدويًا في تطبيق المصادقة:",
     enterVerificationCode: "أدخل رمز التحقق",
     confirming: "جاري التأكيد...",
     confirmActivation: "تأكيد التفعيل",
@@ -325,6 +326,7 @@ const COPY = {
     creating: "Creating...",
     enable2FA: "Enable 2FA",
     qrAlt: "2FA QR code",
+    twoFAManualKeyLabel: "Or type this key into your authenticator app:",
     enterVerificationCode: "Enter verification code",
     confirming: "Confirming...",
     confirmActivation: "Confirm activation",
@@ -487,6 +489,7 @@ export default function SettingsPage() {
 
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [qrCode, setQrCode] = useState("");
+  const [twoFAManualKey, setTwoFAManualKey] = useState("");
   const [twoFAPassword, setTwoFAPassword] = useState("");
   const [twoFACode, setTwoFACode] = useState("");
   const [twoFALoading, setTwoFALoading] = useState(false);
@@ -929,6 +932,7 @@ export default function SettingsPage() {
 
       if (response.ok && data.success) {
         setQrCode(data.data?.qrCode || "");
+        setTwoFAManualKey(data.data?.manualKey || "");
         setTwoFAPassword("");
         toast.success(copy.qrCreated);
       } else {
@@ -963,6 +967,7 @@ export default function SettingsPage() {
       if (response.ok && data.success) {
         setTwoFAEnabled(true);
         setQrCode("");
+        setTwoFAManualKey("");
         setTwoFACode("");
         toast.success(copy.twoFAEnabledToast);
       } else {
@@ -1551,6 +1556,7 @@ export default function SettingsPage() {
                       dir="ltr"
                       type="password"
                       autoComplete="current-password"
+                      data-testid="twofa-password"
                       value={twoFAPassword}
                       onChange={(event) => setTwoFAPassword(event.target.value)}
                       className="input"
@@ -1579,7 +1585,22 @@ export default function SettingsPage() {
                     style={{ borderColor: "var(--border)" }}
                   />
 
+                  {twoFAManualKey && (
+                    <div className="text-center text-sm" style={{ color: "var(--text-3)" }}>
+                      <p className="font-bold">{copy.twoFAManualKeyLabel}</p>
+                      <code
+                        data-testid="twofa-manual-key"
+                        dir="ltr"
+                        className="mt-2 inline-block select-all break-all rounded-xl border px-3 py-2 font-mono text-sm font-black tracking-wider"
+                        style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                      >
+                        {twoFAManualKey}
+                      </code>
+                    </div>
+                  )}
+
                   <input
+                    data-testid="twofa-code"
                     value={twoFACode}
                     onChange={(event) =>
                       setTwoFACode(
@@ -1613,7 +1634,7 @@ export default function SettingsPage() {
                     color: "var(--success)",
                   }}
                 >
-                  {copy.twoFAAlreadyEnabled}
+                  <span data-testid="twofa-enabled">{copy.twoFAAlreadyEnabled}</span>
                 </div>
               )}
             </VDSCard>

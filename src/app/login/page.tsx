@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -53,9 +53,14 @@ const COPY: Record<
     noAccount: string;
     register: string;
     footer: string;
+    twoFactorLabel: string;
+    twoFactorHint: string;
+    twoFactorSubmit: string;
+    twoFactorBack: string;
     errors: {
       emailRequired: string;
       passwordRequired: string;
+      codeRequired: string;
     };
     toast: {
       loginSuccess: string;
@@ -90,9 +95,15 @@ const COPY: Record<
     noAccount: "ليس لديك حساب؟",
     register: "سجّل مكتبك",
     footer: "جميع الحقوق محفوظة.",
+    twoFactorLabel: "رمز التحقق الثنائي",
+    twoFactorHint:
+      "هذا الحساب محمي بالتحقق الثنائي. أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.",
+    twoFactorSubmit: "تأكيد الرمز",
+    twoFactorBack: "استخدام بيانات أخرى",
     errors: {
       emailRequired: "البريد الإلكتروني مطلوب",
       passwordRequired: "كلمة المرور مطلوبة",
+      codeRequired: "أدخل الرمز المكوّن من 6 أرقام",
     },
     toast: {
       loginSuccess: "مرحبًا بك في Viresto!",
@@ -162,9 +173,15 @@ const COPY: Record<
     noAccount: "Don’t have an account?",
     register: "Register your office",
     footer: "All rights reserved.",
+    twoFactorLabel: "Two-factor code",
+    twoFactorHint:
+      "This account is protected by two-factor authentication. Enter the 6-digit code from your authenticator app.",
+    twoFactorSubmit: "Verify code",
+    twoFactorBack: "Use different details",
     errors: {
       emailRequired: "Email address is required",
       passwordRequired: "Password is required",
+      codeRequired: "Enter the 6-digit code",
     },
     toast: {
       loginSuccess: "Welcome to Viresto!",
@@ -276,6 +293,11 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Second step for accounts with 2FA: the server answered
+  // requiresTwoFactor, so the same credentials are sent again with a code.
+  const [twoFactorStep, setTwoFactorStep] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const twoFactorInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const copy = COPY[locale];
@@ -354,6 +376,9 @@ export default function LoginPage() {
 
     if (!form.email) err.email = copy.errors.emailRequired;
     if (!form.password) err.password = copy.errors.passwordRequired;
+    if (twoFactorStep && !/^\d{6}$/.test(twoFactorCode)) {
+      err.code = copy.errors.codeRequired;
+    }
 
     if (Object.keys(err).length) {
       setErrors(err);
@@ -366,10 +391,19 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(
+          twoFactorStep ? { ...form, code: twoFactorCode } : form,
+        ),
       });
 
       const data = await res.json().catch(() => ({}));
+
+      if (data.requiresTwoFactor) {
+        setTwoFactorStep(true);
+        setTwoFactorCode("");
+        window.setTimeout(() => twoFactorInputRef.current?.focus(), 0);
+        return;
+      }
 
       if (data.success) {
         localStorage.setItem("viresto_last_activity", String(Date.now()));
@@ -392,6 +426,8 @@ export default function LoginPage() {
         router.push(`/verify-email?email=${encodeURIComponent(verifyEmail)}`);
         return;
       }
+
+      if (twoFactorStep) setTwoFactorCode("");
 
       toast.error(
         locale === "ar" && typeof data?.message === "string"
@@ -749,6 +785,7 @@ export default function LoginPage() {
                       <input
                         type="email"
                         value={form.email}
+                        readOnly={twoFactorStep}
                         dir="ltr"
                         autoComplete="email"
                         onChange={(event) => {
@@ -782,6 +819,7 @@ export default function LoginPage() {
                         <input
                           type={showPassword ? "text" : "password"}
                           value={form.password}
+                          readOnly={twoFactorStep}
                           dir="ltr"
                           autoComplete="current-password"
                           onChange={(event) => {
@@ -838,6 +876,51 @@ export default function LoginPage() {
                     </FormField>
                   </motion.div>
 
+                  {twoFactorStep && (
+                    <div
+                      data-testid="login-two-factor-step"
+                      className="space-y-2"
+                    >
+                      <p className="text-sm font-bold leading-6 text-copper-100/80">
+                        {copy.twoFactorHint}
+                      </p>
+                      <FormField
+                        label={copy.twoFactorLabel}
+                        required
+                        error={errors.code}
+                      >
+                        <input
+                          ref={twoFactorInputRef}
+                          name="code"
+                          value={twoFactorCode}
+                          dir="ltr"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={6}
+                          onChange={(event) => {
+                            setTwoFactorCode(
+                              event.target.value.replace(/\D/g, "").slice(0, 6),
+                            );
+                            setErrors((previous) => ({ ...previous, code: "" }));
+                          }}
+                          className={`input auth-autofill text-center tracking-[0.4em] ${inputTextClass}`}
+                          placeholder="000000"
+                        />
+                      </FormField>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTwoFactorStep(false);
+                          setTwoFactorCode("");
+                          setErrors({});
+                        }}
+                        className="min-h-11 text-sm font-black text-[#185354] transition hover:underline dark:text-copper-300"
+                      >
+                        {copy.twoFactorBack}
+                      </button>
+                    </div>
+                  )}
+
                   <motion.div
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -864,10 +947,18 @@ export default function LoginPage() {
                     style={{
                       boxShadow: "0 18px 35px rgba(31,70,57,.28)",
                     }}
-                    aria-label={loading ? copy.loadingLabel : copy.submit}
+                    aria-label={
+                      loading
+                        ? copy.loadingLabel
+                        : twoFactorStep
+                          ? copy.twoFactorSubmit
+                          : copy.submit
+                    }
                   >
                     {loading ? (
                       <span className="spinner spinner-sm" />
+                    ) : twoFactorStep ? (
+                      copy.twoFactorSubmit
                     ) : (
                       copy.submit
                     )}

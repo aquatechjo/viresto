@@ -24,6 +24,8 @@ import { PRIVACY_VERSION, TERMS_VERSION } from "../src/lib/legal-policy";
 
 const E2E_TENANT_SLUG = "e2e-test-office";
 const E2E_TENANT_NAME = "مكتب اختبارات E2E";
+// Same password as the main E2E user; used only by the 2FA login spec.
+const E2E_TWO_FACTOR_EMAIL = "e2e-2fa@example.com";
 const PLAN_CODE = "PRO";
 const BCRYPT_COST = 12; // same as /api/auth/register
 
@@ -191,12 +193,46 @@ async function main() {
         data: { isActive: false },
       });
 
+      // A second member for tests/e2e/two-factor-login.spec.ts, which turns
+      // 2FA on and off: kept apart so a failed run can never leave 2FA on
+      // for the main E2E account. Every seed resets it to 2FA off.
+      const twoFactorUser = await tx.user.findUnique({
+        where: { email: E2E_TWO_FACTOR_EMAIL },
+        select: { id: true, tenantId: true },
+      });
+
+      if (twoFactorUser && twoFactorUser.tenantId !== tenant.id) {
+        throw new Error(
+          `${E2E_TWO_FACTOR_EMAIL} belongs to another office; refusing to modify it.`,
+        );
+      }
+
+      const twoFactorData = {
+        ...userData,
+        name: "E2E 2FA User",
+        role: "LAWYER" as const,
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+      };
+
+      const twoFactorRow = twoFactorUser
+        ? await tx.user.update({ where: { id: twoFactorUser.id }, data: twoFactorData })
+        : await tx.user.create({
+            data: { ...twoFactorData, email: E2E_TWO_FACTOR_EMAIL, tenantId: tenant.id },
+          });
+
+      await tx.session.updateMany({
+        where: { userId: twoFactorRow.id, isActive: true },
+        data: { isActive: false },
+      });
+
       return { created: !existingUser, tenantSlug: tenant.slug };
     });
 
     console.log(
       `seed:e2e — ${result.created ? "created" : "updated"} ${email} ` +
-        `(ADMIN, email verified) in office "${result.tenantSlug}" with an active ${PLAN_CODE} subscription.`,
+        `(ADMIN, email verified) in office "${result.tenantSlug}" with an active ${PLAN_CODE} subscription, ` +
+        `and reset ${E2E_TWO_FACTOR_EMAIL} (LAWYER, 2FA off).`,
     );
   } finally {
     await prisma.$disconnect();
