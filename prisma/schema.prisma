@@ -23,6 +23,10 @@ model Tenant {
   aiConsentBy            String?
   aiConsentPolicyVersion String?
   trialEndsAt            DateTime?
+  // The plan picked on the website before signing up (/register?plan=...):
+  // BASIC, PRO or BUSINESS. The trial itself always runs on Pro limits;
+  // this only preselects the plan on the subscribe page.
+  signupPlanCode         String?
   address                String?
   email                  String?
   logoUrl                String?

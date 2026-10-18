@@ -1,12 +1,16 @@
 "use client";
 
+import type { PlanCode } from "@/config/plans";
 import type { TenantAccessSummary } from "@/lib/tenant-write-access-cache";
+import { trialLimitsNote } from "@/lib/trial-copy";
 
 interface TrialStatusCardProps {
   access: TenantAccessSummary | null | undefined;
   isArabic: boolean;
   canSubscribe: boolean;
   onSubscribe?: () => void;
+  // The plan picked on the website before signing up, if any.
+  signupPlan?: PlanCode | null;
 }
 
 function formatTrialDate(value: string | null, isArabic: boolean) {
@@ -34,6 +38,7 @@ export default function TrialStatusCard({
   isArabic,
   canSubscribe,
   onSubscribe,
+  signupPlan = null,
 }: TrialStatusCardProps) {
   if (!access || access.state === "PAID") return null;
 
@@ -59,8 +64,8 @@ export default function TrialStatusCard({
       ? "الوصول إلى التطبيق متوقف حتى تشترك. بياناتك محفوظة بالكامل، ويعود كل شيء فور إتمام الدفع."
       : "The app is paused until you subscribe. All your data is kept, and everything unlocks as soon as payment completes."
     : isArabic
-      ? "تستخدم الآن كل مزايا خطة Pro مجانًا. هذه تجربة وليست اشتراكًا مدفوعًا، فاشترك قبل انتهائها لتستمر دون انقطاع."
-      : "You have every Pro feature for free. This is a trial, not a paid plan: subscribe before it ends to keep going without interruption.";
+      ? `${trialLimitsNote(true, signupPlan, "during")} هذه تجربة وليست اشتراكًا مدفوعًا، فاشترك قبل انتهائها لتستمر دون انقطاع.`
+      : `${trialLimitsNote(false, signupPlan, "during")} This is a trial, not a paid plan: subscribe before it ends to keep going without interruption.`;
 
   const memberNote = isArabic
     ? "اطلب من مدير المكتب إتمام الاشتراك."

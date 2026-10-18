@@ -114,3 +114,50 @@ test("signup creates a 14-day in-app trial (TRIALING, no Polar id, amount 0, USD
   assert.equal(sub.trialEndsAt.getTime() - sub.trialStartsAt.getTime(), 14 * DAY);
   assert.equal(sub.currentPeriodEnd.getTime(), sub.trialEndsAt.getTime());
 });
+
+function registerWithPlan(plan: unknown, email: string) {
+  return POST(
+    new NextRequest("http://localhost/api/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        tenantName: "Plan Office",
+        name: "Owner Name",
+        email,
+        phone: "0791234567",
+        password: "Str0ng!Passw0rd#",
+        acceptTerms: true,
+        acceptPrivacy: true,
+        turnstileToken: "ok",
+        ...(plan === undefined ? {} : { signupPlan: plan }),
+      }),
+    }),
+  );
+}
+
+// AUDIT_REPORT.md M1: the plan picked on the website is remembered on the
+// office (to preselect it when subscribing); the trial itself is always Pro.
+test("the plan picked on the website is stored; anything else is dropped, never rejected", async () => {
+  const cases: Array<[unknown, string | null]> = [
+    ["BUSINESS", "BUSINESS"],
+    ["basic", "BASIC"],
+    ["ENTERPRISE", null],
+    [42, null],
+    [undefined, null],
+  ];
+
+  for (const [index, [plan, expected]] of cases.entries()) {
+    tenantCreateMock.mock.resetCalls();
+    subscriptionCreateMock.mock.resetCalls();
+
+    const res = await registerWithPlan(plan, `plan${index}@example.com`);
+    assert.equal(res.status, 201, `signupPlan=${String(plan)}`);
+
+    const tenantData = tenantCreateMock.mock.calls[0].arguments[0].data;
+    assert.equal(tenantData.signupPlanCode, expected, `signupPlan=${String(plan)}`);
+    assert.equal(tenantData.plan, "PRO", "the trial always runs on Pro");
+
+    const sub = subscriptionCreateMock.mock.calls[0].arguments[0].data as { planId: string };
+    assert.equal(sub.planId, "plan-pro");
+  }
+});

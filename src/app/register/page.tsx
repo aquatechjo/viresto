@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Turnstile } from "@marsidev/react-turnstile";
 import FormField from "@/components/ui/FormField";
 import { Eye, EyeOff } from "lucide-react";
+import type { PlanCode } from "@/config/plans";
+import { isPlanCode, trialLimitsNote } from "@/lib/trial-copy";
 
 type Locale = "ar" | "en";
 
@@ -166,6 +168,10 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+  // The plan picked on the website (/register?plan=...): remembered on the
+  // office so the subscribe page can preselect it. The trial itself runs
+  // on Pro limits either way, and the note below says so.
+  const [signupPlan, setSignupPlan] = useState<PlanCode | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
 
   const isRtl = locale === "ar";
@@ -177,6 +183,12 @@ export default function RegisterPage() {
     const initialLocale = getInitialLocale();
     setLocale(initialLocale);
     saveLocale(initialLocale);
+
+    const plan = new URLSearchParams(window.location.search)
+      .get("plan")
+      ?.trim()
+      .toUpperCase();
+    if (isPlanCode(plan)) setSignupPlan(plan);
   }, []);
 
   function toggleLocale() {
@@ -223,6 +235,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           ...form,
           turnstileToken,
+          ...(signupPlan ? { signupPlan } : {}),
         }),
       });
 
@@ -368,6 +381,16 @@ export default function RegisterPage() {
           >
             {copy.title}
           </h1>
+
+          <p
+            data-testid="register-trial-note"
+            className={[
+              "mb-5 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-3 text-xs font-bold leading-6 text-emerald-50",
+              isRtl ? "text-right" : "text-left",
+            ].join(" ")}
+          >
+            {trialLimitsNote(isRtl, signupPlan)}
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <FormField label={copy.officeName} required>

@@ -21,6 +21,9 @@ export const loginSchema = z.object({
   slug: z.string().optional(),
 });
 
+export const SIGNUP_PLAN_CODES = ["BASIC", "PRO", "BUSINESS"] as const;
+export type SignupPlanCode = (typeof SIGNUP_PLAN_CODES)[number];
+
 export const registerSchema = z.object({
   tenantName: z
     .string()
@@ -54,6 +57,16 @@ export const registerSchema = z.object({
   acceptPrivacy: z.literal(true, {
     errorMap: () => ({ message: "يجب الإقرار بسياسة الخصوصية" }),
   }),
+
+  // The plan picked on the website (/register?plan=...). Anything else is
+  // dropped rather than rejected: it only preselects the subscribe page.
+  signupPlan: z.preprocess(
+    (value) => {
+      const code = String(value ?? "").trim().toUpperCase();
+      return SIGNUP_PLAN_CODES.includes(code as SignupPlanCode) ? code : undefined;
+    },
+    z.enum(SIGNUP_PLAN_CODES).optional(),
+  ),
 });
 
 export const clientSchema = z.object({

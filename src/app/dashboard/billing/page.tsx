@@ -6,6 +6,7 @@ import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
 import AppLoader from "@/components/ui/AppLoader";
+import { isPlanCode } from "@/lib/trial-copy";
 import TrialStatusCard, {
   daysPhrase,
 } from "@/components/billing/TrialStatusCard";
@@ -80,6 +81,7 @@ interface BillingData {
     maxUsers?: number;
     trialEndsAt?: string | null;
     trialDaysLeft?: number | null;
+    signupPlanCode?: string | null;
     createdAt: string;
   };
   subscription: {
@@ -737,6 +739,12 @@ export default function BillingPage() {
   // runs on Pro features but is not a Pro subscription, so every plan stays
   // purchasable (including Pro monthly) while trialling or locked.
   const isPaid = !data.access || data.access.state === "PAID";
+  // The plan picked on the website before signing up: preselected until the
+  // office pays (the trial itself runs on Pro limits).
+  const signupPlan = isPlanCode(data.tenant.signupPlanCode)
+    ? data.tenant.signupPlanCode
+    : null;
+  const preselectedPlan = isPaid ? null : signupPlan;
   const hasLiveSubscription =
     isPaid && ["ACTIVE", "TRIALING"].includes(currentStatus);
   const currentPlanTitle = isPaid
@@ -772,6 +780,7 @@ export default function BillingPage() {
           isArabic={isArabic}
           canSubscribe
           onSubscribe={scrollToPlans}
+          signupPlan={signupPlan}
         />
       )}
 
@@ -995,7 +1004,8 @@ export default function BillingPage() {
             const price =
               billingCycle === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
             const code = getPlanCode(plan);
-            const highlighted = code === "PRO";
+            const preselected = preselectedPlan !== null && code === preselectedPlan;
+            const highlighted = preselectedPlan ? preselected : code === "PRO";
             const key = `${plan.id}:${billingCycle}`;
             const isUpgrading = upgradingKey === key;
 
@@ -1022,7 +1032,7 @@ export default function BillingPage() {
                 <div className="relative z-10 flex h-full flex-col">
                   <div className="flex min-h-8 items-start justify-between gap-3">
                     <div className="flex flex-wrap gap-2">
-                      {highlighted && (
+                      {code === "PRO" && (
                         <span className="rounded-full bg-emerald-400 px-3 py-1 text-xs font-black text-emerald-950">
                           {billing.bestSeller}
                         </span>
@@ -1031,6 +1041,15 @@ export default function BillingPage() {
                       {active && (
                         <span className="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-100">
                           {labels.activePlan}
+                        </span>
+                      )}
+
+                      {preselected && (
+                        <span
+                          data-testid="signup-plan-badge"
+                          className="rounded-full bg-[var(--landing-copper)] px-3 py-1 text-xs font-black text-[var(--landing-canvas)]"
+                        >
+                          {isArabic ? "الخطة التي اخترتها" : "The plan you picked"}
                         </span>
                       )}
                     </div>

@@ -206,6 +206,7 @@ export async function GET(req: NextRequest) {
         isSuspended: true,
         maxUsers: true,
         trialEndsAt: true,
+        signupPlanCode: true,
         createdAt: true,
         _count: {
           select: {
@@ -478,6 +479,8 @@ export async function GET(req: NextRequest) {
         maxUsers: tenant.maxUsers,
         trialEndsAt: subscriptionTrialEndsAt,
         trialDaysLeft: getTrialDaysLeft(subscriptionTrialEndsAt),
+        // Picked on the website before signing up: preselected on this page.
+        signupPlanCode: tenant.signupPlanCode,
 
         // billing-aware fields
         subscriptionStatus,

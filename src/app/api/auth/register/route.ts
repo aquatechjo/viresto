@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       return err("بيانات غير صالحة", 400, parsed.error.flatten());
     }
 
-    const { tenantName, name, phone, password } = parsed.data;
+    const { tenantName, name, phone, password, signupPlan } = parsed.data;
     const email = parsed.data.email.trim().toLowerCase();
     const normalizedPhone = normalizeJordanPhone(phone);
 
@@ -150,6 +150,7 @@ export async function POST(req: NextRequest) {
           plan: "PRO",
           maxUsers: configuredTrialPlan.limits.users,
           trialEndsAt,
+          signupPlanCode: signupPlan ?? null,
           users: {
             create: {
               name,
