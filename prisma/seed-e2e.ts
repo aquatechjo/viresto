@@ -21,6 +21,7 @@ import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { getPlanByCode } from "../src/config/plans";
 import { PRIVACY_VERSION, TERMS_VERSION } from "../src/lib/legal-policy";
+import { E2E_DEMO_EMAIL, resetE2eDemoOffice } from "./e2e-demo-office";
 
 const E2E_TENANT_SLUG = "e2e-test-office";
 const E2E_TENANT_NAME = "مكتب اختبارات E2E";
@@ -229,10 +230,14 @@ async function main() {
       return { created: !existingUser, tenantSlug: tenant.slug };
     });
 
+    // Its own office on a fresh trial, for the demo-mode spec.
+    await resetE2eDemoOffice(prisma, passwordHash);
+
     console.log(
       `seed:e2e — ${result.created ? "created" : "updated"} ${email} ` +
         `(ADMIN, email verified) in office "${result.tenantSlug}" with an active ${PLAN_CODE} subscription, ` +
-        `and reset ${E2E_TWO_FACTOR_EMAIL} (LAWYER, 2FA off).`,
+        `reset ${E2E_TWO_FACTOR_EMAIL} (LAWYER, 2FA off), ` +
+        `and reset ${E2E_DEMO_EMAIL} (ADMIN of an office on a fresh trial).`,
     );
   } finally {
     await prisma.$disconnect();
