@@ -53,6 +53,9 @@ async function main() {
   if (!proPlan) throw new Error("BillingPlan PRO not found. Run db:seed first.");
 
   const tenants = await prisma.tenant.findMany({
+    // Demo-mode sandboxes (src/lib/demo) have no subscription by design:
+    // never offices to migrate, and never given a trial.
+    where: { isDemo: false },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
