@@ -90,6 +90,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
   const [tenants, billingPlans] = await Promise.all([
     prisma.tenant.findMany({
+      // Demo sandboxes (src/lib/demo) are not offices: never listed or counted.
+      where: { isDemo: false },
       include: {
         _count: {
           select: {

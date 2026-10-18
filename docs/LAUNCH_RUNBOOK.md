@@ -179,7 +179,8 @@ reconciliation failure carries that tag.
 
 **Crons.** `vercel.json` has two daily crons, the Vercel Hobby limit
 (`generate-notifications` 02:00, `prune-activity` 02:20 UTC). `prune-activity`
-also runs the upload cleanup and the Polar billing reconciliation.
+also runs the upload cleanup, the Polar billing reconciliation and the demo-mode
+sandbox cleanup (sandboxes of offices no longer on their trial).
 `/api/cron/reconcile-billing` is kept for manual runs only.
 All use `CRON_SECRET`; nothing else to set.
 

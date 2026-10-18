@@ -14,6 +14,7 @@ import {
 import { invalidateAuthCacheForTenant } from "@/lib/api-auth";
 import { isPaidSubscriptionEntitled } from "@/lib/tenant-access";
 import { getTenantAccess } from "@/lib/tenant-access-server";
+import { deleteDemoSandboxesForOffice } from "@/lib/demo/sandbox";
 
 export const POLAR_LOG_PREFIX = "[polar-webhook]";
 
@@ -281,10 +282,11 @@ export async function syncSubscriptionFromPolar(
 
     const tenant = await tx.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, isSuspended: true, status: true },
+      select: { id: true, isSuspended: true, status: true, isDemo: true },
     });
 
-    if (!tenant) return null;
+    // A demo sandbox (src/lib/demo) can never hold a subscription.
+    if (!tenant || tenant.isDemo) return null;
 
     // Billing never lifts or overwrites an admin suspension.
     const suspended =
@@ -332,6 +334,11 @@ export async function syncSubscriptionFromPolar(
         trialEndsAt: null,
         suspended,
       });
+
+      // Demo mode is for the trial only: subscribing deletes the office's
+      // sandboxes and all their data. A user inside one is switched back
+      // to their real office on their next request (api-auth.ts).
+      await deleteDemoSandboxesForOffice(tenantId, tx);
     } else {
       const access = await getTenantAccess(tenantId, tx);
 

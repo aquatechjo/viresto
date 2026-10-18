@@ -154,6 +154,7 @@ export async function reconcilePolarSubscriptions(
   const rows = await prisma.subscription.findMany({
     where: {
       polarSubscriptionId: { not: null },
+      tenant: { isDemo: false },
       OR: [
         { status: { in: DB_LIVE_STATUSES } },
         { polarSubscriptionId: { in: [...livePolar.keys()] } },

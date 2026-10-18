@@ -32,9 +32,13 @@ const billingPlanFindFirst = mock.fn(async (args: { where: { OR: Row[] } }) => {
     : null;
 });
 const subscriptionFindUnique = mock.fn(async () => existingRow);
+let demoTenants = new Set<string>();
 const tenantFindUnique = mock.fn(async (args: { where: { id: string } }) =>
-  knownTenants.has(args.where.id) ? { id: args.where.id } : null,
+  knownTenants.has(args.where.id)
+    ? { id: args.where.id, isDemo: demoTenants.has(args.where.id) }
+    : null,
 );
+const tenantDeleteMany = mock.fn(async (_args: unknown) => ({ count: 1 }));
 const subscriptionUpsert = mock.fn(
   async (args: { create: Row; update: Row }) => {
     const base = existingRow ?? args.create;
@@ -54,7 +58,7 @@ const activityCreate = mock.fn(async () => ({}));
 const invalidateAuthCacheForTenant = mock.fn();
 
 const tx = {
-  tenant: { findUnique: tenantFindUnique, update: tenantUpdate },
+  tenant: { findUnique: tenantFindUnique, update: tenantUpdate, deleteMany: tenantDeleteMany },
   subscription: {
     upsert: subscriptionUpsert,
     findMany: subscriptionFindMany,
@@ -92,6 +96,7 @@ beforeEach(() => {
   knownTenants = new Set(["tenant-meta", "tenant-external", "tenant-owner"]);
   existingRow = null;
   tenantSubscriptions = [];
+  demoTenants = new Set();
   for (const fn of [
     billingPlanFindFirst,
     subscriptionFindUnique,
@@ -100,6 +105,7 @@ beforeEach(() => {
     subscriptionFindMany,
     subscriptionUpdateMany,
     tenantUpdate,
+    tenantDeleteMany,
     activityCreate,
     invalidateAuthCacheForTenant,
   ]) {
@@ -330,4 +336,27 @@ test("purchase ending trial: after the sync the resolver reports PAID, not TRIAL
   const access = resolveTenantAccess([paidRow, closedTrial], now);
   assert.equal(access.state, "PAID");
   assert.equal(access.trialDaysLeft, null);
+});
+
+test("subscribing deletes the office's demo sandboxes in the same transaction", async () => {
+  await sync(polarSubscription({ status: "active" }));
+
+  assert.equal(tenantDeleteMany.mock.callCount(), 1);
+  assert.deepEqual(tenantDeleteMany.mock.calls[0].arguments[0], {
+    where: { demoOwnerTenantId: "tenant-meta", isDemo: true },
+  });
+});
+
+test("a non-entitled sync leaves demo sandboxes to the trial check", async () => {
+  await sync(polarSubscription({ status: "canceled", currentPeriodEnd: new Date(Date.now() - DAY) }));
+  assert.equal(tenantDeleteMany.mock.callCount(), 0);
+});
+
+test("a demo sandbox never receives a subscription", async () => {
+  demoTenants.add("tenant-meta");
+  const result = await sync(polarSubscription({ status: "active" }));
+
+  assert.equal(result.ok, false);
+  assert.equal(subscriptionUpsert.mock.callCount(), 0);
+  assert.equal(tenantDeleteMany.mock.callCount(), 0);
 });

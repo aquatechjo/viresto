@@ -3,6 +3,7 @@ import { BillingInterval, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { invalidateAuthCacheForTenant, requireRole } from "@/lib/api-auth";
+import { deleteDemoSandboxesForOffice, isOfficeOnTrial } from "@/lib/demo/sandbox";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
@@ -104,6 +105,15 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     }
 
     const now = new Date();
+
+    // Demo sandboxes (src/lib/demo) are never billed, by Polar or by hand.
+    const target = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { isDemo: true },
+    });
+    if (target?.isDemo) {
+      return err("لا يمكن إدارة اشتراك مكتب تجريبي", 409);
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       await lockTenantMutation(tx, tenantId);
@@ -412,6 +422,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     // Lock or unlock on the very next request, not after the cache TTL.
     invalidateAuthCacheForTenant(tenantId);
+
+    // Demo mode is for the trial only: a granted (or ended) subscription
+    // takes the office's sandboxes with it.
+    if (!(await isOfficeOnTrial(tenantId))) {
+      await deleteDemoSandboxesForOffice(tenantId);
+    }
 
     return ok({
       message: `تم تنفيذ: ${actionLabels[action]}`,

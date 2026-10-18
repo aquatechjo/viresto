@@ -26,6 +26,8 @@ export async function GET(req: NextRequest) {
       where: {
         isSuspended: false,
         status: { in: ["ACTIVE", "TRIAL"] },
+        // Demo sandboxes (src/lib/demo) never get reminders.
+        isDemo: false,
       },
       select: { id: true },
       orderBy: { createdAt: "asc" },

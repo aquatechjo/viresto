@@ -12,6 +12,7 @@ import { PROCESSED_WEBHOOK_RETENTION_DAYS } from '@/lib/webhook-dedupe'
 import { cleanupOrphanUploads } from '@/lib/server/cleanup-orphan-uploads'
 import { RECONCILE_LOG_PREFIX, reconcilePolarSubscriptions } from '@/lib/polar-reconcile'
 import { reportBillingIssue } from '@/lib/monitoring'
+import { cleanupDemoSandboxes } from '@/lib/demo/sandbox'
 
 export const dynamic = 'force-dynamic'
 // The Polar reconciliation below lists Polar's live subscriptions.
@@ -59,6 +60,19 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
+    // Demo sandboxes whose office is no longer on its trial (normally
+    // already deleted on subscribe or on the owner's next request). Runs
+    // before the upload cleanup, which then removes their files.
+    let demo: Awaited<ReturnType<typeof cleanupDemoSandboxes>> | { status: 'failed' }
+    try {
+      demo = await cleanupDemoSandboxes()
+    } catch (error) {
+      console.error(
+        `[demo-cleanup] failed error=${error instanceof Error ? error.name : 'unknown'}`,
+      )
+      demo = { status: 'failed' }
+    }
+
     // Also the daily home of upload cleanup (a separate cron would exceed the
     // two Vercel Hobby crons). A Cloudinary failure must not fail the prune;
     // it is logged and simply retried the next day.
@@ -89,6 +103,7 @@ export async function GET(req: NextRequest) {
       message: 'Activity logs pruned successfully',
       uploads,
       billing,
+      demo,
       retention: {
         auditDays: ACTIVITY_RETENTION_DAYS.audit,
         defaultDays: ACTIVITY_RETENTION_DAYS.default,
