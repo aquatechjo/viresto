@@ -7,6 +7,7 @@ import ThemeProvider from "@/components/ThemeProvider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import DynamicDocumentTitle from "@/components/DynamicDocumentTitle";
 import LatinDigitsInputBoundary from "@/components/LatinDigitsInputBoundary";
+import DialogProvider from "@/components/ui/DialogProvider";
 
 const siteUrl = "https://www.virestojo.com";
 
@@ -202,8 +203,10 @@ export default async function RootLayout({
 
         <ThemeProvider>
           <LatinDigitsInputBoundary>
-            <DynamicDocumentTitle />
-            {children}
+            <DialogProvider>
+              <DynamicDocumentTitle />
+              {children}
+            </DialogProvider>
           </LatinDigitsInputBoundary>
         </ThemeProvider>
 
