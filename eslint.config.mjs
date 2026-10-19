@@ -33,6 +33,12 @@ export default defineConfig([
       "@next/next/no-img-element": "off",
 
       /*
+       * لا نوافذ المتصفح الأصلية (alert/confirm/prompt): التأكيد والإدخال
+       * عبر useConfirm()/usePrompt() من DialogProvider، والرسائل عبر toast.
+       */
+      "no-alert": "error",
+
+      /*
        * جديدة في eslint-config-next 16.3. كل استخداماتنا لـ window.location.href
        * هي انتقال كامل مقصود عند حدود المصادقة (انتهاء الجلسة/الخروج ← /login،
        * وتأكيد البريد ← /dashboard بعد ضبط الكوكي): يمسح حالة وكاش العميل

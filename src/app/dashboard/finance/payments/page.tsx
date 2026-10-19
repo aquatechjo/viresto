@@ -13,6 +13,7 @@ import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 import { formatInvoiceNumber } from '@/lib/invoice-print'
 import { useLocale } from '@/lib/useLocale'
+import { useConfirm, usePrompt } from '@/components/ui/DialogProvider'
 
 const DateTimePicker = dynamic(
   () => import('@/components/ui/DateTimePicker'),
@@ -132,10 +133,15 @@ const COPY = {
       statusUpdateError: 'تعذر تحديث حالة الدفعة',
       saveStatus: 'حفظ',
       cancelStatus: 'تراجع',
+      confirmStatusChangeTitle: 'تغيير حالة الدفعة',
       confirmStatusChange:
         'سيؤدي تغيير حالة هذه الدفعة إلى إعادة احتساب حالة الفاتورة المرتبطة. هل تريد المتابعة؟',
-      cancellationReasonPrompt:
-        'اكتب سبب إلغاء الدفعة (5 أحرف على الأقل). سيُحفظ السبب في سجل التدقيق المالي:',
+      confirmStatusChangeAction: 'تغيير الحالة',
+      cancelPaymentTitle: 'إلغاء الدفعة',
+      cancelPaymentMessage: 'سيُحفظ سبب الإلغاء في سجل التدقيق المالي.',
+      cancellationReasonPrompt: 'سبب الإلغاء',
+      cancelPaymentAction: 'إلغاء الدفعة',
+      keepPayment: 'تراجع',
       cancellationReasonRequired: 'سبب الإلغاء مطلوب ويجب ألا يقل عن 5 أحرف.',
     },
     stats: {
@@ -230,10 +236,15 @@ const COPY = {
       statusUpdateError: 'Unable to update the payment status',
       saveStatus: 'Save',
       cancelStatus: 'Cancel',
+      confirmStatusChangeTitle: 'Change payment status',
       confirmStatusChange:
         'Changing this payment status will recalculate the linked invoice status. Continue?',
-      cancellationReasonPrompt:
-        'Enter the payment cancellation reason (at least 5 characters). It will be retained in the financial audit trail:',
+      confirmStatusChangeAction: 'Change status',
+      cancelPaymentTitle: 'Cancel payment',
+      cancelPaymentMessage: 'The cancellation reason is retained in the financial audit trail.',
+      cancellationReasonPrompt: 'Cancellation reason',
+      cancelPaymentAction: 'Cancel payment',
+      keepPayment: 'Keep it',
       cancellationReasonRequired:
         'A cancellation reason of at least 5 characters is required.',
     },
@@ -586,6 +597,8 @@ export default function PaymentsPage() {
   const locale: Locale = localeState.locale === 'en' ? 'en' : 'ar'
   const isRtl = locale === 'ar'
   const copy = COPY[locale]
+  const confirm = useConfirm()
+  const prompt = usePrompt()
   const writeAccess = useTenantWriteAccess(locale)
 
   const [payments, setPayments] = useState<Payment[]>([])
@@ -881,9 +894,19 @@ export default function PaymentsPage() {
     let cancellationReason: string | undefined
 
     if (nextStatus === 'CANCELLED') {
-      const enteredReason = window.prompt(
-        copy.actions.cancellationReasonPrompt,
-      )
+      const enteredReason = await prompt({
+        title: copy.actions.cancelPaymentTitle,
+        message: copy.actions.cancelPaymentMessage,
+        variant: 'danger',
+        confirmLabel: copy.actions.cancelPaymentAction,
+        cancelLabel: copy.actions.keepPayment,
+        input: {
+          label: copy.actions.cancellationReasonPrompt,
+          minLength: 5,
+          maxLength: 500,
+          multiline: true,
+        },
+      })
 
       if (enteredReason === null) return
 
@@ -895,7 +918,14 @@ export default function PaymentsPage() {
       }
     }
 
-    if (payment.invoice && !window.confirm(copy.actions.confirmStatusChange)) {
+    if (
+      payment.invoice &&
+      !(await confirm({
+        title: copy.actions.confirmStatusChangeTitle,
+        message: copy.actions.confirmStatusChange,
+        confirmLabel: copy.actions.confirmStatusChangeAction,
+      }))
+    ) {
       return
     }
 

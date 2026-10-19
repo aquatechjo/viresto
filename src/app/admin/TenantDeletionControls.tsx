@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/DialogProvider";
+import { useLocale } from "@/lib/useLocale";
 
 type TenantDeletionControlsProps = {
   tenantId: string;
@@ -20,7 +22,9 @@ export default function TenantDeletionControls({
   hasActiveSubscription,
 }: TenantDeletionControlsProps) {
   const router = useRouter();
-  const [confirmation, setConfirmation] = useState("");
+  const confirm = useConfirm();
+  const { locale } = useLocale();
+  const isArabic = locale === "ar";
   const [reason, setReason] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,16 +47,23 @@ export default function TenantDeletionControls({
   const canDelete =
     eligible &&
     acknowledged &&
-    confirmation === tenantName &&
     reason.trim().length >= 5 &&
     !busy;
 
   async function deleteTenant() {
     if (!canDelete) return;
 
-    const confirmed = window.confirm(
-      `سيتم حذف مكتب «${tenantName}» وجميع مستخدميه وقضاياه ومستنداته وفواتيره نهائيًا. لا يمكن التراجع. هل تريد المتابعة؟`,
-    );
+    // Irreversible: "delete" stays disabled until the exact office name is
+    // typed in the dialog (the API checks the name again).
+    const confirmed = await confirm({
+      title: isArabic ? "حذف المكتب نهائيًا" : "Delete office permanently",
+      message: isArabic
+        ? `سيتم حذف مكتب «${tenantName}» وجميع مستخدميه وقضاياه ومستنداته وفواتيره نهائيًا. لا يمكن التراجع.`
+        : `The office “${tenantName}” and all its users, cases, documents and invoices will be deleted permanently. This cannot be undone.`,
+      variant: "danger",
+      requireText: tenantName,
+      confirmLabel: isArabic ? "حذف المكتب نهائيًا" : "Delete permanently",
+    });
 
     if (!confirmed) return;
 
@@ -65,7 +76,7 @@ export default function TenantDeletionControls({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          confirmation,
+          confirmation: tenantName,
           reason: reason.trim(),
         }),
       });
@@ -119,7 +130,7 @@ export default function TenantDeletionControls({
         </p>
       )}
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3">
         <label className="space-y-1 text-sm">
           <span className="font-bold">سبب الحذف</span>
           <input
@@ -129,20 +140,6 @@ export default function TenantDeletionControls({
             className="input"
             placeholder="مثال: مكتب تجريبي تم إنشاؤه بالخطأ"
             maxLength={500}
-          />
-        </label>
-
-        <label className="space-y-1 text-sm">
-          <span className="font-bold">
-            اكتب اسم المكتب للتأكيد: {tenantName}
-          </span>
-          <input
-            value={confirmation}
-            onChange={(event) => setConfirmation(event.target.value)}
-            disabled={!eligible || busy}
-            className="input"
-            autoComplete="off"
-            placeholder={tenantName}
           />
         </label>
       </div>

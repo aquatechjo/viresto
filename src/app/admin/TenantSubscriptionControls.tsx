@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { currencyMinorUnits } from "@/config/plans";
+import { usePrompt } from "@/components/ui/DialogProvider";
+import { useLocale } from "@/lib/useLocale";
 
 type PlanOption = {
   id: string;
@@ -77,13 +79,25 @@ function formatMoney(value: number, currency: string) {
   return `${(value / currencyMinorUnits(currency)).toLocaleString("en-US")} ${currency}`;
 }
 
-const actionPrompts: Record<AdminAction, string> = {
-  ACTIVATE: "اكتب سبب تفعيل الاشتراك إداريًا",
-  RENEW: "اكتب سبب تجديد الاشتراك إداريًا",
-  CHANGE_PLAN: "اكتب سبب تغيير خطة الاشتراك",
-  CANCEL_AT_PERIOD_END: "اكتب سبب جدولة إنهاء الاشتراك",
-  UNDO_CANCEL: "اكتب سبب إلغاء الإنهاء المجدول",
-  END_NOW: "اكتب سبب إنهاء الاشتراك فورًا",
+type ActionDialog = { title: string; label: string; confirm: string };
+
+const actionDialogs: Record<"ar" | "en", Record<AdminAction, ActionDialog>> = {
+  ar: {
+    ACTIVATE: { title: "تفعيل الاشتراك إداريًا", label: "سبب التفعيل", confirm: "تفعيل" },
+    RENEW: { title: "تجديد الاشتراك إداريًا", label: "سبب التجديد", confirm: "تجديد" },
+    CHANGE_PLAN: { title: "تغيير خطة الاشتراك", label: "سبب تغيير الخطة", confirm: "تغيير الخطة" },
+    CANCEL_AT_PERIOD_END: { title: "جدولة إنهاء الاشتراك", label: "سبب جدولة الإنهاء", confirm: "جدولة الإنهاء" },
+    UNDO_CANCEL: { title: "إلغاء الإنهاء المجدول", label: "سبب إلغاء الإنهاء", confirm: "إلغاء الإنهاء" },
+    END_NOW: { title: "إنهاء الاشتراك فورًا", label: "سبب الإنهاء الفوري", confirm: "إنهاء فورًا" },
+  },
+  en: {
+    ACTIVATE: { title: "Activate subscription manually", label: "Reason for activating", confirm: "Activate" },
+    RENEW: { title: "Renew subscription manually", label: "Reason for renewing", confirm: "Renew" },
+    CHANGE_PLAN: { title: "Change subscription plan", label: "Reason for the plan change", confirm: "Change plan" },
+    CANCEL_AT_PERIOD_END: { title: "Schedule the subscription to end", label: "Reason for ending", confirm: "Schedule end" },
+    UNDO_CANCEL: { title: "Undo the scheduled end", label: "Reason for undoing", confirm: "Undo end" },
+    END_NOW: { title: "End subscription now", label: "Reason for ending now", confirm: "End now" },
+  },
 };
 
 export default function TenantSubscriptionControls({
@@ -98,6 +112,9 @@ export default function TenantSubscriptionControls({
   current: CurrentSubscription;
 }) {
   const router = useRouter();
+  const prompt = usePrompt();
+  const { locale } = useLocale();
+  const isArabic = locale === "ar";
   const [planId, setPlanId] = useState(current?.plan.id ?? plans[0]?.id ?? "");
   const [interval, setInterval] = useState<"MONTHLY" | "YEARLY">(
     current?.interval ?? "MONTHLY",
@@ -117,22 +134,24 @@ export default function TenantSubscriptionControls({
     current?.plan.id === planId && current.interval === interval;
 
   async function execute(action: AdminAction) {
-    if (action === "END_NOW") {
-      const confirmed = window.confirm(
-        "سيتم إيقاف وصول المكتب فورًا وتحويل الاشتراك إلى منتهي. هل أنت متأكد؟",
-      );
-
-      if (!confirmed) return;
-    }
-
-    const reason = window.prompt(actionPrompts[action], "");
+    const dialog = actionDialogs[isArabic ? "ar" : "en"][action];
+    const endsNow = action === "END_NOW";
+    // The reason is required (3+ characters) and goes to the activity log.
+    const reason = await prompt({
+      title: dialog.title,
+      message: endsNow
+        ? isArabic
+          ? "سيتم إيقاف وصول المكتب فورًا وتحويل الاشتراك إلى منتهي."
+          : "The office loses access immediately and the subscription is marked ended."
+        : isArabic
+          ? "يُحفظ السبب في سجل نشاط المكتب."
+          : "The reason is kept in the office's activity log.",
+      variant: endsNow ? "danger" : "default",
+      confirmLabel: dialog.confirm,
+      input: { label: dialog.label, minLength: 3, maxLength: 500 },
+    });
 
     if (reason === null) return;
-
-    if (reason.trim().length < 3) {
-      toast.error("اكتب سببًا واضحًا للإجراء");
-      return;
-    }
 
     setBusyAction(action);
 
