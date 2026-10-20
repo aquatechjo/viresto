@@ -190,7 +190,6 @@ export async function POST(req: NextRequest) {
     const emailCode = await createVerificationCode({
       userId: adminUser.id,
       type: "EMAIL",
-      expiresInMinutes: 10,
     });
 
     await sendVerificationEmail({

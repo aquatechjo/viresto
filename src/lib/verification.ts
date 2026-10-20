@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { EMAIL_VERIFICATION_TTL_MINUTES } from "@/lib/verification-policy";
 
 type VerificationType = "EMAIL";
 function getVerificationSecret() {
@@ -36,7 +37,7 @@ export function verifyOtpCodeHash(code: string, expectedHash: string) {
 export async function createVerificationCode({
   userId,
   type,
-  expiresInMinutes = 10,
+  expiresInMinutes = EMAIL_VERIFICATION_TTL_MINUTES,
 }: {
   userId: string;
   type: VerificationType;

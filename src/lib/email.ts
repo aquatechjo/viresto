@@ -1,6 +1,7 @@
 import { externalFetch } from "@/lib/external-fetch";
 import { COMPANY_CONTACT } from "@/config/contact";
 import { isDemoEmail } from "@/lib/demo/constants";
+import { renderVerificationEmail } from "@/lib/email/verification-email";
 
 type SendVerificationEmailInput = {
   to: string;
@@ -26,30 +27,6 @@ function getEmailReplyTo() {
   return process.env.EMAIL_REPLY_TO?.trim() || COMPANY_CONTACT.supportEmail;
 }
 
-function verificationEmailHtml(code: string) {
-  const appName = getAppName();
-
-  return `
-  <div dir="rtl" style="font-family: Arial, sans-serif; background:#f3f7f6; padding:32px; color:#123f40;">
-    <div style="max-width:560px; margin:0 auto; background:#ffffff; border:1px solid #dbe8e5; border-radius:20px; padding:28px;">
-      <h1 style="margin:0 0 12px; font-size:22px; color:#082c2d;">تأكيد البريد الإلكتروني</h1>
-      <p style="margin:0 0 20px; font-size:15px; line-height:1.8; color:#617e7c;">
-        استخدم الرمز التالي لتأكيد بريدك الإلكتروني في ${appName}.
-      </p>
-      <div dir="ltr" style="letter-spacing:8px; text-align:center; font-size:32px; font-weight:900; color:#082c2d; background:#f7e9dc; border:1px solid #dfb184; border-radius:16px; padding:18px 12px;">
-        ${code}
-      </div>
-      <p style="margin:22px 0 0; font-size:13px; line-height:1.8; color:#789c99;">
-        تنتهي صلاحية الرمز خلال 10 دقائق. لا تشارك هذا الرمز مع أي شخص.
-      </p>
-    </div>
-  </div>`;
-}
-
-function verificationEmailText(code: string) {
-  return `رمز تأكيد البريد الإلكتروني الخاص بك في ${getAppName()} هو: ${code}\nتنتهي صلاحية الرمز خلال 10 دقائق.`;
-}
-
 export async function sendVerificationEmail({
   to,
   code,
@@ -67,6 +44,11 @@ export async function sendVerificationEmail({
 
   if (isDemoRecipient(to)) return { skipped: true };
 
+  // Expiry text from the same constant the backend stores (see
+  // src/lib/verification-policy.ts); the subject starts with the code so it
+  // shows in the notification.
+  const email = renderVerificationEmail({ code, appUrl: getAppUrl() });
+
   const response = await externalFetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -77,9 +59,9 @@ export async function sendVerificationEmail({
       from: getEmailFrom(),
       reply_to: getEmailReplyTo(),
       to,
-      subject: `رمز تأكيد البريد الإلكتروني - ${getAppName()}`,
-      html: verificationEmailHtml(code),
-      text: verificationEmailText(code),
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
     }),
   });
 

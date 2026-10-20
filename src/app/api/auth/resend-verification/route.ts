@@ -79,7 +79,6 @@ export async function POST(req: NextRequest) {
       const code = await createVerificationCode({
         userId: user.id,
         type: "EMAIL",
-        expiresInMinutes: 10,
       });
 
       await sendVerificationEmail({
