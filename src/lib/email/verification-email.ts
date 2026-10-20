@@ -11,15 +11,22 @@ type VerificationEmailInput = {
   appUrl?: string;
 };
 
+// ألوان هوية Viresto (src/app/globals.css، نفس ألوان اللاندنج الداكنة).
+// التباين (WCAG): text على card 14.8:1، muted على card 6.1:1 وعلى page 7.2:1،
+// وحدود accent 4.1:1 على card و5.2:1 على codeBg.
 const C = {
-  page: "#0E1A27",    // خلفية الإيميل
-  card: "#152536",    // البطاقة
-  line: "#22364B",    // الحدود
-  text: "#EAF0F6",    // نص أساسي
-  muted: "#93A6BA",   // نص ثانوي
-  brass: "#C9A24A",   // لون مميز (ختم/نحاس)
-  codeBg: "#0B1622",  // خلفية الرمز
+  page: "#041819",    // --landing-canvas: خلفية الإيميل
+  card: "#0b292a",    // --landing-surface: البطاقة
+  line: "#1c494a",    // --landing-border: الحدود
+  text: "#f8fbfa",    // --brand-text: نص أساسي
+  muted: "#86aaa6",   // --brand-text-muted: نص ثانوي
+  accent: "#b87333",  // --landing-copper: اللون المميز (نحاس)
+  codeBg: "#020e0f",  // --brand-canvas-deep: خلفية الرمز
 };
+
+// اللوجو (scripts/build-email-logo.mjs): PNG بضعف المقاس للشاشات retina،
+// خلفيته شفافة. لو غيّرت المقاس، أعد توليده وحدّث هون.
+export const EMAIL_LOGO = { path: "/email/viresto-logo.png", width: 131, height: 40 };
 
 const FONT = `'Segoe UI', Tahoma, 'Noto Sans Arabic', Arial, sans-serif`;
 
@@ -29,6 +36,7 @@ export function renderVerificationEmail({
   appUrl = "https://www.virestojo.com",
 }: VerificationEmailInput) {
   const digits = code.replace(/\D/g, "").slice(0, 6);
+  const logoUrl = `${appUrl.replace(/\/+$/, "")}${EMAIL_LOGO.path}`;
   const subject = `${digits} رمز تأكيد بريدك في Viresto`;
   const preheader = `رمزك: ${digits} — صالح لمدة ${minutes} دقائق.`;
 
@@ -62,16 +70,17 @@ export function renderVerificationEmail({
       <td class="wrap" align="center" style="padding:40px 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:460px;">
 
-          <!-- الشعار -->
+          <!-- الشعار: رابط كامل، ونص alt مرتب إذا الصور محجوبة -->
           <tr>
-            <td align="center" style="padding:0 0 20px;font-family:${FONT};font-size:20px;font-weight:700;color:${C.text};letter-spacing:.5px;" dir="ltr">
-              Viresto
+            <td align="center" style="padding:0 0 20px;" dir="ltr">
+              <img src="${logoUrl}" width="${EMAIL_LOGO.width}" height="${EMAIL_LOGO.height}" alt="Viresto"
+                   style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;width:${EMAIL_LOGO.width}px;height:${EMAIL_LOGO.height}px;font-family:${FONT};font-size:20px;font-weight:700;line-height:${EMAIL_LOGO.height}px;color:${C.text};text-align:center;">
             </td>
           </tr>
 
           <!-- البطاقة -->
           <tr>
-            <td class="card" dir="rtl" style="background:${C.card};border:1px solid ${C.line};border-top:3px solid ${C.brass};border-radius:14px;padding:36px 32px;font-family:${FONT};text-align:right;">
+            <td class="card" dir="rtl" style="background:${C.card};border:1px solid ${C.line};border-top:3px solid ${C.accent};border-radius:14px;padding:36px 32px;font-family:${FONT};text-align:right;">
 
               <h1 class="title" style="margin:0 0 10px;font-size:24px;line-height:1.4;font-weight:700;color:${C.text};">
                 تأكيد البريد الإلكتروني
@@ -84,7 +93,7 @@ export function renderVerificationEmail({
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center" dir="ltr" class="code"
-                      style="background:${C.codeBg};border:1px solid ${C.brass};border-radius:10px;
+                      style="background:${C.codeBg};border:1px solid ${C.accent};border-radius:10px;
                              padding:18px 10px 18px 22px;white-space:nowrap;
                              font-family:'Courier New', Consolas, monospace;font-size:36px;font-weight:700;
                              letter-spacing:12px;color:${C.text};line-height:1;">
