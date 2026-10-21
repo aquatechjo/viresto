@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { PASSWORD_RESET_CODE_TTL_MINUTES } from "@/lib/verification-policy";
 
-const PASSWORD_RESET_TTL_MS = 10 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = PASSWORD_RESET_CODE_TTL_MINUTES * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
 function getPasswordResetSecret() {

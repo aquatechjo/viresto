@@ -52,3 +52,6 @@ tsconfig.tsbuildinfo
 
 # npm run email:preview output (local only)
 /.email-preview/
+
+# impeccable design-hook settings (local only)
+/.impeccable/

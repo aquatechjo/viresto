@@ -22,8 +22,9 @@ import {
   sendEmailChangeCode,
   sendEmailChangeCompletedEmail,
 } from "@/lib/email";
+import { EMAIL_CHANGE_CODE_TTL_MINUTES } from "@/lib/verification-policy";
 
-const CODE_TTL_MS = 10 * 60 * 1000;
+const CODE_TTL_MS = EMAIL_CHANGE_CODE_TTL_MINUTES * 60 * 1000;
 const MAX_CODE_ATTEMPTS = 5;
 
 const requestSchema = z.discriminatedUnion("action", [
@@ -403,11 +404,13 @@ export async function POST(req: NextRequest) {
       sendEmailChangeCompletedEmail({
         to: oldEmail,
         accountEmail: newEmail,
+        previousEmail: oldEmail,
         isOldEmail: true,
       }),
       sendEmailChangeCompletedEmail({
         to: newEmail,
         accountEmail: newEmail,
+        previousEmail: oldEmail,
         isOldEmail: false,
       }),
     ]);
