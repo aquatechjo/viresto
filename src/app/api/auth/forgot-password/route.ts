@@ -6,6 +6,7 @@ import { sendPasswordResetEmail } from "@/lib/email";
 import {
   checkRateLimit,
   hashRateLimitIdentifier,
+  RateLimitUnavailableError,
 } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import {
@@ -20,6 +21,8 @@ export const runtime = "nodejs";
 
 const GENERIC_MESSAGE =
   "إذا كان البريد الإلكتروني مسجلاً لدينا، سيتم إرسال كود إعادة تعيين كلمة المرور.";
+
+const UNAVAILABLE_MESSAGE = "الخدمة غير متاحة مؤقتاً، حاول مرة أخرى بعد قليل.";
 
 const FORGOT_PASSWORD_IP_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 };
 const FORGOT_PASSWORD_ACCOUNT_LIMIT = { max: 3, windowMs: 15 * 60 * 1000 };
@@ -142,6 +145,20 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     logEmailOutcome("forgot-password", "error", describeError(error));
+
+    // The limiter store is down (production fails closed). Nothing is sent,
+    // and the user is told to retry rather than shown "sent". This happens
+    // before any account lookup, so it says nothing about the address.
+    if (error instanceof RateLimitUnavailableError) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "SERVICE_UNAVAILABLE",
+          message: UNAVAILABLE_MESSAGE,
+        },
+        { status: 503 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

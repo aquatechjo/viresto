@@ -7,7 +7,9 @@ import { verifyPasswordResetCode } from "@/lib/password-reset";
 import {
   checkRateLimit,
   hashRateLimitIdentifier,
+  RateLimitUnavailableError,
 } from "@/lib/rate-limit";
+import { rateLimitUnavailableResponse } from "@/lib/api-handler";
 import { strongPasswordSchema } from "@/lib/validations";
 import { getClientIp } from "@/lib/client-ip";
 import { logActivity } from "@/lib/log-activity";
@@ -188,6 +190,10 @@ export async function POST(request: NextRequest) {
       message: "تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.",
     });
   } catch (error) {
+    if (error instanceof RateLimitUnavailableError) {
+      return rateLimitUnavailableResponse();
+    }
+
     console.error("reset-password error:", error);
 
     return NextResponse.json(

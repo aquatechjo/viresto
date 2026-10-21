@@ -25,6 +25,7 @@ const COPY = {
     success:
       "إذا كان البريد الإلكتروني مسجلاً لدينا، سيتم إرسال كود إعادة تعيين كلمة المرور.",
     error: "تعذر إرسال كود إعادة التعيين",
+    unavailable: "الخدمة غير متاحة مؤقتاً، حاول مرة أخرى بعد قليل.",
     networkError: "حدث خطأ أثناء إرسال كود إعادة التعيين",
   },
   en: {
@@ -41,6 +42,8 @@ const COPY = {
     success:
       "If this email is registered with us, a password reset code will be sent.",
     error: "Unable to send the reset code",
+    unavailable:
+      "The service is temporarily unavailable. Please try again shortly.",
     networkError: "An error occurred while sending the reset code",
   },
 } satisfies Record<Locale, Record<string, string>>;
@@ -115,6 +118,11 @@ export default function ForgotPasswordPage() {
 
       if (retryAfter !== null) {
         toast.error(codeRateLimitMessage(retryAfter, locale));
+        return;
+      }
+
+      if (res.status === 503) {
+        toast.error(copy.unavailable);
         return;
       }
 

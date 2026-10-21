@@ -3,13 +3,19 @@ import { err } from '@/lib/api-response'
 import { RateLimitUnavailableError } from '@/lib/rate-limit'
 import { reportError } from '@/lib/monitoring'
 
+// The answer when the rate-limit store is down (production fails closed).
+// Also used by routes that handle their own errors instead of apiHandler.
+export function rateLimitUnavailableResponse() {
+  console.error('[API_RATE_LIMIT_UNAVAILABLE] Request blocked safely.')
+  return err('خدمة الحماية غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.', 503)
+}
+
 export async function apiHandler(handler: () => Promise<Response>) {
   try {
     return await handler()
   } catch (error) {
     if (error instanceof RateLimitUnavailableError) {
-      console.error('[API_RATE_LIMIT_UNAVAILABLE] Request blocked safely.')
-      return err('خدمة الحماية غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.', 503)
+      return rateLimitUnavailableResponse()
     }
 
     console.error('[API_ERROR]', error)

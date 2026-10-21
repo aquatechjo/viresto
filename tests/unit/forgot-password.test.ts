@@ -13,10 +13,26 @@ import { EmailDeliveryError } from "../../src/lib/email/errors";
 const RESET_IN_MS = 14 * 60 * 1000;
 const counters = new Map<string, number>();
 
+class RateLimitUnavailableError extends Error {
+  constructor() {
+    super("Distributed rate-limit storage is unavailable");
+    this.name = "RateLimitUnavailableError";
+  }
+}
+
+// Which limiter's store is down ("ip" | "account"), as in production when
+// Upstash fails and checkRateLimit throws.
+let limiterDown: string | null = null;
+
 mock.module("@/lib/rate-limit", {
   namedExports: {
+    RateLimitUnavailableError,
     hashRateLimitIdentifier: (value: string) => `hash(${value})`,
     checkRateLimit: async (identifier: string, options: { keyPrefix: string; max: number }) => {
+      if (limiterDown && options.keyPrefix === `forgot-password-${limiterDown}`) {
+        throw new RateLimitUnavailableError();
+      }
+
       const key = `${options.keyPrefix}:${identifier}`;
       const count = (counters.get(key) ?? 0) + 1;
       counters.set(key, count);
@@ -103,6 +119,7 @@ beforeEach(() => {
   sendCalls = 0;
   lookups = 0;
   afterTasks = [];
+  limiterDown = null;
   logs = [];
 });
 
@@ -267,6 +284,41 @@ test("the per-IP limit (10) logs limiter=ip", async () => {
 
   assert.equal(res.status, 429);
   assert.match(emailLogs().at(-1)?.line ?? "", /outcome=rate_limited limiter=ip /);
+});
+
+test("limiter store down: 503 'try again shortly', nothing looked up or sent, the error logged", async () => {
+  for (const limiter of ["ip", "account"]) {
+    limiterDown = limiter;
+    logs = [];
+
+    const res = await forgot("owner@office.jo");
+    const body = await res.json();
+
+    assert.equal(res.status, 503, limiter);
+    assert.deepEqual(body, {
+      success: false,
+      code: "SERVICE_UNAVAILABLE",
+      message: "الخدمة غير متاحة مؤقتاً، حاول مرة أخرى بعد قليل.",
+    });
+    assert.deepEqual(emailLogs(), [
+      { level: "error", line: "[EMAIL_SEND] flow=forgot-password outcome=error error=RateLimitUnavailableError" },
+    ]);
+  }
+
+  assert.equal(lookups, 0);
+  assert.equal(sendCalls, 0);
+  assertNoPersonalData();
+});
+
+test("limiter store down: the same 503 with or without an account", async () => {
+  limiterDown = "account";
+
+  const withAccount = await forgot("owner@office.jo");
+  const withoutAccount = await forgot("nobody@office.jo");
+
+  assert.equal(withAccount.status, 503);
+  assert.equal(withoutAccount.status, 503);
+  assert.deepEqual(await withoutAccount.json(), await withAccount.json());
 });
 
 test("the wait is worded in whole minutes, with Arabic counting", () => {
