@@ -8,11 +8,21 @@ import {
   hashRateLimitIdentifier,
 } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
+import {
+  describeError,
+  describeSendResult,
+  logEmailOutcome,
+} from "@/lib/email-send-log";
+import { codeRateLimitMessage, retryAfterSeconds } from "@/lib/retry-after";
+import { runAfterResponse } from "@/lib/after-response";
 
 export const runtime = "nodejs";
 
 const GENERIC_MESSAGE =
   "إذا كان البريد الإلكتروني مسجلاً لدينا، سيتم إرسال كود إعادة تعيين كلمة المرور.";
+
+const FORGOT_PASSWORD_IP_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 };
+const FORGOT_PASSWORD_ACCOUNT_LIMIT = { max: 3, windowMs: 15 * 60 * 1000 };
 
 function isSameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -28,6 +38,59 @@ function isSameOrigin(request: NextRequest) {
   }
 }
 
+// Both limits run before the account lookup, so this answer is the same
+// for an address with or without an account.
+function rateLimited(resetAt: number, limiter: "ip" | "account") {
+  const seconds = retryAfterSeconds(resetAt);
+
+  logEmailOutcome("forgot-password", "rate_limited", {
+    limiter,
+    retry_after_s: seconds,
+  });
+
+  return NextResponse.json(
+    {
+      success: false,
+      code: "RATE_LIMITED",
+      message: codeRateLimitMessage(seconds),
+      retryAfterSeconds: seconds,
+    },
+    { status: 429, headers: { "Retry-After": String(seconds) } }
+  );
+}
+
+async function sendResetCode(email: string) {
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        email,
+      },
+      select: {
+        id: true,
+        email: true,
+        isActive: true,
+      },
+    });
+
+    if (!user?.isActive) {
+      logEmailOutcome("forgot-password", "no_active_user");
+      return;
+    }
+
+    const code = await createPasswordResetCode(user.id);
+
+    const result = await sendPasswordResetEmail({
+      to: user.email,
+      code,
+    });
+
+    const sent = describeSendResult(result);
+    logEmailOutcome("forgot-password", sent.outcome, sent.fields);
+  } catch (error) {
+    logEmailOutcome("forgot-password", "error", describeError(error));
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!isSameOrigin(request)) {
@@ -40,18 +103,11 @@ export async function POST(request: NextRequest) {
     const ip = getClientIp(request) || "unknown";
     const ipLimit = await checkRateLimit(ip, {
       keyPrefix: "forgot-password-ip",
-      max: 10,
-      windowMs: 15 * 60 * 1000,
+      ...FORGOT_PASSWORD_IP_LIMIT,
     });
 
     if (!ipLimit.allowed) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "تم تجاوز عدد المحاولات. حاول مرة أخرى لاحقًا.",
-        },
-        { status: 429 }
-      );
+      return rateLimited(ipLimit.resetAt, "ip");
     }
 
     const body = await request.json().catch(() => ({}));
@@ -68,47 +124,24 @@ export async function POST(request: NextRequest) {
       hashRateLimitIdentifier(email),
       {
         keyPrefix: "forgot-password-account",
-        max: 3,
-        windowMs: 15 * 60 * 1000,
+        ...FORGOT_PASSWORD_ACCOUNT_LIMIT,
       }
     );
 
     if (!accountLimit.allowed) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "تم تجاوز عدد المحاولات. حاول مرة أخرى لاحقًا.",
-        },
-        { status: 429 }
-      );
+      return rateLimited(accountLimit.resetAt, "account");
     }
 
-    const user = await prisma.user.findFirst({
-      where: {
-        email,
-      },
-      select: {
-        id: true,
-        email: true,
-        isActive: true,
-      },
-    });
-
-    if (user?.isActive) {
-      const code = await createPasswordResetCode(user.id);
-
-      await sendPasswordResetEmail({
-        to: user.email,
-        code,
-      });
-    }
+    // The lookup and the send run after the response, so an address with
+    // an account takes no longer to answer than one without.
+    await runAfterResponse(() => sendResetCode(email));
 
     return NextResponse.json({
       success: true,
       message: GENERIC_MESSAGE,
     });
   } catch (error) {
-    console.error("forgot-password error:", error);
+    logEmailOutcome("forgot-password", "error", describeError(error));
 
     return NextResponse.json({
       success: true,

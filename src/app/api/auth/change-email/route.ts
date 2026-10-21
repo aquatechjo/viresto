@@ -23,6 +23,11 @@ import {
   sendEmailChangeCompletedEmail,
 } from "@/lib/email";
 import { EMAIL_CHANGE_CODE_TTL_MINUTES } from "@/lib/verification-policy";
+import {
+  describeError,
+  describeSendResult,
+  logEmailOutcome,
+} from "@/lib/email-send-log";
 
 const CODE_TTL_MS = EMAIL_CHANGE_CODE_TTL_MINUTES * 60 * 1000;
 const MAX_CODE_ATTEMPTS = 5;
@@ -389,7 +394,9 @@ export async function POST(req: NextRequest) {
       isSystemAdmin: updatedUser.isSystemAdmin,
     });
 
-    await Promise.allSettled([
+    // The change is committed; a failed notice must not fail the request,
+    // but it is logged instead of dropped.
+    const [activity, oldNotice, newNotice] = await Promise.allSettled([
       logActivity({
         actorId: updatedUser.id,
         ipAddress: meta.ipAddress,
@@ -414,6 +421,31 @@ export async function POST(req: NextRequest) {
         isOldEmail: false,
       }),
     ]);
+
+    if (activity.status === "rejected") {
+      console.error(
+        "[ACCOUNT_EMAIL_CHANGED] activity log failed",
+        describeError(activity.reason),
+      );
+    }
+
+    for (const [recipient, notice] of [
+      ["old", oldNotice],
+      ["new", newNotice],
+    ] as const) {
+      if (notice.status === "fulfilled") {
+        const sent = describeSendResult(notice.value);
+        logEmailOutcome("email-change-completed", sent.outcome, {
+          recipient,
+          ...sent.fields,
+        });
+      } else {
+        logEmailOutcome("email-change-completed", "error", {
+          recipient,
+          ...describeError(notice.reason),
+        });
+      }
+    }
 
     const response = success({
       email: updatedUser.email,

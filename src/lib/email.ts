@@ -8,6 +8,10 @@ import { renderEmailChangeCompletedEmail } from "@/lib/email/email-change-comple
 import { renderTeamInvitationEmail } from "@/lib/email/team-invitation-email";
 import { renderOfficeDeletionRequestEmail } from "@/lib/email/office-deletion-request-email";
 
+import { EmailDeliveryError, EmailNotConfiguredError } from "@/lib/email/errors";
+
+export { EmailDeliveryError, EmailNotConfiguredError };
+
 type SendVerificationEmailInput = {
   to: string;
   code: string;
@@ -44,7 +48,7 @@ export async function sendVerificationEmail({
       return { skipped: true };
     }
 
-    throw new Error("Missing RESEND_API_KEY");
+    throw new EmailNotConfiguredError();
   }
 
   if (isDemoRecipient(to)) return { skipped: true };
@@ -72,8 +76,9 @@ export async function sendVerificationEmail({
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(
+    throw new EmailDeliveryError(
       `Failed to send verification email: ${response.status} ${errorText}`,
+      response.status,
     );
   }
 
@@ -94,10 +99,10 @@ export async function sendPasswordResetEmail({
   if (!apiKey) {
     if (process.env.NODE_ENV !== "production") {
       console.log(`[DEV] Password reset code for ${to}: ${code}`);
-      return;
+      return { skipped: true };
     }
 
-    throw new Error("Missing RESEND_API_KEY");
+    throw new EmailNotConfiguredError();
   }
 
   if (isDemoRecipient(to)) return { skipped: true };
@@ -121,9 +126,14 @@ export async function sendPasswordResetEmail({
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to send password reset email: ${errorText}`);
+    const errorText = await response.text().catch(() => "");
+    throw new EmailDeliveryError(
+      `Failed to send password reset email: ${response.status} ${errorText}`,
+      response.status,
+    );
   }
+
+  return response.json().catch(() => ({ ok: true }));
 }
 
 type SendEmailChangeCodeInput = {
@@ -145,7 +155,7 @@ export async function sendEmailChangeCode({
       return { skipped: true };
     }
 
-    throw new Error("Missing RESEND_API_KEY");
+    throw new EmailNotConfiguredError();
   }
 
   if (isDemoRecipient(to)) return { skipped: true };
@@ -175,8 +185,9 @@ export async function sendEmailChangeCode({
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(
+    throw new EmailDeliveryError(
       `Failed to send email change code: ${response.status} ${errorText}`,
+      response.status,
     );
   }
 
@@ -209,7 +220,7 @@ export async function sendEmailChangeCompletedEmail({
       return { skipped: true };
     }
 
-    throw new Error("Missing RESEND_API_KEY");
+    throw new EmailNotConfiguredError();
   }
 
   if (isDemoRecipient(to)) return { skipped: true };
@@ -242,8 +253,9 @@ export async function sendEmailChangeCompletedEmail({
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(
+    throw new EmailDeliveryError(
       `Failed to send email change completion notice: ${response.status} ${errorText}`,
+      response.status,
     );
   }
 
@@ -282,7 +294,7 @@ export async function sendTeamInvitationEmail({
       return { skipped: true };
     }
 
-    throw new Error("Missing RESEND_API_KEY");
+    throw new EmailNotConfiguredError();
   }
 
   if (isDemoRecipient(to)) return { skipped: true };
@@ -314,8 +326,9 @@ export async function sendTeamInvitationEmail({
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(
+    throw new EmailDeliveryError(
       `Failed to send team invitation: ${response.status} ${errorText}`,
+      response.status,
     );
   }
 
@@ -351,7 +364,7 @@ export async function sendOfficeDeletionRequestEmail({
       return { skipped: true };
     }
 
-    throw new Error("Missing RESEND_API_KEY");
+    throw new EmailNotConfiguredError();
   }
 
   if (isDemoRecipient(to)) return { skipped: true };
@@ -385,8 +398,9 @@ export async function sendOfficeDeletionRequestEmail({
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(
+    throw new EmailDeliveryError(
       `Failed to send office deletion request email: ${response.status} ${errorText}`,
+      response.status,
     );
   }
 

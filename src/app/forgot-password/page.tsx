@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { codeRateLimitMessage, readRetryAfterSeconds } from "@/lib/retry-after";
 
 type Locale = "ar" | "en";
 
@@ -110,6 +111,12 @@ export default function ForgotPasswordPage() {
       });
 
       const data = await res.json().catch(() => null);
+      const retryAfter = readRetryAfterSeconds(res.status, data);
+
+      if (retryAfter !== null) {
+        toast.error(codeRateLimitMessage(retryAfter, locale));
+        return;
+      }
 
       if (!res.ok || data?.success === false) {
         toast.error(copy.error);

@@ -2,8 +2,20 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useCooldown } from "@/hooks/useCooldown";
+import { codeRateLimitMessage, readRetryAfterSeconds } from "@/lib/retry-after";
+
+// Seconds the resend button stays disabled after a code is sent.
+const RESEND_COOLDOWN_SECONDS = 60;
+
+// 0:45, 14:59. Left to right inside the Arabic label.
+function formatCountdown(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = String(seconds % 60).padStart(2, "0");
+  return `⁦${minutes}:${rest}⁩`;
+}
 
 function ResetPasswordContent() {
   const router = useRouter();
@@ -19,6 +31,13 @@ function ResetPasswordContent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const cooldown = useCooldown();
+  const startCooldown = cooldown.start;
+
+  // Arriving from /forgot-password with ?email= means a code was just sent.
+  useEffect(() => {
+    if (initialEmail) startCooldown(RESEND_COOLDOWN_SECONDS);
+  }, [initialEmail, startCooldown]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -99,6 +118,13 @@ function ResetPasswordContent() {
       });
 
       const data = await res.json().catch(() => null);
+      const retryAfter = readRetryAfterSeconds(res.status, data);
+
+      if (retryAfter !== null) {
+        toast.error(codeRateLimitMessage(retryAfter));
+        cooldown.start(retryAfter);
+        return;
+      }
 
       if (!res.ok || data?.success === false) {
         toast.error(data?.message || "تعذر إعادة إرسال الكود");
@@ -106,6 +132,7 @@ function ResetPasswordContent() {
       }
 
       toast.success(data?.message || "تم إرسال كود جديد");
+      cooldown.start(RESEND_COOLDOWN_SECONDS);
     } catch {
       toast.error("حدث خطأ أثناء إعادة إرسال الكود");
     } finally {
@@ -208,10 +235,15 @@ function ResetPasswordContent() {
             <button
               type="button"
               onClick={resendCode}
-              disabled={resending}
+              disabled={resending || cooldown.remaining > 0}
+              aria-live="polite"
               className="text-sm font-bold text-copper-200 transition hover:text-copper-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {resending ? "جاري إعادة الإرسال..." : "إعادة إرسال الكود"}
+              {resending
+                ? "جاري إعادة الإرسال..."
+                : cooldown.remaining > 0
+                  ? `إعادة إرسال الكود بعد ${formatCountdown(cooldown.remaining)}`
+                  : "إعادة إرسال الكود"}
             </button>
 
             <Link
