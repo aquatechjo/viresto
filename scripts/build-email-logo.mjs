@@ -7,8 +7,9 @@
 // as the landing page header (VirestoLogo in src/app/page.tsx): the icon in
 // a rounded tile next to "Viresto" in the brand's light text colour, on a
 // transparent background. Rendered at 2x for retina screens; the email shows
-// it at half size (EMAIL_LOGO in src/lib/email/verification-email.ts, which
-// must match what this prints).
+// it at half size (EMAIL_LOGO in src/lib/email/layout.ts, which must match
+// what this prints). After changing the image, bump EMAIL_LOGO_VERSION there:
+// Gmail caches images by URL.
 
 import { mkdirSync } from "node:fs";
 import sharp from "sharp";
@@ -19,16 +20,30 @@ const TILE = HEIGHT;
 const RADIUS = 10 * SCALE;
 const GAP = 10 * SCALE;
 const TEXT = "#f8fbfa"; // --brand-text
+// A thin frame inside the tile's edge, so the icon's own dark background
+// does not melt into the email's (#041819): --landing-copper, softened.
+const FRAME = process.env.EMAIL_LOGO_FRAME ?? "rgba(184, 115, 51, 0.6)";
+const FRAME_WIDTH = 1.5 * SCALE; // 1.5px on screen
 const FONT_SIZE = 25 * SCALE;
 
 const tileMask = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="${TILE}" height="${TILE}"><rect width="${TILE}" height="${TILE}" rx="${RADIUS}" ry="${RADIUS}"/></svg>`,
 );
 
-const tile = await sharp("public/icon-512.png")
-  .resize(TILE, TILE)
-  .ensureAlpha()
-  .composite([{ input: tileMask, blend: "dest-in" }])
+const inset = FRAME_WIDTH / 2;
+const tileFrame = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${TILE}" height="${TILE}"><rect x="${inset}" y="${inset}" width="${TILE - FRAME_WIDTH}" height="${TILE - FRAME_WIDTH}" rx="${RADIUS - inset}" ry="${RADIUS - inset}" fill="none" stroke="${FRAME}" stroke-width="${FRAME_WIDTH}"/></svg>`,
+);
+
+const tile = await sharp(
+  await sharp("public/icon-512.png")
+    .resize(TILE, TILE)
+    .ensureAlpha()
+    .composite([{ input: tileMask, blend: "dest-in" }])
+    .png()
+    .toBuffer(),
+)
+  .composite([{ input: tileFrame }])
   .png()
   .toBuffer();
 

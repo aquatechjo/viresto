@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { EMAIL_LOGO, type RenderedEmail } from "../src/lib/email/layout";
+import { EMAIL_LOGO, EMAIL_LOGO_VERSION, type RenderedEmail } from "../src/lib/email/layout";
 import { renderVerificationEmail } from "../src/lib/email/verification-email";
 import { renderPasswordResetEmail } from "../src/lib/email/password-reset-email";
 import { renderEmailChangeCodeEmail } from "../src/lib/email/email-change-code-email";
@@ -27,7 +27,7 @@ const code = args.find((arg) => !arg.startsWith("--")) ?? "642332";
 const noImages = args.includes("--no-images");
 
 const appUrl = "https://www.virestojo.com";
-const siteLogo = `${appUrl}${EMAIL_LOGO.path}`;
+const siteLogo = `${appUrl}${EMAIL_LOGO.path}?v=${EMAIL_LOGO_VERSION}`;
 // The local copy, or a URL that cannot load to see blocked images.
 const previewLogo = noImages
   ? "https://images-blocked.invalid/logo.png"

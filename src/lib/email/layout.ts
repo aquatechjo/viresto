@@ -21,6 +21,11 @@ export const C = {
 // خلفيته شفافة. لو غيّرت المقاس، أعد توليده وحدّث هون.
 export const EMAIL_LOGO = { path: "/email/viresto-logo.png", width: 131, height: 40 };
 
+// Gmail بيكيّش الصور حسب الرابط: كل ما يتغيّر ملف اللوجو، زيد هالرقم
+// عشان الإيميلات الجديدة تجيب النسخة الجديدة (?v=N).
+// 2: إطار نحاسي حول مربع الأيقونة (2026-10-21).
+export const EMAIL_LOGO_VERSION = 2;
+
 export const FONT = `'Segoe UI', Tahoma, 'Noto Sans Arabic', Arial, sans-serif`;
 
 export const DEFAULT_APP_URL = "https://www.virestojo.com";
@@ -63,7 +68,7 @@ export function renderEmailLayout({
   content: string;
 }) {
   const base = baseUrl(appUrl);
-  const logoUrl = `${base}${EMAIL_LOGO.path}`;
+  const logoUrl = `${base}${EMAIL_LOGO.path}?v=${EMAIL_LOGO_VERSION}`;
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl" xmlns="http://www.w3.org/1999/xhtml">

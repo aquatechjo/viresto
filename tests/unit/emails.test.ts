@@ -46,7 +46,7 @@ for (const [name, email] of all) {
     assert.match(email.html, /<html lang="ar" dir="rtl"/);
     assert.match(email.html, /<meta name="color-scheme" content="dark">/);
     assert.match(email.html, /border-top:3px solid #b87333/);
-    assert.match(email.html, /<img src="https:\/\/www\.virestojo\.com\/email\/viresto-logo\.png"[^>]*alt="Viresto"/);
+    assert.match(email.html, /<img src="https:\/\/www\.virestojo\.com\/email\/viresto-logo\.png\?v=\d+"[^>]*alt="Viresto"/);
     assert.match(email.html, /mso-hide:all/, "preheader");
     assert.doesNotMatch(email.html, /#f3f7f6|#ffffff|background:#fff\b/i, "no old light style");
     assert.ok(email.text.trim().length > 20, "text part");

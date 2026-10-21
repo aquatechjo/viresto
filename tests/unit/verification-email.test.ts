@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { EMAIL_LOGO, renderVerificationEmail } from "../../src/lib/email/verification-email";
+import { EMAIL_LOGO_VERSION } from "../../src/lib/email/layout";
 import { EMAIL_VERIFICATION_TTL_MINUTES } from "../../src/lib/verification-policy";
 
 test("the subject starts with the code, so it shows in the notification", () => {
@@ -42,7 +43,11 @@ test("the logo is an absolute URL on the site, with alt text and fixed size", ()
   const { html } = renderVerificationEmail({ code: "642332", appUrl: "https://www.virestojo.com/" });
   const img = html.match(/<img\s[^>]*>/)?.[0] ?? "";
 
-  assert.match(img, /src="https:\/\/www\.virestojo\.com\/email\/viresto-logo\.png"/);
+  // Versioned, so a new logo is not served from Gmail's image cache.
+  assert.ok(
+    img.includes(`src="https://www.virestojo.com/email/viresto-logo.png?v=${EMAIL_LOGO_VERSION}"`),
+    img,
+  );
   assert.match(img, /alt="Viresto"/);
   assert.match(img, new RegExp(`width="${EMAIL_LOGO.width}" height="${EMAIL_LOGO.height}"`));
   assert.match(img, /display:block/);
