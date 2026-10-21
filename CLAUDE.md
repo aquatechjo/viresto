@@ -18,6 +18,22 @@ Commit the status update as its own commit, with the message
 always matches the code. Never mix status updates into feature or fix
 commits.
 
+## Standing rule: never write Arabic text through Windows PowerShell 5.1
+
+The shell here is Windows PowerShell 5.1. It reads UTF-8 files without a
+BOM as the ANSI code page and garbles Arabic when writing them back
+(this broke a test file on 2026-10-22), and it mangles multi-line commit
+messages passed through here-strings or pipes.
+
+- Never write a file that contains, or may contain, Arabic text through
+  PowerShell: no `Out-File`, `Set-Content`, `Add-Content`, `>`/`>>`,
+  `Get-Content … | … | Set-Content`, or `[IO.File]::WriteAllText` on
+  text read with `Get-Content`. Use the Write and Edit tools.
+- Commit messages: write the message to a file with the Write tool (in
+  the scratchpad), then `git commit -F <that file>`. Never pipe or
+  here-string a message into `git commit`. A one-line ASCII message may
+  use `-m`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
