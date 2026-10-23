@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { roundMoney } from "@/lib/finance";
-import { formatJodNumber, moneyExceeds } from "@/lib/money";
+import { formatJOD, moneyExceeds } from "@/lib/money";
 
 export type CaseFinancialSnapshot = {
   caseId: string;
@@ -149,11 +149,11 @@ export async function assertCaseCanAcceptAmount(
 
   if (snapshot.feeAgreed <= 0 || moneyExceeds(requestedAmount, snapshot.available)) {
     throw new CaseFinancialLimitError(
-      `قيمة ${input.label} تتجاوز السقف المالي للقضية. الأتعاب ${formatJodNumber(
+      `قيمة ${input.label} تتجاوز السقف المالي للقضية. الأتعاب ${formatJOD(
         snapshot.feeAgreed,
-      )} د.أ، الملتزم به ${formatJodNumber(
+      )}، الملتزم به ${formatJOD(
         snapshot.committedTotal,
-      )} د.أ، والمتاح ${formatJodNumber(snapshot.available)} د.أ`,
+      )}، والمتاح ${formatJOD(snapshot.available)}`,
       { ...snapshot, requestedAmount },
     );
   }
@@ -170,11 +170,11 @@ export async function assertCaseFeeCoversCommitments(
 
   if (moneyExceeds(snapshot.committedTotal, nextFeeAgreed)) {
     throw new CaseFinancialLimitError(
-      `لا يمكن خفض أتعاب القضية إلى ${formatJodNumber(
+      `لا يمكن خفض أتعاب القضية إلى ${formatJOD(
         nextFeeAgreed,
-      )} د.أ لأن إجمالي الفواتير والدفعات المباشرة الملتزم بها هو ${formatJodNumber(
+      )} لأن إجمالي الفواتير والدفعات المباشرة الملتزم بها هو ${formatJOD(
         snapshot.committedTotal,
-      )} د.أ`,
+      )}`,
       { ...snapshot, feeAgreed: nextFeeAgreed },
     );
   }

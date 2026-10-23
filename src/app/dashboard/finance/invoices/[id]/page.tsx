@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import AppLoader from "@/components/ui/AppLoader";
 import { useLocale } from "@/lib/useLocale";
 import type { Locale } from "@/lib/i18n";
+import { formatJOD, parseAmount } from "@/lib/money";
 import {
   buildInvoiceWhatsAppMessage,
   formatInvoiceNumber,
@@ -25,8 +26,8 @@ type InvoiceStatus =
 
 type EditItem = {
   description: string;
-  quantity: number;
-  unitPrice: number;
+  quantity: number | string;
+  unitPrice: number | string;
 };
 
 interface InvoicePayment {
@@ -490,15 +491,6 @@ function formatInvoiceDate(value: string | null | undefined, locale: Locale) {
   }).format(parsed);
 }
 
-function formatInvoiceMoney(value: number, locale: Locale) {
-  return new Intl.NumberFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
-    style: "currency",
-    currency: "JOD",
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  }).format(Number(value || 0));
-}
-
 function extractClientPhone(data: unknown) {
   const payload = data as any;
   const candidates = [
@@ -684,8 +676,8 @@ export default function InvoiceDetailsPage() {
   const [successMotion, setSuccessMotion] = useState<{ kind: "update" | "pdf"; title: string; subtitle?: string; status?: string } | null>(null);
 
   const [editDueDate, setEditDueDate] = useState("");
-  const [editTax, setEditTax] = useState(0);
-  const [editDiscount, setEditDiscount] = useState(0);
+  const [editTax, setEditTax] = useState<number | string>(0);
+  const [editDiscount, setEditDiscount] = useState<number | string>(0);
   const [editNotes, setEditNotes] = useState("");
   const [editItems, setEditItems] = useState<EditItem[]>([]);
 
@@ -819,7 +811,7 @@ export default function InvoiceDetailsPage() {
         i === index
           ? {
               ...item,
-              [key]: key === "description" ? value : Number(value || 0),
+              [key]: value,
             }
           : item,
       ),
@@ -843,14 +835,14 @@ export default function InvoiceDetailsPage() {
 
   const editSubtotal = roundMoney(
     editItems.reduce((sum, item) => {
-      const quantity = Number(item.quantity || 0);
-      const unitPrice = Number(item.unitPrice || 0);
+      const quantity = parseAmount(String(item.quantity));
+      const unitPrice = parseAmount(String(item.unitPrice));
       return sum + quantity * unitPrice;
     }, 0),
   );
 
   const editTotal = roundMoney(
-    editSubtotal + Number(editTax || 0) - Number(editDiscount || 0),
+    editSubtotal + parseAmount(String(editTax)) - parseAmount(String(editDiscount)),
   );
 
   async function submitEdit(e: FormEvent) {
@@ -860,8 +852,8 @@ export default function InvoiceDetailsPage() {
     const cleanItems = editItems
       .map((item) => ({
         description: item.description.trim(),
-        quantity: Number(item.quantity || 0),
-        unitPrice: Number(item.unitPrice || 0),
+        quantity: parseAmount(String(item.quantity)),
+        unitPrice: parseAmount(String(item.unitPrice)),
       }))
       .filter((item) => item.description);
 
@@ -875,7 +867,7 @@ export default function InvoiceDetailsPage() {
       return;
     }
 
-    if (Number(editTax || 0) < 0 || Number(editDiscount || 0) < 0) {
+    if (parseAmount(String(editTax)) < 0 || parseAmount(String(editDiscount)) < 0) {
       toast.error(ui.errors.negativeTaxDiscount);
       return;
     }
@@ -893,8 +885,8 @@ export default function InvoiceDetailsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dueDate: editDueDate || null,
-          tax: Number(editTax || 0),
-          discount: Number(editDiscount || 0),
+          tax: parseAmount(String(editTax)),
+          discount: parseAmount(String(editDiscount)),
           notes: editNotes,
           items: cleanItems,
         }),
@@ -1293,7 +1285,7 @@ export default function InvoiceDetailsPage() {
                   color: "#fff",
                 }}
               >
-                {ui.total}: {formatInvoiceMoney(invoice.total, appLocale)}
+                {ui.total}: <bdi>{formatJOD(invoice.total)}</bdi>
               </span>
 
               {archivedInvoice && (
@@ -1429,21 +1421,21 @@ export default function InvoiceDetailsPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
         <InfoCard
           label={ui.invoiceTotal}
-          value={formatInvoiceMoney(invoice.total, appLocale)}
+          value={formatJOD(invoice.total)}
           hint={ui.finalAmount}
           tone="green"
         />
 
         <InfoCard
           label={ui.paidAmount}
-          value={formatInvoiceMoney(paidTotal, appLocale)}
+          value={formatJOD(paidTotal)}
           hint={ui.collectedPayments(paidPayments.length)}
           tone="green"
         />
 
         <InfoCard
           label={ui.remainingAmount}
-          value={formatInvoiceMoney(remainingTotal, appLocale)}
+          value={formatJOD(remainingTotal)}
           hint={remainingTotal > 0 ? ui.remainingToCollect : ui.fullyCollected}
           tone={remainingTotal > 0 ? "amber" : "green"}
         />
@@ -1747,7 +1739,7 @@ export default function InvoiceDetailsPage() {
                   },
                   {
                     label: invoiceCopy.finalTotal,
-                    value: formatInvoiceMoney(invoice.total, invoiceLocale),
+                    value: formatJOD(invoice.total),
                     total: true,
                     ltr: true,
                   },
@@ -1908,13 +1900,13 @@ export default function InvoiceDetailsPage() {
                             dir="ltr"
                             className="px-4 py-3 text-start text-xs font-bold"
                           >
-                            {formatInvoiceMoney(item.unitPrice, invoiceLocale)}
+                            <bdi>{formatJOD(item.unitPrice)}</bdi>
                           </td>
                           <td
                             dir="ltr"
                             className="px-4 py-3 text-start text-xs font-black"
                           >
-                            {formatInvoiceMoney(item.total, invoiceLocale)}
+                            <bdi>{formatJOD(item.total)}</bdi>
                           </td>
                         </tr>
                       ))}
@@ -1970,7 +1962,7 @@ export default function InvoiceDetailsPage() {
                         {line.label}
                       </span>
                       <strong dir="ltr">
-                        {formatInvoiceMoney(line.value, invoiceLocale)}
+                        <bdi>{formatJOD(line.value)}</bdi>
                       </strong>
                     </div>
                   ))}
@@ -1978,7 +1970,7 @@ export default function InvoiceDetailsPage() {
                   <div className="flex items-center justify-between gap-4 pt-5 text-lg font-black text-[#0f3d3e]">
                     <span>{invoiceCopy.finalTotal}</span>
                     <span dir="ltr">
-                      {formatInvoiceMoney(invoice.total, invoiceLocale)}
+                      <bdi>{formatJOD(invoice.total)}</bdi>
                     </span>
                   </div>
                 </div>
@@ -2015,7 +2007,7 @@ export default function InvoiceDetailsPage() {
                             {invoiceCopy.amount}
                           </p>
                           <p dir="ltr" className="mt-1 font-black">
-                            {formatInvoiceMoney(payment.amount, invoiceLocale)}
+                            <bdi>{formatJOD(payment.amount)}</bdi>
                           </p>
                         </div>
 
@@ -2065,7 +2057,7 @@ export default function InvoiceDetailsPage() {
                         {invoiceCopy.paidTotal}
                       </span>
                       <strong dir="ltr">
-                        {formatInvoiceMoney(paidTotal, invoiceLocale)}
+                        <bdi>{formatJOD(paidTotal)}</bdi>
                       </strong>
                     </div>
 
@@ -2074,7 +2066,7 @@ export default function InvoiceDetailsPage() {
                         {invoiceCopy.remaining}
                       </span>
                       <strong dir="ltr">
-                        {formatInvoiceMoney(remainingTotal, invoiceLocale)}
+                        <bdi>{formatJOD(remainingTotal)}</bdi>
                       </strong>
                     </div>
                   </div>
@@ -2168,11 +2160,10 @@ export default function InvoiceDetailsPage() {
               <label className="space-y-2">
                 <span className="text-sm font-bold">{ui.tax}</span>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.001"
+                  type="text"
+                inputMode="decimal"
                   value={editTax}
-                  onChange={(e) => setEditTax(Number(e.target.value || 0))}
+                  onChange={(e) => setEditTax(e.target.value)}
                   className="input"
                   disabled={!canEditFinancials}
                 />
@@ -2181,11 +2172,10 @@ export default function InvoiceDetailsPage() {
               <label className="space-y-2">
                 <span className="text-sm font-bold">{ui.discount}</span>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.001"
+                  type="text"
+                inputMode="decimal"
                   value={editDiscount}
-                  onChange={(e) => setEditDiscount(Number(e.target.value || 0))}
+                  onChange={(e) => setEditDiscount(e.target.value)}
                   className="input"
                   disabled={!canEditFinancials}
                 />
@@ -2226,9 +2216,8 @@ export default function InvoiceDetailsPage() {
                     />
 
                     <input
-                      type="number"
-                      min="0.01"
-                      step="0.001"
+                      type="text"
+                inputMode="decimal"
                       value={item.quantity}
                       onChange={(e) =>
                         updateEditItem(index, "quantity", e.target.value)
@@ -2239,9 +2228,8 @@ export default function InvoiceDetailsPage() {
                     />
 
                     <input
-                      type="number"
-                      min="0"
-                      step="0.001"
+                      type="text"
+                inputMode="decimal"
                       value={item.unitPrice}
                       onChange={(e) =>
                         updateEditItem(index, "unitPrice", e.target.value)
@@ -2288,19 +2276,19 @@ export default function InvoiceDetailsPage() {
                 />
                 <MoneyLine
                   label={ui.tax}
-                  value={Number(editTax || 0)}
+                  value={parseAmount(String(editTax))}
                   locale={appLocale}
                 />
                 <MoneyLine
                   label={ui.discount}
-                  value={Number(editDiscount || 0)}
+                  value={parseAmount(String(editDiscount))}
                   locale={appLocale}
                 />
 
                 <div className="flex justify-between border-t pt-2 text-lg font-black">
                   <span>{ui.total}</span>
                   <span dir={appIsRtl ? "rtl" : "ltr"}>
-                    {formatInvoiceMoney(editTotal, appLocale)}
+                    <bdi>{formatJOD(editTotal)}</bdi>
                   </span>
                 </div>
               </div>
@@ -2430,7 +2418,7 @@ function MoneyLine({
     <div className="flex justify-between text-sm">
       <span>{label}</span>
       <strong dir={locale === "ar" ? "rtl" : "ltr"}>
-        {formatInvoiceMoney(value, locale)}
+        <bdi>{formatJOD(value)}</bdi>
       </strong>
     </div>
   );

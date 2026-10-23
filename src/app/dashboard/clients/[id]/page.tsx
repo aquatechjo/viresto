@@ -15,6 +15,7 @@ import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
 import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+import { formatJOD } from "@/lib/money";
 interface ClientCase {
   id: string;
   publicId?: number;
@@ -294,15 +295,6 @@ function getCollectionPercent(item: ClientCase) {
 
 function safeMessage(data: any, fallback: string) {
   return data?.message || data?.error || data?.data?.message || fallback;
-}
-
-function formatMoney(value: number, _localeKey: "ar" | "en") {
-  const amount = Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  });
-
-  return `JOD ${amount}`;
 }
 
 function formatClientDate(value: string, localeKey: "ar" | "en") {
@@ -938,19 +930,19 @@ export default function ClientDetailPage() {
         {[
           {
             label: text.stats.totalFees,
-            value: formatMoney(totals.totalFees, localeKey),
+            value: formatJOD(totals.totalFees),
             color: "var(--text)",
             bg: "var(--card)",
           },
           {
             label: text.stats.paid,
-            value: formatMoney(totals.totalPaid, localeKey),
+            value: formatJOD(totals.totalPaid),
             color: "var(--text)",
             bg: "var(--green-soft)",
           },
           {
             label: text.stats.remaining,
-            value: formatMoney(totals.totalRemaining, localeKey),
+            value: formatJOD(totals.totalRemaining),
             color: totals.totalRemaining > 0 ? "var(--danger)" : "var(--text-3)",
             bg: totals.totalRemaining > 0 ? "var(--red-soft)" : "var(--card)",
           },
@@ -1103,7 +1095,7 @@ export default function ClientDetailPage() {
               />
               <MiniMetric
                 label={text.summary.pendingPayments}
-                value={formatMoney(totals.totalPending, localeKey)}
+                value={formatJOD(totals.totalPending)}
                 danger={totals.totalPending > 0}
                 isRtl={isRtl}
               />
@@ -1288,7 +1280,7 @@ export default function ClientDetailPage() {
                     header: text.cases.columns.fees,
                     cell: (item) => (
                       <span dir="ltr" className="whitespace-nowrap">
-                        {formatMoney(item.feeAgreed, localeKey)}
+                        <bdi>{formatJOD(item.feeAgreed)}</bdi>
                       </span>
                     ),
                   },
@@ -1301,7 +1293,7 @@ export default function ClientDetailPage() {
                         className="whitespace-nowrap font-bold"
                         style={{ color: "var(--text)" }}
                       >
-                        {formatMoney(getPaidAmount(item), localeKey)}
+                        <bdi>{formatJOD(getPaidAmount(item))}</bdi>
                       </span>
                     ),
                   },
@@ -1318,7 +1310,7 @@ export default function ClientDetailPage() {
                             color: remaining > 0 ? "var(--danger)" : "var(--text)",
                           }}
                         >
-                          {formatMoney(remaining, localeKey)}
+                          <bdi>{formatJOD(remaining)}</bdi>
                         </span>
                       );
                     },

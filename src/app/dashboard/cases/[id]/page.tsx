@@ -13,6 +13,7 @@ import { fileSizeLabel, formatDate, formatTime } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
 import { uploadDocumentDirect } from "@/lib/client-document-upload";
 import { DOCUMENT_MAX_STORED_BYTES } from "@/lib/document-upload";
+import { formatJOD, parseAmount } from "@/lib/money";
 
 interface Payment {
   id: string;
@@ -312,17 +313,7 @@ function getApiMessage(data: any, fallback: string) {
 }
 
 function safeNumber(value: string) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function formatMoney(value: number) {
-  const amount = Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  });
-
-  return `JOD ${amount}`;
+  return parseAmount(value);
 }
 
 function documentIcon(fileType?: string | null) {
@@ -1502,19 +1493,19 @@ export default function CaseDetailPage() {
         {[
           {
             label: pageText.agreedFees,
-            value: formatMoney(c.feeAgreed || 0),
+            value: formatJOD(c.feeAgreed || 0),
             color: "var(--text)",
             bg: "var(--card)",
           },
           {
             label: pageText.collected,
-            value: formatMoney(totals.totalPaid),
+            value: formatJOD(totals.totalPaid),
             color: "var(--success)",
             bg: "var(--green-soft)",
           },
           {
             label: pageText.remaining,
-            value: formatMoney(totals.remaining),
+            value: formatJOD(totals.remaining),
             color: totals.remaining > 0 ? "var(--danger)" : "var(--text-3)",
             bg: totals.remaining > 0 ? "var(--red-soft)" : "var(--card)",
           },
@@ -1859,11 +1850,11 @@ export default function CaseDetailPage() {
             <div className="mt-4 grid grid-cols-2 gap-3">
               <MiniMetric
                 label={pageText.invoices}
-                value={formatMoney(totals.invoicesTotal)}
+                value={formatJOD(totals.invoicesTotal)}
               />
               <MiniMetric
                 label={pageText.unpaid}
-                value={formatMoney(totals.unpaidInvoicesTotal)}
+                value={formatJOD(totals.unpaidInvoicesTotal)}
                 danger={totals.unpaidInvoicesTotal > 0}
               />
             </div>
@@ -2175,7 +2166,7 @@ export default function CaseDetailPage() {
                         dir="ltr"
                         className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
                       >
-                        {formatMoney(invoice.total)}
+                        <bdi>{formatJOD(invoice.total)}</bdi>
                       </span>
                     ),
                   },
@@ -2269,7 +2260,7 @@ export default function CaseDetailPage() {
                         dir="ltr"
                         className={`whitespace-nowrap font-bold ${isRtl ? "text-right" : "text-left"}`}
                       >
-                        {formatMoney(payment.amount)}
+                        <bdi>{formatJOD(payment.amount)}</bdi>
                       </span>
                     ),
                   },
@@ -2584,9 +2575,8 @@ export default function CaseDetailPage() {
             <FormField label={pageText.feeAgreed}>
               <input
                 dir="ltr"
-                type="number"
-                min="0"
-                step="0.001"
+                type="text"
+                inputMode="decimal"
                 className={`input ${isRtl ? "text-right" : "text-left"}`}
                 value={caseEditForm.feeAgreed}
                 onChange={(event) =>
@@ -2719,7 +2709,8 @@ export default function CaseDetailPage() {
           <FormField label={pageText.amount} required>
             <input
               dir="ltr"
-              type="number"
+              type="text"
+                inputMode="decimal"
               className="input text-start"
               value={paymentForm.amount}
               onChange={(event) =>
@@ -3116,7 +3107,8 @@ export default function CaseDetailPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <FormField label={pageText.amount} required>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className="input"
                 value={invoiceForm.amount}
                 onChange={(event) =>
@@ -3130,7 +3122,8 @@ export default function CaseDetailPage() {
 
             <FormField label={pageText.tax}>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className="input"
                 value={invoiceForm.tax}
                 onChange={(event) =>
@@ -3144,7 +3137,8 @@ export default function CaseDetailPage() {
 
             <FormField label={pageText.discount}>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className="input"
                 value={invoiceForm.discount}
                 onChange={(event) =>

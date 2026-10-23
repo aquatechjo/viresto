@@ -9,13 +9,14 @@ import { toast } from "sonner";
 import AppLoader from "@/components/ui/AppLoader";
 import EmptyState from "@/components/ui/EmptyState";
 import { VDSSearchInput } from "@/components/ui/vds/table";
-import { formatCurrency } from "@/lib/utils";
+
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import type { Locale } from "@/lib/i18n";
 import { formatInvoiceNumber } from "@/lib/invoice-print";
 import { useFormDraft } from "@/lib/useFormDraft";
+import { formatJOD, parseAmount } from "@/lib/money";
 
 type InvoiceStatus =
   | "DRAFT"
@@ -446,19 +447,6 @@ function isArchivedInvoice(invoice: Invoice) {
   return Boolean(
     invoice.client?.archivedAt || invoice.case?.client?.archivedAt,
   );
-}
-
-function money(value: number, locale: Locale) {
-  if (!Number.isFinite(value) || value === 0) {
-    return locale === "ar" ? "0.000 د.أ" : "JOD 0.000";
-  }
-
-  if (locale === "ar") return formatCurrency(value);
-
-  return `JOD ${Number(value).toLocaleString("en-US", {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  })}`;
 }
 
 function localizedDate(value: string | Date, locale: Locale) {
@@ -1019,7 +1007,6 @@ export default function InvoicesPage() {
     { value: "CANCELLED", label: copy.statuses.CANCELLED },
   ];
 
-  const formatMoney = (value: number) => money(value, locale);
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -1116,12 +1103,12 @@ export default function InvoicesPage() {
 
   const subtotal = useMemo(() => {
     return items.reduce((sum, item) => {
-      return sum + Number(item.quantity || 0) * Number(item.unitPrice || 0);
+      return sum + parseAmount(item.quantity) * parseAmount(item.unitPrice);
     }, 0);
   }, [items]);
 
   const total = Math.max(
-    subtotal + Number(tax || 0) - Number(discount || 0),
+    subtotal + parseAmount(tax) - parseAmount(discount),
     0,
   );
 
@@ -1337,8 +1324,8 @@ export default function InvoicesPage() {
       .filter((item) => item.description.trim())
       .map((item) => ({
         description: item.description.trim(),
-        quantity: Number(item.quantity || 0),
-        unitPrice: Number(item.unitPrice || 0),
+        quantity: parseAmount(item.quantity),
+        unitPrice: parseAmount(item.unitPrice),
       }));
 
     if (cleanItems.length === 0) {
@@ -1356,8 +1343,8 @@ export default function InvoicesPage() {
           clientId,
           caseId: caseId || null,
           dueDate: dueDate || null,
-          tax: Number(tax || 0),
-          discount: Number(discount || 0),
+          tax: parseAmount(tax),
+          discount: parseAmount(discount),
           notes,
           items: cleanItems,
         }),
@@ -1501,21 +1488,21 @@ export default function InvoicesPage() {
           },
           {
             label: copy.stats.totalAmount,
-            value: formatMoney(stats.totalAmount),
+            value: formatJOD(stats.totalAmount),
             hint: copy.stats.totalValue,
             color: "var(--text)",
             bg: "var(--card)",
           },
           {
             label: copy.stats.paid,
-            value: formatMoney(stats.paidAmount),
+            value: formatJOD(stats.paidAmount),
             hint: copy.stats.invoice(stats.paidCount),
             color: "var(--success)",
             bg: "var(--green-soft)",
           },
           {
             label: copy.stats.unpaid,
-            value: formatMoney(stats.unpaidAmount),
+            value: formatJOD(stats.unpaidAmount),
             hint: copy.stats.unpaidHint,
             color: stats.unpaidAmount > 0 ? "#92400e" : "var(--text-3)",
             bg: stats.unpaidAmount > 0 ? "var(--amber-soft)" : "var(--card)",
@@ -1735,7 +1722,7 @@ export default function InvoicesPage() {
                     </div>
 
                     <p className="shrink-0 whitespace-nowrap font-black" style={{ color: "var(--accent-text)" }}>
-                      <span dir={isRtl ? "rtl" : "ltr"}>{formatMoney(invoice.total)}</span>
+                      <span dir={isRtl ? "rtl" : "ltr"}><bdi>{formatJOD(invoice.total)}</bdi></span>
                     </p>
                   </div>
 
@@ -1911,7 +1898,7 @@ export default function InvoicesPage() {
                         style={{ color: "var(--accent-text)" }}
                       >
                         <span dir={isRtl ? "rtl" : "ltr"}>
-                          {formatMoney(invoice.total)}
+                          <bdi>{formatJOD(invoice.total)}</bdi>
                         </span>
                       </td>
 
@@ -2125,7 +2112,7 @@ export default function InvoicesPage() {
               <div className="space-y-3">
                 {items.map((item, index) => {
                   const lineTotal =
-                    Number(item.quantity || 0) * Number(item.unitPrice || 0);
+                    parseAmount(item.quantity) * parseAmount(item.unitPrice);
 
                   return (
                     <div
@@ -2177,9 +2164,8 @@ export default function InvoicesPage() {
                           </span>
 
                           <input
-                            type="number"
-                            min="0.01"
-                            step="0.001"
+                            type="text"
+                inputMode="decimal"
                             value={item.quantity}
                             placeholder={copy.modal.quantityPlaceholder}
                             onChange={(event) =>
@@ -2200,9 +2186,8 @@ export default function InvoicesPage() {
                           </span>
 
                           <input
-                            type="number"
-                            min="0"
-                            step="0.001"
+                            type="text"
+                inputMode="decimal"
                             value={item.unitPrice}
                             placeholder={copy.modal.unitPricePlaceholder}
                             onChange={(event) =>
@@ -2235,7 +2220,7 @@ export default function InvoicesPage() {
                               fontWeight: 900,
                             }}
                           >
-                            {formatMoney(lineTotal)}
+                            <bdi>{formatJOD(lineTotal)}</bdi>
                           </div>
                         </div>
 
@@ -2294,9 +2279,8 @@ export default function InvoicesPage() {
                 </span>
 
                 <input
-                  type="number"
-                  min="0"
-                  step="0.001"
+                  type="text"
+                inputMode="decimal"
                   value={tax}
                   placeholder={copy.modal.taxPlaceholder}
                   dir="ltr"
@@ -2312,9 +2296,8 @@ export default function InvoicesPage() {
                 </span>
 
                 <input
-                  type="number"
-                  min="0"
-                  step="0.001"
+                  type="text"
+                inputMode="decimal"
                   value={discount}
                   placeholder={copy.modal.discountPlaceholder}
                   dir="ltr"
@@ -2340,7 +2323,7 @@ export default function InvoicesPage() {
                   dir={isRtl ? "rtl" : "ltr"}
                   style={{ color: "var(--accent-text)" }}
                 >
-                  {formatMoney(total)}
+                  <bdi>{formatJOD(total)}</bdi>
                 </p>
               </div>
             </div>

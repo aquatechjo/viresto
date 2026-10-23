@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { formatJOD } from "@/lib/money";
 
 export type InvoiceLocale = "ar" | "en";
 
@@ -210,15 +211,6 @@ export function normalizeWhatsAppPhone(phone?: string | null) {
   return cleaned;
 }
 
-function money(value: number | null | undefined, locale: InvoiceLocale) {
-  return new Intl.NumberFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
-    style: "currency",
-    currency: "JOD",
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  }).format(Number(value || 0));
-}
-
 function date(value: string | Date | null | undefined, locale: InvoiceLocale) {
   if (!value) return "-";
 
@@ -352,7 +344,7 @@ ${copy.status}: ${copy.statuses[invoice.status]}
 ${copy.caseDetails}: ${caseText}
 ${copy.issueDate}: ${date(invoice.issueDate, locale)}
 ${copy.dueDate}: ${date(invoice.dueDate, locale)}
-${copy.finalTotal}: ${money(invoice.total, locale)}
+${copy.finalTotal}: ${formatJOD(invoice.total)}
 
 ${copy.whatsappReview}
 
@@ -403,8 +395,8 @@ export function buildInvoicePrintHtml(
           <td class="center">${index + 1}</td>
           <td class="description">${escapeHtml(item.description)}</td>
           <td class="center numeric">${escapeHtml(item.quantity)}</td>
-          <td class="numeric">${money(item.unitPrice, locale)}</td>
-          <td class="numeric strong">${money(lineTotal, locale)}</td>
+          <td class="numeric"><bdi>${escapeHtml(formatJOD(item.unitPrice))}</bdi></td>
+          <td class="numeric strong"><bdi>${escapeHtml(formatJOD(lineTotal))}</bdi></td>
         </tr>
       `;
     })
@@ -950,7 +942,7 @@ export function buildInvoicePrintHtml(
         </div>
         <div class="summary-card total">
           <div class="label">${escapeHtml(copy.finalTotal)}</div>
-          <div class="value numeric">${escapeHtml(money(invoice.total, locale))}</div>
+          <div class="value numeric"><bdi>${escapeHtml(formatJOD(invoice.total))}</bdi></div>
         </div>
       </div>
 
@@ -1007,19 +999,19 @@ export function buildInvoicePrintHtml(
         <div class="totals">
           <div class="total-row">
             <span>${escapeHtml(copy.subtotal)}</span>
-            <strong class="numeric">${escapeHtml(money(invoice.subtotal, locale))}</strong>
+            <strong class="numeric"><bdi>${escapeHtml(formatJOD(invoice.subtotal))}</bdi></strong>
           </div>
           <div class="total-row">
             <span>${escapeHtml(copy.tax)}</span>
-            <strong class="numeric">${escapeHtml(money(invoice.tax, locale))}</strong>
+            <strong class="numeric"><bdi>${escapeHtml(formatJOD(invoice.tax))}</bdi></strong>
           </div>
           <div class="total-row">
             <span>${escapeHtml(copy.discount)}</span>
-            <strong class="numeric">${escapeHtml(money(invoice.discount, locale))}</strong>
+            <strong class="numeric"><bdi>${escapeHtml(formatJOD(invoice.discount))}</bdi></strong>
           </div>
           <div class="total-row grand">
             <span>${escapeHtml(copy.finalTotal)}</span>
-            <span class="numeric">${escapeHtml(money(invoice.total, locale))}</span>
+            <span class="numeric"><bdi>${escapeHtml(formatJOD(invoice.total))}</bdi></span>
           </div>
         </div>
       </div>
@@ -1037,19 +1029,13 @@ ${
         </span>
 
         <span>
-          ${escapeHtml(
-            locale === "ar"
-              ? `المحصل: ${money(paidTotal, locale)}`
-              : `Paid: ${money(paidTotal, locale)}`,
-          )}
+          ${escapeHtml(locale === "ar" ? "المحصل:" : "Paid:")}
+          <bdi>${escapeHtml(formatJOD(paidTotal))}</bdi>
         </span>
 
         <span>
-          ${escapeHtml(
-            locale === "ar"
-              ? `المتبقي: ${money(remainingTotal, locale)}`
-              : `Remaining: ${money(remainingTotal, locale)}`,
-          )}
+          ${escapeHtml(locale === "ar" ? "المتبقي:" : "Remaining:")}
+          <bdi>${escapeHtml(formatJOD(remainingTotal))}</bdi>
         </span>
       </div>
     `

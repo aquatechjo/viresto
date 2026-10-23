@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateInvoiceStatus, roundMoney } from "@/lib/finance";
 import {
+  formatJOD,
   formatJodNumber,
+  formatUSD,
   hasValidJodPrecision,
   jodToFils,
   moneyExceeds,
+  parseAmount,
 } from "@/lib/money";
 import { toLatinDigits, withLatinDigits } from "@/lib/locale";
 import {
@@ -20,6 +23,38 @@ test("rounds Jordanian dinar values to the nearest fils", () => {
   assert.equal(roundMoney(1.2344), 1.234);
   assert.equal(roundMoney(1.2345), 1.235);
   assert.equal(jodToFils(12.345), 12_345);
+});
+
+test("formatJOD: Latin digits, up to 3 decimals, dinar sign after the amount", () => {
+  assert.equal(formatJOD(1250.5), "1,250.5 د.أ");
+  assert.equal(formatJOD(25), "25 د.أ");
+  assert.equal(formatJOD(0.125), "0.125 د.أ");
+  assert.equal(formatJOD(1.23456), "1.235 د.أ");
+  assert.equal(formatJOD("1500.25"), "1,500.25 د.أ");
+  assert.equal(formatJOD({ toString: () => "42.1" }), "42.1 د.أ", "Prisma Decimal");
+  assert.equal(formatJOD(null), "0 د.أ");
+  assert.equal(formatJOD(undefined), "0 د.أ");
+  assert.equal(formatJOD("not a number"), "0 د.أ");
+  assert.doesNotMatch(formatJOD(1234567.891), /[٠-٩]/, "no Arabic-Indic digits");
+});
+
+test("formatUSD: dollar sign first, up to 2 decimals", () => {
+  assert.equal(formatUSD(29), "$29");
+  assert.equal(formatUSD(290), "$290");
+  assert.equal(formatUSD(1299.5), "$1,299.5");
+  assert.equal(formatUSD(19.999), "$20");
+  assert.equal(formatUSD(null), "$0");
+});
+
+test("parseAmount: Arabic or Latin digits, either separator", () => {
+  assert.equal(parseAmount("1250.5"), 1250.5);
+  assert.equal(parseAmount("١٢٥٠٫٥"), 1250.5);
+  assert.equal(parseAmount("١٬٢٥٠٫٥"), 1250.5);
+  assert.equal(parseAmount("1,250.5"), 1250.5);
+  assert.equal(parseAmount(" 30 "), 30);
+  assert.equal(parseAmount("٠٫١٢٥"), 0.125);
+  assert.equal(parseAmount(""), 0);
+  assert.equal(parseAmount("abc"), 0);
 });
 
 test("formats JOD consistently with three decimal places", () => {

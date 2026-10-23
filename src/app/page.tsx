@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { COMPANY_CONTACT } from "@/config/contact";
+import { formatUSD } from "@/lib/money";
 import {
   PLANS,
   getDisplayPrice,
@@ -535,7 +536,7 @@ const PLAN_PUBLIC_COPY: Record<
 
 // Platform plans are billed in USD via Polar, in both languages.
 function formatUsdPrice(value: number) {
-  return `$${value.toLocaleString("en-US")}`;
+  return formatUSD(value);
 }
 
 

@@ -21,6 +21,7 @@ import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { fetchJsonCached } from "@/lib/client-query-cache";
 import { startNavigationFeedback } from "@/lib/navigation-feedback";
 import { useFormDraft } from "@/lib/useFormDraft";
+import { formatJOD, parseAmount } from "@/lib/money";
 
 interface Case {
   id: string;
@@ -324,15 +325,6 @@ const EDIT_INIT: EditCaseFormState = {
   memberIds: [],
 };
 
-function formatMoney(value: number) {
-  const amount = Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  });
-
-  return `JOD ${amount}`;
-}
-
 function isArchivedClientCase(item: Case) {
   return Boolean(item.client?.archivedAt);
 }
@@ -621,7 +613,7 @@ export default function CasesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          feeAgreed: parseFloat(form.feeAgreed) || 0,
+          feeAgreed: parseAmount(form.feeAgreed),
         }),
       });
 
@@ -674,7 +666,7 @@ export default function CasesPage() {
           defendantName: editForm.defendantName,
           description: editForm.description,
           status: editForm.status,
-          feeAgreed: parseFloat(editForm.feeAgreed) || 0,
+          feeAgreed: parseAmount(editForm.feeAgreed),
           leadLawyerId: editForm.leadLawyerId,
           memberIds: editForm.memberIds,
         }),
@@ -936,7 +928,7 @@ export default function CasesPage() {
       align: "center",
       cell: (item) => (
         <span dir="ltr" className="whitespace-nowrap text-sm font-black">
-          {formatMoney(item.feeAgreed)}
+          <bdi>{formatJOD(item.feeAgreed)}</bdi>
         </span>
       ),
     },
@@ -950,7 +942,7 @@ export default function CasesPage() {
           className="whitespace-nowrap text-sm font-black"
           style={{ color: "var(--brand-text)" }}
         >
-          {formatMoney(paid(item))}
+          <bdi>{formatJOD(paid(item))}</bdi>
         </span>
       ),
     },
@@ -969,7 +961,7 @@ export default function CasesPage() {
               color: amount > 0 ? "var(--danger)" : "var(--text)",
             }}
           >
-            {formatMoney(amount)}
+            <bdi>{formatJOD(amount)}</bdi>
           </span>
         );
       },
@@ -1208,18 +1200,18 @@ export default function CasesPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <FinancialCard
           label={text.stats.totalFees}
-          value={formatMoney(totalFees)}
+          value={formatJOD(totalFees)}
           isRtl={isRtl}
         />
         <FinancialCard
           label={text.stats.paid}
-          value={formatMoney(totalPaid)}
+          value={formatJOD(totalPaid)}
           color="var(--success)"
           isRtl={isRtl}
         />
         <FinancialCard
           label={text.stats.remaining}
-          value={formatMoney(totalRemaining)}
+          value={formatJOD(totalRemaining)}
           danger={totalRemaining > 0}
           isRtl={isRtl}
         />
@@ -1470,7 +1462,8 @@ export default function CasesPage() {
             <FormField label={text.modal.fees}>
               <input
                 dir="ltr"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={form.feeAgreed}
                 onChange={f("feeAgreed")}
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
@@ -1478,8 +1471,6 @@ export default function CasesPage() {
                   textAlign: isRtl ? "right" : "left",
                   direction: "ltr",
                 }}
-                min="0"
-                step="0.001"
               />
             </FormField>
           </div>
@@ -1661,7 +1652,8 @@ export default function CasesPage() {
             <FormField label={text.modal.fees}>
               <input
                 dir="ltr"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={editForm.feeAgreed}
                 onChange={ef("feeAgreed")}
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
@@ -1669,8 +1661,6 @@ export default function CasesPage() {
                   textAlign: isRtl ? "right" : "left",
                   direction: "ltr",
                 }}
-                min="0"
-                step="0.001"
               />
             </FormField>
           </div>

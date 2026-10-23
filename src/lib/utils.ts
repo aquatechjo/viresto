@@ -5,21 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency = 'د.أ') {
-  return `${amount.toLocaleString('ar-JO-u-nu-latn', {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  })} ${currency}`
-}
+// Money: formatJOD / formatUSD in src/lib/money.ts.
 
 export function formatDate(iso: string | Date, opts?: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat('ar-SA-u-nu-latn', opts ?? {
+  return new Intl.DateTimeFormat('ar-JO-u-nu-latn', opts ?? {
     day: 'numeric', month: 'long', year: 'numeric',
   }).format(new Date(iso))
 }
 
 export function formatTime(iso: string | Date) {
-  return new Intl.DateTimeFormat('ar-SA-u-nu-latn', {
+  return new Intl.DateTimeFormat('ar-JO-u-nu-latn', {
     hour: 'numeric', minute: '2-digit', hour12: true,
   }).format(new Date(iso))
 }

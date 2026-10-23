@@ -9,6 +9,7 @@ import {
   type PlanConfig,
 } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
+import { formatJOD, formatUSD } from "@/lib/money";
 import { ok, err } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
@@ -116,18 +117,17 @@ function getSubscriptionLabel(status?: string | null) {
 function formatAmount(amount: number, currency: string) {
   const value = amount / currencyMinorUnits(currency);
 
-  const formattedValue = value.toLocaleString("en-US", {
-    maximumFractionDigits: 0,
-  });
+  // Plan prices are USD ($29); a legacy JOD row shows in JOD.
+  const formattedValue =
+    currency.toUpperCase() === "JOD" ? formatJOD(value) : formatUSD(value);
 
   return {
     raw: amount,
     value,
     currency,
 
-    // نستخدم LTR isolate حتى تظهر داخل الواجهة العربية بهذا الترتيب: 29 USD
-    // وليس USD 29 بسبب اتجاه النص RTL.
-    formatted: `\u2066${formattedValue} ${currency}\u2069`,
+    // LTR isolate: the amount keeps its order inside the Arabic UI.
+    formatted: `\u2066${formattedValue}\u2069`,
   };
 }
 

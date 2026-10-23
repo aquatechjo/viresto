@@ -1,5 +1,6 @@
 import { NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { formatJOD } from "@/lib/money";
 import {
   createNotificationsBatch,
   type BatchNotificationInput,
@@ -80,11 +81,6 @@ function formatDate(value: Date) {
 }
 
 type MonetaryValue = number | string | { toString(): string };
-
-function safeMoney(value: MonetaryValue | null | undefined) {
-  const amount = Number(value || 0);
-  return Number.isFinite(amount) ? amount.toFixed(3) : "0.000";
-}
 
 function invoiceOutstanding(
   total: MonetaryValue,
@@ -424,8 +420,8 @@ export async function generateImportantNotifications(tenantId: string) {
         type: NotificationType.INVOICE,
         titleAr: "فاتورة تستحق قريبًا",
         titleEn: "Invoice due soon",
-        messageAr: `الفاتورة ${invoice.invoiceNumber} للموكل ${invoice.client.name} برصيد ${safeMoney(outstanding)} JOD متبقٍ على استحقاقها ${remaining.ar}.`,
-        messageEn: `Invoice ${invoice.invoiceNumber} is due in ${remaining.en}. Outstanding: ${safeMoney(outstanding)} JOD.`,
+        messageAr: `الفاتورة ${invoice.invoiceNumber} للموكل ${invoice.client.name} برصيد ${formatJOD(outstanding)} متبقٍ على استحقاقها ${remaining.ar}.`,
+        messageEn: `Invoice ${invoice.invoiceNumber} is due in ${remaining.en}. Outstanding: ${formatJOD(outstanding)}.`,
         href: `/dashboard/invoices/${invoice.id}`,
       },
     );
@@ -444,8 +440,8 @@ export async function generateImportantNotifications(tenantId: string) {
         type: NotificationType.INVOICE,
         titleAr: "فاتورة متأخرة",
         titleEn: "Overdue invoice",
-        messageAr: `الفاتورة ${invoice.invoiceNumber} للموكل ${invoice.client.name} برصيد ${safeMoney(outstanding)} JOD متأخرة وتحتاج متابعة.`,
-        messageEn: `Invoice ${invoice.invoiceNumber} is overdue and needs follow-up. Outstanding: ${safeMoney(outstanding)} JOD.`,
+        messageAr: `الفاتورة ${invoice.invoiceNumber} للموكل ${invoice.client.name} برصيد ${formatJOD(outstanding)} متأخرة وتحتاج متابعة.`,
+        messageEn: `Invoice ${invoice.invoiceNumber} is overdue and needs follow-up. Outstanding: ${formatJOD(outstanding)}.`,
         href: `/dashboard/invoices/${invoice.id}`,
       },
     );
@@ -461,8 +457,8 @@ export async function generateImportantNotifications(tenantId: string) {
         type: NotificationType.PAYMENT,
         titleAr: "دفعة متأخرة",
         titleEn: "Overdue payment",
-        messageAr: `هناك دفعة متأخرة بقيمة ${safeMoney(payment.amount)} JOD وتحتاج متابعة.`,
-        messageEn: `There is an overdue payment of ${safeMoney(payment.amount)} JOD that needs follow-up.`,
+        messageAr: `هناك دفعة متأخرة بقيمة ${formatJOD(payment.amount)} وتحتاج متابعة.`,
+        messageEn: `There is an overdue payment of ${formatJOD(payment.amount)} that needs follow-up.`,
         href: "/dashboard/payments",
       },
     );

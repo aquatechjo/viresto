@@ -43,7 +43,7 @@ interface ActivityFeedProps {
 
 function formatRelativeTime(date: string, locale: Locale, now: number) {
   const elapsedSeconds = Math.round((new Date(date).getTime() - now) / 1000);
-  const formatter = new Intl.RelativeTimeFormat(locale === "ar" ? "ar" : "en", {
+  const formatter = new Intl.RelativeTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
     numeric: "auto",
   });
 

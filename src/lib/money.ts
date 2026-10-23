@@ -53,3 +53,43 @@ export function formatJodFromFils(amountFils: number | null | undefined) {
 export function formatJodAmount(amountJod: number | null | undefined) {
   return `${formatJodNumber(amountJod)} JOD`;
 }
+
+// Display and input for every amount in the app, always with Latin digits:
+// formatJOD for the office's own money (invoices, payments, fees, reports),
+// formatUSD for Viresto's plan prices. Inside Arabic text, wrap the result
+// in <bdi> so RTL ordering stays correct.
+
+const jodFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
+
+const usdFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+type MoneyInput = number | string | { toString(): string } | null | undefined;
+
+function toNumber(value: MoneyInput): number {
+  const n = Number(value?.toString() ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function formatJOD(value: MoneyInput): string {
+  return `${jodFormatter.format(toNumber(value))} د.أ`;
+}
+
+export function formatUSD(value: MoneyInput): string {
+  return `$${usdFormatter.format(toNumber(value))}`;
+}
+
+/** An amount typed with Arabic or Latin digits ("١٬٢٥٠٫٥", "1,250.5"). */
+export function parseAmount(input: string): number {
+  const normalized = input
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[٬,\s]/g, "")
+    .replace(/٫/g, ".");
+  const n = parseFloat(normalized);
+  return Number.isFinite(n) ? n : 0;
+}

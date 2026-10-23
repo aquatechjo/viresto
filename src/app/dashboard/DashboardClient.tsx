@@ -34,6 +34,7 @@ import OfficeSummary from "@/components/dashboard/OfficeSummary";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import RecentCases from "@/components/dashboard/RecentCases";
 import RecentDocuments from "@/components/dashboard/RecentDocuments";
+import { formatJOD } from "@/lib/money";
 import ActivityFeed, {
   type ActivityViewItem,
 } from "@/components/dashboard/ActivityFeed";
@@ -928,25 +929,6 @@ function getActivityText(activity: ActivityItem, locale: Locale) {
   };
 }
 
-function formatMoney(value: number, locale: Locale) {
-  const normalizedValue =
-    Math.abs(Number(value) || 0) < 0.0005 ? 0 : Number(value);
-
-  if (locale === "en") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "JOD",
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-    }).format(normalizedValue);
-  }
-
-  return `${new Intl.NumberFormat("ar-JO", {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  }).format(normalizedValue)} د.أ`;
-}
-
 function getDocumentIcon(fileType?: string | null) {
   if (fileType === "application/pdf") return "📄";
   if (fileType?.startsWith("image/")) return "🖼️";
@@ -954,7 +936,7 @@ function getDocumentIcon(fileType?: string | null) {
 }
 
 function formatDate(date: string, locale: Locale) {
-  return new Date(date).toLocaleDateString(locale === "ar" ? "ar-JO" : "en-US");
+  return new Date(date).toLocaleDateString(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US");
 }
 
 function formatAppointmentDateTime(date: string, locale: Locale) {
@@ -1258,7 +1240,7 @@ export default function DashboardPage() {
         key: "overdue-invoices",
         title: t.overdueInvoicesTitle(stats?.overdueInvoicesCount ?? 0),
         message: t.overdueInvoicesMessage(
-          formatMoney(stats?.overdueAmount ?? 0, locale),
+          formatJOD(stats?.overdueAmount ?? 0),
         ),
         href: "/dashboard/invoices",
         icon: <ReceiptText className="h-5 w-5" />,
@@ -1430,7 +1412,7 @@ export default function DashboardPage() {
         {canViewFinance ? (
           <MetricCard
             label={t.receivables}
-            value={formatMoney(stats?.pendingAmount ?? 0, locale)}
+            value={formatJOD(stats?.pendingAmount ?? 0)}
             sub={t.receivablesSub}
             icon={<WalletCards className="h-5 w-5" />}
             href="/dashboard/invoices"
@@ -1549,8 +1531,8 @@ export default function DashboardPage() {
               totalCasesCount={stats?.totalCasesCount ?? 0}
               resolvedCasesCount={stats?.resolvedCasesCount ?? 0}
               resolvedCaseRate={stats?.resolvedCaseRate ?? 0}
-              monthlyRevenue={formatMoney(stats?.monthlyRevenue ?? 0, locale)}
-              totalRevenue={formatMoney(stats?.totalRevenue ?? 0, locale)}
+              monthlyRevenue={formatJOD(stats?.monthlyRevenue ?? 0)}
+              totalRevenue={formatJOD(stats?.totalRevenue ?? 0)}
               labels={{
                 title: t.officeSummary,
                 subtitle: t.officeSummarySub,

@@ -14,6 +14,7 @@ import type { Locale } from '@/lib/i18n'
 import { formatInvoiceNumber } from '@/lib/invoice-print'
 import { useLocale } from '@/lib/useLocale'
 import { useConfirm, usePrompt } from '@/components/ui/DialogProvider'
+import { formatJOD, parseAmount } from "@/lib/money";
 
 const DateTimePicker = dynamic(
   () => import('@/components/ui/DateTimePicker'),
@@ -411,25 +412,13 @@ function amountOf(payment: Payment) {
   return Number.isFinite(amount) ? amount : 0
 }
 
-function money(value: number, locale: Locale) {
-  const formatted = Number(value || 0).toLocaleString(
-    locale === 'ar' ? 'ar-JO' : 'en-JO',
-    {
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-    },
-  )
-
-  return locale === 'ar' ? `${formatted} د.أ` : `JOD ${formatted}`
-}
-
 function formatPaymentDate(value: string | null | undefined, locale: Locale) {
   if (!value) return '-'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
 
-  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-JO' : 'en-JO', {
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -807,7 +796,7 @@ export default function PaymentsPage() {
       return
     }
 
-    const amount = Number(paymentForm.amount)
+    const amount = parseAmount(paymentForm.amount)
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error(copy.form.amountRequired)
       return
@@ -1079,19 +1068,19 @@ export default function PaymentsPage() {
         {[
           {
             label: copy.stats.collected,
-            value: money(stats.collected, locale),
+            value: formatJOD(stats.collected),
             color: 'var(--success)',
             background: 'var(--green-soft)',
           },
           {
             label: copy.stats.pending,
-            value: money(stats.pending, locale),
+            value: formatJOD(stats.pending),
             color: '#92400e',
             background: 'var(--amber-soft)',
           },
           {
             label: copy.stats.overdue,
-            value: money(stats.overdue, locale),
+            value: formatJOD(stats.overdue),
             color: '#dc2626',
             background: 'var(--red-soft)',
           },
@@ -1246,7 +1235,7 @@ export default function PaymentsPage() {
                     </div>
 
                     <p className="shrink-0 whitespace-nowrap text-base font-black" style={{ color: 'var(--success)' }}>
-                      <bdi dir={isRtl ? 'rtl' : 'ltr'}>{money(amountOf(payment), locale)}</bdi>
+                      <bdi dir={isRtl ? 'rtl' : 'ltr'}>{formatJOD(amountOf(payment))}</bdi>
                     </p>
                   </div>
 
@@ -1456,7 +1445,7 @@ export default function PaymentsPage() {
                       <td className="align-middle text-start">
                         <p className="whitespace-nowrap text-base font-black" style={{ color: 'var(--success)' }}>
                           <bdi dir={isRtl ? 'rtl' : 'ltr'}>
-                            {money(amountOf(payment), locale)}
+                            <bdi>{formatJOD(amountOf(payment))}</bdi>
                           </bdi>
                         </p>
                         <p className="mt-1 truncate text-xs font-bold" style={{ color: 'var(--text-3)' }}>
@@ -1716,7 +1705,7 @@ export default function PaymentsPage() {
                     {paymentForm.linkType === 'INVOICE'
                       ? invoiceOptions.map((invoice) => (
                           <option key={invoice.id} value={invoice.id}>
-                            {`${formatInvoiceNumber(invoice.invoiceNumber)} — ${invoice.client?.name || '-'} — ${money(remainingOfInvoice(invoice), locale)} ${copy.form.remaining}`}
+                            {`${formatInvoiceNumber(invoice.invoiceNumber)} — ${invoice.client?.name || '-'} — ${formatJOD(remainingOfInvoice(invoice))} ${copy.form.remaining}`}
                           </option>
                         ))
                       : caseOptions.map((caseOption) => (
@@ -1752,7 +1741,7 @@ export default function PaymentsPage() {
                     {selectedInvoice.case?.title || selectedInvoice.client?.name || '-'}
                   </span>
                   <strong>
-                    {copy.form.remaining}: {money(remainingOfInvoice(selectedInvoice), locale)}
+                    {copy.form.remaining}: <bdi>{formatJOD(remainingOfInvoice(selectedInvoice))}</bdi>
                   </strong>
                 </div>
               ) : null}
@@ -1763,9 +1752,7 @@ export default function PaymentsPage() {
                     {copy.form.amount} <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="number"
-                    min="0.01"
-                    step="0.001"
+                    type="text"
                     inputMode="decimal"
                     value={paymentForm.amount}
                     onChange={(event) =>
@@ -1912,7 +1899,7 @@ export default function PaymentsPage() {
         title={copy.actions.paymentCreated}
         subtitle={
           successPayment
-            ? `${money(successPayment.amount, locale)} · ${copy.statuses[successPayment.status]}`
+            ? `${formatJOD(successPayment.amount)} · ${copy.statuses[successPayment.status]}`
             : undefined
         }
         status={successPayment ? copy.statuses[successPayment.status] : undefined}

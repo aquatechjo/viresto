@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { useLocale } from '@/lib/useLocale'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
+import { formatJOD } from "@/lib/money";
 
 const REPORT_COPY = {
   ar: {
@@ -294,17 +295,6 @@ function formatDate(value: string | Date | null | undefined, locale: Locale) {
   return date.toLocaleDateString(locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US')
 }
 
-function formatMoney(value: number, locale: Locale) {
-  const amount = Number(value || 0)
-
-  const formatted = amount.toLocaleString(locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  })
-
-  return locale === 'ar' ? `${formatted} د.أ` : `JOD ${formatted}`
-}
-
 function paymentStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
   return copy.statuses.payments[status as keyof typeof copy.statuses.payments] || status || '-'
 }
@@ -503,13 +493,13 @@ export default function ReportsPage() {
     const summary = source.summary
 
     return [
-      [copy.stats.periodRevenue, formatMoney(summary.periodRevenue, locale)],
-      [copy.stats.totalPaidAll, formatMoney(summary.totalPaidAll, locale)],
-      [copy.stats.pendingPayments, formatMoney(summary.pendingPaymentsAmount, locale)],
-      [copy.stats.totalInvoices, formatMoney(summary.totalInvoicesAmount, locale)],
-      [copy.stats.paidInvoices, formatMoney(summary.paidInvoicesAmount, locale)],
-      [copy.stats.unpaidInvoices, formatMoney(summary.unpaidInvoicesAmount, locale)],
-      [copy.stats.overdueInvoices, formatMoney(summary.overdueInvoicesAmount, locale)],
+      [copy.stats.periodRevenue, formatJOD(summary.periodRevenue)],
+      [copy.stats.totalPaidAll, formatJOD(summary.totalPaidAll)],
+      [copy.stats.pendingPayments, formatJOD(summary.pendingPaymentsAmount)],
+      [copy.stats.totalInvoices, formatJOD(summary.totalInvoicesAmount)],
+      [copy.stats.paidInvoices, formatJOD(summary.paidInvoicesAmount)],
+      [copy.stats.unpaidInvoices, formatJOD(summary.unpaidInvoicesAmount)],
+      [copy.stats.overdueInvoices, formatJOD(summary.overdueInvoicesAmount)],
       [copy.stats.collectionRate, `${summary.collectionRate}%`],
       [copy.stats.totalCases, summary.totalCases],
       [copy.stats.openCases, summary.openCases],
@@ -659,7 +649,7 @@ export default function ReportsPage() {
           payment.التاريخ,
           payment.طريقة_الدفع,
           payment.الحالة,
-          formatMoney(payment.المبلغ, locale),
+          formatJOD(payment.المبلغ),
           payment.الموكل,
           payment.القضية,
         ]),
@@ -681,9 +671,9 @@ export default function ReportsPage() {
           invoice.تاريخ_الاستحقاق,
           invoice.تاريخ_الإصدار,
           invoice.الحالة,
-          formatMoney(invoice.المتبقي, locale),
-          formatMoney(invoice.المحصل, locale),
-          formatMoney(invoice.المبلغ, locale),
+          formatJOD(invoice.المتبقي),
+          formatJOD(invoice.المحصل),
+          formatJOD(invoice.المبلغ),
           invoice.القضية,
           invoice.الموكل,
           invoice.رقم_الفاتورة,
@@ -700,8 +690,8 @@ export default function ReportsPage() {
         ],
         rows: topClientRowsForExport(completeData).map((client) => [
           client.مؤشر_النشاط,
-          formatMoney(client.إجمالي_الفواتير, locale),
-          formatMoney(client.إجمالي_الدفعات, locale),
+          formatJOD(client.إجمالي_الفواتير),
+          formatJOD(client.إجمالي_الدفعات),
           client.عدد_القضايا,
           client.الموكل,
         ]),
@@ -1115,13 +1105,13 @@ if (loading) {
                 reportType === 'monthly'
                   ? copy.stats.monthlyRevenue(months[month])
                   : copy.stats.periodRevenue,
-              value: formatMoney(summary.periodRevenue, locale),
+              value: formatJOD(summary.periodRevenue),
               color: 'var(--success)',
               bg: 'var(--green-soft)',
             },
             {
               label: copy.stats.pendingPayments,
-              value: formatMoney(summary.pendingPaymentsAmount, locale),
+              value: formatJOD(summary.pendingPaymentsAmount),
               color:
                 summary.pendingPaymentsAmount > 0 ? '#dc2626' : 'var(--text-3)',
               bg:
@@ -1131,7 +1121,7 @@ if (loading) {
             },
             {
               label: copy.stats.unpaidInvoices,
-              value: formatMoney(summary.unpaidInvoicesAmount, locale),
+              value: formatJOD(summary.unpaidInvoicesAmount),
               color:
                 summary.unpaidInvoicesAmount > 0 ? '#92400e' : 'var(--text-3)',
               bg:
@@ -1270,7 +1260,7 @@ if (loading) {
                     className="flex flex-1 flex-col items-center justify-end gap-2"
                   >
                     <div
-                      title={`${months[item.month]}: ${formatMoney(item.revenue, locale)}`}
+                      title={`${months[item.month]}: ${formatJOD(item.revenue)}`}
                       className="w-full rounded-t-xl"
                       style={{
                         height: `${height}%`,
@@ -1325,8 +1315,8 @@ if (loading) {
                       className="mt-2 grid grid-cols-2 gap-2 text-xs"
                       style={{ color: 'var(--text-2)' }}
                     >
-                      <span>{copy.misc.payments}: {formatMoney(client.paymentsTotal, locale)}</span>
-                      <span>{copy.misc.invoices}: {formatMoney(client.invoicesTotal, locale)}</span>
+                      <span>{copy.misc.payments}: <bdi>{formatJOD(client.paymentsTotal)}</bdi></span>
+                      <span>{copy.misc.invoices}: <bdi>{formatJOD(client.invoicesTotal)}</bdi></span>
                     </div>
                   </div>
                 ))
@@ -1360,7 +1350,7 @@ if (loading) {
               columns={[
                 { id: 'case', header: copy.table.case, cell: (payment) => payment.case?.title || '-' },
                 { id: 'client', header: copy.table.client, cell: (payment) => payment.client?.name || '-' },
-                { id: 'amount', header: copy.table.amount, cell: (payment) => formatMoney(payment.amount, locale) },
+                { id: 'amount', header: copy.table.amount, cell: (payment) => <bdi>{formatJOD(payment.amount)}</bdi> },
                 { id: 'status', header: copy.table.status, cell: (payment) => paymentStatusLabel(payment.status, copy) },
                 { id: 'date', header: copy.table.date, cell: (payment) => formatDate(payment.reportDate, locale) },
               ]}
@@ -1390,9 +1380,9 @@ if (loading) {
               columns={[
                 { id: 'invoiceNumber', header: copy.table.invoiceNumber, cell: (invoice) => invoice.invoiceNumber },
                 { id: 'client', header: copy.table.client, cell: (invoice) => invoice.client?.name || '-' },
-                { id: 'amount', header: copy.table.amount, cell: (invoice) => formatMoney(invoice.total, locale) },
-                { id: 'collected', header: copy.table.collected, cell: (invoice) => formatMoney(invoice.paidAmount, locale) },
-                { id: 'remaining', header: copy.table.remaining, cell: (invoice) => formatMoney(invoice.remainingAmount, locale) },
+                { id: 'amount', header: copy.table.amount, cell: (invoice) => <bdi>{formatJOD(invoice.total)}</bdi> },
+                { id: 'collected', header: copy.table.collected, cell: (invoice) => <bdi>{formatJOD(invoice.paidAmount)}</bdi> },
+                { id: 'remaining', header: copy.table.remaining, cell: (invoice) => <bdi>{formatJOD(invoice.remainingAmount)}</bdi> },
                 { id: 'status', header: copy.table.status, cell: (invoice) => invoiceDisplayStatus(invoice, copy) },
                 { id: 'dueDate', header: copy.table.dueDate, cell: (invoice) => formatDate(invoice.dueDate, locale) },
               ]}

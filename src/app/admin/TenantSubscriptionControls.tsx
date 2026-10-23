@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { currencyMinorUnits } from "@/config/plans";
+import { formatJOD, formatUSD } from "@/lib/money";
 import { usePrompt } from "@/components/ui/DialogProvider";
 import { useLocale } from "@/lib/useLocale";
 
@@ -76,7 +77,8 @@ function formatDate(value?: string | null) {
 }
 
 function formatMoney(value: number, currency: string) {
-  return `${(value / currencyMinorUnits(currency)).toLocaleString("en-US")} ${currency}`;
+  const amount = value / currencyMinorUnits(currency);
+  return currency.toUpperCase() === "JOD" ? formatJOD(amount) : formatUSD(amount);
 }
 
 type ActionDialog = { title: string; label: string; confirm: string };
