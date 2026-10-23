@@ -82,6 +82,32 @@ export function setupIntegrationDatabase(): IntegrationDatabase {
     );
   }
 
+  // The app's own database (DATABASE_URL / DIRECT_URL, production since
+  // 2026-10-23) is never a test database, even if the allowlist names it.
+  if (process.env.VERCEL_ENV === "production") {
+    throw new Error("Refusing to run integration tests in a Vercel production environment.");
+  }
+
+  if (!isLocal) {
+    for (const name of ["DATABASE_URL", "DIRECT_URL"] as const) {
+      const appUrl = process.env[name]?.trim();
+      if (!appUrl) continue;
+
+      let appHost = "";
+      try {
+        appHost = normalizeHost(new URL(appUrl).hostname);
+      } catch {
+        continue;
+      }
+
+      if (appHost === host) {
+        throw new Error(
+          `Refusing to run integration tests: INTEGRATION_DATABASE_URL points at the same host as ${name} ("${url.hostname}"), the app's own database.`,
+        );
+      }
+    }
+  }
+
   const schema = `it_${Date.now().toString(36)}_${randomBytes(3).toString("hex")}`;
   url.searchParams.set("schema", schema);
   const schemaUrl = url.toString();
