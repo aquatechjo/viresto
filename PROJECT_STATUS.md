@@ -1,6 +1,6 @@
 # Viresto — حالة المشروع (PROJECT_STATUS)
 
-> آخر تحديث: 2026-10-22 (forgot-password: سجل لكل نتيجة، الإرسال بعد الرد، ورسالة انتظار عند الحد — القسم 2.8. سابقًا: إطار نحاسي للوجو الإيميلات — القسم 2.7؛ إيميل التأكيد — القسم 2.6)
+> آخر تحديث: 2026-10-23 (إيميل ترحيب لمؤسس المكتب عند أول تأكيد لبريده، وعمود `Tenant.welcomeEmailSentAt` منشور على الإنتاج، وقرار: لا فرع Neon dev — القسم 2.9. سابقًا: forgot-password وreset-password يردّان 503 عند تعطّل Upstash، وقاعدة PowerShell في `CLAUDE.md` — القسم 2.8)
 > الغرض: سياق جاهز لأي محادثة جديدة مع Claude. كل حالة هنا مأخوذة من git (commits + working tree) والكود نفسه وقت الكتابة. البنود التي لا يمكن التحقق منها من الكود مُعلَّمة بـ *(حسب المستخدم)*.
 
 ---
@@ -351,6 +351,21 @@
 - خارج النطاق (ليست نوافذ أصلية، لم تُغيَّر): `confirmToast` في `src/lib/toast.ts` (تأكيد داخل toast، مستخدم في حذف الفاتورة)، وحوارات حذف مخصصة في المهام والقضايا والمستندات والموكلين. مرشحة للتوحيد على `useConfirm` لاحقًا.
 - "حذف مستخدم": لا واجهة تحذف مستخدمًا (الفريق يُعطَّل فقط)، و"حذف كل البيانات" طلب يُرسل للأدمن بإقرار checkbox؛ `requireText` جاهز لهما إن أُضيفا.
 - تحذير React قائم في `finance/payments` (خلط `background` و`backgroundPosition` في `<select>` الحالة) ظهر كـ "Issues" في overlay التطوير؛ لم يُصلح.
+
+## 2.9 إيميل الترحيب بمكتب جديد — ✅ مكتمل ومنشور (2026-10-23)، ⏳ التجربة الحقيقية عند المستخدم
+
+**القرارات (من المستخدم):** يُرسل **بعد أول تأكيد ناجح لبريد مؤسس المكتب**، لا وقت التسجيل (العنوان قبلها غير مؤكد). فقط إن كان المؤكِّد هو من سجّل المكتب (أول مستخدم في الـ Tenant)، لا عضو انضم بدعوة؛ ومرة واحدة لكل مكتب؛ وتأكيد تغيير البريد لاحقًا لا يرسل ترحيبًا. **لا فرع Neon dev بعد اليوم: الشغل مباشرة على الإنتاج**، واختبارات التكامل لا تُشغَّل أبدًا على `DATABASE_URL`/`DIRECT_URL`.
+
+| Commit | ما تم |
+|---|---|
+| `aa7bc2c` | `setupIntegrationDatabase` يرفض التشغيل إن كان host الـ `INTEGRATION_DATABASE_URL` هو نفس host الـ `DATABASE_URL` أو `DIRECT_URL` (حتى لو في `E2E_ALLOWED_DATABASE_HOST`، الذي ما زال يسمّي نفس الـ host في `.env`)، وعند `VERCEL_ENV=production`. السويت أصلًا لا يعمل truncate ولا seed على الجداول الحقيقية: schema مؤقتة `it_*` تُحذف بعده. |
+| `7ce0e26` | **الإيميل في الكود** (`src/lib/email/welcome-email.ts`) بنفس الـ layout الداكن RTL: صندوق نحاسي للتجربة (14 يومًا، تاريخ الانتهاء الفعلي بـ `formatAmmanTime`)، 3 خطوات، زر "افتح لوحة التحكم" (`NEXT_PUBLIC_APP_URL` + `/dashboard`)، ونسخة نصية. احتياطي للاسم الفارغ: "حضرة المحامي" و"مكتبك". **الإرسال** (`src/lib/welcome-email.ts`) من `POST /api/auth/verify-email` بعد ضبط `emailVerifiedAt` عبر `runAfterResponse`؛ المستلم بريد المؤسس من قاعدة البيانات. **مرة واحدة:** حجز الصف بـ `updateMany where welcomeEmailSentAt = null` قبل Resend + `Idempotency-Key: welcome/<tenantId>`. الفشل: سطر `[EMAIL_SEND] flow=welcome outcome=error` و`reportError` (Sentry، `area=email flow=welcome`) وإرجاع العمود null، ولا يفشل التأكيد أبدًا. مكتب demo أو بلا `trialEndsAt` لا يُرسل له. **Migration** `20261023000000_tenant_welcome_email_sent_at`: `ALTER TABLE "Tenant" ADD COLUMN "welcomeEmailSentAt" TIMESTAMP(3);` فقط (nullable، بلا default، مطابق لـ `prisma migrate diff`). إعدادات المرسل نُقلت إلى `src/lib/email/config.ts` (اختبارات التكامل تعمل mock لـ `@/lib/email` كاملًا). |
+
+**انحراف عن الخطة الأولى:** بدأ كتيمبليت Resend منشور (`RESEND_WELCOME_TEMPLATE_ID`)، ثم تُرك لصالح الكود بقرار المستخدم. السبب من إرسالين تجريبيين لـ Gmail المستخدم: (1) Resend **لا يعمل escape** لقيم `{{{VAR}}}` (`<b>x</b>` في اسم المكتب ظهر عريضًا)، و(2) محرر Resend أضاف سطرًا مرئيًا أعلى الإيميل يطبع المتغيرات الأربعة، وحوّل الغلاف لـ `dir="ltr" lang="en"`، وحذف meta الـ `color-scheme` والـ media query. حُذف `scripts/resend-templates/welcome.html`؛ `RESEND_WELCOME_TEMPLATE_ID` لم يعد مستخدمًا (ما زال في `.env.local`، ويمكن حذفه منه ومن Vercel). مفتاح Resend المحلي "send only" (لا يقرأ التيمبليتات).
+
+**التحقق:** tsc وlint (`eslint .`) نظيفان؛ `test:unit` **318/318** (11 جديدة في `welcome-email.test.ts`: المستلم هو بريد من أكّد من قاعدة البيانات، لا لعضو فريق، لا مرة ثانية ولا مع تأكيدين متزامنين، لا لمكتب demo، الفشل لا يكسر التأكيد ويذهب لـ Sentry ويحرر الحجز، الاحتياطي، والـ escape مرة واحدة في HTML ولا escape في النص؛ والترحيب مضاف لاختبارات `emails.test.ts` المشتركة و`email:preview`). لقطة 375px: بلا تمرير أفقي، padding الموبايل 20px، الزر 49px؛ 1280px: البطاقة 460px بالوسط. **اختبار التكامل** `tests/integration/welcome-email.test.ts` مكتوب ومضاف لـ `test:integration` (المؤسس، عضو فريق، تغيير البريد، فشل الإرسال) **ولم يُشغَّل** (قرار المستخدم؛ قبلها فشل بـ `P1000`: كلمة مرور فرع dev في `.env` لم تعد صالحة). **النشر:** `main` ← `7ce0e26`، Vercel **Ready** على `www.virestojo.com`؛ build log: `[migrate-production] applying pending migrations` ← `Applying migration 20261023000000_tenant_welcome_email_sent_at` ← `All migrations have been successfully applied`. الموقع 200.
+
+**مفتوح:** التجربة الحقيقية على الإنتاج (تسجيل مكتب ← تأكيد ← وصول الترحيب) عند المستخدم. المكاتب الموجودة عمودها null: أي مؤسس لم يؤكد بريده بعد سيصله الترحيب عند التأكيد؛ المؤكدون مسبقًا لا شيء.
 
 ## 2.8 forgot-password: سجل لكل نتيجة، الإرسال بعد الرد، ورسالة الانتظار — ✅ مكتمل ومنشور (2026-10-22)
 
@@ -711,6 +726,7 @@
   - **إنتاج مؤكد/شبه مؤكد:** `POLAR_ACCESS_TOKEN` و`POLAR_WEBHOOK_SECRET` (مع `POLAR_ENVIRONMENT=production`)، `RESEND_API_KEY` (المرسل `verify@virestojo.com`)، `CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` (السحابة `dpodfkoau`)، `TURNSTILE_SECRET_KEY` (ليس مفتاح اختبار Cloudflare). `OPENAI_API_KEY` ليس في `.env` بل **متغير على مستوى مستخدم Windows**، فكل عملية node تراه.
   - **غير محدد (قارنها بلوحة Vercel):** `JWT_SECRET`، `ENCRYPTION_KEY`، `SEARCH_HASH_SECRET`، `VERIFICATION_SECRET`، `PASSWORD_RESET_SECRET`، `CRON_SECRET`، `HEALTHCHECK_SECRET`، `UPSTASH_REDIS_REST_URL/TOKEN` (`.env.local` يفرغهما، لذا dev لا يستخدمهما). إن كان `ENCRYPTION_KEY` هو مفتاح الإنتاج فهو الأخطر (يفك تشفير بيانات الموكلين).
   - **ليست إنتاجًا:** `DATABASE_URL`/`DIRECT_URL`/`SHADOW_DATABASE_URL` (فرع dev على Neon)، `TAP_SECRET_KEY` (`sk_test`)، `VERCEL_OIDC_TOKEN` في `.env.local` (مؤقت).
+  - **تحديث 2026-10-23:** كلمة مرور فرع dev في `.env` لم تعد صالحة (`P1000`)، والمستخدم قرر عدم استخدام فرع Neon dev والعمل مباشرة على الإنتاج. لا تُشغَّل اختبارات التكامل على `DATABASE_URL`/`DIRECT_URL` (محمي في الكود منذ `aa7bc2c`).
   - **يمكن تفريغها محليًا** (فحص env غير صارم محليًا: تحذيرات فقط): `POLAR_ACCESS_TOKEN`/`POLAR_WEBHOOK_SECRET` (الفوترة فقط تتعطل؛ أو مفاتيح sandbox)، `RESEND_API_KEY` (الرموز تُطبع في سجل السيرفر)، `CLOUDINARY_API_KEY`/`SECRET` (الرفع والمعاينة ← 503)، `OPENAI_API_KEY` (AI ← 503)، `TURNSTILE_SECRET_KEY` مع `TURNSTILE_ENABLED=false`، `CRON_SECRET`، `HEALTHCHECK_SECRET`. **لا تُفرغ:** `JWT_SECRET`، `PASSWORD_RESET_SECRET`، `VERIFICATION_SECRET`، `SEARCH_HASH_SECRET` (ضع قيمًا محلية جديدة)، و`ENCRYPTION_KEY` (يجب أن يطابق ما شُفّرت به بيانات فرع dev).
   - **غير مستخدمة في الكود (يمكن حذفها):** `AUTH_SECRET`، `AUTH_URL`، `PAYMENT_PROVIDER`، `TAP_SECRET_KEY`، `TAP_PUBLIC_KEY`، `BILLING_ENABLED`، `BILLING_SELF_SERVICE_ENABLED`، `BILLING_MANUAL_ADMIN_ENABLED`، `EMAIL_VERIFICATION_ENABLED`، `POLAR_ORGANIZATION_ID`.
   - **إعداد محلي خاطئ:** `APP_URL`/`NEXT_PUBLIC_APP_URL` = `https://www.virestojo.com` (روابط البريد وصفحات نجاح Polar تشير للإنتاج)؛ الأنسب `http://localhost:3000` محليًا.
