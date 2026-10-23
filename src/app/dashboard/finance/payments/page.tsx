@@ -14,7 +14,8 @@ import type { Locale } from '@/lib/i18n'
 import { formatInvoiceNumber } from '@/lib/invoice-print'
 import { useLocale } from '@/lib/useLocale'
 import { useConfirm, usePrompt } from '@/components/ui/DialogProvider'
-import { formatJOD, parseAmount } from "@/lib/money";
+import { formatJOD, parseAmount, roundJod } from "@/lib/money"
+import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput"
 
 const DateTimePicker = dynamic(
   () => import('@/components/ui/DateTimePicker'),
@@ -404,7 +405,9 @@ function remainingOfInvoice(invoice: PaymentInvoiceOption) {
     return sum + (Number.isFinite(amount) ? amount : 0)
   }, 0)
 
-  return Math.max(0, (Number.isFinite(total) ? total : 0) - paid)
+  // Rounded to the fils: the result prefills the amount field, which accepts
+  // at most 3 decimals.
+  return roundJod(Math.max(0, (Number.isFinite(total) ? total : 0) - paid))
 }
 
 function amountOf(payment: Payment) {
@@ -607,6 +610,18 @@ export default function PaymentsPage() {
   const [savingPayment, setSavingPayment] = useState(false)
   const [successPayment, setSuccessPayment] = useState<{ amount: number; status: PaymentStatus; invoiceId?: string } | null>(null)
   const [paymentForm, setPaymentForm] = useState(INITIAL_PAYMENT_FORM)
+  const [amountErrors, setAmountErrors] = useState<Record<string, string>>({})
+  function amountErrorText() {
+    return AMOUNT_ERROR[locale]
+  }
+  function clearAmountError(key: string) {
+    setAmountErrors((previous) => {
+      if (!previous[key]) return previous
+      const next = { ...previous }
+      delete next[key]
+      return next
+    })
+  }
   const [targetSearch, setTargetSearch] = useState('')
   const [targetLoading, setTargetLoading] = useState(false)
   const [targetError, setTargetError] = useState('')
@@ -784,6 +799,7 @@ export default function PaymentsPage() {
     if (savingPayment) return
     setPaymentOpen(false)
     setPaymentForm(INITIAL_PAYMENT_FORM)
+    setAmountErrors({})
     setTargetSearch('')
     setTargetError('')
   }
@@ -797,8 +813,8 @@ export default function PaymentsPage() {
     }
 
     const amount = parseAmount(paymentForm.amount)
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error(copy.form.amountRequired)
+    if (amount === null || amount <= 0) {
+      setAmountErrors({ amount: amountErrorText() })
       return
     }
 
@@ -848,6 +864,7 @@ export default function PaymentsPage() {
       const created = unwrapPayment(payload)
       setPaymentOpen(false)
       setPaymentForm(INITIAL_PAYMENT_FORM)
+      setAmountErrors({})
       setTargetSearch('')
       setTargetError('')
       setSuccessPayment({
@@ -1751,14 +1768,14 @@ export default function PaymentsPage() {
                   <label className="mb-2 block text-sm font-black" style={{ color: 'var(--text)' }}>
                     {copy.form.amount} <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
+                  <AmountInput
+                    error={amountErrors["amount"]}
+                    onErrorDismiss={() => clearAmountError("amount")}
                     value={paymentForm.amount}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       setPaymentForm((current) => ({
                         ...current,
-                        amount: event.target.value,
+                        amount: value,
                       }))
                     }
                     dir="ltr"

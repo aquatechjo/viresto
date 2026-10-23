@@ -21,7 +21,8 @@ import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { fetchJsonCached } from "@/lib/client-query-cache";
 import { startNavigationFeedback } from "@/lib/navigation-feedback";
 import { useFormDraft } from "@/lib/useFormDraft";
-import { formatJOD, parseAmount } from "@/lib/money";
+import { formatJOD, parseOptionalAmount } from "@/lib/money";
+import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput";
 
 interface Case {
   id: string;
@@ -420,6 +421,18 @@ export default function CasesPage() {
   const [selectedClient, setSelectedClient] = useState<ClientOpt | null>(null);
   const [saving, setSaving] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [amountErrors, setAmountErrors] = useState<Record<string, string>>({});
+  function amountErrorText() {
+    return AMOUNT_ERROR[localeKey === "en" ? "en" : "ar"];
+  }
+  function clearAmountError(key: string) {
+    setAmountErrors((previous) => {
+      if (!previous[key]) return previous;
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+  }
   const [planLimit, setPlanLimit] = useState("");
   const writeAccess = useTenantWriteAccess(localeKey);
 
@@ -604,6 +617,12 @@ export default function CasesPage() {
       return;
     }
 
+    const feeAgreed = parseOptionalAmount(form.feeAgreed);
+    if (feeAgreed === null) {
+      setAmountErrors({ fee: amountErrorText() });
+      return;
+    }
+
     try {
       setSaving(true);
       setPlanLimit("");
@@ -613,7 +632,7 @@ export default function CasesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          feeAgreed: parseAmount(form.feeAgreed),
+          feeAgreed,
         }),
       });
 
@@ -651,6 +670,12 @@ export default function CasesPage() {
       return;
     }
 
+    const editFeeAgreed = parseOptionalAmount(editForm.feeAgreed);
+    if (editFeeAgreed === null) {
+      setAmountErrors({ editFee: amountErrorText() });
+      return;
+    }
+
     try {
       setEditSaving(true);
 
@@ -666,7 +691,7 @@ export default function CasesPage() {
           defendantName: editForm.defendantName,
           description: editForm.description,
           status: editForm.status,
-          feeAgreed: parseAmount(editForm.feeAgreed),
+          feeAgreed: editFeeAgreed,
           leadLawyerId: editForm.leadLawyerId,
           memberIds: editForm.memberIds,
         }),
@@ -723,6 +748,7 @@ export default function CasesPage() {
   }
 
   function resetCreateCaseForm() {
+    setAmountErrors({});
     const defaultLead =
       teamMembers.find(
         (member) =>
@@ -771,6 +797,7 @@ export default function CasesPage() {
     setEditOpen(false);
     setEditingCase(null);
     setEditForm(EDIT_INIT);
+    setAmountErrors({});
   }
 
   function openEditCaseModal(item: Case) {
@@ -780,6 +807,7 @@ export default function CasesPage() {
     }
 
     setEditingCase(item);
+    setAmountErrors({});
     setEditForm({
       title: item.title || "",
       caseNumber: item.caseNumber || "",
@@ -1460,12 +1488,14 @@ export default function CasesPage() {
             </FormField>
 
             <FormField label={text.modal.fees}>
-              <input
+              <AmountInput
+                error={amountErrors["fee"]}
+                onErrorDismiss={() => clearAmountError("fee")}
                 dir="ltr"
-                type="text"
-                inputMode="decimal"
                 value={form.feeAgreed}
-                onChange={f("feeAgreed")}
+                onValueChange={(value) =>
+                  setForm((previous) => ({ ...previous, feeAgreed: value }))
+                }
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
                 style={{
                   textAlign: isRtl ? "right" : "left",
@@ -1650,12 +1680,14 @@ export default function CasesPage() {
             </FormField>
 
             <FormField label={text.modal.fees}>
-              <input
+              <AmountInput
+                error={amountErrors["editFee"]}
+                onErrorDismiss={() => clearAmountError("editFee")}
                 dir="ltr"
-                type="text"
-                inputMode="decimal"
                 value={editForm.feeAgreed}
-                onChange={ef("feeAgreed")}
+                onValueChange={(value) =>
+                  setEditForm((previous) => ({ ...previous, feeAgreed: value }))
+                }
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
                 style={{
                   textAlign: isRtl ? "right" : "left",

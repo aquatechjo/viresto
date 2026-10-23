@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import AppLoader from "@/components/ui/AppLoader";
 import { useLocale } from "@/lib/useLocale";
 import type { Locale } from "@/lib/i18n";
-import { formatJOD, parseAmount } from "@/lib/money";
+import { formatJOD, parseAmount, parseOptionalAmount } from "@/lib/money";
+import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput";
 import {
   buildInvoiceWhatsAppMessage,
   formatInvoiceNumber,
@@ -680,6 +681,18 @@ export default function InvoiceDetailsPage() {
   const [editDiscount, setEditDiscount] = useState<number | string>(0);
   const [editNotes, setEditNotes] = useState("");
   const [editItems, setEditItems] = useState<EditItem[]>([]);
+  const [amountErrors, setAmountErrors] = useState<Record<string, string>>({});
+  function amountErrorText() {
+    return AMOUNT_ERROR[appLocale === "en" ? "en" : "ar"];
+  }
+  function clearAmountError(key: string) {
+    setAmountErrors((previous) => {
+      if (!previous[key]) return previous;
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+  }
 
   const invoiceRef = useRef<HTMLDivElement | null>(null);
   function confirmToast(message: string) {
@@ -802,6 +815,7 @@ export default function InvoiceDetailsPage() {
         unitPrice: item.unitPrice,
       })),
     );
+    setAmountErrors({});
     setEditOpen(true);
   }
 
@@ -830,47 +844,55 @@ export default function InvoiceDetailsPage() {
   }
 
   function removeEditItem(index: number) {
+    setAmountErrors({});
     setEditItems((prev) => prev.filter((_, i) => i !== index));
   }
 
   const editSubtotal = roundMoney(
     editItems.reduce((sum, item) => {
-      const quantity = parseAmount(String(item.quantity));
-      const unitPrice = parseAmount(String(item.unitPrice));
+      const quantity = parseOptionalAmount(item.quantity) ?? 0;
+      const unitPrice = parseOptionalAmount(item.unitPrice) ?? 0;
       return sum + quantity * unitPrice;
     }, 0),
   );
 
   const editTotal = roundMoney(
-    editSubtotal + parseAmount(String(editTax)) - parseAmount(String(editDiscount)),
+    editSubtotal + (parseOptionalAmount(editTax) ?? 0) - (parseOptionalAmount(editDiscount) ?? 0),
   );
 
   async function submitEdit(e: FormEvent) {
     e.preventDefault();
     if (!invoice) return;
 
-    const cleanItems = editItems
-      .map((item) => ({
+    const errors: Record<string, string> = {};
+    const cleanItems: { description: string; quantity: number; unitPrice: number }[] = [];
+
+    editItems.forEach((item, index) => {
+      if (!item.description.trim()) return;
+      // Required fields: empty is an error here, not 0 as for tax/discount.
+      const quantity = parseAmount(String(item.quantity));
+      const unitPrice = parseAmount(String(item.unitPrice));
+      if (quantity === null || quantity <= 0) errors[`item-${index}-quantity`] = amountErrorText();
+      if (unitPrice === null) errors[`item-${index}-unitPrice`] = amountErrorText();
+      cleanItems.push({
         description: item.description.trim(),
-        quantity: parseAmount(String(item.quantity)),
-        unitPrice: parseAmount(String(item.unitPrice)),
-      }))
-      .filter((item) => item.description);
+        quantity: quantity ?? 0,
+        unitPrice: unitPrice ?? 0,
+      });
+    });
 
     if (cleanItems.length === 0) {
       toast.error(ui.errors.itemRequired);
       return;
     }
 
-    if (cleanItems.some((item) => item.quantity <= 0 || item.unitPrice < 0)) {
-      toast.error(ui.errors.invalidItem);
-      return;
-    }
+    const taxAmount = parseOptionalAmount(editTax);
+    const discountAmount = parseOptionalAmount(editDiscount);
+    if (taxAmount === null) errors.tax = amountErrorText();
+    if (discountAmount === null) errors.discount = amountErrorText();
 
-    if (parseAmount(String(editTax)) < 0 || parseAmount(String(editDiscount)) < 0) {
-      toast.error(ui.errors.negativeTaxDiscount);
-      return;
-    }
+    setAmountErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     if (editTotal < 0) {
       toast.error(ui.errors.discountTooHigh);
@@ -885,8 +907,8 @@ export default function InvoiceDetailsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dueDate: editDueDate || null,
-          tax: parseAmount(String(editTax)),
-          discount: parseAmount(String(editDiscount)),
+          tax: taxAmount,
+          discount: discountAmount,
           notes: editNotes,
           items: cleanItems,
         }),
@@ -2159,11 +2181,11 @@ export default function InvoiceDetailsPage() {
 
               <label className="space-y-2">
                 <span className="text-sm font-bold">{ui.tax}</span>
-                <input
-                  type="text"
-                inputMode="decimal"
+                <AmountInput
+                  error={amountErrors["tax"]}
+                  onErrorDismiss={() => clearAmountError("tax")}
                   value={editTax}
-                  onChange={(e) => setEditTax(e.target.value)}
+                  onValueChange={(value) => setEditTax(value)}
                   className="input"
                   disabled={!canEditFinancials}
                 />
@@ -2171,11 +2193,11 @@ export default function InvoiceDetailsPage() {
 
               <label className="space-y-2">
                 <span className="text-sm font-bold">{ui.discount}</span>
-                <input
-                  type="text"
-                inputMode="decimal"
+                <AmountInput
+                  error={amountErrors["discount"]}
+                  onErrorDismiss={() => clearAmountError("discount")}
                   value={editDiscount}
-                  onChange={(e) => setEditDiscount(e.target.value)}
+                  onValueChange={(value) => setEditDiscount(value)}
                   className="input"
                   disabled={!canEditFinancials}
                 />
@@ -2215,24 +2237,24 @@ export default function InvoiceDetailsPage() {
                       disabled={!canEditFinancials}
                     />
 
-                    <input
-                      type="text"
-                inputMode="decimal"
+                    <AmountInput
+                      error={amountErrors[`item-${index}-quantity`]}
+                      onErrorDismiss={() => clearAmountError(`item-${index}-quantity`)}
                       value={item.quantity}
-                      onChange={(e) =>
-                        updateEditItem(index, "quantity", e.target.value)
+                      onValueChange={(value) =>
+                        updateEditItem(index, "quantity", value)
                       }
                       placeholder={ui.quantity}
                       className="input"
                       disabled={!canEditFinancials}
                     />
 
-                    <input
-                      type="text"
-                inputMode="decimal"
+                    <AmountInput
+                      error={amountErrors[`item-${index}-unitPrice`]}
+                      onErrorDismiss={() => clearAmountError(`item-${index}-unitPrice`)}
                       value={item.unitPrice}
-                      onChange={(e) =>
-                        updateEditItem(index, "unitPrice", e.target.value)
+                      onValueChange={(value) =>
+                        updateEditItem(index, "unitPrice", value)
                       }
                       placeholder={ui.unitPrice}
                       className="input"
@@ -2276,12 +2298,12 @@ export default function InvoiceDetailsPage() {
                 />
                 <MoneyLine
                   label={ui.tax}
-                  value={parseAmount(String(editTax))}
+                  value={parseOptionalAmount(editTax) ?? 0}
                   locale={appLocale}
                 />
                 <MoneyLine
                   label={ui.discount}
-                  value={parseAmount(String(editDiscount))}
+                  value={parseOptionalAmount(editDiscount) ?? 0}
                   locale={appLocale}
                 />
 

@@ -7,8 +7,11 @@ import {
   formatUSD,
   hasValidJodPrecision,
   jodToFils,
+  isAmountTyping,
   moneyExceeds,
+  normalizeAmountText,
   parseAmount,
+  parseOptionalAmount,
 } from "@/lib/money";
 import { toLatinDigits, withLatinDigits } from "@/lib/locale";
 import {
@@ -53,8 +56,56 @@ test("parseAmount: Arabic or Latin digits, either separator", () => {
   assert.equal(parseAmount("1,250.5"), 1250.5);
   assert.equal(parseAmount(" 30 "), 30);
   assert.equal(parseAmount("٠٫١٢٥"), 0.125);
-  assert.equal(parseAmount(""), 0);
-  assert.equal(parseAmount("abc"), 0);
+  assert.equal(parseAmount("۱۲۵"), 125, "Persian digits");
+  assert.equal(parseAmount("1,234.500"), 1234.5);
+  assert.equal(parseAmount("1,234,567"), 1234567);
+  assert.equal(parseAmount(".5"), 0.5);
+  assert.equal(parseAmount("5."), 5);
+  assert.equal(parseAmount("0"), 0);
+});
+
+test("parseAmount: null for anything that is not one clear amount", () => {
+  assert.equal(parseAmount(""), null);
+  assert.equal(parseAmount("   "), null);
+  assert.equal(parseAmount("abc"), null);
+  assert.equal(parseAmount("12a"), null);
+  assert.equal(parseAmount("-5"), null);
+  assert.equal(parseAmount("."), null);
+  assert.equal(parseAmount("1.2.3"), null);
+  assert.equal(parseAmount("1,5"), null, "may be a decimal comma");
+  assert.equal(parseAmount("1,500"), null, "may be a decimal comma");
+  assert.equal(parseAmount("12,34"), null, "not thousands groups");
+  assert.equal(parseAmount("1,23,456"), null, "not thousands groups");
+  assert.equal(parseAmount("1.2345"), null, "more than 3 decimals");
+  assert.equal(parseAmount("١٫٢٣٤٥"), null, "more than 3 decimals, Arabic");
+});
+
+test("parseOptionalAmount: empty is 0, invalid is null, numbers pass through", () => {
+  assert.equal(parseOptionalAmount(""), 0);
+  assert.equal(parseOptionalAmount("  "), 0);
+  assert.equal(parseOptionalAmount("12.5"), 12.5);
+  assert.equal(parseOptionalAmount("١٢"), 12);
+  assert.equal(parseOptionalAmount("1,234.500"), 1234.5);
+  assert.equal(parseOptionalAmount("abc"), null);
+  assert.equal(parseOptionalAmount("1,5"), null);
+  assert.equal(parseOptionalAmount("1.2345"), null);
+  assert.equal(parseOptionalAmount(7.25), 7.25);
+  assert.equal(parseOptionalAmount(Number.NaN), null);
+});
+
+test("isAmountTyping: digits, thousands commas, one separator, 3 decimals", () => {
+  for (const ok of ["", "1", "12,34", "1,234.500", "1.", ".5", "١٢٫٥", "١٬٢٣٤", "۱۲"]) {
+    assert.equal(isAmountTyping(ok), true, ok);
+  }
+  for (const bad of ["a", "-1", "1 2", "1.2.3", "1٫2.3", "1.2345", "١٫٢٣٤٥", "1e5"]) {
+    assert.equal(isAmountTyping(bad), false, bad);
+  }
+});
+
+test("normalizeAmountText: shows typed Arabic digits and separators as Latin", () => {
+  assert.equal(normalizeAmountText("١٬٢٥٠٫٥"), "1,250.5");
+  assert.equal(normalizeAmountText("۱۲۳"), "123");
+  assert.equal(normalizeAmountText("1,250.5"), "1,250.5");
 });
 
 test("formats JOD consistently with three decimal places", () => {

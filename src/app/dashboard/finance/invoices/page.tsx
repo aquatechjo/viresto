@@ -16,7 +16,8 @@ import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import type { Locale } from "@/lib/i18n";
 import { formatInvoiceNumber } from "@/lib/invoice-print";
 import { useFormDraft } from "@/lib/useFormDraft";
-import { formatJOD, parseAmount } from "@/lib/money";
+import { formatJOD, parseAmount, parseOptionalAmount } from "@/lib/money";
+import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput";
 
 type InvoiceStatus =
   | "DRAFT"
@@ -1038,6 +1039,18 @@ export default function InvoicesPage() {
   const [dueDate, setDueDate] = useState("");
   const [tax, setTax] = useState("");
   const [discount, setDiscount] = useState("");
+  const [amountErrors, setAmountErrors] = useState<Record<string, string>>({});
+  function amountErrorText() {
+    return AMOUNT_ERROR[locale === "en" ? "en" : "ar"];
+  }
+  function clearAmountError(key: string) {
+    setAmountErrors((previous) => {
+      if (!previous[key]) return previous;
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+  }
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<InvoiceItem[]>([
     { preset: "", description: "", quantity: "", unitPrice: "" },
@@ -1103,12 +1116,12 @@ export default function InvoicesPage() {
 
   const subtotal = useMemo(() => {
     return items.reduce((sum, item) => {
-      return sum + parseAmount(item.quantity) * parseAmount(item.unitPrice);
+      return sum + (parseAmount(item.quantity) ?? 0) * (parseAmount(item.unitPrice) ?? 0);
     }, 0);
   }, [items]);
 
   const total = Math.max(
-    subtotal + parseAmount(tax) - parseAmount(discount),
+    subtotal + (parseOptionalAmount(tax) ?? 0) - (parseOptionalAmount(discount) ?? 0),
     0,
   );
 
@@ -1254,6 +1267,7 @@ export default function InvoicesPage() {
     setDiscount("");
     setNotes("");
     setItems([{ preset: "", description: "", quantity: "", unitPrice: "" }]);
+    setAmountErrors({});
   }
 
   function closeModal() {
@@ -1302,6 +1316,7 @@ export default function InvoicesPage() {
   }
 
   function removeItem(index: number) {
+    setAmountErrors({});
     setItems((previous) =>
       previous.filter((_, itemIndex) => itemIndex !== index),
     );
@@ -1320,18 +1335,34 @@ export default function InvoicesPage() {
       return;
     }
 
-    const cleanItems = items
-      .filter((item) => item.description.trim())
-      .map((item) => ({
+    const errors: Record<string, string> = {};
+    const cleanItems: { description: string; quantity: number; unitPrice: number }[] = [];
+
+    items.forEach((item, index) => {
+      if (!item.description.trim()) return;
+      const quantity = parseAmount(item.quantity);
+      const unitPrice = parseAmount(item.unitPrice);
+      if (quantity === null || quantity <= 0) errors[`item-${index}-quantity`] = amountErrorText();
+      if (unitPrice === null) errors[`item-${index}-unitPrice`] = amountErrorText();
+      cleanItems.push({
         description: item.description.trim(),
-        quantity: parseAmount(item.quantity),
-        unitPrice: parseAmount(item.unitPrice),
-      }));
+        quantity: quantity ?? 0,
+        unitPrice: unitPrice ?? 0,
+      });
+    });
 
     if (cleanItems.length === 0) {
       toast.error(copy.messages.addOneItem);
       return;
     }
+
+    const taxAmount = parseOptionalAmount(tax);
+    const discountAmount = parseOptionalAmount(discount);
+    if (taxAmount === null) errors.tax = amountErrorText();
+    if (discountAmount === null) errors.discount = amountErrorText();
+
+    setAmountErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     try {
       setSaving(true);
@@ -1343,8 +1374,8 @@ export default function InvoicesPage() {
           clientId,
           caseId: caseId || null,
           dueDate: dueDate || null,
-          tax: parseAmount(tax),
-          discount: parseAmount(discount),
+          tax: taxAmount,
+          discount: discountAmount,
           notes,
           items: cleanItems,
         }),
@@ -2112,7 +2143,7 @@ export default function InvoicesPage() {
               <div className="space-y-3">
                 {items.map((item, index) => {
                   const lineTotal =
-                    parseAmount(item.quantity) * parseAmount(item.unitPrice);
+                    (parseAmount(item.quantity) ?? 0) * (parseAmount(item.unitPrice) ?? 0);
 
                   return (
                     <div
@@ -2163,13 +2194,13 @@ export default function InvoicesPage() {
                             {copy.modal.quantity}
                           </span>
 
-                          <input
-                            type="text"
-                inputMode="decimal"
+                          <AmountInput
+                            error={amountErrors[`item-${index}-quantity`]}
+                            onErrorDismiss={() => clearAmountError(`item-${index}-quantity`)}
                             value={item.quantity}
                             placeholder={copy.modal.quantityPlaceholder}
-                            onChange={(event) =>
-                              updateItem(index, "quantity", event.target.value)
+                            onValueChange={(value) =>
+                              updateItem(index, "quantity", value)
                             }
                             dir="ltr"
                             style={numberFieldStyle}
@@ -2185,13 +2216,13 @@ export default function InvoicesPage() {
                             {copy.modal.unitPrice}
                           </span>
 
-                          <input
-                            type="text"
-                inputMode="decimal"
+                          <AmountInput
+                            error={amountErrors[`item-${index}-unitPrice`]}
+                            onErrorDismiss={() => clearAmountError(`item-${index}-unitPrice`)}
                             value={item.unitPrice}
                             placeholder={copy.modal.unitPricePlaceholder}
-                            onChange={(event) =>
-                              updateItem(index, "unitPrice", event.target.value)
+                            onValueChange={(value) =>
+                              updateItem(index, "unitPrice", value)
                             }
                             dir="ltr"
                             style={numberFieldStyle}
@@ -2278,14 +2309,14 @@ export default function InvoicesPage() {
                   {copy.modal.tax}
                 </span>
 
-                <input
-                  type="text"
-                inputMode="decimal"
+                <AmountInput
+                  error={amountErrors["tax"]}
+                  onErrorDismiss={() => clearAmountError("tax")}
                   value={tax}
                   placeholder={copy.modal.taxPlaceholder}
                   dir="ltr"
                   style={numberFieldStyle}
-                  onChange={(event) => setTax(event.target.value)}
+                  onValueChange={(value) => setTax(value)}
                   className="input"
                 />
               </label>
@@ -2295,14 +2326,14 @@ export default function InvoicesPage() {
                   {copy.modal.discount}
                 </span>
 
-                <input
-                  type="text"
-                inputMode="decimal"
+                <AmountInput
+                  error={amountErrors["discount"]}
+                  onErrorDismiss={() => clearAmountError("discount")}
                   value={discount}
                   placeholder={copy.modal.discountPlaceholder}
                   dir="ltr"
                   style={numberFieldStyle}
-                  onChange={(event) => setDiscount(event.target.value)}
+                  onValueChange={(value) => setDiscount(value)}
                   className="input"
                 />
               </label>

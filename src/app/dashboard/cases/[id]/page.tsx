@@ -13,7 +13,8 @@ import { fileSizeLabel, formatDate, formatTime } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
 import { uploadDocumentDirect } from "@/lib/client-document-upload";
 import { DOCUMENT_MAX_STORED_BYTES } from "@/lib/document-upload";
-import { formatJOD, parseAmount } from "@/lib/money";
+import { formatJOD, parseAmount, parseOptionalAmount } from "@/lib/money";
+import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput";
 
 interface Payment {
   id: string;
@@ -312,10 +313,6 @@ function getApiMessage(data: any, fallback: string) {
   return data?.message || data?.error || data?.data?.message || fallback;
 }
 
-function safeNumber(value: string) {
-  return parseAmount(value);
-}
-
 function documentIcon(fileType?: string | null) {
   if (fileType === "application/pdf") return "📄";
   if (fileType?.startsWith("image/")) return "🖼️";
@@ -567,6 +564,18 @@ export default function CaseDetailPage() {
   const [invoiceForm, setInvoiceForm] = useState(INVOICE_INIT);
   const [documentForm, setDocumentForm] = useState(DOCUMENT_INIT);
   const [caseEditForm, setCaseEditForm] = useState(CASE_EDIT_INIT);
+  const [amountErrors, setAmountErrors] = useState<Record<string, string>>({});
+  function amountErrorText() {
+    return AMOUNT_ERROR[isArabic ? "ar" : "en"];
+  }
+  function clearAmountError(key: string) {
+    setAmountErrors((previous) => {
+      if (!previous[key]) return previous;
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+  }
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -705,6 +714,7 @@ export default function CaseDetailPage() {
       leadLawyerId: c.leadLawyer?.id || "",
       memberIds: c.members?.map((member) => member.user.id) || [],
     });
+    setAmountErrors({});
     setCaseEditOpen(true);
   }
 
@@ -725,6 +735,12 @@ export default function CaseDetailPage() {
       return;
     }
 
+    const feeAgreed = parseOptionalAmount(caseEditForm.feeAgreed);
+    if (feeAgreed === null) {
+      setAmountErrors({ caseFee: amountErrorText() });
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -739,7 +755,7 @@ export default function CaseDetailPage() {
           plaintiffName: caseEditForm.plaintiffName.trim() || null,
           defendantName: caseEditForm.defendantName.trim() || null,
           status: caseEditForm.status,
-          feeAgreed: safeNumber(caseEditForm.feeAgreed),
+          feeAgreed,
           description: caseEditForm.description.trim() || null,
           leadLawyerId: caseEditForm.leadLawyerId,
           memberIds: caseEditForm.memberIds,
@@ -754,6 +770,7 @@ export default function CaseDetailPage() {
         );
         setCaseEditOpen(false);
         setCaseEditForm(CASE_EDIT_INIT);
+        setAmountErrors({});
         load();
       } else {
         toast.error(
@@ -828,8 +845,9 @@ export default function CaseDetailPage() {
   async function addPayment(event: FormEvent) {
     event.preventDefault();
 
-    if (!paymentForm.amount) {
-      toast.error("المبلغ مطلوب");
+    const amount = parseAmount(paymentForm.amount);
+    if (amount === null || amount <= 0) {
+      setAmountErrors({ paymentAmount: amountErrorText() });
       return;
     }
 
@@ -842,7 +860,7 @@ export default function CaseDetailPage() {
         body: JSON.stringify({
           ...paymentForm,
           caseId: id,
-          amount: safeNumber(paymentForm.amount),
+          amount,
           paidAt: paymentForm.paidAt || new Date().toISOString(),
         }),
       });
@@ -853,6 +871,7 @@ export default function CaseDetailPage() {
         toast.success("تمت إضافة الدفعة");
         setPaymentOpen(false);
         setPaymentForm(PMT_INIT);
+        setAmountErrors({});
         load();
       } else {
         toast.error(getApiMessage(data, "تعذر إضافة الدفعة"));
@@ -1047,8 +1066,15 @@ export default function CaseDetailPage() {
       return;
     }
 
-    if (!invoiceForm.amount) {
-      toast.error("المبلغ مطلوب");
+    const amount = parseAmount(invoiceForm.amount);
+    const tax = parseOptionalAmount(invoiceForm.tax);
+    const discount = parseOptionalAmount(invoiceForm.discount);
+    const errors: Record<string, string> = {};
+    if (amount === null || amount <= 0) errors.invoiceAmount = amountErrorText();
+    if (tax === null) errors.invoiceTax = amountErrorText();
+    if (discount === null) errors.invoiceDiscount = amountErrorText();
+    setAmountErrors(errors);
+    if (amount === null || amount <= 0 || tax === null || discount === null) {
       return;
     }
 
@@ -1062,14 +1088,14 @@ export default function CaseDetailPage() {
           clientId: c?.client.id,
           caseId: id,
           dueDate: invoiceForm.dueDate || undefined,
-          tax: safeNumber(invoiceForm.tax),
-          discount: safeNumber(invoiceForm.discount),
+          tax,
+          discount,
           notes: invoiceForm.notes || undefined,
           items: [
             {
               description: invoiceForm.description.trim(),
               quantity: 1,
-              unitPrice: safeNumber(invoiceForm.amount),
+              unitPrice: amount,
             },
           ],
         }),
@@ -1081,6 +1107,7 @@ export default function CaseDetailPage() {
         toast.success("تم إنشاء الفاتورة");
         setInvoiceOpen(false);
         setInvoiceForm(INVOICE_INIT);
+        setAmountErrors({});
         load();
 
         if (data.data?.id) {
@@ -2463,6 +2490,7 @@ export default function CaseDetailPage() {
         onClose={() => {
           setCaseEditOpen(false);
           setCaseEditForm(CASE_EDIT_INIT);
+          setAmountErrors({});
         }}
         title={pageText.editCaseTitle}
       >
@@ -2573,16 +2601,16 @@ export default function CaseDetailPage() {
             </FormField>
 
             <FormField label={pageText.feeAgreed}>
-              <input
+              <AmountInput
+                error={amountErrors["caseFee"]}
+                onErrorDismiss={() => clearAmountError("caseFee")}
                 dir="ltr"
-                type="text"
-                inputMode="decimal"
                 className={`input ${isRtl ? "text-right" : "text-left"}`}
                 value={caseEditForm.feeAgreed}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   setCaseEditForm((previous) => ({
                     ...previous,
-                    feeAgreed: event.target.value,
+                    feeAgreed: value,
                   }))
                 }
               />
@@ -2662,6 +2690,7 @@ export default function CaseDetailPage() {
               onClick={() => {
                 setCaseEditOpen(false);
                 setCaseEditForm(CASE_EDIT_INIT);
+                setAmountErrors({});
               }}
               className="btn btn-ghost flex-1"
             >
@@ -2685,6 +2714,7 @@ export default function CaseDetailPage() {
         onClose={() => {
           setPaymentOpen(false);
           setPaymentForm(PMT_INIT);
+          setAmountErrors({});
         }}
         title={pageText.addPaymentTitle}
       >
@@ -2707,16 +2737,16 @@ export default function CaseDetailPage() {
           )}
 
           <FormField label={pageText.amount} required>
-            <input
+            <AmountInput
+              error={amountErrors["paymentAmount"]}
+              onErrorDismiss={() => clearAmountError("paymentAmount")}
               dir="ltr"
-              type="text"
-                inputMode="decimal"
               className="input text-start"
               value={paymentForm.amount}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 setPaymentForm((previous) => ({
                   ...previous,
-                  amount: event.target.value,
+                  amount: value,
                 }))
               }
             />
@@ -3083,6 +3113,7 @@ export default function CaseDetailPage() {
         onClose={() => {
           setInvoiceOpen(false);
           setInvoiceForm(INVOICE_INIT);
+          setAmountErrors({});
         }}
         title={pageText.createInvoiceTitle}
       >
@@ -3106,45 +3137,45 @@ export default function CaseDetailPage() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <FormField label={pageText.amount} required>
-              <input
-                type="text"
-                inputMode="decimal"
+              <AmountInput
+                error={amountErrors["invoiceAmount"]}
+                onErrorDismiss={() => clearAmountError("invoiceAmount")}
                 className="input"
                 value={invoiceForm.amount}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   setInvoiceForm((previous) => ({
                     ...previous,
-                    amount: event.target.value,
+                    amount: value,
                   }))
                 }
               />
             </FormField>
 
             <FormField label={pageText.tax}>
-              <input
-                type="text"
-                inputMode="decimal"
+              <AmountInput
+                error={amountErrors["invoiceTax"]}
+                onErrorDismiss={() => clearAmountError("invoiceTax")}
                 className="input"
                 value={invoiceForm.tax}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   setInvoiceForm((previous) => ({
                     ...previous,
-                    tax: event.target.value,
+                    tax: value,
                   }))
                 }
               />
             </FormField>
 
             <FormField label={pageText.discount}>
-              <input
-                type="text"
-                inputMode="decimal"
+              <AmountInput
+                error={amountErrors["invoiceDiscount"]}
+                onErrorDismiss={() => clearAmountError("invoiceDiscount")}
                 className="input"
                 value={invoiceForm.discount}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   setInvoiceForm((previous) => ({
                     ...previous,
-                    discount: event.target.value,
+                    discount: value,
                   }))
                 }
               />
