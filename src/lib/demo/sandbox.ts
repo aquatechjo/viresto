@@ -124,6 +124,7 @@ export async function createDemoSandbox(owner: DemoOwner) {
         await tx.invoiceItem.createMany({ data: sample.invoiceItems });
         await tx.payment.createMany({ data: sample.payments });
         await tx.invoiceSequence.create({ data: sample.invoiceSequence });
+        await tx.activity.createMany({ data: sample.activities });
       },
       { timeout: 20_000, maxWait: 10_000 },
     );

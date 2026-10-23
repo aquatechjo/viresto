@@ -49,6 +49,7 @@ export type DemoSampleData = {
   invoiceItems: Prisma.InvoiceItemCreateManyInput[];
   payments: Prisma.PaymentCreateManyInput[];
   invoiceSequence: Prisma.InvoiceSequenceCreateManyInput;
+  activities: Prisma.ActivityCreateManyInput[];
 };
 
 export const DEMO_TEAM = {
@@ -106,7 +107,7 @@ const CASES: CaseSeed[] = [
   { kind: "عمالية", title: "مطالبة بحقوق عمالية وفصل تعسفي", court: "محكمة صلح حقوق الكرك", client: 3, opponent: "مصنع الجنوب للإسمنت", clientIsPlaintiff: true, status: "IN_PROGRESS", fee: 1500, judge: "القاضي عامر الحباشنة", lead: "lawyer" },
   { kind: "مدنية", title: "فسخ عقد بيع شقة", court: "محكمة بداية حقوق إربد", client: 4, opponent: "معاذ وليد الشرع", clientIsPlaintiff: true, status: "OPEN", fee: 3000, judge: "القاضي رائد بني ياسين", lead: "admin" },
   { kind: "تجارية", title: "نزاع عقد مقاولة مشروع سكني", court: "محكمة بداية حقوق الزرقاء", client: 5, opponent: "شركة الأمل للإسكان", clientIsPlaintiff: false, status: "IN_PROGRESS", fee: 8000, judge: "القاضي لينا القيسي", lead: "admin" },
-  { kind: "جزائية", title: "إيذاء بسيط", court: "محكمة صلح جزاء المفرق", client: 6, opponent: "الحق العام", clientIsPlaintiff: false, status: "OPEN", fee: 700, judge: "القاضي حسن السرحان", lead: "lawyer" },
+  { kind: "جزائية", title: "إيذاء بسيط", court: "محكمة صلح جزاء المفرق", client: 6, opponent: "الحق العام", clientIsPlaintiff: false, status: "CLOSED", fee: 700, judge: "القاضي حسن السرحان", lead: "lawyer" },
   { kind: "مدنية", title: "دعوى نفقة وحضانة", court: "محكمة السلط الشرعية", client: 7, opponent: "ماجد أنور الحياري", clientIsPlaintiff: true, status: "IN_PROGRESS", fee: 1000, judge: "القاضي إبراهيم العربيات", lead: "lawyer" },
   { kind: "تجارية", title: "منع منافسة غير مشروعة وعلامة تجارية", court: "محكمة بداية حقوق عمّان", client: 8, opponent: "شركة الوادي للأغذية", clientIsPlaintiff: true, status: "OPEN", fee: 7000, judge: "القاضي سهى الفايز", lead: "admin" },
   { kind: "عمالية", title: "بدل ساعات عمل إضافية", court: "محكمة صلح حقوق عمّان", client: 9, opponent: "شركة المدار للاتصالات", clientIsPlaintiff: true, status: "CLOSED", fee: 1100, judge: "القاضي محمود الرواشدة", lead: "lawyer" },
@@ -118,7 +119,7 @@ const CASES: CaseSeed[] = [
   { kind: "جزائية", title: "استئناف حكم جنحة", court: "محكمة استئناف عمّان", client: 0, opponent: "الحق العام", clientIsPlaintiff: false, status: "IN_PROGRESS", fee: 1600, judge: "الهيئة الثالثة", lead: "admin" },
   { kind: "تجارية", title: "تمييز حكم مطالبة مالية", court: "محكمة التمييز", client: 2, opponent: "شركة الريان للتوزيع", clientIsPlaintiff: true, status: "OPEN", fee: 4000, judge: "الهيئة العامة", lead: "admin" },
   { kind: "جزائية", title: "دعوى جناية سرقة", court: "محكمة الجنايات الكبرى", client: 6, opponent: "الحق العام", clientIsPlaintiff: false, status: "IN_PROGRESS", fee: 3000, judge: "القاضي منذر العزام", lead: "lawyer" },
-  { kind: "مدنية", title: "إبطال قرار إداري", court: "المحكمة الإدارية", client: 9, opponent: "أمانة عمّان الكبرى", clientIsPlaintiff: true, status: "CLOSED", fee: 2200, judge: "القاضي سامر الدباس", lead: "admin" },
+  { kind: "مدنية", title: "إبطال قرار إداري", court: "المحكمة الإدارية", client: 9, opponent: "أمانة عمّان الكبرى", clientIsPlaintiff: true, status: "ARCHIVED", fee: 2200, judge: "القاضي سامر الدباس", lead: "admin" },
   { kind: "عمالية", title: "إصابة عمل", court: "محكمة صلح حقوق الزرقاء", client: 5, opponent: "عامل لدى المؤسسة", clientIsPlaintiff: false, status: "OPEN", fee: 900, judge: "القاضي لينا القيسي", lead: "lawyer" },
 ];
 
@@ -149,11 +150,11 @@ const TASKS: Array<{ title: string; when: "done" | "overdue" | "upcoming"; days:
 const DOCUMENTS: Array<{ name: string; case: number; size: number; tags: string[] }> = [
   { name: "لائحة دعوى.pdf", case: 0, size: 245_000, tags: ["لوائح"] },
   { name: "صورة الشيك.pdf", case: 1, size: 180_000, tags: ["بينات"] },
-  { name: "فواتير البضاعة.pdf", case: 2, size: 1_250_000, tags: ["بينات", "مالية"] },
-  { name: "عقد العمل.pdf", case: 3, size: 320_000, tags: ["عقود"] },
+  { name: "فواتير البضاعة.xlsx", case: 2, size: 1_250_000, tags: ["بينات", "مالية"] },
+  { name: "عقد العمل.docx", case: 3, size: 320_000, tags: ["عقود"] },
   { name: "عقد بيع الشقة.pdf", case: 4, size: 410_000, tags: ["عقود"] },
   { name: "عقد المقاولة.pdf", case: 5, size: 890_000, tags: ["عقود"] },
-  { name: "تقرير طبي.pdf", case: 6, size: 150_000, tags: ["بينات"] },
+  { name: "تقرير طبي.jpg", case: 6, size: 150_000, tags: ["بينات"] },
   { name: "شهادة تسجيل العلامة التجارية.pdf", case: 8, size: 210_000, tags: ["بينات"] },
   { name: "تقرير الخبرة الفنية.pdf", case: 10, size: 760_000, tags: ["خبرة"] },
   { name: "عقد الإيجار.pdf", case: 12, size: 290_000, tags: ["عقود"] },
@@ -161,8 +162,25 @@ const DOCUMENTS: Array<{ name: string; case: number; size: number; tags: string[
   { name: "وكالة عامة.pdf", case: 15, size: 120_000, tags: ["وكالات"] },
 ];
 
+const DOCUMENT_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  jpg: "image/jpeg",
+};
+
 // paid: 0 = unpaid, between = partial, total = paid. dueDays from now.
+// Spread over the last six months so the dashboard's finance chart and
+// receivables aging (0-30 … 90+ days) all have something to show.
 const INVOICES: Array<{ case: number; items: Array<[string, number]>; paid: number; issueDays: number; dueDays: number }> = [
+  { case: 2, items: [["أتعاب محاماة - استشارة وصياغة إنذار", 1200], ["رسوم كاتب عدل", 80]], paid: 1280, issueDays: -170, dueDays: -140 },
+  { case: 5, items: [["أتعاب محاماة - مرحلة التحكيم", 2800]], paid: 2800, issueDays: -150, dueDays: -120 },
+  { case: 11, items: [["أتعاب محاماة", 1500]], paid: 1500, issueDays: -132, dueDays: -102 },
+  { case: 15, items: [["أتعاب محاماة - مرحلة البداية", 1800]], paid: 900, issueDays: -112, dueDays: -82 },
+  { case: 13, items: [["أتعاب محاماة", 2400]], paid: 2400, issueDays: -96, dueDays: -66 },
+  { case: 7, items: [["أتعاب محاماة", 1200]], paid: 0, issueDays: -76, dueDays: -46 },
+  { case: 10, items: [["أتعاب محاماة - الدفعة الأولى", 2600]], paid: 2600, issueDays: -66, dueDays: -36 },
+  { case: 17, items: [["أتعاب محاماة", 1900]], paid: 1000, issueDays: -56, dueDays: -26 },
   { case: 2, items: [["أتعاب محاماة - الدفعة الأولى", 3000], ["مصاريف تبليغ ورسوم", 250]], paid: 3250, issueDays: -50, dueDays: -35 },
   { case: 5, items: [["أتعاب محاماة", 4000]], paid: 4000, issueDays: -45, dueDays: -30 },
   { case: 0, items: [["أتعاب محاماة", 900]], paid: 900, issueDays: -30, dueDays: -15 },
@@ -170,7 +188,7 @@ const INVOICES: Array<{ case: number; items: Array<[string, number]>; paid: numb
   { case: 8, items: [["أتعاب محاماة - الدفعة الأولى", 3500], ["رسوم تسجيل الدعوى", 300]], paid: 2000, issueDays: -25, dueDays: 5 },
   { case: 10, items: [["أتعاب محاماة", 2500]], paid: 1000, issueDays: -20, dueDays: 10 },
   { case: 12, items: [["أتعاب محاماة", 3500]], paid: 1500, issueDays: -15, dueDays: 15 },
-  { case: 4, items: [["أتعاب محاماة", 3000]], paid: 0, issueDays: -7, dueDays: 23 },
+  { case: 4, items: [["أتعاب محاماة", 3000]], paid: 1000, issueDays: -7, dueDays: 23 },
   { case: 16, items: [["أتعاب محاماة - تمييز", 4000]], paid: 0, issueDays: -3, dueDays: 27 },
   { case: 3, items: [["أتعاب محاماة", 750], ["مصاريف خبرة", 150]], paid: 0, issueDays: -40, dueDays: -10 },
 ];
@@ -183,6 +201,9 @@ function invoiceStatus(total: number, paid: number, due: Date, now: Date): Invoi
   return due.getTime() < now.getTime() ? "OVERDUE" : "UNPAID";
 }
 
+// Open cases left untouched for over 30 days (the dashboard flags them).
+const STALE_CASES = new Set([1, 7]);
+
 function caseNumber(index: number, year: number) {
   return `${1200 + index * 37}/${year}`;
 }
@@ -193,6 +214,7 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
   const year = today.year;
   const at = (days: number, hour = 10, minute = 0) =>
     today.plus({ days }).set({ hour, minute }).toJSDate();
+  const notAfterNow = (date: Date) => new Date(Math.min(date.getTime(), now.getTime()));
 
   const clients = CLIENTS.map((seed, index) => {
     const phone = demoPhone(index + 1);
@@ -235,6 +257,10 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
       status: seed.status,
       feeAgreed: seed.fee,
       createdAt: at(-55 + index * 2),
+      // Most were touched this week or last; STALE_CASES not for 30+ days.
+      updatedAt: STALE_CASES.has(index)
+        ? at(-42 + index)
+        : notAfterNow(at(Math.max(-55 + index * 2, -(index % 12)), 16)),
     } satisfies Prisma.CaseCreateManyInput;
   });
 
@@ -251,7 +277,7 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
   // Sessions and appointments over this month and next, in office hours.
   const monthStart = today.startOf("month");
   const span = Math.floor(monthStart.plus({ months: 2 }).diff(monthStart, "days").days) - 1;
-  const openCases = cases.filter((item) => item.status !== "CLOSED");
+  const openCases = cases.filter((item) => item.status === "OPEN" || item.status === "IN_PROGRESS");
   const appointments: Prisma.AppointmentCreateManyInput[] = [];
   const types: AppointmentType[] = [
     "COURT_SESSION", "COURT_SESSION", "MEETING", "COURT_SESSION", "PHONE_CALL",
@@ -294,6 +320,34 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
     });
   }
 
+  // A full week ahead: court sessions on every working day of the next
+  // seven, two on some, so the agenda and the "within 48 hours" alert
+  // always have something whatever day the sandbox is created.
+  for (let offset = 0; offset < 7; offset++) {
+    const day = today.plus({ days: offset });
+    if (day.weekday === 5 || day.weekday === 6) continue;
+
+    const hours = offset % 2 ? [9.5, 12] : [10];
+    hours.forEach((hour, slot) => {
+      const linked = openCases[(offset * 3 + slot * 5) % openCases.length];
+      const start = day.set({ hour: Math.floor(hour), minute: hour % 1 ? 30 : 0 });
+      appointments.push({
+        id: newId(),
+        tenantId,
+        caseId: linked.id,
+        clientId: linked.clientId,
+        assignedToId: linked.leadLawyerId,
+        createdById: users.admin,
+        title: SESSION_TITLES[(offset + slot) % SESSION_TITLES.length],
+        type: "COURT_SESSION",
+        status: start.toMillis() < now.getTime() ? "COMPLETED" : "SCHEDULED",
+        startTime: start.toJSDate(),
+        endTime: start.plus({ minutes: 60 }).toJSDate(),
+        location: linked.court,
+      });
+    });
+  }
+
   const tasks = TASKS.map((seed) => {
     const linked = seed.case === undefined ? null : cases[seed.case];
     const status: TaskStatus =
@@ -326,7 +380,7 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
       caseId: linked.id,
       clientId: linked.clientId,
       fileName: seed.name,
-      fileType: "application/pdf",
+      fileType: DOCUMENT_TYPES[seed.name.split(".").pop()!],
       fileUrl: "",
       fileSize: seed.size,
       publicId: null,
@@ -340,7 +394,8 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
   const invoiceItems: Prisma.InvoiceItemCreateManyInput[] = [];
   const payments: Prisma.PaymentCreateManyInput[] = [];
 
-  INVOICES.forEach((seed, index) => {
+  // Numbered in issue order, like real sequential invoices.
+  [...INVOICES].sort((a, b) => a.issueDays - b.issueDays).forEach((seed, index) => {
     const linked = cases[seed.case];
     const total = seed.items.reduce((sum, [, amount]) => sum + amount, 0);
     const paid = Math.min(seed.paid, total);
@@ -404,6 +459,49 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
     });
   });
 
+  // The activity log the office would have built up, in the same shape
+  // the API routes write (src/app/api/*: logActivity).
+  const caseById = new Map(cases.map((item) => [item.id, item]));
+  const invoiceById = new Map(invoices.map((item) => [item.id, item]));
+  const activities: Prisma.ActivityCreateManyInput[] = [];
+  const activity = (
+    row: Omit<Prisma.ActivityCreateManyInput, "id" | "tenantId" | "createdAt"> & { createdAt: Date },
+  ) => {
+    if (row.createdAt.getTime() <= now.getTime()) activities.push({ id: newId(), tenantId, ...row });
+  };
+
+  clients.forEach((client) =>
+    activity({ type: "CLIENT_CREATED", title: "تم إضافة موكل جديد", message: client.name, entityType: "CLIENT", entityId: client.id, actorId: users.admin, createdAt: client.createdAt as Date }),
+  );
+
+  cases.forEach((item) => {
+    activity({ type: "CASE_CREATED", title: "تم إنشاء قضية جديدة", message: item.title, entityType: "CASE", entityId: item.id, actorId: item.leadLawyerId, createdAt: item.createdAt as Date });
+    if ((item.updatedAt as Date).getTime() > (item.createdAt as Date).getTime()) {
+      activity({ type: "CASE_UPDATED", title: "تم تعديل قضية", message: item.title, entityType: "CASE", entityId: item.id, actorId: item.leadLawyerId, createdAt: item.updatedAt as Date });
+    }
+  });
+
+  documents.forEach((doc) => {
+    const linked = caseById.get(doc.caseId!)!;
+    activity({ type: "DOCUMENT_UPLOADED", title: "تم رفع مستند", message: `${doc.fileName} — ${linked.title}`, entityType: "CASE", entityId: linked.id, actorId: users.staff, createdAt: doc.createdAt as Date });
+  });
+
+  payments
+    .filter((payment) => payment.status === "PAID")
+    .forEach((payment) => {
+      const invoice = invoiceById.get(payment.invoiceId!)!;
+      activity({ type: "PAYMENT_CREATED", title: "تم تسجيل دفعة جديدة", message: `${payment.amount} - ${invoice.invoiceNumber}`, entityType: "CASE", entityId: payment.caseId, actorId: users.admin, createdAt: payment.paidAt as Date });
+    });
+
+  appointments
+    .filter((item) => item.status === "SCHEDULED" && item.type === "COURT_SESSION")
+    .slice(0, 6)
+    .forEach((item, index) => {
+      activity({ type: "APPOINTMENT_CREATED", title: "تم إضافة موعد", message: item.title, entityType: "CASE", entityId: item.caseId, actorId: users.lawyer, createdAt: notAfterNow(at(-(index + 1), 9 + index)) });
+    });
+
+  activities.sort((a, b) => (a.createdAt as Date).getTime() - (b.createdAt as Date).getTime());
+
   return {
     clients,
     cases,
@@ -415,5 +513,6 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
     invoiceItems,
     payments,
     invoiceSequence: { tenantId, year, nextNumber: INVOICES.length + 1 },
+    activities,
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import type { ComponentType } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -14,161 +14,92 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { VDSBadge, VDSCard, VDSIcon, VDSSectionHeader, VDSTimeline, VDSTimelineItem, type VDSTone } from "@/components/ui/vds";
+import { VDSBadge, vds, type VDSTone } from "@/components/ui/vds";
 import type { Locale } from "@/lib/i18n";
+import type { DashboardActivity } from "@/lib/dashboard/types";
+import DashboardCard, { CompactEmpty } from "./DashboardCard";
+import { SECURITY_ACTIVITY_TYPES, getActivityText, normalizeActivityType } from "./activity-text";
+import type { DashboardText } from "./dashboard-text";
+import { formatRelative } from "./format";
 
-export interface ActivityViewItem {
-  id: string;
-  icon: string;
-  color: string;
-  title: string;
-  message?: string;
-  createdAt: string;
-  href?: string;
-  isSecurity?: boolean;
+type Style = { icon: ComponentType<{ className?: string }>; tone: VDSTone };
+
+function activityStyle(type: string): Style {
+  if (SECURITY_ACTIVITY_TYPES.has(type)) return { icon: ShieldAlert, tone: "red" };
+  if (type === "LOGIN_SUCCESS") return { icon: LogIn, tone: "slate" };
+  if (type.startsWith("CASE_")) return { icon: BriefcaseBusiness, tone: "teal" };
+  if (type.startsWith("CLIENT_")) return { icon: UserRound, tone: "blue" };
+  if (type.startsWith("APPOINTMENT_")) return { icon: CalendarDays, tone: "gold" };
+  if (type.startsWith("PAYMENT_") || type.startsWith("INVOICE_")) return { icon: CircleDollarSign, tone: "emerald" };
+  if (type.startsWith("DOCUMENT_")) return { icon: FileText, tone: "cyan" };
+  if (type.startsWith("USER_")) return { icon: Users, tone: "blue" };
+  if (type.startsWith("AI_")) return { icon: Sparkles, tone: "purple" };
+  return { icon: Activity, tone: "slate" };
 }
 
 interface ActivityFeedProps {
-  activities: ActivityViewItem[];
-  isRtl: boolean;
+  activities: DashboardActivity[];
   locale: Locale;
-  labels: {
-    title: string;
-    subtitle: string;
-    viewAll: string;
-    empty: string;
-    security: string;
-  };
+  isRtl: boolean;
+  nowIso: string;
+  t: DashboardText;
 }
 
-function formatRelativeTime(date: string, locale: Locale, now: number) {
-  const elapsedSeconds = Math.round((new Date(date).getTime() - now) / 1000);
-  const formatter = new Intl.RelativeTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
-    numeric: "auto",
-  });
-
-  if (Math.abs(elapsedSeconds) < 60) return formatter.format(elapsedSeconds, "second");
-
-  const elapsedMinutes = Math.round(elapsedSeconds / 60);
-  if (Math.abs(elapsedMinutes) < 60) return formatter.format(elapsedMinutes, "minute");
-
-  const elapsedHours = Math.round(elapsedMinutes / 60);
-  if (Math.abs(elapsedHours) < 24) return formatter.format(elapsedHours, "hour");
-
-  return formatter.format(Math.round(elapsedHours / 24), "day");
-}
-
-function formatActivityDateTime(date: string, locale: Locale) {
-  return new Intl.DateTimeFormat(
-    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
-    {
-      timeZone: "Asia/Amman",
-      dateStyle: "medium",
-      timeStyle: "short",
-    },
-  ).format(new Date(date));
-}
-
-const ICON_MAP = {
-  "👤": UserRound,
-  "⚖️": BriefcaseBusiness,
-  "📅": CalendarDays,
-  "💰": CircleDollarSign,
-  "📄": FileText,
-  "👥": Users,
-  "✨": Sparkles,
-  "📝": FileText,
-  "📖": FileText,
-} as const;
-
-function resolveActivityIcon(activity: ActivityViewItem) {
-  if (activity.isSecurity) return ShieldAlert;
-  if (/login|دخول/i.test(activity.title)) return LogIn;
-  return ICON_MAP[activity.icon as keyof typeof ICON_MAP] ?? Activity;
-}
-
-function resolveTone(activity: ActivityViewItem): VDSTone {
-  if (activity.isSecurity) return "red";
-  if (activity.icon === "⚖️") return "teal";
-  if (["📄", "📝", "📖"].includes(activity.icon)) return "cyan";
-  if (activity.icon === "💰") return "gold";
-  if (activity.icon === "✨") return "purple";
-  if (activity.icon === "👥" || activity.icon === "👤") return "blue";
-  return "slate";
-}
-
-export default function ActivityFeed({ activities, isRtl, locale, labels }: ActivityFeedProps) {
-  const [now, setNow] = useState(0);
-
-  useEffect(() => {
-    const initialTimeout = window.setTimeout(() => setNow(Date.now()), 0);
-    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => {
-      window.clearTimeout(initialTimeout);
-      window.clearInterval(interval);
-    };
-  }, []);
-
+export default function ActivityFeed({ activities, locale, isRtl, nowIso, t }: ActivityFeedProps) {
   return (
-    <VDSCard className="overflow-hidden">
-      <VDSSectionHeader
-        title={labels.title}
-        subtitle={labels.subtitle}
-        href="/dashboard/activity"
-        linkLabel={labels.viewAll}
-        isRtl={isRtl}
-        icon={<Activity className="h-4 w-4" />}
-        tone="purple"
-      />
-
+    <DashboardCard
+      title={t.activity}
+      icon={<Activity className="h-4 w-4" />}
+      tone="purple"
+      isRtl={isRtl}
+      href="/dashboard/activity"
+      linkLabel={t.viewAll}
+    >
       {activities.length === 0 ? (
-        <div className="flex min-h-[132px] items-center justify-center rounded-[20px] border border-dashed p-5 text-center" style={{ borderColor: "var(--border)" }}>
-          <div>
-            <VDSIcon tone="purple" size="md"><Activity className="h-5 w-5" /></VDSIcon>
-            <p className="mt-3 text-sm font-black" style={{ color: "var(--text-2)" }}>{labels.empty}</p>
-          </div>
-        </div>
+        <CompactEmpty icon={<Activity className="h-6 w-6" />} title={t.activityEmpty} />
       ) : (
-        <VDSTimeline>
-          {activities.map((activity, index) => {
-            const Icon = resolveActivityIcon(activity);
-            const tone = resolveTone(activity);
+        <ul className="min-w-0 divide-y" style={{ borderColor: "var(--border)" }}>
+          {activities.map((activity) => {
+            const type = normalizeActivityType(activity);
+            const text = getActivityText(activity, locale);
+            const style = activityStyle(type);
+            const tone = vds.tone[style.tone];
+            const Icon = style.icon;
+            const isSecurity = SECURITY_ACTIVITY_TYPES.has(type);
+
             return (
-              <VDSTimelineItem key={activity.id} isLast={index === activities.length - 1}>
-                <Link
-                  href={activity.href ?? "/dashboard/activity"}
-                  className="group relative flex min-w-0 items-start gap-3 overflow-hidden rounded-[20px] border p-3.5 transition duration-200 hover:-translate-y-0.5"
-                  style={{
-                    borderColor: activity.isSecurity ? "rgba(239,68,68,.24)" : "var(--border)",
-                    background: activity.isSecurity ? "rgba(239,68,68,.04)" : "var(--card)",
-                  }}
+              <li key={activity.id} className="flex min-h-[48px] min-w-0 items-center gap-3 py-1.5" style={{ borderColor: "var(--border)" }}>
+                <span
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
+                  style={{ color: tone.fg, background: tone.soft, borderColor: tone.border }}
                 >
-                  <span className="absolute inset-y-3 w-1 rounded-full opacity-80" style={{ insetInlineStart: 0, background: activity.isSecurity ? "var(--danger)" : "var(--success)" }} />
-                  <VDSIcon tone={tone} size="lg"><Icon className="h-5 w-5" /></VDSIcon>
-                  <div className="min-w-0 flex-1 pt-0.5">
-                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <p className="line-clamp-2 text-sm font-black" style={{ color: "var(--text)" }}>{activity.title}</p>
-                          {activity.isSecurity && <VDSBadge tone="red"><ShieldAlert className="h-3 w-3" />{labels.security}</VDSBadge>}
-                        </div>
-                      </div>
-                      <time dateTime={activity.createdAt} title={formatActivityDateTime(activity.createdAt, locale)} className="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-bold" style={{ color: "var(--text-3)", background: "var(--green-soft)" }}>
-                        {formatRelativeTime(
-                          activity.createdAt,
-                          locale,
-                          now || new Date(activity.createdAt).getTime(),
-                        )}
-                      </time>
-                    </div>
-                    {activity.message && <p className="mt-1.5 line-clamp-2 text-xs leading-5" style={{ color: "var(--text-3)" }}>{activity.message}</p>}
-                  </div>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="flex min-w-0 items-center gap-2">
+                    <bdi className="truncate text-[13px] font-bold" style={{ color: "var(--text)" }}>{text.title}</bdi>
+                    {isSecurity && <VDSBadge tone="red" className="shrink-0">{t.security}</VDSBadge>}
+                  </p>
+                  {text.message && (
+                    <p className="truncate text-[11px]" style={{ color: "var(--text-3)" }}>
+                      <bdi>{text.message}</bdi>
+                    </p>
+                  )}
+                </div>
+                <Link
+                  href="/dashboard/activity"
+                  className="shrink-0 text-[11px] font-semibold hover:underline"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  <time dateTime={activity.createdAt}>
+                    <bdi>{formatRelative(activity.createdAt, nowIso, locale)}</bdi>
+                  </time>
                 </Link>
-              </VDSTimelineItem>
+              </li>
             );
           })}
-        </VDSTimeline>
+        </ul>
       )}
-    </VDSCard>
+    </DashboardCard>
   );
 }

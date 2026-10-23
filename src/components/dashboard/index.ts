@@ -1,15 +1,15 @@
 export { default as DashboardSkeleton } from "./DashboardSkeleton";
-export { default as EmptyState } from "./EmptyState";
-export { default as MetricCard } from "./MetricCard";
-export { default as SectionHeader } from "./SectionHeader";
-
-export { default as AttentionPanel } from "./AttentionPanel";
-export type { AttentionItem } from "./AttentionPanel";
-export { default as TodayAppointments } from "./TodayAppointments";
-export { default as UpcomingTasks } from "./UpcomingTasks";
-export { default as OfficeSummary } from "./OfficeSummary";
+export { default as DashboardCard, CompactEmpty } from "./DashboardCard";
 export { default as DashboardHeader } from "./DashboardHeader";
-export { default as RecentCases } from "./RecentCases";
-export { default as RecentDocuments } from "./RecentDocuments";
+export { default as KpiCard } from "./KpiCard";
+export { default as AttentionStrip } from "./AttentionStrip";
+export type { AttentionItem } from "./AttentionStrip";
+export { default as AgendaCard } from "./AgendaCard";
+export { default as TasksCard } from "./TasksCard";
+export { default as FinanceCard } from "./FinanceCard";
+export { default as CasesBreakdownCard } from "./CasesBreakdownCard";
+export { default as RecentCasesCard } from "./RecentCasesCard";
+export { default as RecentDocumentsCard } from "./RecentDocumentsCard";
 export { default as ActivityFeed } from "./ActivityFeed";
-export type { ActivityViewItem } from "./ActivityFeed";
+export { default as AccountCard } from "./AccountCard";
+export { default as DashboardView } from "./DashboardView";

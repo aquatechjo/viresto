@@ -151,3 +151,65 @@ test("documents are records only, never pointing at a stored file", () => {
     assert.equal(document.fileUrl, "");
   }
 });
+
+test("the dashboard has something in every section", () => {
+  const data = build();
+  const today = DateTime.fromJSDate(NOW).setZone(DEMO_ZONE).startOf("day");
+  const weekEnd = today.plus({ days: 7 }).toMillis();
+
+  // Court sessions spread over the next seven days, the next one soon
+  // (within 48 hours except across the Friday-Saturday weekend).
+  const upcomingSessions = data.appointments.filter(
+    (item) =>
+      item.type === "COURT_SESSION" &&
+      item.status === "SCHEDULED" &&
+      (item.startTime as Date).getTime() < weekEnd,
+  );
+  const sessionDays = new Set(
+    upcomingSessions.map((item) => DateTime.fromJSDate(item.startTime as Date).setZone(DEMO_ZONE).toISODate()),
+  );
+  assert.ok(sessionDays.size >= 4, `${sessionDays.size} days with sessions`);
+  assert.ok(
+    upcomingSessions.some((item) => (item.startTime as Date).getTime() < NOW.getTime() + 72 * 3600 * 1000),
+  );
+
+  // Invoices and payments over the last six months.
+  const months = (dates: Date[]) =>
+    new Set(dates.map((date) => DateTime.fromJSDate(date).setZone(DEMO_ZONE).toFormat("yyyy-MM")));
+  assert.ok(months(data.invoices.map((item) => item.issueDate as Date)).size >= 6);
+  assert.ok(months(data.payments.filter((item) => item.paidAt).map((item) => item.paidAt as Date)).size >= 5);
+
+  // Every case status, and open cases idle for 30+ days.
+  const statuses = new Set(data.cases.map((item) => item.status));
+  for (const status of ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"]) {
+    assert.ok(statuses.has(status as never), status);
+  }
+  const staleBefore = NOW.getTime() - 30 * 24 * 3600 * 1000;
+  assert.ok(
+    data.cases.some(
+      (item) =>
+        (item.status === "OPEN" || item.status === "IN_PROGRESS") &&
+        (item.updatedAt as Date).getTime() < staleBefore,
+    ),
+  );
+  for (const item of data.cases) {
+    assert.ok((item.updatedAt as Date).getTime() <= NOW.getTime(), item.title);
+    assert.ok((item.updatedAt as Date).getTime() >= (item.createdAt as Date).getTime(), item.title);
+  }
+
+  // More than one kind of document.
+  assert.ok(new Set(data.documents.map((item) => item.fileType)).size >= 3);
+});
+
+test("the activity log is the office's own history, none of it in the future", () => {
+  const data = build();
+
+  assert.ok(data.activities.length >= 20);
+  for (const type of ["CLIENT_CREATED", "CASE_CREATED", "DOCUMENT_UPLOADED", "PAYMENT_CREATED"]) {
+    assert.ok(data.activities.some((item) => item.type === type), type);
+  }
+  for (const item of data.activities) {
+    assert.equal(item.tenantId, "demo-tenant");
+    assert.ok((item.createdAt as Date).getTime() <= NOW.getTime(), item.type);
+  }
+});
