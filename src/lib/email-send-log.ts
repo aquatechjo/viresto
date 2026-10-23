@@ -11,7 +11,7 @@ import { EmailDeliveryError } from "@/lib/email/errors";
 //   [EMAIL_SEND] flow=forgot-password outcome=sent message_id=4ef9…
 //   [EMAIL_SEND] flow=forgot-password outcome=error error=EmailDeliveryError status=422
 
-export type EmailFlow = "forgot-password" | "email-change-completed";
+export type EmailFlow = "forgot-password" | "email-change-completed" | "welcome";
 
 export type EmailOutcome =
   | "sent"

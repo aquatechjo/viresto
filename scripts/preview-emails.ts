@@ -21,6 +21,7 @@ import { renderEmailChangeCodeEmail } from "../src/lib/email/email-change-code-e
 import { renderEmailChangeCompletedEmail } from "../src/lib/email/email-change-completed-email";
 import { renderTeamInvitationEmail } from "../src/lib/email/team-invitation-email";
 import { renderOfficeDeletionRequestEmail } from "../src/lib/email/office-deletion-request-email";
+import { renderWelcomeEmail } from "../src/lib/email/welcome-email";
 
 const args = process.argv.slice(2);
 const code = args.find((arg) => !arg.startsWith("--")) ?? "642332";
@@ -71,6 +72,12 @@ const emails: Record<string, RenderedEmail> = {
     requestedByEmail: "lawyer@example.com",
     reason: "أغلقنا المكتب وننقل الملفات لنظام آخر.",
     requestedAt: changedAt,
+    appUrl,
+  }),
+  "welcome": renderWelcomeEmail({
+    userName: "محمد العبادي",
+    officeName: "مكتب العبادي للمحاماة",
+    trialEndsAt: new Date("2026-11-03T09:15:00Z"),
     appUrl,
   }),
 };

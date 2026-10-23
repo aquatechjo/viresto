@@ -1,6 +1,12 @@
 import { externalFetch } from "@/lib/external-fetch";
 import { COMPANY_CONTACT } from "@/config/contact";
-import { isDemoEmail } from "@/lib/demo/constants";
+import {
+  getAppName,
+  getAppUrl,
+  getEmailFrom,
+  getEmailReplyTo,
+  isDemoRecipient,
+} from "@/lib/email/config";
 import { renderVerificationEmail } from "@/lib/email/verification-email";
 import { renderPasswordResetEmail } from "@/lib/email/password-reset-email";
 import { renderEmailChangeCodeEmail } from "@/lib/email/email-change-code-email";
@@ -16,25 +22,6 @@ type SendVerificationEmailInput = {
   to: string;
   code: string;
 };
-
-// Demo-mode sandbox users (src/lib/demo) have undeliverable addresses, and
-// their routes that send email are blocked in api-auth.ts. This is the
-// last line: nothing addressed to them ever reaches Resend.
-function isDemoRecipient(to: string | string[]) {
-  return (Array.isArray(to) ? to : [to]).some(isDemoEmail);
-}
-
-function getAppName() {
-  return process.env.APP_NAME || "Viresto";
-}
-
-function getEmailFrom() {
-  return process.env.EMAIL_FROM || "Viresto <onboarding@resend.dev>";
-}
-
-function getEmailReplyTo() {
-  return process.env.EMAIL_REPLY_TO?.trim() || COMPANY_CONTACT.supportEmail;
-}
 
 export async function sendVerificationEmail({
   to,
@@ -269,14 +256,6 @@ type SendTeamInvitationEmailInput = {
   inviterName: string;
   token: string;
 };
-
-function getAppUrl() {
-  return (
-    process.env.APP_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "https://www.virestojo.com"
-  ).replace(/\/$/, "");
-}
 
 export async function sendTeamInvitationEmail({
   to,

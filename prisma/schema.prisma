@@ -27,6 +27,10 @@ model Tenant {
   // BASIC, PRO or BUSINESS. The trial itself always runs on Pro limits;
   // this only preselects the plan on the subscribe page.
   signupPlanCode         String?
+  // When the welcome email (Resend template) was claimed for this office,
+  // on its founder's first email verification. Set before sending, so it
+  // goes out at most once; reset to null if the send fails.
+  welcomeEmailSentAt     DateTime?
   address                String?
   email                  String?
   logoUrl                String?

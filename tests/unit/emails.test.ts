@@ -7,6 +7,7 @@ import { renderEmailChangeCompletedEmail } from "../../src/lib/email/email-chang
 import { renderTeamInvitationEmail } from "../../src/lib/email/team-invitation-email";
 import { renderOfficeDeletionRequestEmail } from "../../src/lib/email/office-deletion-request-email";
 import { renderVerificationEmail } from "../../src/lib/email/verification-email";
+import { renderWelcomeEmail } from "../../src/lib/email/welcome-email";
 import {
   EMAIL_CHANGE_CODE_TTL_MINUTES,
   PASSWORD_RESET_CODE_TTL_MINUTES,
@@ -38,6 +39,9 @@ const all: Array<[string, RenderedEmail]> = [
   ["office deletion request", renderOfficeDeletionRequestEmail({
     officeName: "مكتب العبادي", officeSlug: "alabbadi", tenantId: "t1",
     requestedByName: "محمد", requestedByEmail: "m@example.com", reason: "إغلاق", requestedAt: WHEN, appUrl: APP,
+  })],
+  ["welcome", renderWelcomeEmail({
+    userName: "أحمد", officeName: "مكتب العبادي", trialEndsAt: WHEN, appUrl: APP,
   })],
 ];
 
@@ -143,6 +147,7 @@ test("values from users are escaped in every email", () => {
     renderOfficeDeletionRequestEmail({
       officeName: evil, officeSlug: evil, tenantId: evil, requestedByName: evil, requestedByEmail: evil, reason: evil,
     }).html,
+    renderWelcomeEmail({ userName: evil, officeName: evil, trialEndsAt: WHEN }).html,
   ];
 
   for (const html of htmls) {

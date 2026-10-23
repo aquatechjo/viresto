@@ -10,6 +10,8 @@ import { signToken, buildCookie } from "@/lib/auth";
 import { getLocationFromHeaders } from "@/lib/geo";
 import { logActivity } from "@/lib/log-activity";
 import { getClientIp } from "@/lib/client-ip";
+import { runAfterResponse } from "@/lib/after-response";
+import { sendWelcomeEmailAfterVerification } from "@/lib/welcome-email";
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -121,6 +123,17 @@ export async function POST(req: NextRequest) {
         emailVerifiedAt: new Date(),
       },
     });
+
+    // First verification: the office founder gets the welcome email (once
+    // per office). After the response, and it never fails the request.
+    const verifiedUserId = user.id;
+    const verifiedTenantId = user.tenantId;
+    await runAfterResponse(() =>
+      sendWelcomeEmailAfterVerification({
+        userId: verifiedUserId,
+        tenantId: verifiedTenantId,
+      }),
+    );
 
     if (user.twoFactorEnabled) {
       return NextResponse.json({
