@@ -124,6 +124,7 @@ const COPY = {
       CASE_DELETED: "حذف قضية",
       APPOINTMENT_CREATED: "إضافة موعد",
       APPOINTMENT_UPDATED: "تعديل موعد",
+      APPOINTMENT_RESCHEDULED: "تغيير وقت موعد",
       APPOINTMENT_DELETED: "حذف موعد",
       TASK_CREATED: "إضافة مهمة",
       TASK_COMPLETED: "إنجاز مهمة",
@@ -253,6 +254,7 @@ const COPY = {
       CASE_DELETED: "Case deleted",
       APPOINTMENT_CREATED: "Appointment created",
       APPOINTMENT_UPDATED: "Appointment updated",
+      APPOINTMENT_RESCHEDULED: "Appointment time changed",
       APPOINTMENT_DELETED: "Appointment deleted",
       TASK_CREATED: "Task created",
       TASK_COMPLETED: "Task completed",
@@ -330,6 +332,7 @@ const RAW_ACTIVITY_ALIASES: Record<string, keyof typeof COPY.ar.activities> = {
   "انشاء موعد": "APPOINTMENT_CREATED",
   "إنشاء موعد": "APPOINTMENT_CREATED",
   "تعديل موعد": "APPOINTMENT_UPDATED",
+  "تغيير وقت موعد": "APPOINTMENT_RESCHEDULED",
   "حذف موعد": "APPOINTMENT_DELETED",
 
   "إضافة مهمة": "TASK_CREATED",

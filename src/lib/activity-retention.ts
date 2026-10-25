@@ -2,9 +2,10 @@ import type { Prisma } from "@prisma/client";
 
 // Activity log retention (pruned daily by /api/cron/prune-activity).
 //
-// "audit" events are kept for a year: deletions and archiving, money
-// (invoices, payments), billing, system-admin actions, team and role
-// changes, AI data-consent changes, and account/auth security events.
+// "audit" events are kept for a year: deletions and archiving, appointment
+// time changes, money (invoices, payments), billing, system-admin actions,
+// team and role changes, AI data-consent changes, and account/auth
+// security events.
 // Everything else (routine creates/edits, views, AI usage) for 30 days.
 //
 // Every name below is emitted somewhere in src/ (enforced by
@@ -27,6 +28,9 @@ export const AUDIT_ACTIVITY_TYPES = [
   "DOCUMENT_DELETED",
   "TASK_DELETED",
   "APPOINTMENT_DELETED",
+
+  // Appointment time changes (old and new time in Amman)
+  "APPOINTMENT_RESCHEDULED",
 
   // Money
   "INVOICE_CREATED",

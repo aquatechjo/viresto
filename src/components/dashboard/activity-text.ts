@@ -28,6 +28,7 @@ const ACTIVITY_TEXT: Record<
 
     APPOINTMENT_CREATED: { title: "تم إنشاء موعد جديد" },
     APPOINTMENT_UPDATED: { title: "تم تعديل موعد" },
+    APPOINTMENT_RESCHEDULED: { title: "تم تغيير وقت موعد" },
     APPOINTMENT_DELETED: { title: "تم حذف موعد" },
 
     PAYMENT_CREATED: { title: "تم تسجيل دفعة جديدة" },
@@ -69,6 +70,7 @@ const ACTIVITY_TEXT: Record<
 
     APPOINTMENT_CREATED: { title: "New appointment created" },
     APPOINTMENT_UPDATED: { title: "Appointment updated" },
+    APPOINTMENT_RESCHEDULED: { title: "Appointment time changed" },
     APPOINTMENT_DELETED: { title: "Appointment deleted" },
 
     PAYMENT_CREATED: { title: "New payment recorded" },
@@ -100,6 +102,9 @@ function containsAny(source: string, patterns: string[]) {
 export function normalizeActivityType(activity: ActivityLike) {
   const source = `${activity.type ?? ""} ${activity.title ?? ""} ${activity.message ?? ""}`;
   const normalized = source.toLowerCase();
+
+  // Its message quotes the appointment title, which may contain any keyword.
+  if (activity.type === "APPOINTMENT_RESCHEDULED") return "APPOINTMENT_RESCHEDULED";
 
   if (
     containsAny(source, ["LOGIN_SUCCESS", "تم تسجيل الدخول بنجاح"]) ||

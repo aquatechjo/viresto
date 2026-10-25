@@ -5,6 +5,7 @@ import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { requireRole, getRequestMeta } from "@/lib/api-auth";
 import { logActivity } from "@/lib/activity";
+import { formatSlot } from "@/lib/datetime";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import {
@@ -341,9 +342,35 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
     });
 
+    const timeChanged =
+      updated.startTime.getTime() !== exists.startTime.getTime() ||
+      (updated.endTime?.getTime() ?? null) !==
+        (exists.endTime?.getTime() ?? null);
+
+    // Its own row on the appointment, for every appointment, with both
+    // times in Amman: the record we lacked when checking old drags.
+    if (timeChanged) {
+      await logActivity({
+        actorId: auth.user.userId,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+        tenantId: auth.user.tenantId,
+        type: "APPOINTMENT_RESCHEDULED",
+        title: "تم تغيير وقت موعد",
+        message: `${updated.title}: من ${formatSlot(exists.startTime, exists.endTime, "ar")} إلى ${formatSlot(updated.startTime, updated.endTime, "ar")}`,
+        entityType: "APPOINTMENT",
+        entityId: updated.id,
+      });
+    }
+
+    const onlyTimeSent = Object.keys(parsed.data).every(
+      (key) => key === "startTime" || key === "endTime",
+    );
     const activityCaseId = updated.caseId || exists.caseId;
 
-    if (activityCaseId) {
+    // A drag in the calendar is already logged above; the generic case row
+    // is for every other edit.
+    if (activityCaseId && !(timeChanged && onlyTimeSent)) {
       await logActivity({
         actorId: auth.user.userId,
         ipAddress: meta.ipAddress,

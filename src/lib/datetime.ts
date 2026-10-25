@@ -89,6 +89,20 @@ export function formatTimeRange(
   }).formatRange(startDate, endDate);
 }
 
+/** "25 تشرين الأول 2026، 10:00–11:00 ص": one appointment slot, for logs. */
+export function formatSlot(
+  start: DateInput,
+  end: DateInput | null | undefined,
+  locale: Locale,
+) {
+  if (end && toDateKey(end) !== toDateKey(start)) {
+    return `${formatDateTime(start, locale)} – ${formatDateTime(end, locale)}`;
+  }
+
+  const separator = locale === "ar" ? "، " : ", ";
+  return `${formatDate(start, locale)}${separator}${formatTimeRange(start, end, locale)}`;
+}
+
 /** "yyyy-MM-dd" of the Amman calendar day, for grouping. */
 export function toDateKey(value: DateInput) {
   const date = toDate(value);
