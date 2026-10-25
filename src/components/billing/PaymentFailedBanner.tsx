@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { useTenantAccessSummary } from "@/hooks/useTenantAccessSummary";
 import { useLocale } from "@/lib/useLocale";
+import { formatInZone } from "@/lib/datetime";
 
 // Red, dashboard-wide: a renewal charge failed (Polar past_due). The office
 // keeps full access while Polar retries, until Polar cancels the
@@ -20,10 +21,10 @@ export default function PaymentFailedBanner() {
   if (!access?.paymentFailed) return null;
 
   const locksOn = access.pastDueLocksAt
-    ? new Intl.DateTimeFormat(isArabic ? "ar-JO-u-nu-latn" : "en-US", {
+    ? formatInZone(access.pastDueLocksAt, isArabic ? "ar" : "en", {
         month: "long",
         day: "numeric",
-      }).format(new Date(access.pastDueLocksAt))
+      })
     : null;
 
   const title = isArabic

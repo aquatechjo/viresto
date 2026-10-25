@@ -16,6 +16,7 @@ import {
   printInvoiceDocument,
   safeInvoiceFilename,
 } from "@/lib/invoice-print";
+import { formatInZone } from "@/lib/datetime";
 
 type InvoiceStatus =
   | "DRAFT"
@@ -485,11 +486,11 @@ function formatInvoiceDate(value: string | null | undefined, locale: Locale) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "-";
 
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
+  return formatInZone(parsed, locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(parsed);
+  });
 }
 
 function extractClientPhone(data: unknown) {

@@ -16,6 +16,7 @@ import { useLocale } from '@/lib/useLocale'
 import { useConfirm, usePrompt } from '@/components/ui/DialogProvider'
 import { formatJOD, parseAmount, roundJod } from "@/lib/money"
 import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput"
+import { formatInZone } from '@/lib/datetime'
 
 const DateTimePicker = dynamic(
   () => import('@/components/ui/DateTimePicker'),
@@ -421,11 +422,11 @@ function formatPaymentDate(value: string | null | undefined, locale: Locale) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
 
-  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
+  return formatInZone(date, locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  }).format(date)
+  })
 }
 
 function methodLabel(method: string | null | undefined, locale: Locale) {

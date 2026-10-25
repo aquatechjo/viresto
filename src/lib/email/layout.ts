@@ -4,6 +4,8 @@
 // ومنه قطع جاهزة: العنوان، صندوق الرمز، الزر، جدول البيانات.
 // للمعاينة محليًا: `npm run email:preview` (scripts/preview-emails.ts).
 
+import { formatInZone } from "@/lib/datetime";
+
 // ألوان هوية Viresto (src/app/globals.css، نفس ألوان اللاندنج الداكنة).
 // التباين (WCAG): text على card 14.8:1، muted على card 6.1:1 وعلى page 7.2:1،
 // وحدود accent 4.1:1 على card و5.2:1 على codeBg، ونص الزر (page) على accent 4.8:1.
@@ -236,9 +238,5 @@ export function ltr(html: string) {
 
 /** وقت الحدث بتوقيت عمّان، بأرقام لاتينية. */
 export function formatAmmanTime(date: Date) {
-  return `${new Intl.DateTimeFormat("ar-JO-u-nu-latn", {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: "Asia/Amman",
-  }).format(date)} (بتوقيت عمّان)`;
+  return `${formatInZone(date, "ar", { dateStyle: "long", timeStyle: "short" })} (بتوقيت عمّان)`;
 }

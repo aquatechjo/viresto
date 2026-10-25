@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { formatJOD } from "@/lib/money";
+import { formatInZone } from "@/lib/datetime";
 
 export type InvoiceLocale = "ar" | "en";
 
@@ -217,11 +218,11 @@ function date(value: string | Date | null | undefined, locale: InvoiceLocale) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "-";
 
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
+  return formatInZone(parsed, locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(parsed);
+  });
 }
 
 function escapeHtml(value: unknown) {

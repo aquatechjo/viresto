@@ -16,6 +16,7 @@ import AppLoader from "@/components/ui/AppLoader";
 import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { formatJOD } from "@/lib/money";
+import { formatInZone } from "@/lib/datetime";
 interface ClientCase {
   id: string;
   publicId?: number;
@@ -302,11 +303,11 @@ function formatClientDate(value: string, localeKey: "ar" | "en") {
 
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat(localeKey === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
+  return formatInZone(date, localeKey, {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(date);
+  });
 }
 
 export default function ClientDetailPage() {

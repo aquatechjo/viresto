@@ -3,6 +3,7 @@
 import type { PlanCode } from "@/config/plans";
 import type { TenantAccessSummary } from "@/lib/tenant-write-access-cache";
 import { trialLimitsNote } from "@/lib/trial-copy";
+import { formatInZone } from "@/lib/datetime";
 
 interface TrialStatusCardProps {
   access: TenantAccessSummary | null | undefined;
@@ -16,11 +17,11 @@ interface TrialStatusCardProps {
 function formatTrialDate(value: string | null, isArabic: boolean) {
   if (!value) return "";
 
-  return new Intl.DateTimeFormat(isArabic ? "ar-JO-u-nu-latn" : "en-US", {
+  return formatInZone(value, isArabic ? "ar" : "en", {
     year: "numeric",
     month: "long",
     day: "numeric",
-  }).format(new Date(value));
+  });
 }
 
 export function daysPhrase(days: number, isArabic: boolean) {

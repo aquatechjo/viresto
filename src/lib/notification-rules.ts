@@ -5,6 +5,7 @@ import {
   createNotificationsBatch,
   type BatchNotificationInput,
 } from "@/lib/notifications";
+import { formatDateTime } from "@/lib/datetime";
 
 const APPOINTMENT_SOON_HOURS = 24;
 const TASK_SOON_HOURS = 24;
@@ -70,14 +71,6 @@ function formatRemainingTime(targetDate: Date, fromDate: Date) {
     ar: arParts.join(" و"),
     en: enParts.join(" and "),
   };
-}
-
-function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("ar-JO-u-nu-latn", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Amman",
-  }).format(value);
 }
 
 type MonetaryValue = number | string | { toString(): string };
@@ -342,8 +335,8 @@ export async function generateImportantNotifications(tenantId: string) {
         type: NotificationType.APPOINTMENT,
         titleAr: "موعد قريب",
         titleEn: "Upcoming appointment",
-        messageAr: `الموعد ${appointment.title}${context} متبقٍ عليه ${remaining.ar}. الوقت: ${formatDate(appointment.startTime)}.`,
-        messageEn: `The appointment ${appointment.title} is due in ${remaining.en}. Time: ${appointment.startTime.toISOString()}.`,
+        messageAr: `الموعد ${appointment.title}${context} متبقٍ عليه ${remaining.ar}. الوقت: ${formatDateTime(appointment.startTime, "ar")}.`,
+        messageEn: `The appointment ${appointment.title} is due in ${remaining.en}. Time: ${formatDateTime(appointment.startTime, "en")}.`,
         href: "/dashboard/appointments",
       },
     );
@@ -359,8 +352,8 @@ export async function generateImportantNotifications(tenantId: string) {
         type: NotificationType.APPOINTMENT,
         titleAr: "موعد متأخر",
         titleEn: "Overdue appointment",
-        messageAr: `الموعد ${appointment.title} أصبح متأخرًا ويحتاج متابعة. كان موعده: ${formatDate(appointment.startTime)}.`,
-        messageEn: `The appointment ${appointment.title} is overdue and needs follow-up. Scheduled time: ${appointment.startTime.toISOString()}.`,
+        messageAr: `الموعد ${appointment.title} أصبح متأخرًا ويحتاج متابعة. كان موعده: ${formatDateTime(appointment.startTime, "ar")}.`,
+        messageEn: `The appointment ${appointment.title} is overdue and needs follow-up. Scheduled time: ${formatDateTime(appointment.startTime, "en")}.`,
         href: "/dashboard/appointments",
       },
     );
@@ -379,8 +372,8 @@ export async function generateImportantNotifications(tenantId: string) {
         type: NotificationType.TASK,
         titleAr: "مهمة تستحق قريبًا",
         titleEn: "Task due soon",
-        messageAr: `المهمة ${task.title} متبقٍ على استحقاقها ${remaining.ar}. الموعد: ${formatDate(task.dueDate)}.`,
-        messageEn: `The task ${task.title} is due in ${remaining.en}. Due: ${task.dueDate.toISOString()}.`,
+        messageAr: `المهمة ${task.title} متبقٍ على استحقاقها ${remaining.ar}. الموعد: ${formatDateTime(task.dueDate, "ar")}.`,
+        messageEn: `The task ${task.title} is due in ${remaining.en}. Due: ${formatDateTime(task.dueDate, "en")}.`,
         href: "/dashboard/tasks",
       },
     );
@@ -398,8 +391,8 @@ export async function generateImportantNotifications(tenantId: string) {
         type: NotificationType.TASK,
         titleAr: "مهمة متأخرة",
         titleEn: "Overdue task",
-        messageAr: `المهمة ${task.title} متأخرة وتحتاج متابعة. موعدها: ${formatDate(task.dueDate)}.`,
-        messageEn: `The task ${task.title} is overdue and needs follow-up. Due: ${task.dueDate.toISOString()}.`,
+        messageAr: `المهمة ${task.title} متأخرة وتحتاج متابعة. موعدها: ${formatDateTime(task.dueDate, "ar")}.`,
+        messageEn: `The task ${task.title} is overdue and needs follow-up. Due: ${formatDateTime(task.dueDate, "en")}.`,
         href: "/dashboard/tasks",
       },
     );

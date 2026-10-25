@@ -22,6 +22,7 @@ import {
 import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
+import { formatInZone } from "@/lib/datetime";
 type Locale = "ar" | "en";
 
 interface ActivityItem {
@@ -642,18 +643,16 @@ function formatDateTime(value: string, locale: Locale) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return { date: "-", time: "-" };
 
-  const formatterLocale = locale === "ar" ? "ar-JO-u-nu-latn" : "en-US";
-
   return {
-    date: new Intl.DateTimeFormat(formatterLocale, {
+    date: formatInZone(date, locale, {
       year: "numeric",
       month: "short",
       day: "numeric",
-    }).format(date),
-    time: new Intl.DateTimeFormat(formatterLocale, {
+    }),
+    time: formatInZone(date, locale, {
       hour: "numeric",
       minute: "2-digit",
-    }).format(date),
+    }),
   };
 }
 

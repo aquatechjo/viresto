@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
 import { useLocale } from "@/lib/useLocale";
 import { startNavigationFeedback } from "@/lib/navigation-feedback";
+import { formatInZone } from "@/lib/datetime";
 
 type NotificationItem = {
   id: string;
@@ -34,16 +35,12 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 function formatDate(value: string, locale: "ar" | "en") {
-  try {
-    return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(value));
-  } catch {
-    return "";
-  }
+  return formatInZone(value, locale, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function NotificationBell() {

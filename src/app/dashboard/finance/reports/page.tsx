@@ -9,6 +9,7 @@ import { useLocale } from '@/lib/useLocale'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 import { formatJOD } from "@/lib/money";
+import { formatInZone, NUMERIC_DATE } from '@/lib/datetime'
 
 const REPORT_COPY = {
   ar: {
@@ -292,7 +293,7 @@ function formatDate(value: string | Date | null | undefined, locale: Locale) {
 
   if (Number.isNaN(date.getTime())) return '-'
 
-  return date.toLocaleDateString(locale === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US')
+  return formatInZone(date, locale, NUMERIC_DATE)
 }
 
 function paymentStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {

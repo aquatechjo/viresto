@@ -9,6 +9,7 @@ import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import { translations } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
+import { formatInZone } from "@/lib/datetime";
 
 const TITLE_KEYS: Record<string, keyof typeof translations.ar.dashboard> = {
   "/dashboard": "title",
@@ -58,20 +59,13 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
   const [dateStr, setDateStr] = useState("");
 
   useEffect(() => {
-    const formatter =
-      locale === "ar"
-        ? new Intl.DateTimeFormat("ar-JO-u-nu-latn", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })
-        : new Intl.DateTimeFormat("en-US", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          });
-
-    setDateStr(formatter.format(new Date()));
+    setDateStr(
+      formatInZone(new Date(), locale, {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    );
   }, [locale]);
 
   return (

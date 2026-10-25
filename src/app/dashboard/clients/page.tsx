@@ -15,6 +15,7 @@ import {
   planLimitMessage,
 } from "@/lib/plan-ui";
 import { useFormDraft } from "@/lib/useFormDraft";
+import { formatInZone, NUMERIC_DATE } from "@/lib/datetime";
 
 interface Client {
   id: string;
@@ -235,9 +236,7 @@ interface CreateClientModalProps {
 }
 
 function formatDate(date: string, locale: LocaleKey) {
-  return new Date(date).toLocaleDateString(
-    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
-  );
+  return formatInZone(date, locale, NUMERIC_DATE);
 }
 
 function cleanValue(value: string) {

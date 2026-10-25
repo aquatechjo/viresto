@@ -14,6 +14,7 @@ import {
   APP_TIME_ZONE,
   formatDate as formatApptDate,
   formatTime as formatApptTime,
+  formatInZone,
   zonedInputToUtcIso,
 } from "@/lib/datetime";
 import { useLocale } from "@/lib/useLocale";
@@ -255,11 +256,11 @@ function activityDate(value: string, isArabic: boolean) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat(isArabic ? "ar-JO-u-nu-latn" : "en-US", {
+  return formatInZone(date, isArabic ? "ar" : "en", {
     year: "numeric",
     month: "long",
     day: "numeric",
-  }).format(date);
+  });
 }
 
 const DOCUMENT_TAGS = ["عقد", "قضية", "هوية", "حكم", "إثبات", "لائحة", "مالية"];
@@ -335,11 +336,11 @@ function displayDate(value?: string | null, isArabic = true) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
 
-  return new Intl.DateTimeFormat(isArabic ? "ar-JO-u-nu-latn" : "en-US", {
+  return formatInZone(date, isArabic ? "ar" : "en", {
     year: "numeric",
     month: "long",
     day: "numeric",
-  }).format(date);
+  });
 }
 
 export default function CaseDetailPage() {

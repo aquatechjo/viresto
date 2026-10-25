@@ -7,6 +7,7 @@ import { currencyMinorUnits } from "@/config/plans";
 import { formatJOD, formatUSD } from "@/lib/money";
 import { usePrompt } from "@/components/ui/DialogProvider";
 import { useLocale } from "@/lib/useLocale";
+import { formatInZone } from "@/lib/datetime";
 
 type PlanOption = {
   id: string;
@@ -69,11 +70,11 @@ const statusClasses: Record<string, string> = {
 function formatDate(value?: string | null) {
   if (!value) return "-";
 
-  return new Intl.DateTimeFormat("ar-JO-u-nu-latn", {
+  return formatInZone(value, "ar", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(new Date(value));
+  });
 }
 
 function formatMoney(value: number, currency: string) {

@@ -1,10 +1,11 @@
 import { DateTime } from "luxon";
 import type { Locale } from "@/lib/i18n";
 
-// Appointment dates and times. The database stores UTC (Prisma DateTime);
-// what users type and read is Asia/Amman wall-clock time. Every display goes
-// through the formatters below; components never call getHours,
-// toISOString or toLocaleTimeString to show a time.
+// Dates and times shown to people. The database stores UTC (Prisma
+// DateTime); what users type and read is Asia/Amman wall-clock time, in the
+// browser, on the server (emails, notifications) and in PDFs. Every display
+// goes through the formatters below; nothing calls getHours, toISOString,
+// toLocale*String or a bare Intl.DateTimeFormat to show a date.
 
 export const APP_TIME_ZONE = "Asia/Amman";
 
@@ -19,6 +20,31 @@ function intlLocale(locale: Locale) {
   return locale === "ar" ? "ar-JO-u-nu-latn" : "en-US";
 }
 
+/**
+ * Any other date format, still in Amman. For page-specific formats; prefer
+ * formatDate / formatTime / formatDateTime when one fits.
+ */
+export function formatInZone(
+  value: DateInput,
+  locale: Locale,
+  options: Intl.DateTimeFormatOptions,
+) {
+  const date = toDate(value);
+  if (!date) return "-";
+
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    ...options,
+    timeZone: APP_TIME_ZONE,
+  }).format(date);
+}
+
+/** toLocaleDateString's default look ("25‏/10‏/2026"), in Amman. */
+export const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+};
+
 const TIME_OPTIONS: Intl.DateTimeFormatOptions = {
   hour: "numeric",
   minute: "2-digit",
@@ -27,13 +53,7 @@ const TIME_OPTIONS: Intl.DateTimeFormatOptions = {
 
 /** "10:00 ص" / "10:00 AM", in Amman time. */
 export function formatTime(value: DateInput, locale: Locale) {
-  const date = toDate(value);
-  if (!date) return "-";
-
-  return new Intl.DateTimeFormat(intlLocale(locale), {
-    ...TIME_OPTIONS,
-    timeZone: APP_TIME_ZONE,
-  }).format(date);
+  return formatInZone(value, locale, TIME_OPTIONS);
 }
 
 const DATE_STYLES = {
@@ -47,25 +67,12 @@ export function formatDate(
   locale: Locale,
   style: keyof typeof DATE_STYLES = "medium",
 ) {
-  const date = toDate(value);
-  if (!date) return "-";
-
-  return new Intl.DateTimeFormat(intlLocale(locale), {
-    ...DATE_STYLES[style],
-    timeZone: APP_TIME_ZONE,
-  }).format(date);
+  return formatInZone(value, locale, DATE_STYLES[style]);
 }
 
 /** Date and time together, for exports and lists. */
 export function formatDateTime(value: DateInput, locale: Locale) {
-  const date = toDate(value);
-  if (!date) return "-";
-
-  return new Intl.DateTimeFormat(intlLocale(locale), {
-    ...DATE_STYLES.medium,
-    ...TIME_OPTIONS,
-    timeZone: APP_TIME_ZONE,
-  }).format(date);
+  return formatInZone(value, locale, { ...DATE_STYLES.medium, ...TIME_OPTIONS });
 }
 
 /**

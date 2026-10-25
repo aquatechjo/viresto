@@ -16,6 +16,7 @@ import {
   type TenantAccessSummary,
 } from "@/lib/tenant-write-access-cache";
 import { DEMO_BLOCKED_CODE, DEMO_BLOCKED_MESSAGE } from "@/lib/demo/constants";
+import { formatInZone } from "@/lib/datetime";
 
 type SubscriptionStatus =
   | "TRIALING"
@@ -137,11 +138,11 @@ const statusClasses: Record<StatusTone, string> = {
 function formatDate(value: string | null | undefined, locale: string) {
   if (!value) return locale === "ar" ? "غير محدد" : "Not set";
 
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
+  return formatInZone(value, locale === "ar" ? "ar" : "en", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(new Date(value));
+  });
 }
 
 function getStatusLabel(status: string | undefined, isArabic: boolean) {

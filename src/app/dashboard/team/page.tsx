@@ -19,6 +19,7 @@ import {
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
+import { formatInZone, NUMERIC_DATE } from "@/lib/datetime";
 
 type Role = "ADMIN" | "LAWYER" | "STAFF";
 type StatusFilter = "all" | "active" | "inactive";
@@ -278,9 +279,7 @@ function formatDate(value: string, locale: Locale) {
 
   if (Number.isNaN(date.getTime())) return "-";
 
-  return date.toLocaleDateString(
-    locale === "ar" ? "ar-JO-u-nu-latn" : "en-US",
-  );
+  return formatInZone(date, locale, NUMERIC_DATE);
 }
 
 function PlanLimitBanner({

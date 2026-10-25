@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/log-activity";
 import { streamOfficeDataExport } from "@/lib/office-data-export";
+import { toDateKey } from "@/lib/datetime";
 
 // AUDIT_REPORT.md M4: the office ADMIN downloads all office data as one
 // JSON file. Reachable while the office is locked (isSubscriptionExemptPath),
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const date = exportedAt.toISOString().slice(0, 10);
+    const date = toDateKey(exportedAt);
 
     return new Response(body, {
       headers: {

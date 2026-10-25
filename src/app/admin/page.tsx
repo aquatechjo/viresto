@@ -11,6 +11,7 @@ import {
   activateUser,
 } from "./actions";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
+import { formatInZone, NUMERIC_DATE } from "@/lib/datetime";
 
 type AdminSubscription = Prisma.SubscriptionGetPayload<{
   include: {
@@ -70,7 +71,7 @@ const roleLabels: Record<string, string> = {
 
 function formatDate(value?: Date | null) {
   if (!value) return "-";
-  return value.toLocaleDateString("ar-JO-u-nu-latn");
+  return formatInZone(value, "ar", NUMERIC_DATE);
 }
 
 type AdminPageProps = {

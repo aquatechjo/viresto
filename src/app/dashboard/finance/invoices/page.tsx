@@ -18,6 +18,7 @@ import { formatInvoiceNumber } from "@/lib/invoice-print";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { formatJOD, parseAmount, parseOptionalAmount } from "@/lib/money";
 import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput";
+import { formatInZone } from "@/lib/datetime";
 
 type InvoiceStatus =
   | "DRAFT"
@@ -451,15 +452,11 @@ function isArchivedInvoice(invoice: Invoice) {
 }
 
 function localizedDate(value: string | Date, locale: Locale) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US", {
+  return formatInZone(value, locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(date);
+  });
 }
 
 function getBlockFallback(locale: Locale) {
