@@ -11,7 +11,9 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { buildCaseIdentifierAccessWhere } from "@/lib/access-control";
 import { canReadFinance } from "@/lib/permissions";
 import {
+  assertCaseClientCanChange,
   assertCaseFeeCoversCommitments,
+  isCaseClientLockedError,
   isCaseFinancialLimitError,
 } from "@/lib/server/case-finance-integrity";
 
@@ -367,7 +369,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...caseData
     } = parsed.data;
 
+    const clientChanged =
+      parsed.data.clientId !== undefined &&
+      parsed.data.clientId !== exists.clientId;
+
     const updateCase = () => prisma.$transaction(async (tx) => {
+      if (clientChanged) {
+        await assertCaseClientCanChange(tx, {
+          tenantId: auth.user!.tenantId,
+          caseId: exists.id,
+        });
+      }
+
       if (parsed.data.feeAgreed !== undefined) {
         await assertCaseFeeCoversCommitments(tx, {
           tenantId: auth.user!.tenantId,
@@ -441,7 +454,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     try {
       updated = await updateCase();
     } catch (error) {
-      if (isCaseFinancialLimitError(error)) {
+      if (
+        isCaseFinancialLimitError(error) ||
+        isCaseClientLockedError(error)
+      ) {
         return err(error.message, error.status, error.details);
       }
 

@@ -161,6 +161,67 @@ export async function assertCaseCanAcceptAmount(
   return snapshot;
 }
 
+export const CASE_CLIENT_LOCKED_CODE = "CASE_CLIENT_LOCKED";
+
+export const CASE_CLIENT_LOCKED_MESSAGE = {
+  ar: "لا يمكن تغيير موكل هذه القضية لأن عليها فواتير أو دفعات مسجلة (بما فيها الملغاة). الفواتير والدفعات تبقى باسم الموكل الذي صدرت له.",
+  en: "This case's client can't be changed because the case has invoices or payments (including cancelled ones). Invoices and payments stay with the client they were issued to.",
+} as const;
+
+export class CaseClientLockedError extends Error {
+  readonly status = 409;
+
+  constructor(
+    readonly details: {
+      code: typeof CASE_CLIENT_LOCKED_CODE;
+      invoices: number;
+      payments: number;
+      messageEn: string;
+    },
+  ) {
+    super(CASE_CLIENT_LOCKED_MESSAGE.ar);
+    this.name = "CaseClientLockedError";
+  }
+}
+
+export function isCaseClientLockedError(
+  error: unknown,
+): error is CaseClientLockedError {
+  return error instanceof CaseClientLockedError;
+}
+
+/**
+ * A case keeps its client once it has any invoice or payment, in any
+ * status: they are issued to that client, and moving the case would leave
+ * them on another one. Locks the case row first, as invoice and direct
+ * payment creation do, so none can be added between the count and the
+ * client change.
+ */
+export async function assertCaseClientCanChange(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; caseId: string },
+) {
+  await lockCase(tx, input.tenantId, input.caseId);
+
+  const [invoices, payments] = await Promise.all([
+    tx.invoice.count({
+      where: { tenantId: input.tenantId, caseId: input.caseId },
+    }),
+    tx.payment.count({
+      where: { tenantId: input.tenantId, caseId: input.caseId },
+    }),
+  ]);
+
+  if (invoices > 0 || payments > 0) {
+    throw new CaseClientLockedError({
+      code: CASE_CLIENT_LOCKED_CODE,
+      invoices,
+      payments,
+      messageEn: CASE_CLIENT_LOCKED_MESSAGE.en,
+    });
+  }
+}
+
 export async function assertCaseFeeCoversCommitments(
   tx: Prisma.TransactionClient,
   input: SnapshotInput & { nextFeeAgreed: number },
