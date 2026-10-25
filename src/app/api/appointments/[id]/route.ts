@@ -298,70 +298,77 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const shouldUpdateClientRelation =
       clientId !== undefined || caseId !== undefined;
 
-    const updated = await prisma.appointment.update({
-      where: {
-        id: exists.id,
-      },
-      data: {
-        ...rest,
-        ...(shouldUpdateClientRelation ? { clientId: linkedClientId } : {}),
-        ...(caseId !== undefined ? { caseId } : {}),
-        ...(nextAssignedToId !== undefined
-          ? { assignedToId: nextAssignedToId }
-          : {}),
-        ...(startTime !== undefined ? { startTime } : {}),
-        ...(endTime !== undefined ? { endTime } : {}),
-      },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            archivedAt: true,
-          },
+    const { updated, timeChanged } = await prisma.$transaction(async (tx) => {
+      const updated = await tx.appointment.update({
+        where: {
+          id: exists.id,
         },
-        case: {
-          select: {
-            id: true,
-            title: true,
-            client: {
-              select: {
-                id: true,
-                name: true,
-                archivedAt: true,
+        data: {
+          ...rest,
+          ...(shouldUpdateClientRelation ? { clientId: linkedClientId } : {}),
+          ...(caseId !== undefined ? { caseId } : {}),
+          ...(nextAssignedToId !== undefined
+            ? { assignedToId: nextAssignedToId }
+            : {}),
+          ...(startTime !== undefined ? { startTime } : {}),
+          ...(endTime !== undefined ? { endTime } : {}),
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              archivedAt: true,
+            },
+          },
+          case: {
+            select: {
+              id: true,
+              title: true,
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                  archivedAt: true,
+                },
               },
             },
           },
+          assignedTo: {
+            select: appointmentUserSelect,
+          },
+          createdBy: {
+            select: appointmentUserSelect,
+          },
         },
-        assignedTo: {
-          select: appointmentUserSelect,
-        },
-        createdBy: {
-          select: appointmentUserSelect,
-        },
-      },
-    });
-
-    const timeChanged =
-      updated.startTime.getTime() !== exists.startTime.getTime() ||
-      (updated.endTime?.getTime() ?? null) !==
-        (exists.endTime?.getTime() ?? null);
-
-    // Its own row on the appointment, for every appointment, with both
-    // times in Amman: the record we lacked when checking old drags.
-    if (timeChanged) {
-      await logActivity({
-        actorId: auth.user.userId,
-        ipAddress: meta.ipAddress,
-        userAgent: meta.userAgent,
-        tenantId: auth.user.tenantId,
-        type: "APPOINTMENT_RESCHEDULED",
-        title: "تم تغيير وقت موعد",
-        message: `${updated.title}: من ${formatSlot(exists.startTime, exists.endTime, "ar")} إلى ${formatSlot(updated.startTime, updated.endTime, "ar")}`,
-        entityType: "APPOINTMENT",
-        entityId: updated.id,
       });
-    }
+
+      const timeChanged =
+        updated.startTime.getTime() !== exists.startTime.getTime() ||
+        (updated.endTime?.getTime() ?? null) !==
+          (exists.endTime?.getTime() ?? null);
+
+      // Its own row on the appointment, for every appointment, with both
+      // times in Amman, saved with the change itself.
+      if (timeChanged) {
+        await logActivity(
+          {
+            actorId: auth.user!.userId,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+            tenantId: auth.user!.tenantId,
+            type: "APPOINTMENT_RESCHEDULED",
+            title: "تم تغيير وقت موعد",
+            message: `${updated.title}: من ${formatSlot(exists.startTime, exists.endTime, "ar")} إلى ${formatSlot(updated.startTime, updated.endTime, "ar")}`,
+            entityType: "APPOINTMENT",
+            entityId: updated.id,
+          },
+          tx,
+        );
+      }
+
+      return { updated, timeChanged };
+    });
 
     const onlyTimeSent = Object.keys(parsed.data).every(
       (key) => key === "startTime" || key === "endTime",
