@@ -34,6 +34,27 @@ messages passed through here-strings or pipes.
   here-string a message into `git commit`. A one-line ASCII message may
   use `-m`.
 
+## Dates and times
+
+Users are in Jordan: everything they type or read is `Asia/Amman` time.
+
+- Store UTC, always (Prisma `DateTime`).
+- Every date or time shown to a user (pages, emails, notifications, PDFs)
+  goes through `src/lib/datetime.ts` (`formatDate`, `formatTime`,
+  `formatDateTime`, `formatTimeRange`, `formatInZone`). No
+  `toLocale*String`, `getHours`, or `Intl.DateTimeFormat` without a
+  `timeZone` anywhere else. `toISOString` is fine for storage and API
+  payloads, never for display.
+- A date-time the user types is Amman time: convert it with
+  `zonedInputToUtcIso` (and back with `toZonedInputValue`).
+- Date-only fields (no time, e.g. invoice `dueDate`): stored as UTC
+  midnight of that day (`new Date("yyyy-MM-dd")`), read back with
+  `toDateOnlyInputValue`. Never store Amman midnight.
+- Due/overdue checks use `isPastDue` (code) or `pastDueBefore` (Prisma
+  filters): late only from the next Amman day. Never `dueDate < now`.
+- FullCalendar needs the `@fullcalendar/luxon3` plugin for any named
+  `timeZone`; without it it silently shows UTC.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
