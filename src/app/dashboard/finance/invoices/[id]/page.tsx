@@ -16,7 +16,7 @@ import {
   printInvoiceDocument,
   safeInvoiceFilename,
 } from "@/lib/invoice-print";
-import { formatInZone } from "@/lib/datetime";
+import { formatInZone, toDateOnlyInputValue } from "@/lib/datetime";
 
 type InvoiceStatus =
   | "DRAFT"
@@ -525,11 +525,6 @@ function extractClientPhone(data: unknown) {
   );
 }
 
-function toDateInput(value?: string | null) {
-  if (!value) return "";
-  return new Date(value).toISOString().slice(0, 10);
-}
-
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 1000) / 1000;
 }
@@ -805,7 +800,7 @@ export default function InvoiceDetailsPage() {
       return;
     }
 
-    setEditDueDate(toDateInput(invoice.dueDate));
+    setEditDueDate(toDateOnlyInputValue(invoice.dueDate));
     setEditTax(invoice.tax || 0);
     setEditDiscount(invoice.discount || 0);
     setEditNotes(invoice.notes || "");

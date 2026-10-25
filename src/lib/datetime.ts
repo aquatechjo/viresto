@@ -118,6 +118,20 @@ export function toDateKey(value: DateInput) {
   return DateTime.fromJSDate(date).setZone(APP_TIME_ZONE).toISODate() ?? "invalid-date";
 }
 
+/**
+ * Stored date-only field (invoice dueDate) → "yyyy-MM-dd" for <input
+ * type="date">. The form sends "yyyy-MM-dd" and the API's
+ * new Date("yyyy-MM-dd") stores UTC midnight of that day, so the day is read
+ * back in UTC, not in Amman or the browser's zone: an unchanged edit then
+ * saves the same date on any machine.
+ */
+export function toDateOnlyInputValue(value?: DateInput | null) {
+  const date = value ? toDate(value) : null;
+  if (!date) return "";
+
+  return date.toISOString().slice(0, 10);
+}
+
 /** UTC instant → "yyyy-MM-ddTHH:mm" Amman wall-clock value for a form field. */
 export function toZonedInputValue(value?: DateInput | null) {
   const date = value ? toDate(value) : null;
