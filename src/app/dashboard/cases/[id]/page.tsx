@@ -9,7 +9,13 @@ import AppLoader from "@/components/ui/AppLoader";
 import Modal from "@/components/ui/Modal";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import FormField from "@/components/ui/FormField";
-import { fileSizeLabel, formatDate, formatTime } from "@/lib/utils";
+import { fileSizeLabel, formatDate } from "@/lib/utils";
+import {
+  APP_TIME_ZONE,
+  formatDate as formatApptDate,
+  formatTime as formatApptTime,
+  zonedInputToUtcIso,
+} from "@/lib/datetime";
 import { useLocale } from "@/lib/useLocale";
 import { uploadDocumentDirect } from "@/lib/client-document-upload";
 import { DOCUMENT_MAX_STORED_BYTES } from "@/lib/document-upload";
@@ -907,11 +913,9 @@ export default function CaseDetailPage() {
         body: JSON.stringify({
           title: appointmentForm.title.trim(),
           type: appointmentForm.type,
-          startTime: new Date(appointmentForm.startTime).toISOString(),
-          endTime: appointmentForm.endTime
-            ? new Date(appointmentForm.endTime).toISOString()
-            : undefined,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          startTime: zonedInputToUtcIso(appointmentForm.startTime),
+          endTime: zonedInputToUtcIso(appointmentForm.endTime),
+          timeZone: APP_TIME_ZONE,
           assignedToId: appointmentForm.assignedToId || currentUserId,
           location: appointmentForm.location || undefined,
           description: appointmentForm.description || undefined,
@@ -1988,8 +1992,8 @@ export default function CaseDetailPage() {
                           className="mt-1 text-xs"
                           style={{ color: "var(--text-3)" }}
                         >
-                          {formatDate(appointment.startTime)} ·{" "}
-                          {formatTime(appointment.startTime)}
+                          {formatApptDate(appointment.startTime, locale)} ·{" "}
+                          {formatApptTime(appointment.startTime, locale)}
                         </p>
                       </div>
                     </div>

@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
 import { amiriFont } from './fonts/amiri-font'
 import { formatJOD } from './money'
+import { formatDateTime } from './datetime'
 
 export function exportToCSV(filename: string, rows: Record<string, any>[]) {
   if (!rows.length) return
@@ -383,7 +384,7 @@ doc.setFont('Amiri', 'normal')
       ? (client.appointments ?? []).map((a: any) => [
           a.title || '-',
           a.type || '-',
-          a.startTime ? new Date(a.startTime).toLocaleString('ar-JO-u-nu-latn') : '-',
+          a.startTime ? formatDateTime(a.startTime, 'ar') : '-',
           a.location || '-',
         ])
       : [['لا توجد مواعيد', '-', '-', '-']],

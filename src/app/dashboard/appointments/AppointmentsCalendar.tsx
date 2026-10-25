@@ -5,8 +5,12 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+// Without a named-time-zone plugin FullCalendar ignores "Asia/Amman" and
+// shows every event in UTC (3 hours early).
+import luxonPlugin from "@fullcalendar/luxon3";
 import arLocale from "@fullcalendar/core/locales/ar";
 import type { Locale } from "@/lib/i18n";
+import { APP_TIME_ZONE } from "@/lib/datetime";
 
 const arJoLocale = {
   ...arLocale,
@@ -45,7 +49,7 @@ interface AppointmentsCalendarProps {
 
 export default function AppointmentsCalendar({
   locale,
-  timeZone = "Asia/Amman",
+  timeZone = APP_TIME_ZONE,
   events,
   onEventDrop,
   onEventResize,
@@ -61,7 +65,7 @@ export default function AppointmentsCalendar({
     <div className="appointments-calendar" dir={isRtl ? "rtl" : "ltr"}>
       <FullCalendar
         key={isMobile ? "mobile" : "desktop"}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
         initialView="dayGridMonth"
         timeZone={timeZone}
         locale={isRtl ? arJoLocale : "en"}
@@ -83,7 +87,7 @@ export default function AppointmentsCalendar({
         }
         dayHeaderContent={
           isMobile
-            ? (info) => dayLetters[info.date.getDay()]
+            ? (info) => dayLetters[info.dow]
             : undefined
         }
         eventMinHeight={isMobile ? 8 : 34}

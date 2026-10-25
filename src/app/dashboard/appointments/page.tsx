@@ -18,6 +18,15 @@ import { VDSSearchInput } from "@/components/ui/vds/table";
 import { DateTime } from "luxon";
 import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
+import {
+  APP_TIME_ZONE,
+  formatDate,
+  formatTime,
+  formatTimeRange,
+  toDateKey,
+  toZonedInputValue,
+  zonedInputToUtcIso,
+} from "@/lib/datetime";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { fetchJsonCached } from "@/lib/client-query-cache";
@@ -127,89 +136,12 @@ const INIT = {
   assignedToId: "",
 };
 
-const TENANT_TIME_ZONE = "Asia/Amman";
+const TENANT_TIME_ZONE = APP_TIME_ZONE;
 
 function toLatinDateTimeValue(value: DateTime) {
   return value
     .reconfigure({ locale: "en-US", numberingSystem: "latn" })
     .toFormat("yyyy-MM-dd'T'HH:mm");
-}
-
-function toDateTimeLocal(value?: string, timeZone = TENANT_TIME_ZONE) {
-  if (!value) return "";
-
-  const date = DateTime.fromISO(value, { setZone: true }).setZone(timeZone);
-
-  if (!date.isValid) return "";
-
-  return toLatinDateTimeValue(date);
-}
-
-function dateTimeLocalToIso(value?: string, timeZone = TENANT_TIME_ZONE) {
-  if (!value) return undefined;
-
-  const date = DateTime.fromISO(value, { zone: timeZone });
-
-  if (!date.isValid) return undefined;
-
-  return date.toUTC().toISO() ?? undefined;
-}
-
-function formatDateInZone(
-  value: string,
-  locale: Locale,
-  timeZone = TENANT_TIME_ZONE,
-) {
-  const date = DateTime.fromISO(value, { setZone: true }).setZone(timeZone);
-
-  if (!date.isValid) return "-";
-
-  return date
-    .setLocale(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")
-    .toLocaleString({
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-function formatShortDateInZone(
-  value: string,
-  locale: Locale,
-  timeZone = TENANT_TIME_ZONE,
-) {
-  const date = DateTime.fromISO(value, { setZone: true }).setZone(timeZone);
-
-  if (!date.isValid) return "-";
-
-  return date
-    .setLocale(locale === "ar" ? "ar-JO-u-nu-latn" : "en-US")
-    .toLocaleString(DateTime.DATE_MED);
-}
-
-function formatTimeInZone(
-  value: string,
-  _locale: Locale,
-  timeZone = TENANT_TIME_ZONE,
-) {
-  const date = DateTime.fromISO(value, { setZone: true }).setZone(timeZone);
-
-  if (!date.isValid) return "-";
-
-  return date.setLocale("en-US").toLocaleString({
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
-function toTenantDateKey(value: string, timeZone = TENANT_TIME_ZONE) {
-  const date = DateTime.fromISO(value, { setZone: true }).setZone(timeZone);
-
-  if (!date.isValid) return "invalid-date";
-
-  return date.toISODate() ?? "invalid-date";
 }
 
 function getCreateStartValue(startTime?: string, timeZone = TENANT_TIME_ZONE) {
@@ -965,10 +897,8 @@ export default function AppointmentsPage() {
 
   const todayAppts = useMemo(
     () =>
-      appts.filter(
-        (appt) => toTenantDateKey(appt.startTime, tenantTimeZone) === todayKey,
-      ),
-    [appts, todayKey, tenantTimeZone],
+      appts.filter((appt) => toDateKey(appt.startTime) === todayKey),
+    [appts, todayKey],
   );
 
   const courtSessions = appts.filter(
@@ -1013,7 +943,7 @@ export default function AppointmentsPage() {
     const groups = new Map<string, Appt[]>();
 
     for (const appt of appointmentLog) {
-      const key = toTenantDateKey(appt.startTime, tenantTimeZone);
+      const key = toDateKey(appt.startTime);
 
       groups.set(key, [...(groups.get(key) ?? []), appt]);
     }
@@ -1023,10 +953,10 @@ export default function AppointmentsPage() {
       label:
         key === "invalid-date"
           ? "-"
-          : formatDateInZone(items[0].startTime, locale, tenantTimeZone),
+          : formatDate(items[0].startTime, locale, "long"),
       items,
     }));
-  }, [appointmentLog, locale, tenantTimeZone]);
+  }, [appointmentLog, locale]);
 
   const hasActiveFilters =
     Boolean(search.trim()) || typeFilter !== "all" || assigneeFilter !== "all";
@@ -1116,8 +1046,8 @@ export default function AppointmentsPage() {
       return;
     }
 
-    const startTimeIso = dateTimeLocalToIso(form.startTime, tenantTimeZone);
-    const endTimeIso = dateTimeLocalToIso(form.endTime, tenantTimeZone);
+    const startTimeIso = zonedInputToUtcIso(form.startTime);
+    const endTimeIso = zonedInputToUtcIso(form.endTime);
 
     if (!startTimeIso) {
       toast.error(a.messages.requiredTitleTime);
@@ -1329,8 +1259,8 @@ export default function AppointmentsPage() {
       title: appt.title,
       clientId: appt.client?.id || appt.case?.client?.id || "",
       caseId: appt.case?.id || "",
-      startTime: toDateTimeLocal(appt.startTime, tenantTimeZone),
-      endTime: toDateTimeLocal(appt.endTime, tenantTimeZone),
+      startTime: toZonedInputValue(appt.startTime),
+      endTime: toZonedInputValue(appt.endTime),
       location: appt.location || "",
       type: appt.type || "MEETING",
       description: appt.description || "",
@@ -1692,11 +1622,7 @@ export default function AppointmentsPage() {
                                 className="text-sm font-black"
                                 style={{ color: "var(--accent-text)" }}
                               >
-                                {formatTimeInZone(
-                                  appt.startTime,
-                                  locale,
-                                  tenantTimeZone,
-                                )}
+                                {formatTime(appt.startTime, locale)}
                               </p>
 
                               {appt.endTime && (
@@ -1705,11 +1631,7 @@ export default function AppointmentsPage() {
                                   style={{ color: "var(--text-3)" }}
                                 >
                                   {appointmentLogCopy.endTime}{" "}
-                                  {formatTimeInZone(
-                                    appt.endTime,
-                                    locale,
-                                    tenantTimeZone,
-                                  )}
+                                  {formatTime(appt.endTime, locale)}
                                 </p>
                               )}
                             </div>
@@ -2077,11 +1999,7 @@ export default function AppointmentsPage() {
                     className="mt-1 text-sm font-bold"
                     style={{ color: "var(--text)" }}
                   >
-                    {formatShortDateInZone(
-                      selectedAppt.startTime,
-                      locale,
-                      tenantTimeZone,
-                    )}
+                    {formatDate(selectedAppt.startTime, locale)}
                   </p>
                 </div>
 
@@ -2096,14 +2014,13 @@ export default function AppointmentsPage() {
                     className="mt-1 text-sm font-bold"
                     style={{ color: "var(--text)" }}
                   >
-                    {formatTimeInZone(
-                      selectedAppt.startTime,
-                      locale,
-                      tenantTimeZone,
-                    )}
-                    {selectedAppt.endTime
-                      ? ` - ${formatTimeInZone(selectedAppt.endTime, locale, tenantTimeZone)}`
-                      : ""}
+                    <bdi dir={locale === "ar" ? "rtl" : "ltr"}>
+                      {formatTimeRange(
+                        selectedAppt.startTime,
+                        selectedAppt.endTime,
+                        locale,
+                      )}
+                    </bdi>
                   </p>
                 </div>
 
