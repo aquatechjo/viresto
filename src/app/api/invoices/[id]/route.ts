@@ -539,6 +539,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       });
 
+      await logActivity(
+        {
+          actorId: auth.user!.userId,
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+          tenantId: auth.user!.tenantId,
+          type: "INVOICE_UPDATED",
+          title: "تم تعديل فاتورة",
+          message: updatedInvoice.invoiceNumber,
+          entityType: updatedInvoice.caseId ? "CASE" : "INVOICE",
+          entityId: updatedInvoice.caseId || updatedInvoice.id,
+        },
+        tx,
+      );
+
       return updatedInvoice;
     });
 
@@ -584,18 +599,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       throw error;
     }
-
-    await logActivity({
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      tenantId: auth.user.tenantId,
-      type: "INVOICE_UPDATED",
-      title: "تم تعديل فاتورة",
-      message: updated.invoiceNumber,
-      entityType: updated.caseId ? "CASE" : "INVOICE",
-      entityId: updated.caseId || updated.id,
-    });
 
     return ok(decryptInvoiceClient(updated));
   });
@@ -701,6 +704,21 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         await tx.invoice.delete({
           where: { id: invoice.id },
         });
+
+        await logActivity(
+          {
+            actorId: auth.user!.userId,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+            tenantId: auth.user!.tenantId,
+            type: "INVOICE_DELETED",
+            title: "تم حذف فاتورة",
+            message: invoice.invoiceNumber,
+            entityType: invoice.caseId ? "CASE" : "INVOICE",
+            entityId: invoice.caseId || invoice.id,
+          },
+          tx,
+        );
       });
     } catch (error) {
       if (error instanceof Error && error.message === "INVOICE_NOT_FOUND") {
@@ -716,18 +734,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
       throw error;
     }
-
-    await logActivity({
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      tenantId: auth.user.tenantId,
-      type: "INVOICE_DELETED",
-      title: "تم حذف فاتورة",
-      message: invoice.invoiceNumber,
-      entityType: invoice.caseId ? "CASE" : "INVOICE",
-      entityId: invoice.caseId || invoice.id,
-    });
 
     return ok({ deleted: true });
   });

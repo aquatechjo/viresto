@@ -510,7 +510,7 @@ export async function POST(req: NextRequest) {
           tx,
         );
 
-        return tx.invoice.create({
+        const created = await tx.invoice.create({
           data: {
             tenantId: auth.user!.tenantId,
             clientId: data.clientId,
@@ -558,6 +558,23 @@ export async function POST(req: NextRequest) {
             payments: true,
           },
         });
+
+        await logActivity(
+          {
+            actorId: auth.user!.userId,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+            tenantId: auth.user!.tenantId,
+            type: "INVOICE_CREATED",
+            title: "تم إنشاء فاتورة جديدة",
+            message: `${created.invoiceNumber} - ${client.name}`,
+            entityType: caseId ? "CASE" : "INVOICE",
+            entityId: caseId || created.id,
+          },
+          tx,
+        );
+
+        return created;
       });
     } catch (error) {
       if (isCaseFinancialLimitError(error)) {
@@ -567,17 +584,6 @@ export async function POST(req: NextRequest) {
       throw error;
     }
 
-    await logActivity({
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      tenantId: auth.user.tenantId,
-      type: "INVOICE_CREATED",
-      title: "تم إنشاء فاتورة جديدة",
-      message: `${invoice.invoiceNumber} - ${client.name}`,
-      entityType: caseId ? "CASE" : "INVOICE",
-      entityId: caseId || invoice.id,
-    });
     return ok(invoice, 201);
   });
 }

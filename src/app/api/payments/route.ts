@@ -620,12 +620,31 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      await logActivity(
+        {
+          actorId: auth.user!.userId,
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+          tenantId,
+          type: "PAYMENT_CREATED",
+          title: payment.client.archivedAt
+            ? "تم تسجيل دفعة لموكل مؤرشف"
+            : "تم تسجيل دفعة جديدة",
+          message: `${payment.amount} - ${invoiceNumber ?? caseTitle ?? payment.client.name}`,
+          entityType: payment.invoiceId
+            ? "INVOICE"
+            : payment.caseId
+              ? "CASE"
+              : "CLIENT",
+          entityId: payment.invoiceId ?? payment.caseId ?? payment.clientId,
+        },
+        tx,
+      );
+
       return {
         ok: true as const,
         payment,
         invoiceSummary,
-        caseTitle,
-        invoiceNumber,
       };
     });
 
@@ -650,36 +669,6 @@ export async function POST(req: NextRequest) {
           : undefined,
       );
     }
-
-    const activityEntityType = transactionResult.payment.invoiceId
-      ? "INVOICE"
-      : transactionResult.payment.caseId
-        ? "CASE"
-        : "CLIENT";
-
-    const activityEntityId =
-      transactionResult.payment.invoiceId ??
-      transactionResult.payment.caseId ??
-      transactionResult.payment.clientId;
-
-    const contextTitle =
-      transactionResult.invoiceNumber ??
-      transactionResult.caseTitle ??
-      transactionResult.payment.client.name;
-
-    await logActivity({
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      tenantId,
-      type: "PAYMENT_CREATED",
-      title: transactionResult.payment.client.archivedAt
-        ? "تم تسجيل دفعة لموكل مؤرشف"
-        : "تم تسجيل دفعة جديدة",
-      message: `${transactionResult.payment.amount} - ${contextTitle}`,
-      entityType: activityEntityType,
-      entityId: activityEntityId,
-    });
 
     return ok(
       {

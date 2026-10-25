@@ -471,9 +471,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         });
       }
 
+      await logActivity(
+        {
+          tenantId,
+          actorId: auth.user!.userId,
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+          type: "PAYMENT_UPDATED",
+          title:
+            updated.status === "CANCELLED"
+              ? "تم إلغاء دفعة"
+              : existing.status !== updated.status
+                ? "تم تغيير حالة دفعة"
+                : "تم تعديل دفعة",
+          message: `${existing.status} → ${updated.status} | ${updated.amount}${updated.cancellationReason ? ` | ${updated.cancellationReason}` : ""}`,
+          entityType: updated.invoiceId
+            ? "INVOICE"
+            : updated.caseId
+              ? "CASE"
+              : "CLIENT",
+          entityId: updated.invoiceId ?? updated.caseId ?? updated.clientId,
+        },
+        tx,
+      );
+
       return {
         ok: true as const,
-        existing,
         updated,
         invoiceSummary,
       };
@@ -500,34 +523,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           : undefined,
       );
     }
-
-    const entityType = transactionResult.updated.invoiceId
-      ? "INVOICE"
-      : transactionResult.updated.caseId
-        ? "CASE"
-        : "CLIENT";
-
-    const entityId =
-      transactionResult.updated.invoiceId ??
-      transactionResult.updated.caseId ??
-      transactionResult.updated.clientId;
-
-    await logActivity({
-      tenantId,
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      type: "PAYMENT_UPDATED",
-      title:
-        transactionResult.updated.status === "CANCELLED"
-          ? "تم إلغاء دفعة"
-          : transactionResult.existing.status !== transactionResult.updated.status
-            ? "تم تغيير حالة دفعة"
-            : "تم تعديل دفعة",
-      message: `${transactionResult.existing.status} → ${transactionResult.updated.status} | ${transactionResult.updated.amount}${transactionResult.updated.cancellationReason ? ` | ${transactionResult.updated.cancellationReason}` : ""}`,
-      entityType,
-      entityId,
-    });
 
     return ok({
       ...transactionResult.updated,
@@ -673,9 +668,27 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           })
         : null;
 
+      await logActivity(
+        {
+          tenantId,
+          actorId: auth.user!.userId,
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+          type: "PAYMENT_DELETED",
+          title: "تم حذف دفعة غير محصلة",
+          message: String(existing.amount),
+          entityType: existing.invoiceId
+            ? "INVOICE"
+            : existing.caseId
+              ? "CASE"
+              : "CLIENT",
+          entityId: existing.invoiceId ?? existing.caseId ?? existing.clientId,
+        },
+        tx,
+      );
+
       return {
         ok: true as const,
-        existing,
         invoiceSummary,
       };
     });
@@ -693,29 +706,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           : undefined,
       );
     }
-
-    const entityType = transactionResult.existing.invoiceId
-      ? "INVOICE"
-      : transactionResult.existing.caseId
-        ? "CASE"
-        : "CLIENT";
-
-    const entityId =
-      transactionResult.existing.invoiceId ??
-      transactionResult.existing.caseId ??
-      transactionResult.existing.clientId;
-
-    await logActivity({
-      tenantId,
-      actorId: auth.user.userId,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-      type: "PAYMENT_DELETED",
-      title: "تم حذف دفعة غير محصلة",
-      message: String(transactionResult.existing.amount),
-      entityType,
-      entityId,
-    });
 
     return ok({
       deleted: true,
