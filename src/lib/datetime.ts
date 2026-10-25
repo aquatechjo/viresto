@@ -132,6 +132,32 @@ export function toDateOnlyInputValue(value?: DateInput | null) {
   return date.toISOString().slice(0, 10);
 }
 
+// A date-only due date (invoice dueDate, stored as UTC midnight of its day)
+// is late from the start of the next Amman day, never during the due day
+// itself. Every overdue check goes through these three.
+
+/** The moment a due date becomes overdue: Amman midnight after the due day. */
+export function overdueFrom(dueDate: DateInput) {
+  const day = toDateOnlyInputValue(dueDate);
+  if (!day) return null;
+
+  return DateTime.fromISO(day, { zone: APP_TIME_ZONE }).plus({ days: 1 }).toJSDate();
+}
+
+/** Due day before today in Amman. The due day itself is not overdue. */
+export function isPastDue(dueDate: DateInput | null | undefined, now = new Date()) {
+  const from = dueDate ? overdueFrom(dueDate) : null;
+  return Boolean(from && now.getTime() >= from.getTime());
+}
+
+/**
+ * For database queries: a stored due date is past due when it is before
+ * this instant (UTC midnight of today's Amman date). Same rule as isPastDue.
+ */
+export function pastDueBefore(now = new Date()) {
+  return new Date(`${toDateKey(now)}T00:00:00.000Z`);
+}
+
 /** UTC instant → "yyyy-MM-ddTHH:mm" Amman wall-clock value for a form field. */
 export function toZonedInputValue(value?: DateInput | null) {
   const date = value ? toDate(value) : null;

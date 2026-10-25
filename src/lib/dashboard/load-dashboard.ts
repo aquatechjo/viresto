@@ -32,6 +32,7 @@ import type {
   DashboardData,
   SubscriptionAlert,
 } from "@/lib/dashboard/types";
+import { isPastDue } from "@/lib/datetime";
 
 // Everything the main dashboard shows, in one round of parallel queries.
 // Every query goes through the access-control builders, so it is scoped
@@ -331,8 +332,7 @@ export async function loadDashboard(
       // Due before today, not before now: an invoice due today is not late.
       const isOverdue =
         outstanding > 0 &&
-        (invoice.status === "OVERDUE" ||
-          Boolean(invoice.dueDate && invoice.dueDate.getTime() < todayStart.getTime()));
+        (invoice.status === "OVERDUE" || isPastDue(invoice.dueDate, nowDate));
       return { issueDate: invoice.issueDate, outstanding, isOverdue };
     })
     .filter((invoice) => invoice.outstanding > 0);

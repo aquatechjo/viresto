@@ -5,7 +5,7 @@ import {
   createNotificationsBatch,
   type BatchNotificationInput,
 } from "@/lib/notifications";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateTime, overdueFrom, pastDueBefore } from "@/lib/datetime";
 
 const APPOINTMENT_SOON_HOURS = 24;
 const TASK_SOON_HOURS = 24;
@@ -160,6 +160,7 @@ export async function generateImportantNotifications(tenantId: string) {
   const appointmentSoonTo = addHours(now, APPOINTMENT_SOON_HOURS);
   const taskSoonTo = addHours(now, TASK_SOON_HOURS);
   const invoiceSoonTo = addHours(now, INVOICE_SOON_HOURS);
+  const invoicePastDueBefore = pastDueBefore(now);
 
   const [
     admins,
@@ -253,7 +254,7 @@ export async function generateImportantNotifications(tenantId: string) {
       where: {
         tenantId,
         status: { in: ["UNPAID", "PARTIALLY_PAID"] },
-        dueDate: { gte: now, lte: invoiceSoonTo },
+        dueDate: { gte: invoicePastDueBefore, lte: invoiceSoonTo },
       },
       select: {
         id: true,
@@ -277,7 +278,7 @@ export async function generateImportantNotifications(tenantId: string) {
           { status: "OVERDUE" },
           {
             status: { in: ["UNPAID", "PARTIALLY_PAID"] },
-            dueDate: { lt: now },
+            dueDate: { lt: invoicePastDueBefore },
           },
         ],
       },
@@ -400,7 +401,7 @@ export async function generateImportantNotifications(tenantId: string) {
 
   for (const invoice of dueSoonInvoices) {
     if (!invoice.dueDate) continue;
-    const remaining = formatRemainingTime(invoice.dueDate, now);
+    const remaining = formatRemainingTime(overdueFrom(invoice.dueDate) ?? invoice.dueDate, now);
     const outstanding = invoiceOutstanding(invoice.total, invoice.payments);
     if (outstanding <= 0) continue;
 

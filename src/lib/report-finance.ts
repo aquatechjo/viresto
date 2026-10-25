@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { roundMoney } from "@/lib/finance";
+import { isPastDue } from "@/lib/datetime";
 
 export const DEFAULT_REPORT_TIME_ZONE = "Asia/Amman";
 
@@ -156,8 +157,7 @@ export function isInvoiceOverdue(
 ) {
   return Boolean(
     !NON_COLLECTIBLE_STATUSES.has(invoice.status) &&
-      invoice.dueDate &&
-      invoice.dueDate.getTime() < now.getTime() &&
+      isPastDue(invoice.dueDate, now) &&
       getInvoiceRemainingAmount(invoice) > 0,
   );
 }

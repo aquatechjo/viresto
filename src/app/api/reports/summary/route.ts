@@ -34,6 +34,7 @@ import {
   assertTenantCanWrite,
   assertTenantHasFeature,
 } from "@/lib/billing-limits";
+import { pastDueBefore } from "@/lib/datetime";
 
 type ReportType = "monthly" | "yearly";
 type CaseStatus = "OPEN" | "IN_PROGRESS" | "CLOSED" | "ARCHIVED";
@@ -158,7 +159,7 @@ function invoiceStatusWhere(
         { status: "OVERDUE" },
         {
           status: { in: ["UNPAID", "PARTIALLY_PAID"] },
-          dueDate: { lt: now },
+          dueDate: { lt: pastDueBefore(now) },
         },
       ],
     };

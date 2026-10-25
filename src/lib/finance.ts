@@ -1,5 +1,6 @@
 import type { InvoiceStatus, Prisma } from "@prisma/client";
 import { MONEY_EPSILON, roundJod } from "@/lib/money";
+import { isPastDue } from "@/lib/datetime";
 
 export const roundMoney = roundJod;
 
@@ -37,7 +38,7 @@ export function calculateInvoiceStatus({
     return "PARTIALLY_PAID";
   }
 
-  if (dueDate && dueDate.getTime() < now.getTime()) {
+  if (isPastDue(dueDate, now)) {
     return "OVERDUE";
   }
 
