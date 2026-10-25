@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 type ActivityInput = {
@@ -13,8 +14,13 @@ type ActivityInput = {
   userAgent?: string
 }
 
-export async function logActivity(data: ActivityInput) {
-  return prisma.activity.create({
+// Pass the transaction client (`tx`) when the activity is the audit record of
+// a write in that transaction, so both are saved together or not at all.
+export async function logActivity(
+  data: ActivityInput,
+  db: Prisma.TransactionClient = prisma,
+) {
+  return db.activity.create({
     data: {
       tenantId: data.tenantId,
       type: data.type,
