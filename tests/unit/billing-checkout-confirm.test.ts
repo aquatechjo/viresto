@@ -26,6 +26,12 @@ const syncMock = mock.fn(async () => ({
   tenantSource: "metadata",
 }));
 
+// Rows already in our DB, by Polar subscription id (the webhook got there first).
+const syncedRows = new Map<string, string>();
+const isSyncedMock = mock.fn(
+  async (subscriptionId: string, tenantId: string) => syncedRows.get(subscriptionId) === tenantId,
+);
+
 mock.module("@/lib/api-auth", { namedExports: { requireRole: requireRoleMock } });
 mock.module("@/lib/csrf", { namedExports: { verifySameOrigin: () => null } });
 mock.module("@/lib/polar", {
@@ -39,6 +45,7 @@ mock.module("@/lib/polar", {
 mock.module("@/lib/polar-subscription-sync", {
   namedExports: {
     syncSubscriptionFromPolar: syncMock,
+    isPolarSubscriptionSyncedForTenant: isSyncedMock,
     findBillingPlanForPolarProduct: async (productId: string) =>
       productId === "prod_pro_monthly" ? { id: "plan-pro" } : null,
   },
@@ -67,6 +74,7 @@ beforeEach(() => {
   checkoutsGet.mock.resetCalls();
   subscriptionsGet.mock.resetCalls();
   syncMock.mock.resetCalls();
+  syncedRows.clear();
 });
 
 async function confirm(checkoutId: unknown = "chk_1") {
@@ -146,4 +154,35 @@ test("instant unlock: a Polar API error just means wait for the webhook", async 
   });
   const { body } = await confirm();
   assert.deepEqual(body.data, { synced: false, reason: "checkout_unavailable" });
+});
+
+test("instant unlock: the webhook already synced it, so nothing is synced twice", async () => {
+  syncedRows.set("sub_1", TENANT);
+  const { status, body } = await confirm();
+
+  assert.equal(status, 200);
+  assert.deepEqual(body.data, { synced: true, entitled: true });
+  assert.equal(syncMock.mock.callCount(), 0);
+  assert.equal(subscriptionsGet.mock.callCount(), 0);
+});
+
+test("instant unlock: repeated polls after the first sync do not sync again", async () => {
+  syncMock.mock.mockImplementationOnce(async () => {
+    syncedRows.set("sub_1", TENANT);
+    return { ok: true, tenantId: TENANT, status: "ACTIVE", entitled: true, tenantSource: "metadata" };
+  });
+
+  for (let i = 0; i < 3; i += 1) {
+    const { body } = await confirm();
+    assert.equal(body.data.synced, true);
+  }
+  assert.equal(syncMock.mock.callCount(), 1);
+});
+
+test("instant unlock: a synced row for another office does not count", async () => {
+  syncedRows.set("sub_1", "tenant-2");
+  const { body } = await confirm();
+  // Falls through to the full checks and sync for this office.
+  assert.equal(body.data.synced, true);
+  assert.equal(syncMock.mock.callCount(), 1);
 });

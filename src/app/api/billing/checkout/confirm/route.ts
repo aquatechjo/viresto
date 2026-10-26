@@ -6,6 +6,7 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { getPolarClient } from "@/lib/polar";
 import {
   findBillingPlanForPolarProduct,
+  isPolarSubscriptionSyncedForTenant,
   syncSubscriptionFromPolar,
 } from "@/lib/polar-subscription-sync";
 
@@ -80,6 +81,12 @@ export async function POST(req: NextRequest) {
     // "confirmed" can arrive before Polar has created the subscription.
     if (!checkout.subscriptionId) {
       return notSynced("subscription_pending", checkoutId);
+    }
+
+    // The webhook (or an earlier poll of this route) already synced it:
+    // report success without a second sync or Polar call.
+    if (await isPolarSubscriptionSyncedForTenant(checkout.subscriptionId, auth.user.tenantId)) {
+      return ok({ synced: true, entitled: true });
     }
 
     let subscription;

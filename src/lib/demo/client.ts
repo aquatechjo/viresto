@@ -22,21 +22,49 @@ function fetchDemoMode() {
   return cached;
 }
 
+const DEMO_STATE_EVENT = "viresto-demo-state";
+
+/**
+ * Drops the cached state and makes every mounted card and banner read it
+ * again (e.g. right after a purchase ends the trial, so the card hides).
+ */
+export function refreshDemoMode() {
+  cached = null;
+  window.dispatchEvent(new Event(DEMO_STATE_EVENT));
+}
+
 /** null while loading, or when the state cannot be read (treated as "no"). */
 export function useDemoMode() {
   const [state, setState] = useState<DemoModeState | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void fetchDemoMode().then((value) => {
-      if (!cancelled) setState(value);
-    });
+
+    function read() {
+      void fetchDemoMode().then((value) => {
+        if (!cancelled) setState(value);
+      });
+    }
+
+    read();
+    window.addEventListener(DEMO_STATE_EVENT, read);
     return () => {
       cancelled = true;
+      window.removeEventListener(DEMO_STATE_EVENT, read);
     };
   }, []);
 
   return state;
+}
+
+/**
+ * Switches the cookie back to the real session without navigating, for a
+ * caller that reloads on its own (the checkout return). False if it failed.
+ */
+export async function leaveDemoSession(): Promise<boolean> {
+  const res = await fetch("/api/demo/exit", { method: "POST" }).catch(() => null);
+  cached = null;
+  return !!res?.ok;
 }
 
 type DemoAction = "enter" | "exit" | "reset";

@@ -188,6 +188,42 @@ test.describe("وضع التجربة ببيانات وهمية", () => {
     expect(enter.status()).toBe(403);
   });
 
+  test("الرجوع من صفحة الدفع يخفي زر التجربة وبطاقة التجربة فورًا بدون تحديث", async ({ page }) => {
+    await login(page);
+    await expect(page.getByTestId("demo-mode-card")).toBeVisible({ timeout: UI_TIMEOUT_MS });
+
+    // Back from Polar before the webhook has landed (no checkout_id: the
+    // confirm call would reach the real Polar API).
+    await page.goto("/dashboard/billing?checkout=success");
+    await expect(page.getByText("جاري تفعيل اشتراكك")).toBeVisible({ timeout: UI_TIMEOUT_MS });
+    expect(page.url()).not.toContain("checkout=");
+    // Survives only if nothing reloads the page from here on.
+    await page.evaluate(() => {
+      (window as unknown as { __e2eSameDocument?: boolean }).__e2eSameDocument = true;
+    });
+
+    // The webhook lands a few seconds later; the page's poll picks it up.
+    await subscribeOffice();
+
+    await expect(page.getByText("تم تفعيل اشتراكك بنجاح")).toBeVisible({ timeout: UI_TIMEOUT_MS });
+    await expect(page.getByText("جاري تفعيل اشتراكك")).toHaveCount(0);
+    await expect(page.getByTestId("trial-status-card")).toHaveCount(0);
+    await shot(page, "8-checkout-return-activated");
+
+    // Client-side navigation: the demo state was read on the billing page
+    // while still on trial, and must not be reused.
+    await page.locator('a[href="/dashboard"]').first().click();
+    await page.waitForURL(/\/dashboard$/, { timeout: UI_TIMEOUT_MS });
+    await expect(page.getByRole("heading").first()).toBeVisible({ timeout: UI_TIMEOUT_MS });
+    await expect(page.getByTestId("demo-mode-card")).toHaveCount(0);
+    await expect(page.getByTestId("trial-ending-banner")).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __e2eSameDocument?: boolean }).__e2eSameDocument,
+      ),
+    ).toBe(true);
+  });
+
   test("مستخدم داخل وضع التجربة عند الاشتراك يرجع لمكتبه الحقيقي بالطلب التالي", async ({ page }) => {
     await login(page);
     await enterDemo(page);

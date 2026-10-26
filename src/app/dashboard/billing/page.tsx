@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
@@ -13,9 +14,11 @@ import TrialStatusCard, {
 import { useTenantAccessSummary } from "@/hooks/useTenantAccessSummary";
 import {
   invalidateTenantWriteAccessCache,
+  requestTenantWriteAccess,
   type TenantAccessSummary,
 } from "@/lib/tenant-write-access-cache";
 import { DEMO_BLOCKED_CODE, DEMO_BLOCKED_MESSAGE } from "@/lib/demo/constants";
+import { leaveDemoSession, refreshDemoMode } from "@/lib/demo/client";
 import { formatInZone } from "@/lib/datetime";
 
 type SubscriptionStatus =
@@ -424,6 +427,44 @@ function getPlanFeatures(plan: BillingPlan, isArabic: boolean): PlanFeatureItem[
   ];
 }
 
+type CheckoutReturn = { checkoutId: string | null; url: string };
+
+const CHECKOUT_POLL_INTERVAL_MS = 2_000;
+const CHECKOUT_POLL_LIMIT_MS = 30_000;
+// After that, a late webhook still unlocks the page without a refresh.
+const CHECKOUT_SLOW_POLL_INTERVAL_MS = 10_000;
+const CHECKOUT_SLOW_POLL_LIMIT_MS = 5 * 60_000;
+
+/**
+ * One poll of the checkout return: "active" once the office is paid (this
+ * checkout confirmed now, or the webhook got there first), "in_demo" when
+ * this tab is a demo session (billing is closed there), else "pending".
+ */
+async function checkCheckoutActivation(
+  checkoutId: string | null,
+): Promise<"active" | "pending" | "in_demo"> {
+  if (checkoutId) {
+    const res = await fetch("/api/billing/checkout/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checkoutId }),
+    }).catch(() => null);
+    const json = res ? await res.json().catch(() => ({})) : {};
+
+    if (res?.status === 403 && json?.details?.code === DEMO_BLOCKED_CODE) {
+      return "in_demo";
+    }
+    if (json?.data?.synced) {
+      // Banners listen for this refresh (TENANT_ACCESS_EVENT).
+      await requestTenantWriteAccess(true);
+      return "active";
+    }
+  }
+
+  const access = await requestTenantWriteAccess(true);
+  return access?.access?.state === "PAID" ? "active" : "pending";
+}
+
 export default function BillingPage() {
   const { locale } = useLocale();
   const isArabic = locale === "ar";
@@ -462,8 +503,9 @@ export default function BillingPage() {
   const memberAccess = useTenantAccessSummary();
   const [checkoutPending, setCheckoutPending] = useState(false);
   const [checkoutTimedOut, setCheckoutTimedOut] = useState(false);
-  const checkoutBaselineRef = useRef<string | null>(null);
-  const checkoutAttemptsRef = useRef(0);
+  // The ?checkout=success return, read once (undefined = not read yet).
+  const checkoutReturnRef = useRef<CheckoutReturn | null | undefined>(undefined);
+  const router = useRouter();
 
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("MONTHLY");
   const [upgradingKey, setUpgradingKey] = useState<string | null>(null);
@@ -503,89 +545,101 @@ export default function BillingPage() {
     void load();
   }, [load]);
 
+  // Back from Polar (?checkout=success&checkout_id=…): activate now rather
+  // than waiting for the webhook. Every 2 s for up to 30 s, ask the server
+  // to verify the checkout with Polar and sync it (the same idempotent sync
+  // as the webhook, so whichever lands first wins and the other is a
+  // no-op), and also re-read the office's access, which the webhook alone
+  // may already have unlocked. Once paid, every trial banner and the demo
+  // card re-read their state at once.
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (checkoutReturnRef.current === undefined) {
+      const params = new URLSearchParams(window.location.search);
 
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") !== "success") return;
+      if (params.get("checkout") === "success") {
+        checkoutReturnRef.current = {
+          checkoutId: params.get("checkout_id"),
+          url: window.location.pathname + window.location.search,
+        };
+        params.delete("checkout");
+        params.delete("checkout_id");
+        const query = params.toString();
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + (query ? `?${query}` : ""),
+        );
+      } else {
+        checkoutReturnRef.current = null;
+      }
+    }
 
-    const checkoutId = params.get("checkout_id");
-    params.delete("checkout");
-    params.delete("checkout_id");
-    const query = params.toString();
-    window.history.replaceState(
-      null,
-      "",
-      window.location.pathname + (query ? `?${query}` : ""),
-    );
+    const landing = checkoutReturnRef.current;
+    if (!landing) return undefined;
 
     setCheckoutPending(true);
+    setCheckoutTimedOut(false);
 
-    // Ask the server to verify this checkout with Polar and unlock now.
-    // If it can't (still processing, any check fails), the polling below
-    // keeps waiting for the webhook as before.
-    if (checkoutId) {
-      void fetch("/api/billing/checkout/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkoutId }),
-      })
-        .then((res) => res.json().catch(() => ({})))
-        .then((json) => {
-          if (json?.data?.synced) {
-            setCheckoutPending(false);
-            toast.success(
-              isArabic
-                ? "تم تفعيل اشتراكك بنجاح"
-                : "Your subscription has been activated",
-            );
-            invalidateTenantWriteAccessCache();
-            void load();
-          }
-        })
-        .catch(() => undefined);
-    }
-    // Runs once on landing; the URL params are removed above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = Date.now() + CHECKOUT_POLL_LIMIT_MS;
 
-  useEffect(() => {
-    if (!checkoutPending || !data) return undefined;
+    async function attempt() {
+      const outcome = await checkCheckoutActivation(landing!.checkoutId);
+      if (stopped) return;
 
-    if (checkoutBaselineRef.current === null) {
-      checkoutBaselineRef.current = data.subscription?.updatedAt ?? "";
-      checkoutAttemptsRef.current = 0;
-    }
-
-    if (
-      data.subscription?.updatedAt &&
-      data.subscription.updatedAt !== checkoutBaselineRef.current
-    ) {
-      setCheckoutPending(false);
-      toast.success(
-        isArabic
-          ? "تم تفعيل اشتراكك بنجاح"
-          : "Your subscription has been activated",
-      );
-      return undefined;
-    }
-
-    const timer = setTimeout(async () => {
-      checkoutAttemptsRef.current += 1;
-
-      if (checkoutAttemptsRef.current >= 15) {
-        setCheckoutPending(false);
-        setCheckoutTimedOut(true);
+      if (outcome === "in_demo") {
+        // This tab's cookie is a demo session (opened in another tab while
+        // paying), where billing is closed. Back to the real office, then
+        // start over on the same return URL with the real cookie.
+        stopped = true;
+        if (await leaveDemoSession()) window.location.replace(landing!.url);
+        else window.location.replace("/dashboard");
         return;
       }
 
-      await load();
-    }, 3000);
+      if (outcome === "active") {
+        stopped = true;
+        checkoutReturnRef.current = null;
+        setCheckoutPending(false);
+        setCheckoutTimedOut(false);
+        toast.success(
+          isArabic
+            ? "تم تفعيل اشتراكك بنجاح"
+            : "Your subscription has been activated",
+        );
+        refreshDemoMode();
+        void load();
+        router.refresh();
+        return;
+      }
+
+      const now = Date.now();
+      if (now >= deadline + CHECKOUT_SLOW_POLL_LIMIT_MS) {
+        stopped = true;
+        return;
+      }
+      if (now >= deadline) {
+        // Slower than usual: say so, and keep checking in the background.
+        setCheckoutPending(false);
+        setCheckoutTimedOut(true);
+      }
+
+      timer = setTimeout(
+        () => void attempt(),
+        now >= deadline ? CHECKOUT_SLOW_POLL_INTERVAL_MS : CHECKOUT_POLL_INTERVAL_MS,
+      );
+    }
+
+    void attempt();
 
     return () => {
-      clearTimeout(timer);
+      stopped = true;
+      if (timer) clearTimeout(timer);
     };
-  }, [checkoutPending, data, load, isArabic]);
+    // Runs on landing only; `load` and `router` are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const trialLabel = useMemo(() => {
     if (!data?.tenant.trialEndsAt && !data?.subscription?.trialEndsAt) {

@@ -122,6 +122,24 @@ export async function findBillingPlanForPolarProduct(
   });
 }
 
+/**
+ * True when this Polar subscription is already in our DB for this office
+ * and entitled (the webhook, or an earlier confirm, got there first). The
+ * checkout return then skips another sync instead of repeating it.
+ */
+export async function isPolarSubscriptionSyncedForTenant(
+  polarSubscriptionId: string,
+  tenantId: string,
+) {
+  const row = await prisma.subscription.findUnique({
+    where: { polarSubscriptionId },
+  });
+
+  return (
+    !!row && row.tenantId === tenantId && isPaidSubscriptionEntitled(row, new Date())
+  );
+}
+
 export type PolarSyncFailureReason =
   | "unknown_product"
   | "tenant_missing"

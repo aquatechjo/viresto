@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { apiHandler } from "@/lib/api-handler";
 import { ok } from "@/lib/api-response";
 import { requireAuth } from "@/lib/api-auth";
-import { isOfficeOnTrial } from "@/lib/demo/sandbox";
+import { getTenantAccess } from "@/lib/tenant-access-server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +17,10 @@ export async function GET(req: NextRequest) {
       return ok({ inDemo: true, available: true });
     }
 
-    return ok({
-      inDemo: false,
-      available: await isOfficeOnTrial(auth.user.tenantId),
-    });
+    // Read from the DB, not the per-instance access cache: right after a
+    // purchase another instance may still hold the trial state.
+    const access = await getTenantAccess(auth.user.tenantId);
+
+    return ok({ inDemo: false, available: access.state === "TRIAL" });
   });
 }
