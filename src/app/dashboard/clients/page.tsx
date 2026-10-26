@@ -15,6 +15,12 @@ import {
   planLimitMessage,
 } from "@/lib/plan-ui";
 import { useFormDraft } from "@/lib/useFormDraft";
+import DigitsInput from "@/components/ui/DigitsInput";
+import {
+  NATIONAL_ID_DIGITS_MESSAGE,
+  PHONE_DIGITS_MESSAGE,
+  TEN_DIGITS,
+} from "@/lib/digits";
 import { formatInZone, NUMERIC_DATE } from "@/lib/datetime";
 
 interface Client {
@@ -113,10 +119,8 @@ const pageText = {
       nameRequired: "اسم الموكل مطلوب.",
       phoneRequired: "رقم الهاتف مطلوب.",
       nationalIdRequired: "الرقم الوطني مطلوب.",
-      phoneInvalid:
-        "رقم الهاتف يجب أن يتكون من 10 أرقام فقط.",
-      nationalIdInvalid:
-        "الرقم الوطني يجب أن يتكون من 10 أرقام فقط.",
+      phoneInvalid: PHONE_DIGITS_MESSAGE,
+      nationalIdInvalid: NATIONAL_ID_DIGITS_MESSAGE,
       nameTooLong: "اسم الموكل طويل جدًا.",
       phoneTooLong: "رقم الهاتف طويل جدًا.",
       emailTooLong: "البريد الإلكتروني طويل جدًا.",
@@ -207,8 +211,8 @@ const pageText = {
       nameRequired: "Client name is required.",
       phoneRequired: "Phone number is required.",
       nationalIdRequired: "National ID is required.",
-      phoneInvalid: "Phone number must be exactly 10 digits.",
-      nationalIdInvalid: "National ID must be exactly 10 digits.",
+      phoneInvalid: "Phone number must be 10 digits",
+      nationalIdInvalid: "National ID must be 10 digits",
       nameTooLong: "Client name is too long.",
       phoneTooLong: "Phone number is too long.",
       emailTooLong: "Email is too long.",
@@ -241,10 +245,6 @@ function formatDate(date: string, locale: LocaleKey) {
 
 function cleanValue(value: string) {
   return value.replace(/\s+/g, " ").trim();
-}
-
-function digitsOnly(value: string) {
-  return value.replace(/\D/g, "").slice(0, 10);
 }
 
 function isTooLong(value: string, max: number) {
@@ -288,11 +288,9 @@ function validateClientPayload(
   if (!payload.phone) return text.validation.phoneRequired;
   if (!payload.nationalId) return text.validation.nationalIdRequired;
 
-  if (!/^\d{10}$/.test(payload.phone)) return text.validation.phoneInvalid;
-  if (!/^\d{10}$/.test(payload.nationalId))
+  if (!TEN_DIGITS.test(payload.phone)) return text.validation.phoneInvalid;
+  if (!TEN_DIGITS.test(payload.nationalId))
     return text.validation.nationalIdInvalid;
-  if (!payload.phone) return text.validation.phoneRequired;
-  if (!payload.nationalId) return text.validation.nationalIdRequired;
   if (isTooLong(payload.name, 120)) return text.validation.nameTooLong;
   if (isTooLong(payload.phone, 30)) return text.validation.phoneTooLong;
   if (isTooLong(payload.email, 120)) return text.validation.emailTooLong;
@@ -325,6 +323,8 @@ function CreateClientModal({
 }: CreateClientModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // After a submit, incomplete digit fields show their message too.
+  const [attempted, setAttempted] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -339,6 +339,7 @@ function CreateClientModal({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    setAttempted(true);
 
     const payload = normalizeClientForm(form);
     const validationError = validateClientPayload(payload, text);
@@ -469,23 +470,18 @@ function CreateClientModal({
                 {text.modal.labels.phone}{" "}
                 <span className="text-red-300">*</span>
               </label>
-              <input
-                dir={isRtl ? "rtl" : "ltr"}
+              <DigitsInput
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-                style={{
-                  textAlign: isRtl ? "right" : "left",
-                  direction: isRtl ? "rtl" : "ltr",
-                }}
                 name="viresto_client_phone"
-                type="text"
-                inputMode="numeric"
-                pattern="\d{10}"
                 autoComplete="new-password"
-                maxLength={10}
                 placeholder={text.modal.placeholders.phone}
                 value={form.phone}
-                onChange={(event) =>
-                  setForm({ ...form, phone: digitsOnly(event.target.value) })
+                onValueChange={(phone) => setForm({ ...form, phone })}
+                incompleteMessage={text.validation.phoneInvalid}
+                error={
+                  attempted && !TEN_DIGITS.test(form.phone)
+                    ? text.validation.phoneInvalid
+                    : null
                 }
                 required
               />
@@ -522,26 +518,18 @@ function CreateClientModal({
                 {text.modal.labels.nationalId}{" "}
                 <span className="text-red-300">*</span>
               </label>
-              <input
-                dir={isRtl ? "rtl" : "ltr"}
+              <DigitsInput
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-                style={{
-                  textAlign: isRtl ? "right" : "left",
-                  direction: isRtl ? "rtl" : "ltr",
-                }}
-                type="text"
-                inputMode="numeric"
                 name="viresto_client_national_id"
                 autoComplete="new-password"
-                pattern="\d{10}"
-                maxLength={10}
                 placeholder={text.modal.placeholders.nationalId}
                 value={form.nationalId}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    nationalId: digitsOnly(event.target.value),
-                  })
+                onValueChange={(nationalId) => setForm({ ...form, nationalId })}
+                incompleteMessage={text.validation.nationalIdInvalid}
+                error={
+                  attempted && !TEN_DIGITS.test(form.nationalId)
+                    ? text.validation.nationalIdInvalid
+                    : null
                 }
                 required
               />

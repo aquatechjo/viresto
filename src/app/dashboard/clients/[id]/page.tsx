@@ -17,6 +17,12 @@ import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { formatJOD } from "@/lib/money";
 import { formatInZone } from "@/lib/datetime";
+import DigitsInput from "@/components/ui/DigitsInput";
+import {
+  NATIONAL_ID_DIGITS_MESSAGE,
+  PHONE_DIGITS_MESSAGE,
+  TEN_DIGITS,
+} from "@/lib/digits";
 interface ClientCase {
   id: string;
   publicId?: number;
@@ -88,6 +94,8 @@ const COPY = {
     clientNotFound: "الموكل غير موجود",
     loadError: "تعذر تحميل بيانات الموكل",
     nameRequired: "اسم الموكل مطلوب",
+    phoneInvalid: PHONE_DIGITS_MESSAGE,
+    nationalIdInvalid: NATIONAL_ID_DIGITS_MESSAGE,
     saved: "تم حفظ بيانات الموكل",
     saveError: "تعذر حفظ بيانات الموكل",
     saveUnexpected: "حدث خطأ أثناء حفظ البيانات",
@@ -178,6 +186,8 @@ const COPY = {
     clientNotFound: "Client not found",
     loadError: "Could not load client data",
     nameRequired: "Client name is required",
+    phoneInvalid: "Phone number must be 10 digits",
+    nationalIdInvalid: "National ID must be 10 digits",
     saved: "Client details saved",
     saveError: "Could not save client details",
     saveUnexpected: "Something went wrong while saving",
@@ -332,6 +342,8 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  // After a save attempt, incomplete digit fields show their message.
+  const [attempted, setAttempted] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const [form, setForm] = useState(INIT_FORM);
@@ -443,6 +455,13 @@ export default function ClientDetailPage() {
 
     if (!form.name.trim()) {
       toast.error(text.nameRequired);
+      return;
+    }
+
+    // Saved values from before this rule (e.g. "+962…") are shown as they
+    // are; saving asks for 10 digits, under the field.
+    setAttempted(true);
+    if (!TEN_DIGITS.test(form.phone.trim()) || !TEN_DIGITS.test(form.nationalId.trim())) {
       return;
     }
 
@@ -810,6 +829,7 @@ export default function ClientDetailPage() {
                   return;
                 }
 
+                setAttempted(false);
                 setEditing(true);
               }}
               disabled={isArchivedClient}
@@ -1421,21 +1441,19 @@ export default function ClientDetailPage() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={text.modal.phone}>
-              <input
-                dir="ltr"
+              <DigitsInput
                 value={form.phone}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    phone: event.target.value,
-                  }))
+                onValueChange={(phone) =>
+                  setForm((previous) => ({ ...previous, phone }))
+                }
+                incompleteMessage={text.phoneInvalid}
+                error={
+                  attempted && !TEN_DIGITS.test(form.phone.trim())
+                    ? text.phoneInvalid
+                    : null
                 }
                 disabled={isArchivedClient}
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-                style={{
-                  textAlign: isRtl ? "right" : "left",
-                  direction: "ltr",
-                }}
               />
             </FormField>
 
@@ -1461,21 +1479,19 @@ export default function ClientDetailPage() {
           </div>
 
           <FormField label={text.modal.nationalId}>
-            <input
-              dir="ltr"
+            <DigitsInput
               value={form.nationalId}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  nationalId: event.target.value,
-                }))
+              onValueChange={(nationalId) =>
+                setForm((previous) => ({ ...previous, nationalId }))
+              }
+              incompleteMessage={text.nationalIdInvalid}
+              error={
+                attempted && !TEN_DIGITS.test(form.nationalId.trim())
+                  ? text.nationalIdInvalid
+                  : null
               }
               disabled={isArchivedClient}
               className={`input ${isRtl ? "!text-right" : "!text-left"}`}
-              style={{
-                textAlign: isRtl ? "right" : "left",
-                direction: "ltr",
-              }}
             />
           </FormField>
 

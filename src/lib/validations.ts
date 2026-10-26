@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { hasValidJodPrecision, MAX_JOD_AMOUNT } from "@/lib/money";
+import {
+  NATIONAL_ID_DIGITS_MESSAGE,
+  PHONE_DIGITS_MESSAGE,
+  TEN_DIGITS,
+  toLatinDigits,
+} from "@/lib/digits";
 
 // Upper bounds for free text, so one request cannot store megabytes per field.
 export const SHORT_TEXT_MAX = 200;
@@ -69,6 +75,16 @@ export const registerSchema = z.object({
   ),
 });
 
+// Exactly 10 digits (phone, national ID). Arabic/Persian digits count as
+// digits; nothing else (spaces, "+", "-") is stripped: the input already
+// sends clean digits, so anything else is rejected rather than guessed at.
+function tenDigits(message: string) {
+  return z.preprocess(
+    (value) => (typeof value === "string" ? toLatinDigits(value).trim() : value),
+    z.string({ required_error: message, invalid_type_error: message }).regex(TEN_DIGITS, message),
+  );
+}
+
 export const clientSchema = z.object({
   name: z.string().trim().min(1, "Client name is required").max(120),
 
@@ -80,15 +96,8 @@ export const clientSchema = z.object({
     .optional()
     .or(z.literal("")),
 
-  phone: z
-    .string()
-    .trim()
-    .regex(/^\d{10}$/, "Phone number must be exactly 10 digits"),
-
-  nationalId: z
-    .string()
-    .trim()
-    .regex(/^\d{10}$/, "National ID must be exactly 10 digits"),
+  phone: tenDigits(PHONE_DIGITS_MESSAGE),
+  nationalId: tenDigits(NATIONAL_ID_DIGITS_MESSAGE),
 
   address: z.string().trim().max(500, "Address is too long").optional().or(z.literal("")),
   notes: z

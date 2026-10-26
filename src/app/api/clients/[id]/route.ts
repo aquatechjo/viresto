@@ -276,7 +276,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const parsed = clientSchema.safeParse(body);
 
     if (!parsed.success) {
-      return err("بيانات غير صالحة", 400, parsed.error.flatten());
+      return err(
+        parsed.error.issues.map((i) => i.message).join(" | ") || "بيانات غير صالحة",
+        400,
+        parsed.error.flatten(),
+      );
     }
 
     const normalizedEmail = normalizeEmail(parsed.data.email);

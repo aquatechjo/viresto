@@ -174,10 +174,10 @@ export async function POST(req: NextRequest) {
 
     if (!parsed.success) {
       return err(
-        parsed.error.issues
-          .map((i) => `${i.path.join(".")}: ${i.message}`)
-          .join(" | "),
+        // Shown as is in the form: the messages alone, no field paths.
+        parsed.error.issues.map((i) => i.message).join(" | "),
         400,
+        parsed.error.flatten(),
       );
     }
 

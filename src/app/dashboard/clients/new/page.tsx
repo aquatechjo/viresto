@@ -5,6 +5,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getApiMessage, isPlanLimitResponse, planLimitMessage } from '@/lib/plan-ui'
 import { useLocale } from '@/lib/useLocale'
+import DigitsInput from '@/components/ui/DigitsInput'
+import { NATIONAL_ID_DIGITS_MESSAGE, PHONE_DIGITS_MESSAGE, TEN_DIGITS } from '@/lib/digits'
 
 const COPY = {
   ar: {
@@ -13,6 +15,8 @@ const COPY = {
     errorTitle: 'تعذر تنفيذ العملية',
     planLimitFallback: 'وصلت إلى حد الموكلين المسموح في خطتك الحالية.',
     addFallback: 'تعذر إضافة الموكل',
+    phoneInvalid: PHONE_DIGITS_MESSAGE,
+    nationalIdInvalid: NATIONAL_ID_DIGITS_MESSAGE,
     billing: 'عرض الاشتراك والخطة',
     fields: {
       name: 'اسم الموكل',
@@ -32,6 +36,8 @@ const COPY = {
     errorTitle: 'Could not complete the action',
     planLimitFallback: 'You have reached the client limit allowed by your current plan.',
     addFallback: 'Could not add client',
+    phoneInvalid: 'Phone number must be 10 digits',
+    nationalIdInvalid: 'National ID must be 10 digits',
     billing: 'View billing and plan',
     fields: {
       name: 'Client name',
@@ -54,6 +60,8 @@ export default function NewClientPage() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // After a submit, incomplete digit fields show their message too.
+  const [attempted, setAttempted] = useState(false)
 
   const [form, setForm] = useState({
     name: '',
@@ -66,6 +74,9 @@ export default function NewClientPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    setAttempted(true)
+    if (!TEN_DIGITS.test(form.phone) || !TEN_DIGITS.test(form.nationalId)) return
+
     setLoading(true)
     setError('')
 
@@ -133,15 +144,15 @@ export default function NewClientPage() {
             required
           />
 
-          <input
+          <DigitsInput
             className={`input h-12 w-full ${isRtl ? 'text-right' : 'text-left'}`}
-            dir="ltr"
             name="clientPhone"
             autoComplete="off"
-            inputMode="tel"
             placeholder={text.fields.phone}
             value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            onValueChange={(phone) => setForm({ ...form, phone })}
+            incompleteMessage={text.phoneInvalid}
+            error={attempted && !TEN_DIGITS.test(form.phone) ? text.phoneInvalid : null}
           />
 
           <input
@@ -155,14 +166,17 @@ export default function NewClientPage() {
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
 
-          <input
+          <DigitsInput
             className={`input h-12 w-full ${isRtl ? 'text-right' : 'text-left'}`}
-            dir="ltr"
             name="clientNationalId"
             autoComplete="off"
             placeholder={text.fields.nationalId}
             value={form.nationalId}
-            onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
+            onValueChange={(nationalId) => setForm({ ...form, nationalId })}
+            incompleteMessage={text.nationalIdInvalid}
+            error={
+              attempted && !TEN_DIGITS.test(form.nationalId) ? text.nationalIdInvalid : null
+            }
           />
         </div>
 
