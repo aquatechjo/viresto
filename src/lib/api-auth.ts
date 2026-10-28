@@ -501,7 +501,11 @@ export async function validateSessionPayload(
     },
   };
 
-  setCachedAuth(cacheKey, user, lastActivityAtForCache, session.createdAt);
+  // A demo session is never cached: when the office subscribes, the sandbox
+  // is deleted, and a warm instance must not keep serving it for the TTL.
+  if (!isDemo) {
+    setCachedAuth(cacheKey, user, lastActivityAtForCache, session.createdAt);
+  }
 
   return {
     ok: true,
@@ -647,7 +651,14 @@ async function subscriptionLockResponse(
   if (user.isSystemAdmin) return null;
   if (isSubscriptionExemptPath(req.nextUrl.pathname, req.method)) return null;
 
-  const access = await getTenantAccessCached(user.tenantId);
+  let access = await getTenantAccessCached(user.tenantId);
+  if (access.state !== "LOCKED") return null;
+
+  // A cached LOCKED may be stale on this instance right after a purchase
+  // synced on another one: confirm with the DB before refusing. Only locked
+  // offices pay for this read.
+  invalidateTenantAccessCache(user.tenantId);
+  access = await getTenantAccessCached(user.tenantId);
   if (access.state !== "LOCKED") return null;
 
   return err(

@@ -200,3 +200,23 @@ test("paying unlocks immediately: tenant invalidation drops the cached lock", as
   const auth = await requireAuth(request("/api/cases"));
   assert.equal(auth.error, null);
 });
+
+test("paying unlocks immediately on another instance: a cached lock is re-checked in the DB", async () => {
+  await lockedBody((await requireAuth(request("/api/cases"))).error);
+
+  // The purchase was synced by another instance, so nothing invalidated
+  // this instance's cache: only the DB knows.
+  subscriptions = [paidSubscription(), expiredTrial()];
+
+  const auth = await requireAuth(request("/api/cases"));
+  assert.equal(auth.error, null);
+});
+
+test("a cached state that is not locked is used as is (no extra DB read)", async () => {
+  subscriptions = [paidSubscription()];
+  await requireAuth(request("/api/cases"));
+  const reads = subscriptionFindManyMock.mock.callCount();
+
+  await requireAuth(request("/api/cases"));
+  assert.equal(subscriptionFindManyMock.mock.callCount(), reads);
+});

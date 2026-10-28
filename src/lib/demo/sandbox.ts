@@ -13,7 +13,7 @@ import {
   sessionExpired,
   userCanUseSession,
 } from "@/lib/session-policy";
-import { getTenantAccessCached } from "@/lib/tenant-access-server";
+import { getTenantAccess } from "@/lib/tenant-access-server";
 import { DEMO_TEAM, buildDemoSampleData, demoEmail } from "@/lib/demo/sample-data";
 
 // Demo mode ("try with sample data"). A user whose office is on its in-app
@@ -35,9 +35,13 @@ export type DemoOwner = {
   name: string;
 };
 
-/** The owner's real office may use demo mode only while on its trial. */
+/**
+ * The owner's real office may use demo mode only while on its trial. Read
+ * from the DB, never the per-instance access cache: a purchase synced on
+ * another instance must end every demo session at once.
+ */
 export async function isOfficeOnTrial(tenantId: string) {
-  const access = await getTenantAccessCached(tenantId);
+  const access = await getTenantAccess(tenantId);
   return access.state === "TRIAL";
 }
 
