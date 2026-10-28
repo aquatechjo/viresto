@@ -1,31 +1,25 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { ok, err } from '@/lib/api-response'
 import { requireRole } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-handler'
-import {
-  decryptText,
-  normalizeEmail,
-  normalizePhone,
-  hashSearchValue,
-} from '@/lib/encryption'
-import {
-  buildCaseAccessWhere,
-  buildClientAccessWhere,
-} from '@/lib/access-control'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { SEARCH_RATE_LIMIT } from '@/lib/expensive-route-limits'
+import { emptySearchResults, runGlobalSearch } from '@/lib/global-search'
+import { prepareSearchQuery } from '@/lib/search-normalize'
 
+// Top-bar search across the office: clients, cases, invoices, payments,
+// documents, appointments, tasks and team. See src/lib/global-search.ts.
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
     const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
     if (auth.error || !auth.user) return auth.error
 
     const sp = new URL(req.url).searchParams
-    const q = sp.get('q')?.trim()
+    const query = prepareSearchQuery(sp.get('q'))
+    const locale = sp.get('locale') === 'en' ? 'en' : 'ar'
 
-    if (!q) {
-      return ok({ clients: [] })
+    if (!query) {
+      return ok(emptySearchResults())
     }
 
     const limit = await checkRateLimit(auth.user.userId, SEARCH_RATE_LIMIT)
@@ -33,56 +27,6 @@ export async function GET(req: NextRequest) {
       return err('عدد كبير من عمليات البحث، حاول بعد دقيقة', 429)
     }
 
-    const normalizedEmail = normalizeEmail(q)
-    const normalizedPhone = normalizePhone(q)
-
-    const emailHash = normalizedEmail ? hashSearchValue(normalizedEmail) : null
-    const phoneHash = normalizedPhone ? hashSearchValue(normalizedPhone) : null
-    const nationalIdHash = q ? hashSearchValue(q.trim()) : null
-
-    const clients = await prisma.client.findMany({
-      where: buildClientAccessWhere(auth.user, {
-        OR: [
-          {
-            name: {
-              contains: q,
-              mode: 'insensitive',
-            },
-          },
-          ...(emailHash ? [{ emailHash }] : []),
-          ...(phoneHash ? [{ phoneHash }] : []),
-          ...(nationalIdHash ? [{ nationalIdHash }] : []),
-        ],
-      }),
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        nationalId: true,
-        createdAt: true,
-        _count: {
-          select: {
-            cases: {
-              where: buildCaseAccessWhere(auth.user),
-            },
-          },
-        },
-      },
-      take: 20,
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
-
-    const safeClients = clients.map((client) => ({
-      ...client,
-      email: auth.user.role === 'STAFF' ? null : decryptText(client.email),
-      phone: auth.user.role === 'STAFF' ? null : decryptText(client.phone),
-      nationalId:
-        auth.user.role === 'STAFF' ? null : decryptText(client.nationalId),
-    }))
-
-    return ok({ clients: safeClients })
+    return ok(await runGlobalSearch(auth.user, query, locale))
   })
 }

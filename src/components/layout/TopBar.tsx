@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
 import DashboardSearch from "./DashboardSearch";
+import GlobalSearchPalette from "./GlobalSearchPalette";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import { translations } from "@/lib/i18n";
@@ -151,6 +152,10 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
           className="hidden xl:col-span-1 xl:col-start-1 xl:row-start-1 xl:block xl:min-w-[280px] xl:max-w-[860px]"
         />
       </div>
+
+      {/* One palette for both search boxes and Ctrl+K, at every width */}
+      <GlobalSearchPalette />
+
     </header>
   );
 }

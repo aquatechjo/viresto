@@ -125,8 +125,27 @@ export const translations = {
     },
 
     topbar: {
-      searchPlaceholder: "بحث في القضايا والموكلين...",
+      searchPlaceholder: "بحث شامل: قضايا، موكلين، فواتير، مستندات...",
       noResultsFor: "لا نتائج لـ",
+      searching: "جارِ البحث...",
+      searchHint: "اكتب حرفين على الأقل للبحث في كل المكتب",
+      searchFailed: "تعذّر البحث، حاول مرة أخرى",
+      searchClose: "إغلاق البحث",
+      searchKeysNavigate: "للتنقل",
+      searchKeysOpen: "للفتح",
+      searchKeysClose: "للإغلاق",
+      searchArchived: "مؤرشف",
+      searchInactive: "معطل",
+      searchGroups: {
+        clients: "الموكلون",
+        cases: "القضايا",
+        invoices: "الفواتير",
+        payments: "المدفوعات",
+        documents: "المستندات",
+        appointments: "المواعيد",
+        tasks: "المهام",
+        team: "الفريق",
+      },
     },
 
     session: {
@@ -626,8 +645,27 @@ export const translations = {
     },
 
     topbar: {
-      searchPlaceholder: "Search cases and clients...",
+      searchPlaceholder: "Search everything: cases, clients, invoices, documents...",
       noResultsFor: "No results for",
+      searching: "Searching...",
+      searchHint: "Type at least two characters to search the whole office",
+      searchFailed: "Search failed, please try again",
+      searchClose: "Close search",
+      searchKeysNavigate: "to navigate",
+      searchKeysOpen: "to open",
+      searchKeysClose: "to close",
+      searchArchived: "Archived",
+      searchInactive: "Inactive",
+      searchGroups: {
+        clients: "Clients",
+        cases: "Cases",
+        invoices: "Invoices",
+        payments: "Payments",
+        documents: "Documents",
+        appointments: "Appointments",
+        tasks: "Tasks",
+        team: "Team",
+      },
     },
 
     session: {
