@@ -125,15 +125,10 @@ export const translations = {
     },
 
     topbar: {
-      searchPlaceholder: "بحث شامل: قضايا، موكلين، فواتير، مستندات...",
+      searchPlaceholder: "ابحث في القضايا، الموكلين، الفواتير، المستندات...",
       noResultsFor: "لا نتائج لـ",
       searching: "جارِ البحث...",
-      searchHint: "اكتب حرفين على الأقل للبحث في كل المكتب",
       searchFailed: "تعذّر البحث، حاول مرة أخرى",
-      searchClose: "إغلاق البحث",
-      searchKeysNavigate: "للتنقل",
-      searchKeysOpen: "للفتح",
-      searchKeysClose: "للإغلاق",
       searchArchived: "مؤرشف",
       searchInactive: "معطل",
       searchGroups: {
@@ -645,15 +640,10 @@ export const translations = {
     },
 
     topbar: {
-      searchPlaceholder: "Search everything: cases, clients, invoices, documents...",
+      searchPlaceholder: "Search cases, clients, invoices, documents...",
       noResultsFor: "No results for",
       searching: "Searching...",
-      searchHint: "Type at least two characters to search the whole office",
       searchFailed: "Search failed, please try again",
-      searchClose: "Close search",
-      searchKeysNavigate: "to navigate",
-      searchKeysOpen: "to open",
-      searchKeysClose: "to close",
       searchArchived: "Archived",
       searchInactive: "Inactive",
       searchGroups: {
