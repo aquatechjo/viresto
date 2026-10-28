@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Subscription as PolarSubscription } from "@polar-sh/sdk/models/components/subscription.js";
 import { ok } from "@/lib/api-response";
 import { requireRole } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
@@ -17,7 +18,9 @@ import {
 //   - its metadata.tenantId is the logged-in user's office,
 //   - its product is one of our BillingPlan products,
 //   - the subscription it created is the same purchase (same checkout,
-//     same product, same tenant in metadata).
+//     same product, same tenant in metadata). A first purchase is found
+//     among the customer's subscriptions by its checkoutId: the checkout
+//     itself never points to it.
 // Any failed check returns synced:false and the webhook remains the path.
 
 const PAID_CHECKOUT_STATUSES = new Set(["succeeded", "confirmed"]);
@@ -78,22 +81,36 @@ export async function POST(req: NextRequest) {
       return notSynced("unknown_product", checkoutId);
     }
 
-    // "confirmed" can arrive before Polar has created the subscription.
-    if (!checkout.subscriptionId) {
+    // Checkout.subscriptionId is only set when a checkout updates an existing
+    // subscription; a first purchase leaves it null for good (seen on the
+    // 2026-10-28 production purchase). Find the subscription this checkout
+    // created among the customer's subscriptions to this product instead.
+    let subscription: PolarSubscription | null = null;
+    try {
+      if (checkout.subscriptionId) {
+        subscription = await polar.subscriptions.get({ id: checkout.subscriptionId });
+      } else if (checkout.customerId) {
+        const page = await polar.subscriptions.list({
+          customerId: checkout.customerId,
+          productId: checkout.productId,
+          limit: 20,
+        });
+        subscription =
+          page.result.items.find((item) => item.checkoutId === checkout.id) ?? null;
+      }
+    } catch {
+      return notSynced("subscription_pending", checkoutId);
+    }
+
+    // Polar creates the subscription a moment after the payment.
+    if (!subscription) {
       return notSynced("subscription_pending", checkoutId);
     }
 
     // The webhook (or an earlier poll of this route) already synced it:
-    // report success without a second sync or Polar call.
-    if (await isPolarSubscriptionSyncedForTenant(checkout.subscriptionId, auth.user.tenantId)) {
+    // report success without a second sync.
+    if (await isPolarSubscriptionSyncedForTenant(subscription.id, auth.user.tenantId)) {
       return ok({ synced: true, entitled: true });
-    }
-
-    let subscription;
-    try {
-      subscription = await polar.subscriptions.get({ id: checkout.subscriptionId });
-    } catch {
-      return notSynced("subscription_pending", checkoutId);
     }
 
     if (

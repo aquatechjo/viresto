@@ -18,6 +18,9 @@ let subscription: Record<string, unknown>;
 
 const checkoutsGet = mock.fn(async () => checkout);
 const subscriptionsGet = mock.fn(async () => subscription);
+// The customer's subscriptions to the checkout's product, as Polar lists them.
+let listed: Record<string, unknown>[];
+const subscriptionsList = mock.fn(async (_query: unknown) => ({ result: { items: listed } }));
 const syncMock = mock.fn(async () => ({
   ok: true,
   tenantId: TENANT,
@@ -38,7 +41,7 @@ mock.module("@/lib/polar", {
   namedExports: {
     getPolarClient: () => ({
       checkouts: { get: checkoutsGet },
-      subscriptions: { get: subscriptionsGet },
+      subscriptions: { get: subscriptionsGet, list: subscriptionsList },
     }),
   },
 });
@@ -58,11 +61,14 @@ before(async () => {
 });
 
 beforeEach(() => {
+  // A first purchase, as Polar returns it: subscriptionId stays null (it
+  // is only set when a checkout updates an existing subscription).
   checkout = {
     id: "chk_1",
     status: "succeeded",
     productId: "prod_pro_monthly",
-    subscriptionId: "sub_1",
+    subscriptionId: null,
+    customerId: "cust_1",
     metadata: { tenantId: TENANT },
   };
   subscription = {
@@ -71,7 +77,9 @@ beforeEach(() => {
     checkoutId: "chk_1",
     metadata: { tenantId: TENANT },
   };
+  listed = [subscription, { id: "sub_old", productId: "prod_pro_monthly", checkoutId: "chk_old" }];
   checkoutsGet.mock.resetCalls();
+  subscriptionsList.mock.resetCalls();
   subscriptionsGet.mock.resetCalls();
   syncMock.mock.resetCalls();
   syncedRows.clear();
@@ -118,12 +126,21 @@ for (const [name, mutate, reason] of [
   ],
   [
     "a checkout whose subscription does not exist yet",
-    () => (checkout.subscriptionId = null),
+    () => (listed = [{ id: "sub_old", productId: "prod_pro_monthly", checkoutId: "chk_old" }]),
+    "subscription_pending",
+  ],
+  [
+    "a checkout without a customer yet",
+    () => (checkout.customerId = null),
     "subscription_pending",
   ],
   [
     "a subscription from a different checkout",
-    () => (subscription.checkoutId = "chk_other"),
+    () => {
+      // A checkout that names its subscription: checked, not trusted.
+      checkout.subscriptionId = "sub_1";
+      subscription.checkoutId = "chk_other";
+    },
     "subscription_mismatch",
   ],
   [
@@ -185,4 +202,34 @@ test("instant unlock: a synced row for another office does not count", async () 
   // Falls through to the full checks and sync for this office.
   assert.equal(body.data.synced, true);
   assert.equal(syncMock.mock.callCount(), 1);
+});
+
+test("instant unlock: a first purchase finds its subscription by checkout among the customer's", async () => {
+  const { body } = await confirm();
+
+  assert.deepEqual(body.data, { synced: true, entitled: true });
+  assert.deepEqual(subscriptionsList.mock.calls[0].arguments[0], {
+    customerId: "cust_1",
+    productId: "prod_pro_monthly",
+    limit: 20,
+  });
+  assert.equal(subscriptionsGet.mock.callCount(), 0);
+  assert.equal((syncMock.mock.calls[0].arguments as unknown[])[0], subscription);
+});
+
+test("instant unlock: a checkout that updates a subscription fetches that one directly", async () => {
+  checkout.subscriptionId = "sub_1";
+  const { body } = await confirm();
+
+  assert.equal(body.data.synced, true);
+  assert.equal(subscriptionsGet.mock.callCount(), 1);
+  assert.equal(subscriptionsList.mock.callCount(), 0);
+});
+
+test("instant unlock: a Polar error while listing just means wait", async () => {
+  subscriptionsList.mock.mockImplementationOnce(async () => {
+    throw new Error("503");
+  });
+  const { body } = await confirm();
+  assert.deepEqual(body.data, { synced: false, reason: "subscription_pending" });
 });
