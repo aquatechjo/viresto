@@ -9,7 +9,8 @@ import { decryptText } from "@/lib/encryption";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import { buildCaseIdentifierAccessWhere } from "@/lib/access-control";
-import { canReadFinance } from "@/lib/permissions";
+import { canChangeCaseTeam, canReadFinance } from "@/lib/permissions";
+import { caseMembersAfterEdit, isCaseTeamChange } from "@/lib/case-team";
 import {
   assertCaseClientCanChange,
   assertCaseFeeCoversCommitments,
@@ -248,6 +249,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         status: true,
         clientId: true,
         leadLawyerId: true,
+        members: {
+          select: {
+            userId: true,
+          },
+        },
         client: {
           select: {
             id: true,
@@ -324,6 +330,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return err("يجب تحديد المحامي المسؤول عن القضية", 400);
     }
 
+    const currentTeam = {
+      leadLawyerId: exists.leadLawyerId,
+      memberIds: exists.members.map((member) => member.userId),
+    };
+    const nextTeam = {
+      leadLawyerId: nextLeadLawyerId,
+      memberIds: parsed.data.memberIds,
+    };
+    const teamChanged = isCaseTeamChange(currentTeam, nextTeam);
+
+    if (teamChanged && !canChangeCaseTeam(auth.user, exists.leadLawyerId)) {
+      return err(
+        "تغيير فريق القضية متاح لمدير المكتب أو المحامي المسؤول عن القضية فقط",
+        403,
+      );
+    }
+
     const leadLawyer = await prisma.user.findFirst({
       where: {
         id: nextLeadLawyerId,
@@ -340,28 +363,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return err("المحامي المسؤول غير موجود أو لا يملك صلاحية محامٍ", 400);
     }
 
-    const memberIds =
+    // Only the members this edit asks for are checked; the previous lead
+    // and the current members are already on the case.
+    const requestedMemberIds =
       parsed.data.memberIds !== undefined
         ? Array.from(new Set(parsed.data.memberIds)).filter(
             (memberId) => memberId !== nextLeadLawyerId,
           )
-        : undefined;
+        : [];
 
-    if (memberIds && memberIds.length > 0) {
+    if (requestedMemberIds.length > 0) {
       const validMembers = await prisma.user.count({
         where: {
           tenantId: auth.user.tenantId,
           isActive: true,
           id: {
-            in: memberIds,
+            in: requestedMemberIds,
           },
         },
       });
 
-      if (validMembers !== memberIds.length) {
+      if (validMembers !== requestedMemberIds.length) {
         return err("أحد أعضاء القضية غير موجود أو حسابه معطل", 400);
       }
     }
+
+    const memberIds = caseMembersAfterEdit(currentTeam, nextTeam);
 
     const {
       memberIds: _memberIds,

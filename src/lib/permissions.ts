@@ -61,6 +61,20 @@ export function canManageCaseTeam(role: UserRole) {
   return hasPermission(role, "case.team.manage");
 }
 
+/**
+ * Changing a case's lead lawyer or members: an office admin, or the lawyer
+ * who leads that case. Other lawyers on the case edit everything else.
+ */
+export function canChangeCaseTeam(
+  user: { role: UserRole; userId: string },
+  caseLeadLawyerId: string | null,
+) {
+  return (
+    canManageCaseTeam(user.role) ||
+    (canManageCases(user.role) && user.userId === caseLeadLawyerId)
+  );
+}
+
 export function canManageBilling(role: UserRole) {
   return hasPermission(role, "billing.manage");
 }

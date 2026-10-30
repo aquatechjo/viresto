@@ -12,6 +12,7 @@ import {
   buildClientAccessWhere,
 } from "@/lib/access-control";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import { caseMembersForCreate } from "@/lib/case-team";
 
 const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
@@ -305,20 +306,13 @@ export async function POST(req: NextRequest) {
       return err("المحامي المسؤول غير موجود أو لا يملك صلاحية محامٍ", 400);
     }
 
-    const requestedMemberIds = new Set(parsed.data.memberIds || []);
-
-    // The lawyer who creates a case must retain access even when another
-    // lawyer is selected as the lead.
-    if (
-      auth.user.role === "LAWYER" &&
-      leadLawyerId !== auth.user.userId
-    ) {
-      requestedMemberIds.add(auth.user.userId);
-    }
-
-    const memberIds = Array.from(requestedMemberIds).filter(
-      (memberId) => memberId !== leadLawyerId,
-    );
+    // A lawyer who creates a case stays on it, as a member when another
+    // lawyer leads it.
+    const memberIds = caseMembersForCreate({
+      actor: auth.user,
+      leadLawyerId,
+      memberIds: parsed.data.memberIds,
+    });
 
     if (memberIds.length > 0) {
       const validMembers = await prisma.user.count({
