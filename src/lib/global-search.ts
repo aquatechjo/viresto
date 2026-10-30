@@ -87,6 +87,16 @@ function compact(values: Array<string | null | undefined>) {
   return values.filter((value): value is string => Boolean(value && value.trim()));
 }
 
+// A phone that can't be decrypted (e.g. a retired key) only drops from the
+// subtitle; it must not fail the whole search.
+function safeDecrypt(value: string | null) {
+  try {
+    return decryptText(value);
+  } catch {
+    return null;
+  }
+}
+
 function publicIdMatch(q: PreparedQuery) {
   return q.number ? [{ publicId: q.number }] : [];
 }
@@ -134,7 +144,7 @@ async function searchClients(user: AccessControlUser, q: PreparedQuery) {
     title: client.name,
     meta: compact([
       `#${client.publicId}`,
-      canSeeContact ? decryptText(client.phone) : null,
+      canSeeContact ? safeDecrypt(client.phone) : null,
     ]),
     href: `/dashboard/clients/${client.publicId}`,
     badge: client.archivedAt ? "ARCHIVED" : undefined,
@@ -145,6 +155,7 @@ async function searchCases(user: AccessControlUser, q: PreparedQuery) {
   const ids = await candidateIds(Prisma.sql`
     SELECT k."id" FROM "Case" k
     JOIN "Client" c ON c."id" = k."clientId" AND c."tenantId" = k."tenantId"
+    LEFT JOIN "User" u ON u."id" = k."leadLawyerId" AND u."tenantId" = k."tenantId"
     WHERE k."tenantId" = ${user.tenantId}
       AND ${containsNormalized(
         searchableFields(
@@ -156,6 +167,7 @@ async function searchCases(user: AccessControlUser, q: PreparedQuery) {
           Prisma.sql`k."defendantName"`,
           Prisma.sql`k."description"`,
           Prisma.sql`c."name"`,
+          Prisma.sql`u."name"`,
         ),
         q.needle,
       )}
@@ -263,6 +275,7 @@ async function searchPayments(
           Prisma.sql`p."notes"`,
           Prisma.sql`c."name"`,
           Prisma.sql`k."title"`,
+          Prisma.sql`k."caseNumber"`,
           Prisma.sql`i."invoiceNumber"`,
         ),
         q.needle,
@@ -357,6 +370,7 @@ async function searchAppointments(
     SELECT a."id" FROM "Appointment" a
     LEFT JOIN "Client" c ON c."id" = a."clientId" AND c."tenantId" = a."tenantId"
     LEFT JOIN "Case" k ON k."id" = a."caseId" AND k."tenantId" = a."tenantId"
+    LEFT JOIN "User" u ON u."id" = a."assignedToId" AND u."tenantId" = a."tenantId"
     WHERE a."tenantId" = ${user.tenantId}
       AND ${containsNormalized(
         searchableFields(
@@ -365,6 +379,7 @@ async function searchAppointments(
           Prisma.sql`a."location"`,
           Prisma.sql`c."name"`,
           Prisma.sql`k."title"`,
+          Prisma.sql`u."name"`,
         ),
         q.needle,
       )}
@@ -411,6 +426,7 @@ async function searchTasks(
     SELECT t."id" FROM "Task" t
     LEFT JOIN "Client" c ON c."id" = t."clientId" AND c."tenantId" = t."tenantId"
     LEFT JOIN "Case" k ON k."id" = t."caseId" AND k."tenantId" = t."tenantId"
+    LEFT JOIN "User" u ON u."id" = t."assignedToId" AND u."tenantId" = t."tenantId"
     WHERE t."tenantId" = ${user.tenantId}
       AND ${containsNormalized(
         searchableFields(
@@ -418,6 +434,7 @@ async function searchTasks(
           Prisma.sql`t."description"`,
           Prisma.sql`c."name"`,
           Prisma.sql`k."title"`,
+          Prisma.sql`u."name"`,
         ),
         q.needle,
       )}
