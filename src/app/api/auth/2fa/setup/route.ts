@@ -4,7 +4,7 @@ import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { encryptText } from "@/lib/encryption";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requireAuth(req);
     if (auth.error || !auth.user) return auth.error;
 
     const ip = getClientIp(req) || "unknown";

@@ -4,7 +4,7 @@ import speakeasy from "speakeasy";
 import { verifySameOrigin } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { decryptText } from "@/lib/encryption";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requireAuth(req);
 
     if (auth.error || !auth.user) {
       return auth.error;
