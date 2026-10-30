@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useCooldown } from "@/hooks/useCooldown";
+import PasswordInput from "@/components/ui/PasswordInput";
 import { codeRateLimitMessage, readRetryAfterSeconds } from "@/lib/retry-after";
 
 // Seconds the resend button stays disabled after a code is sent.
@@ -197,13 +198,13 @@ function ResetPasswordContent() {
                 كلمة المرور الجديدة
               </label>
 
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="8 أحرف على الأقل"
                 autoComplete="new-password"
                 className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right text-white outline-none transition placeholder:text-white/35 focus:border-copper-300/60 focus:ring-4 focus:ring-copper-400/10"
+                tone="copper"
               />
             </div>
 
@@ -212,13 +213,13 @@ function ResetPasswordContent() {
                 تأكيد كلمة المرور
               </label>
 
-              <input
-                type="password"
+              <PasswordInput
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 placeholder="أعد كتابة كلمة المرور"
                 autoComplete="new-password"
                 className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right text-white outline-none transition placeholder:text-white/35 focus:border-copper-300/60 focus:ring-4 focus:ring-copper-400/10"
+                tone="copper"
               />
             </div>
 

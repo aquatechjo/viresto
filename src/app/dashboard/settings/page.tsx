@@ -5,6 +5,7 @@ import type { CSSProperties, FormEvent } from "react";
 import { toast } from "sonner";
 
 import FormField from "@/components/ui/FormField";
+import PasswordInput from "@/components/ui/PasswordInput";
 import { VDSBadge, VDSCard, type VDSTone } from "@/components/ui/vds";
 import { initials } from "@/lib/utils";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
@@ -1454,9 +1455,8 @@ export default function SettingsPage() {
                 className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3"
               >
                 <FormField label={copy.currentPassword}>
-                  <input
+                  <PasswordInput
                     dir="ltr"
-                    type="password"
                     value={passwordForm.current}
                     onChange={(event) =>
                       setPasswordForm((previous) => ({
@@ -1471,9 +1471,8 @@ export default function SettingsPage() {
                 </FormField>
 
                 <FormField label={copy.newPassword}>
-                  <input
+                  <PasswordInput
                     dir="ltr"
-                    type="password"
                     value={passwordForm.next}
                     onChange={(event) =>
                       setPasswordForm((previous) => ({
@@ -1488,9 +1487,8 @@ export default function SettingsPage() {
                 </FormField>
 
                 <FormField label={copy.confirmPassword}>
-                  <input
+                  <PasswordInput
                     dir="ltr"
-                    type="password"
                     value={passwordForm.confirm}
                     onChange={(event) =>
                       setPasswordForm((previous) => ({
@@ -1552,9 +1550,8 @@ export default function SettingsPage() {
                   className="mt-4 max-w-md space-y-3"
                 >
                   <FormField label={copy.currentPassword}>
-                    <input
+                    <PasswordInput
                       dir="ltr"
-                      type="password"
                       autoComplete="current-password"
                       data-testid="twofa-password"
                       value={twoFAPassword}

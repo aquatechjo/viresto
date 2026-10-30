@@ -10,7 +10,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import FormField from "@/components/ui/FormField";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 type Locale = "ar" | "en";
 
@@ -87,8 +87,8 @@ const COPY: Record<
     emailPlaceholder: "lawyer@example.com",
     passwordLabel: "كلمة المرور",
     passwordPlaceholder: "••••••••",
-    showPassword: "إظهار",
-    hidePassword: "إخفاء",
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
     forgotPassword: "نسيت كلمة المرور؟",
     submit: "دخول",
     loadingLabel: "جارٍ الدخول",
@@ -165,8 +165,8 @@ const COPY: Record<
     emailPlaceholder: "lawyer@example.com",
     passwordLabel: "Password",
     passwordPlaceholder: "••••••••",
-    showPassword: "Show",
-    hidePassword: "Hide",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
     forgotPassword: "Forgot password?",
     submit: "Login",
     loadingLabel: "Logging in",
@@ -292,7 +292,6 @@ export default function LoginPage() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   // Second step for accounts with 2FA: the server answered
   // requiresTwoFactor, so the same credentials are sent again with a code.
   const [twoFactorStep, setTwoFactorStep] = useState(false);
@@ -815,64 +814,31 @@ export default function LoginPage() {
                       required
                       error={errors.password}
                     >
-                      <div className="relative">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={form.password}
-                          readOnly={twoFactorStep}
-                          dir="ltr"
-                          autoComplete="current-password"
-                          onChange={(event) => {
-                            setForm((previous) => ({
-                              ...previous,
-                              password: event.target.value,
-                            }));
-                            setErrors((previous) => ({
-                              ...previous,
-                              password: "",
-                            }));
-                          }}
-                          className={`input auth-autofill ${inputTextClass} ${
-                            isArabic ? "!pl-11" : "!pr-11"
-                          }`}
-                          style={{
-                            direction: "ltr",
-                            textAlign: inputTextAlign,
-                          }}
-                          placeholder={copy.passwordPlaceholder}
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowPassword((previous) => !previous)
-                          }
-                          aria-label={
-                            showPassword ? copy.hidePassword : copy.showPassword
-                          }
-                          aria-pressed={showPassword}
-                          title={
-                            showPassword ? copy.hidePassword : copy.showPassword
-                          }
-                          className={`absolute top-1/2 z-20 flex h-8 w-9 -translate-y-1/2 items-center justify-center rounded-lg bg-[#f4fbf9] text-[#0f5253] shadow-sm ring-1 ring-[#b9d8d3] transition-colors hover:bg-[#e5f5f1] hover:text-[#083b3c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 dark:bg-[#123f40] dark:text-emerald-100 dark:ring-teal-700/80 dark:hover:bg-[#185354] dark:hover:text-white ${
-                            isArabic ? "left-2.5" : "right-2.5"
-                          }`}
-                        >
-                          {showPassword ? (
-                            <EyeOff
-                              className="h-[18px] w-[18px]"
-                              strokeWidth={1.8}
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <Eye
-                              className="h-[18px] w-[18px]"
-                              strokeWidth={1.8}
-                              aria-hidden="true"
-                            />
-                          )}
-                        </button>
-                      </div>
+                      <PasswordInput
+                        value={form.password}
+                        readOnly={twoFactorStep}
+                        dir="ltr"
+                        autoComplete="current-password"
+                        onChange={(event) => {
+                          setForm((previous) => ({
+                            ...previous,
+                            password: event.target.value,
+                          }));
+                          setErrors((previous) => ({
+                            ...previous,
+                            password: "",
+                          }));
+                        }}
+                        className={`input auth-autofill ${inputTextClass}`}
+                        style={{
+                          direction: "ltr",
+                          textAlign: inputTextAlign,
+                        }}
+                        placeholder={copy.passwordPlaceholder}
+                        toggleSide={isArabic ? "left" : "right"}
+                        showLabel={copy.showPassword}
+                        hideLabel={copy.hidePassword}
+                      />
                     </FormField>
                   </motion.div>
 

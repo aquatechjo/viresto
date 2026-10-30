@@ -6,7 +6,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Turnstile } from "@marsidev/react-turnstile";
 import FormField from "@/components/ui/FormField";
-import { Eye, EyeOff } from "lucide-react";
+import PasswordInput from "@/components/ui/PasswordInput";
 import type { PlanCode } from "@/config/plans";
 import { isPlanCode, trialLimitsNote } from "@/lib/trial-copy";
 
@@ -166,7 +166,6 @@ export default function RegisterPage() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   // The plan picked on the website (/register?plan=...): remembered on the
   // office so the subscribe page can preselect it. The trial itself runs
@@ -459,49 +458,22 @@ export default function RegisterPage() {
             </FormField>
 
             <FormField label={copy.password} required>
-              <div className="relative">
-                <input
-                  dir="ltr"
-                  type={showPassword ? "text" : "password"}
-                  name="new-password"
-                  autoComplete="new-password"
-                  value={form.password}
-                  onChange={update("password")}
-                  className={`input auth-autofill ${isRtl ? "!pl-11 !text-right" : "!pr-11 !text-left"}`}
-                  style={{
-                    direction: "ltr",
-                    textAlign: isRtl ? "right" : "left",
-                  }}
-                  placeholder={copy.passwordPlaceholder}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((value) => !value)}
-                  aria-label={
-                    showPassword ? copy.hidePassword : copy.showPassword
-                  }
-                  aria-pressed={showPassword}
-                  title={showPassword ? copy.hidePassword : copy.showPassword}
-                  className={`absolute top-1/2 z-20 flex h-8 w-9 -translate-y-1/2 items-center justify-center rounded-lg bg-[#f4fbf9] text-[#0f5253] shadow-sm ring-1 ring-[#b9d8d3] transition-colors hover:bg-[#e5f5f1] hover:text-[#083b3c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 dark:bg-[#123f40] dark:text-emerald-100 dark:ring-teal-700/80 dark:hover:bg-[#185354] dark:hover:text-white ${
-                    isRtl ? "left-2.5" : "right-2.5"
-                  }`}
-                >
-                  {showPassword ? (
-                    <EyeOff
-                      className="h-[18px] w-[18px]"
-                      strokeWidth={1.8}
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Eye
-                      className="h-[18px] w-[18px]"
-                      strokeWidth={1.8}
-                      aria-hidden="true"
-                    />
-                  )}
-                </button>
-              </div>
+              <PasswordInput
+                dir="ltr"
+                name="new-password"
+                autoComplete="new-password"
+                value={form.password}
+                onChange={update("password")}
+                className={`input auth-autofill ${isRtl ? "!text-right" : "!text-left"}`}
+                style={{
+                  direction: "ltr",
+                  textAlign: isRtl ? "right" : "left",
+                }}
+                placeholder={copy.passwordPlaceholder}
+                toggleSide={isRtl ? "left" : "right"}
+                showLabel={copy.showPassword}
+                hideLabel={copy.hidePassword}
+              />
 
               <p
                 className={[

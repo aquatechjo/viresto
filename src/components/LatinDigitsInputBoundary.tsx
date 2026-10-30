@@ -40,7 +40,12 @@ function markNumericInputs(root: ParentNode) {
 }
 
 function normalizeEditableValue(element: EditableElement) {
-  if (element instanceof HTMLInputElement && element.type === "password") {
+  // Passwords are kept exactly as typed, also while shown as text by
+  // PasswordInput (data-password-field).
+  if (
+    element instanceof HTMLInputElement &&
+    (element.type === "password" || element.hasAttribute("data-password-field"))
+  ) {
     return;
   }
 

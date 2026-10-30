@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import LanguageToggle from "@/components/LanguageToggle";
+import PasswordInput from "@/components/ui/PasswordInput";
 import { useLocale } from "@/lib/useLocale";
 
 type Invitation = {
@@ -23,6 +24,8 @@ const COPY = {
       `مرحبًا ${name}، تمت دعوتك للانضمام إلى ${tenant}.`,
     password: "اختر كلمة مرور",
     confirm: "تأكيد كلمة المرور",
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
     hint: "8 أحرف على الأقل، وتتضمن حرفًا كبيرًا وصغيرًا ورقمًا ورمزًا خاصًا.",
     mismatch: "تأكيد كلمة المرور غير مطابق.",
     submit: "تفعيل الحساب",
@@ -44,6 +47,8 @@ const COPY = {
       `Hi ${name}, you were invited to join ${tenant}.`,
     password: "Choose a password",
     confirm: "Confirm password",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
     hint: "Use at least 8 characters with upper and lower case letters, a number, and a symbol.",
     mismatch: "Password confirmation does not match.",
     submit: "Activate account",
@@ -193,27 +198,33 @@ function JoinTeamContent() {
 
             <div>
               <label htmlFor="password" className="mb-2 block text-sm font-bold">{copy.password}</label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 outline-none focus:border-copper-300/60"
                 required
+                tone="copper"
+                toggleSide={isRtl ? "left" : "right"}
+                showLabel={copy.showPassword}
+                hideLabel={copy.hidePassword}
               />
             </div>
 
             <div>
               <label htmlFor="confirm-password" className="mb-2 block text-sm font-bold">{copy.confirm}</label>
-              <input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 outline-none focus:border-copper-300/60"
                 required
+                tone="copper"
+                toggleSide={isRtl ? "left" : "right"}
+                showLabel={copy.showPassword}
+                hideLabel={copy.hidePassword}
               />
             </div>
 
