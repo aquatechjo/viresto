@@ -6,6 +6,8 @@ import {
   type BatchNotificationInput,
 } from "@/lib/notifications";
 import { formatDateTime, overdueFrom, pastDueBefore } from "@/lib/datetime";
+import { rolesWithPermission } from "@/lib/permissions";
+import { financialRecipients, uniqueIds } from "@/lib/notification-recipients";
 
 const APPOINTMENT_SOON_HOURS = 24;
 const TASK_SOON_HOURS = 24;
@@ -16,11 +18,6 @@ type ActiveUser = {
   id: string;
   isActive: boolean;
 };
-
-type FinancialCaseRecipients = {
-  leadLawyer: (ActiveUser & { role: string }) | null;
-  members: Array<{ userId: string }>;
-} | null;
 
 function addHours(date: Date, hours: number) {
   return new Date(date.getTime() + hours * 60 * 60 * 1000);
@@ -87,10 +84,6 @@ function invoiceOutstanding(
   return Math.max(Number(total || 0) - paid, 0);
 }
 
-function uniqueIds(ids: Array<string | null | undefined>) {
-  return [...new Set(ids.filter((id): id is string => Boolean(id)))];
-}
-
 function assignedRecipients(
   assignedTo: ActiveUser | null,
   createdBy: ActiveUser | null,
@@ -99,19 +92,6 @@ function assignedRecipients(
   if (assignedTo?.isActive) return [assignedTo.id];
   if (createdBy?.isActive) return [createdBy.id];
   return adminIds;
-}
-
-function financialRecipients(
-  caseItem: FinancialCaseRecipients,
-  adminIds: string[],
-) {
-  return uniqueIds([
-    ...adminIds,
-    caseItem?.leadLawyer?.isActive && caseItem.leadLawyer.role === "LAWYER"
-      ? caseItem.leadLawyer.id
-      : null,
-    ...(caseItem?.members.map((member) => member.userId) ?? []),
-  ]);
 }
 
 function versionOf(value: Date | null | undefined) {
@@ -142,15 +122,23 @@ const financialCaseSelect = {
       role: true,
     },
   },
+  // Only members who may read finance are loaded; financialRecipients
+  // applies the same rule again.
   members: {
     where: {
       user: {
         isActive: true,
-        role: "LAWYER" as const,
+        role: { in: rolesWithPermission("finance.read") },
       },
     },
     select: {
       userId: true,
+      user: {
+        select: {
+          isActive: true,
+          role: true,
+        },
+      },
     },
   },
 } as const;
