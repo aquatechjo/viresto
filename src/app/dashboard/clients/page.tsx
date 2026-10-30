@@ -4,7 +4,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
@@ -57,13 +56,10 @@ const pageText = {
       withoutCases: "بدون قضايا",
     },
     filters: {
-      searchPlaceholder:
-        "ابحث باسم الموكل، الهاتف، البريد أو الرقم الوطني...",
       ariaCaseFilter: "فلترة حسب القضايا",
       allClients: "جميع الموكلين",
       withCases: "لديهم قضايا",
       withoutCases: "بدون قضايا",
-      search: "بحث",
       all: "الكل",
       clear: "مسح الفلاتر",
       activeClients: "النشطون",
@@ -150,13 +146,10 @@ const pageText = {
       withoutCases: "Without cases",
     },
     filters: {
-      searchPlaceholder:
-        "Search by client name, phone, email, or national ID...",
       ariaCaseFilter: "Filter by cases",
       allClients: "All clients",
       withCases: "With cases",
       withoutCases: "Without cases",
-      search: "Search",
       all: "All",
       clear: "Clear filters",
 
@@ -615,8 +608,6 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [q, setQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [summary, setSummary] = useState({
@@ -630,13 +621,8 @@ export default function ClientsPage() {
   const writeAccess = useTenantWriteAccess(localeKey);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQ(q.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [q]);
-
-  useEffect(() => {
     setPage(1);
-  }, [archiveFilter, debouncedQ]);
+  }, [archiveFilter]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -647,7 +633,6 @@ export default function ClientsPage() {
       params.set("page", String(page));
       params.set("limit", "20");
       params.set("archive", archiveFilter);
-      if (debouncedQ) params.set("q", debouncedQ);
 
       const response = await fetch(`/api/clients?${params.toString()}`, {
         signal,
@@ -670,7 +655,7 @@ export default function ClientsPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [archiveFilter, debouncedQ, page]);
+  }, [archiveFilter, page]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -679,7 +664,6 @@ export default function ClientsPage() {
   }, [load]);
 
   function clearFilters() {
-    setQ("");
     setArchiveFilter("active");
   }
 
@@ -1000,16 +984,6 @@ export default function ClientsPage() {
               className="space-y-4 border-b p-4"
               style={{ borderColor: "var(--border)" }}
             >
-              <VDSSearchInput
-                dir={isRtl ? "rtl" : "ltr"}
-                name="clientsSearch"
-                autoComplete="off"
-                value={q}
-                onChange={setQ}
-                placeholder={text.filters.searchPlaceholder}
-                clearLabel={isRtl ? "مسح البحث" : "Clear search"}
-              />
-
               <div className="flex w-full items-center gap-2 overflow-x-auto pb-1">
                 {(
                   [
@@ -1041,7 +1015,7 @@ export default function ClientsPage() {
                   </button>
                 ))}
 
-                {q || archiveFilter !== "active" ? (
+                {archiveFilter !== "active" ? (
                   <button
                     type="button"
                     onClick={clearFilters}
@@ -1065,7 +1039,7 @@ export default function ClientsPage() {
             emptyDescription:
               loadError
                 ? localeKey === "ar" ? "تحقق من الاتصال ثم أعد المحاولة." : "Check your connection and try again."
-                : clients.length === 0
+                : archiveFilter === "active"
                 ? text.empty.noClients
                 : text.empty.noResults,
             previousPage: localeKey === "ar" ? "السابق" : "Previous",
@@ -1081,7 +1055,7 @@ export default function ClientsPage() {
               <button type="button" onClick={() => load()} className="btn btn-primary">
                 {localeKey === "ar" ? "إعادة المحاولة" : "Try again"}
               </button>
-            ) : clients.length === 0 && !q ? (
+            ) : archiveFilter === "active" ? (
               <button
                 type="button"
                 onClick={openCreateModal}

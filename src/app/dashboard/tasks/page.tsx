@@ -7,7 +7,6 @@ import DateTimePicker from "@/components/ui/DateTimePicker";
 import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
 import { VDSBadge, VDSCard, VDSGrid, type VDSTone } from "@/components/ui/vds";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import PageLoader from "@/components/ui/PageLoader";
 import { formatDate } from "@/lib/utils";
 import { translations, type Locale } from "@/lib/i18n";
@@ -226,8 +225,6 @@ const TASK_TRANSLATIONS = {
       overdue: "متأخرة",
     },
     filters: {
-      searchAria: "البحث في المهام",
-      searchPlaceholder: "ابحث في العنوان، الوصف، الموكل أو القضية...",
       priorityAria: "فلترة حسب الأولوية",
       clientAria: "فلترة حسب الموكل",
       caseAria: "فلترة حسب القضية",
@@ -298,8 +295,6 @@ const TASK_TRANSLATIONS = {
       overdue: "Overdue",
     },
     filters: {
-      searchAria: "Search tasks",
-      searchPlaceholder: "Search by title, description, client, or case...",
       priorityAria: "Filter by priority",
       clientAria: "Filter by client",
       caseAria: "Filter by case",
@@ -403,12 +398,10 @@ export default function TasksPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentRole, setCurrentRole] = useState<TeamMember["role"]>("STAFF");
-  const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [caseFilter, setCaseFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [stats, setStats] = useState({ total: 0, pending: 0, done: 0, overdue: 0 });
@@ -429,13 +422,8 @@ export default function TasksPage() {
   );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, priorityFilter, clientFilter, caseFilter, assigneeFilter, filter]);
+  }, [priorityFilter, clientFilter, caseFilter, assigneeFilter, filter]);
 
   const load = useCallback(async (
     refreshStats = false,
@@ -446,7 +434,6 @@ export default function TasksPage() {
       const shouldLoadOptions = !optionsLoadedRef.current;
       const shouldLoadStats = refreshStats || !statsLoadedRef.current;
       const params = new URLSearchParams({ page: String(page), limit: "20", scope: filter });
-      if (debouncedSearch) params.set("q", debouncedSearch);
       if (priorityFilter !== "all") params.set("priority", priorityFilter);
       if (clientFilter !== "all") params.set("clientId", clientFilter);
       if (caseFilter !== "all") params.set("caseId", caseFilter);
@@ -501,7 +488,7 @@ export default function TasksPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [assigneeFilter, caseFilter, clientFilter, debouncedSearch, filter, page, priorityFilter, taskCopy.messages.loadError]);
+  }, [assigneeFilter, caseFilter, clientFilter, filter, page, priorityFilter, taskCopy.messages.loadError]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -668,7 +655,6 @@ export default function TasksPage() {
   }
 
   function clearFilters() {
-    setSearch("");
     setPriorityFilter("all");
     setClientFilter("all");
     setCaseFilter("all");
@@ -936,16 +922,7 @@ export default function TasksPage() {
 
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.7fr_.7fr_.7fr_.7fr_auto]">
-          <VDSSearchInput
-            aria-label={taskCopy.filters.searchAria}
-            value={search}
-            onChange={setSearch}
-            placeholder={taskCopy.filters.searchPlaceholder}
-            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
-            {...fieldProps}
-          />
-
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]">
           <select
             aria-label={taskCopy.filters.priorityAria}
             value={priorityFilter}

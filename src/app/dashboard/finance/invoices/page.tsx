@@ -8,7 +8,6 @@ import { toast } from "sonner";
 
 import AppLoader from "@/components/ui/AppLoader";
 import EmptyState from "@/components/ui/EmptyState";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
@@ -116,7 +115,6 @@ const COPY = {
     actions: {
       create: "+ إنشاء فاتورة",
       refresh: "تحديث",
-      search: "بحث",
       clear: "مسح",
       clearFilters: "مسح الفلاتر",
       view: "عرض",
@@ -143,7 +141,6 @@ const COPY = {
       archivedHint: "فواتير سجلات مؤرشفة",
     },
     filters: {
-      searchPlaceholder: "بحث برقم الفاتورة أو الموكل أو القضية...",
       statusAria: "فلترة الفواتير حسب الحالة",
       allStatuses: "كل الحالات",
       archivedClient: "موكل مؤرشف",
@@ -246,7 +243,6 @@ const COPY = {
     actions: {
       create: "+ Create invoice",
       refresh: "Refresh",
-      search: "Search",
       clear: "Clear",
       clearFilters: "Clear filters",
       view: "View",
@@ -273,7 +269,6 @@ const COPY = {
       archivedHint: "Archived-record invoices",
     },
     filters: {
-      searchPlaceholder: "Search by invoice number, client, or case...",
       statusAria: "Filter invoices by status",
       allStatuses: "All statuses",
       archivedClient: "Archived client",
@@ -1023,7 +1018,6 @@ export default function InvoicesPage() {
   const [mounted, setMounted] = useState(false);
   const [successInvoice, setSuccessInvoice] = useState<{ id: string; number?: string; status?: string } | null>(null);
 
-  const [q, setQ] = useState("");
   const [status, setStatus] = useState<"" | InvoiceStatus>("");
   const [archivedOnly, setArchivedOnly] = useState(false);
 
@@ -1132,7 +1126,6 @@ export default function InvoicesPage() {
     try {
       const params = new URLSearchParams();
 
-      if (q.trim()) params.set("q", q.trim());
       if (status) params.set("status", status);
       if (archivedOnly) params.set("archivedOnly", "true");
       params.set("page", String(page));
@@ -1171,7 +1164,7 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [archivedOnly, copy.empty.filtered, locale, page, q, status]);
+  }, [archivedOnly, copy.empty.filtered, locale, page, status]);
 
   useEffect(() => {
     setMounted(true);
@@ -1409,7 +1402,6 @@ export default function InvoicesPage() {
   }
 
   function clearFilters() {
-    setQ("");
     setStatus("");
     setArchivedOnly(false);
     setPage(1);
@@ -1584,18 +1576,7 @@ export default function InvoicesPage() {
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto_auto_auto]">
-          <VDSSearchInput
-            value={q}
-            onChange={(value) => {
-              setQ(value);
-              setPage(1);
-            }}
-            placeholder={copy.filters.searchPlaceholder}
-            dir={isRtl ? "rtl" : "ltr"}
-            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
-          />
-
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,320px)_auto_auto] sm:justify-start">
           <select
             aria-label={copy.filters.statusAria}
             dir={isRtl ? "rtl" : "ltr"}
@@ -1613,14 +1594,6 @@ export default function InvoicesPage() {
               </option>
             ))}
           </select>
-
-          <button
-            type="button"
-            onClick={() => load()}
-            className="btn btn-primary h-12 whitespace-nowrap"
-          >
-            {copy.actions.search}
-          </button>
 
           <button
             type="button"

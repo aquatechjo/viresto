@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -124,9 +123,6 @@ const COPY = {
       remaining: "المتبقي",
     },
     filters: {
-      searchAria: "البحث في القضايا",
-      searchPlaceholder:
-        "ابحث في رقم القضية، العنوان، الموكل، المحكمة، القاضي أو الأطراف...",
       clear: "مسح الفلاتر",
       statuses: {
         all: "الكل",
@@ -222,9 +218,6 @@ const COPY = {
       remaining: "Remaining",
     },
     filters: {
-      searchAria: "Search cases",
-      searchPlaceholder:
-        "Search by case number, title, client, court, judge, or parties...",
       clear: "Clear filters",
       statuses: {
         all: "All",
@@ -383,8 +376,6 @@ export default function CasesPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadError, setLoadError] = useState(false);
@@ -438,15 +429,7 @@ export default function CasesPage() {
 
   const selectedClientArchived = Boolean(selectedClient?.archivedAt);
 
-  useEffect(() => {
-    const timer = window.setTimeout(
-      () => setDebouncedSearch(search.trim()),
-      300,
-    );
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => setPage(1), [filter, debouncedSearch]);
+  useEffect(() => setPage(1), [filter]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -462,7 +445,6 @@ export default function CasesPage() {
         params.set("status", filter);
       }
       if (filter === "ARCHIVED_CLIENT") params.set("archivedClientOnly", "true");
-      if (debouncedSearch) params.set("q", debouncedSearch);
 
       const casesRes = await fetch(`/api/cases?${params.toString()}`, { signal });
 
@@ -484,7 +466,7 @@ export default function CasesPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [debouncedSearch, filter, page, text.loadError]);
+  }, [filter, page, text.loadError]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -743,7 +725,6 @@ export default function CasesPage() {
   }
 
   function clearFilters() {
-    setSearch("");
     setFilter("all");
   }
 
@@ -1179,16 +1160,7 @@ export default function CasesPage() {
 
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px_auto]">
-          <VDSSearchInput
-            dir={isRtl ? "rtl" : "ltr"}
-            aria-label={text.filters.searchAria}
-            value={search}
-            onChange={setSearch}
-            placeholder={text.filters.searchPlaceholder}
-            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
-          />
-
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,320px)_auto] sm:justify-start">
           <select
             dir={isRtl ? "rtl" : "ltr"}
             value={filter}
@@ -1207,7 +1179,7 @@ export default function CasesPage() {
             ))}
           </select>
 
-          {(search || filter !== "all") && (
+          {filter !== "all" && (
             <button
               type="button"
               onClick={clearFilters}
@@ -1279,7 +1251,7 @@ export default function CasesPage() {
             <button type="button" onClick={() => load()} className="btn btn-primary">
               {localeKey === "ar" ? "إعادة المحاولة" : "Try again"}
             </button>
-          ) : cases.length === 0 && !search && filter === "all" ? (
+          ) : cases.length === 0 && filter === "all" ? (
             <button
               type="button"
               onClick={openCreateCaseModal}

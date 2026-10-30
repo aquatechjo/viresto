@@ -13,7 +13,6 @@ import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import { initials } from "@/lib/utils";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { formatJOD } from "@/lib/money";
 import { formatInZone } from "@/lib/datetime";
@@ -138,7 +137,6 @@ const COPY = {
       collectionRate: "نسبة التحصيل",
     },
     filters: {
-      placeholder: "ابحث باسم القضية أو رقمها...",
       ariaStatus: "فلترة حسب حالة القضية",
       filter: "بحث",
       clear: "مسح الفلاتر",
@@ -230,7 +228,6 @@ const COPY = {
       collectionRate: "Collection rate",
     },
     filters: {
-      placeholder: "Search by case title or number...",
       ariaStatus: "Filter by case status",
       filter: "Filter",
       clear: "Clear filters",
@@ -347,7 +344,6 @@ export default function ClientDetailPage() {
   const [exporting, setExporting] = useState(false);
 
   const [form, setForm] = useState(INIT_FORM);
-  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const load = useCallback(async () => {
@@ -420,20 +416,10 @@ export default function ClientDetailPage() {
   }, [client]);
 
   const filteredCases = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return (client?.cases ?? []).filter((item) => {
-      const matchesSearch =
-        !query ||
-        item.title?.toLowerCase().includes(query) ||
-        item.caseNumber?.toLowerCase().includes(query);
-
-      const matchesStatus =
-        statusFilter === "all" || item.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [client, search, statusFilter]);
+    return (client?.cases ?? []).filter(
+      (item) => statusFilter === "all" || item.status === statusFilter,
+    );
+  }, [client, statusFilter]);
 
   const openCases = (client?.cases ?? []).filter((item) =>
     ["OPEN", "IN_PROGRESS"].includes(item.status),
@@ -666,7 +652,6 @@ export default function ClientDetailPage() {
   }
 
   function clearFilters() {
-    setSearch("");
     setStatusFilter("all");
   }
 
@@ -1158,20 +1143,9 @@ export default function ClientDetailPage() {
         <div className="space-y-5 xl:col-span-8">
           {/* Filters */}
           <div className="card p-4">
-            <div className="grid grid-cols-1 gap-3">
-              <VDSSearchInput
-                dir={isRtl ? "rtl" : "ltr"}
-                aria-label={text.filters.placeholder}
-                value={search}
-                onChange={setSearch}
-                placeholder={text.filters.placeholder}
-                clearLabel={isRtl ? "مسح البحث" : "Clear search"}
-              />
-            </div>
-
             <div
               dir={isRtl ? "rtl" : "ltr"}
-              className={`mt-4 flex w-full flex-wrap items-center justify-start gap-2 ${
+              className={`flex w-full flex-wrap items-center justify-start gap-2 ${
                 isRtl ? "text-right" : "text-left"
               }`}
             >
@@ -1197,7 +1171,7 @@ export default function ClientDetailPage() {
                 </button>
               ))}
 
-              {(search || statusFilter !== "all") && (
+              {statusFilter !== "all" && (
                 <button
                   type="button"
                   onClick={clearFilters}

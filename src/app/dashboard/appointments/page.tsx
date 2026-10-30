@@ -14,7 +14,6 @@ import {
   VDSEmptyState,
   type VDSTone,
 } from "@/components/ui/vds";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import { DateTime } from "luxon";
 import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
@@ -659,7 +658,7 @@ export default function AppointmentsPage() {
           count: "موعد",
           emptyTitle: "لا يوجد سجل مواعيد حالياً",
           emptySub: "عند إضافة موعد جديد سيظهر هنا تلقائياً.",
-          emptyFilteredSub: "لا توجد مواعيد مطابقة للبحث أو نوع الموعد المحدد.",
+          emptyFilteredSub: "لا توجد مواعيد مطابقة للفلاتر المحددة.",
           clearFilters: "مسح الفلاتر",
           noClient: "بدون موكل",
           noCase: "بدون قضية",
@@ -675,7 +674,7 @@ export default function AppointmentsPage() {
           emptyTitle: "No appointment log yet",
           emptySub: "New appointments will appear here automatically.",
           emptyFilteredSub:
-            "No appointments match the current search or type filter.",
+            "No appointments match the selected filters.",
           clearFilters: "Clear filters",
           noClient: "No client",
           noCase: "No case",
@@ -733,7 +732,6 @@ export default function AppointmentsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(INIT);
 
-  const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
   const [calendarRange, setCalendarRange] = useState<{
@@ -907,8 +905,6 @@ export default function AppointmentsPage() {
   const deadlines = appts.filter((appt) => appt.type === "DEADLINE").length;
 
   const filteredAppts = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
     return appts.filter((appt) => {
       const matchesType = typeFilter === "all" || appt.type === typeFilter;
       const matchesAssignee =
@@ -917,17 +913,9 @@ export default function AppointmentsPage() {
           ? appt.assignedTo?.id === currentUserId
           : appt.assignedTo?.id === assigneeFilter);
 
-      const matchesSearch =
-        !query ||
-        appt.title?.toLowerCase().includes(query) ||
-        appt.location?.toLowerCase().includes(query) ||
-        appt.assignedTo?.name?.toLowerCase().includes(query) ||
-        appt.client?.name?.toLowerCase().includes(query) ||
-        appt.case?.title?.toLowerCase().includes(query);
-
-      return matchesType && matchesAssignee && matchesSearch;
+      return matchesType && matchesAssignee;
     });
-  }, [appts, assigneeFilter, currentUserId, search, typeFilter]);
+  }, [appts, assigneeFilter, currentUserId, typeFilter]);
 
   const appointmentLog = useMemo(
     () =>
@@ -959,7 +947,7 @@ export default function AppointmentsPage() {
   }, [appointmentLog, locale]);
 
   const hasActiveFilters =
-    Boolean(search.trim()) || typeFilter !== "all" || assigneeFilter !== "all";
+    typeFilter !== "all" || assigneeFilter !== "all";
 
   const calendarEvents = useMemo(
     () =>
@@ -1009,7 +997,6 @@ export default function AppointmentsPage() {
   }
 
   function clearFilters() {
-    setSearch("");
     setTypeFilter("all");
     setAssigneeFilter("all");
   }
@@ -1397,17 +1384,9 @@ export default function AppointmentsPage() {
       {/* Filters */}
       <div className="card p-4">
         <div
-          className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px_260px]"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2"
           dir={isRtl ? "rtl" : "ltr"}
         >
-          <VDSSearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={a.filters.searchPlaceholder}
-            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
-            {...fieldDir}
-          />
-
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}

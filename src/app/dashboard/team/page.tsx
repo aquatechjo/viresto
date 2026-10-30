@@ -10,7 +10,6 @@ import {
   VDSDataTable,
   type VDSDataTableColumn,
 } from "@/components/ui/vds";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -75,7 +74,6 @@ const TEAM_COPY = {
       inactive: "المعطلون",
     },
     filters: {
-      search: "ابحث باسم المستخدم أو البريد الإلكتروني...",
       roleAria: "فلترة حسب الدور",
       statusAria: "فلترة حسب الحالة",
       allRoles: "جميع الصلاحيات",
@@ -177,7 +175,6 @@ const TEAM_COPY = {
       inactive: "Disabled users",
     },
     filters: {
-      search: "Search by user name or email...",
       roleAria: "Filter by role",
       statusAria: "Filter by status",
       allRoles: "All roles",
@@ -361,7 +358,6 @@ export default function TeamPage() {
   const [planLimit, setPlanLimit] = useState("");
   const [credentialFieldsReady, setCredentialFieldsReady] = useState(false);
 
-  const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -404,14 +400,7 @@ export default function TeamPage() {
   const inactiveCount = users.filter((user) => !user.isActive).length;
 
   const filteredUsers = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
     const matches = users.filter((user) => {
-      const matchesSearch =
-        !query ||
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query);
-
       const matchesRole = roleFilter === "all" || user.role === roleFilter;
 
       const matchesStatus =
@@ -419,14 +408,14 @@ export default function TeamPage() {
         (statusFilter === "active" && user.isActive) ||
         (statusFilter === "inactive" && !user.isActive);
 
-      return matchesSearch && matchesRole && matchesStatus;
+      return matchesRole && matchesStatus;
     });
 
     return matches.sort((first, second) => {
       if (first.isSystemAdmin === second.isSystemAdmin) return 0;
       return first.isSystemAdmin ? -1 : 1;
     });
-  }, [users, search, roleFilter, statusFilter]);
+  }, [users, roleFilter, statusFilter]);
 
   const columns: VDSDataTableColumn<TeamUser>[] = [
     {
@@ -578,7 +567,6 @@ export default function TeamPage() {
   ];
 
   function clearFilters() {
-    setSearch("");
     setRoleFilter("all");
     setStatusFilter("all");
   }
@@ -848,15 +836,7 @@ export default function TeamPage() {
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_.8fr_.8fr_auto]">
-          <VDSSearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={copy.filters.search}
-            dir={isRtl ? "rtl" : "ltr"}
-            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
-          />
-
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <select
             aria-label={copy.filters.roleAria}
             value={roleFilter}
@@ -889,7 +869,7 @@ export default function TeamPage() {
           <button
             type="button"
             onClick={clearFilters}
-            disabled={!search && roleFilter === "all" && statusFilter === "all"}
+            disabled={roleFilter === "all" && statusFilter === "all"}
             className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-copper)] disabled:cursor-not-allowed disabled:opacity-50"
             style={{
               background: "var(--card-2)",

@@ -183,7 +183,6 @@ export const translations = {
         word: "ملفات Word",
       },
       filters: {
-        searchPlaceholder: "ابحث باسم الملف، الموكل، أو القضية...",
         categoryAria: "فلترة حسب التصنيف",
         allCategories: "جميع التصنيفات",
         apply: "بحث",
@@ -275,7 +274,6 @@ export const translations = {
         financialCases: "عدد القضايا المالية",
       },
       filters: {
-        searchPlaceholder: "ابحث باسم القضية، رقم القضية أو اسم الموكل...",
         apply: "بحث",
         clear: "مسح الفلاتر",
         chips: {
@@ -334,7 +332,6 @@ export const translations = {
         deadlines: "المواعيد النهائية",
       },
       filters: {
-        searchPlaceholder: "ابحث في العنوان، المكان، الموكل أو القضية...",
         typeAria: "فلترة حسب نوع الموعد",
         allTypes: "جميع الأنواع",
         apply: "بحث",
@@ -423,7 +420,6 @@ export const translations = {
         inactive: "المعطلون",
       },
       filters: {
-        searchPlaceholder: "ابحث باسم المستخدم أو البريد الإلكتروني...",
         roleAria: "فلترة حسب الدور",
         statusAria: "فلترة حسب الحالة",
         allRoles: "جميع الصلاحيات",
@@ -698,7 +694,6 @@ export const translations = {
         word: "Word files",
       },
       filters: {
-        searchPlaceholder: "Search by file name, client, or case...",
         categoryAria: "Filter by category",
         allCategories: "All categories",
         apply: "Filter",
@@ -793,8 +788,6 @@ export const translations = {
         financialCases: "Financial cases",
       },
       filters: {
-        searchPlaceholder:
-          "Search by case title, case number, or client name...",
         apply: "Filter",
         clear: "Clear filters",
         chips: {
@@ -854,7 +847,6 @@ export const translations = {
         deadlines: "Deadlines",
       },
       filters: {
-        searchPlaceholder: "Search by title, location, client, or case...",
         typeAria: "Filter by appointment type",
         allTypes: "All types",
         apply: "Filter",
@@ -948,7 +940,6 @@ export const translations = {
         inactive: "Disabled users",
       },
       filters: {
-        searchPlaceholder: "Search by user name or email...",
         roleAria: "Filter by role",
         statusAria: "Filter by status",
         allRoles: "All roles",

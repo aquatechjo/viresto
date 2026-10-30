@@ -12,7 +12,6 @@ import {
   VDSIcon,
   type VDSTone,
 } from "@/components/ui/vds";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import { fileSizeLabel, relativeTime } from "@/lib/utils";
 import {
   getApiMessage,
@@ -369,8 +368,6 @@ export default function DocumentsPage() {
   const [caseOptionsLoading, setCaseOptionsLoading] = useState(false);
 
   const [filter, setFilter] = useState<Filter>("all");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [loadError, setLoadError] = useState(false);
@@ -474,7 +471,6 @@ export default function DocumentsPage() {
       setLoadError(false);
 
       const params = new URLSearchParams({ page: String(page), limit: "20" });
-      if (debouncedSearch) params.set("q", debouncedSearch);
       if (filter !== "all") params.set("type", filter);
       if (selectedTag) params.set("tag", selectedTag);
       params.set(
@@ -502,7 +498,7 @@ export default function DocumentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [d.messages.loadError, debouncedSearch, filter, page, selectedTag]);
+  }, [d.messages.loadError, filter, page, selectedTag]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -539,14 +535,6 @@ export default function DocumentsPage() {
   }, [caseOptionSearch, d.messages.loadError]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setPage(1);
-      setDebouncedSearch(search.trim());
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
     if (!caseId) {
       if (clientId) setClientId("");
       return;
@@ -570,7 +558,6 @@ export default function DocumentsPage() {
   const filtered = docs;
 
   function clearFilters() {
-    setSearch("");
     setFilter("all");
     setSelectedTag("");
     setPage(1);
@@ -961,15 +948,7 @@ export default function DocumentsPage() {
       </div>
       {/* Filters */}
       <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.5fr_.8fr_auto]">
-          <VDSSearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={d.filters.searchPlaceholder}
-            dir={isRtl ? "rtl" : "ltr"}
-            clearLabel={isRtl ? "مسح البحث" : "Clear search"}
-          />
-
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,320px)_auto] sm:justify-start">
           <select
             aria-label={d.filters.categoryAria}
             value={selectedTag}
@@ -1031,7 +1010,7 @@ export default function DocumentsPage() {
             </button>
           ))}
 
-          {(search || filter !== "all" || selectedTag) && (
+          {(filter !== "all" || selectedTag) && (
             <button
               type="button"
               onClick={clearFilters}

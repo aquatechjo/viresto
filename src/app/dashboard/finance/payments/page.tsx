@@ -8,7 +8,6 @@ import { toast } from 'sonner'
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
 import EmptyState from '@/components/ui/EmptyState'
 import AppLoader from '@/components/ui/AppLoader'
-import { VDSSearchInput } from '@/components/ui/vds/table'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 import { formatInvoiceNumber } from '@/lib/invoice-print'
@@ -154,7 +153,6 @@ const COPY = {
       direct: 'دفعات على القضايا مباشرة',
     },
     filters: {
-      search: 'ابحث بالموكل، القضية، الفاتورة أو رقم المرجع...',
       status: 'حالة الدفعة',
       all: 'جميع الحالات',
     },
@@ -258,7 +256,6 @@ const COPY = {
       direct: 'Direct case payments',
     },
     filters: {
-      search: 'Search by client, case, invoice, or reference...',
       status: 'Payment status',
       all: 'All statuses',
     },
@@ -597,7 +594,6 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | PaymentStatus>('')
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 })
@@ -636,7 +632,6 @@ export default function PaymentsPage() {
     try {
       const params = new URLSearchParams({ limit: '20', page: String(page) })
       if (status) params.set('status', status)
-      if (search.trim()) params.set('q', search.trim())
       if (hasLoadedStatsRef.current && !forceStats) {
         params.set('includeStats', 'false')
       }
@@ -680,7 +675,7 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false)
     }
-  }, [status, search, page, copy.labels.loadError])
+  }, [status, page, copy.labels.loadError])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -791,7 +786,6 @@ export default function PaymentsPage() {
   )
 
   function clearFilters() {
-    setSearch('')
     setStatus('')
     setPage(1)
   }
@@ -1125,18 +1119,7 @@ export default function PaymentsPage() {
       </div>
 
       <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,300px)_auto]">
-          <VDSSearchInput
-            value={search}
-            onChange={(value) => {
-              setSearch(value)
-              setPage(1)
-            }}
-            placeholder={copy.filters.search}
-            dir={isRtl ? 'rtl' : 'ltr'}
-            clearLabel={isRtl ? 'مسح البحث' : 'Clear search'}
-          />
-
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(220px,300px)_auto] sm:justify-start">
           <select
             value={status}
             onChange={(event) => {
@@ -1190,7 +1173,7 @@ export default function PaymentsPage() {
             title={copy.labels.empty}
             description={copy.labels.emptySubtitle}
             action={
-              search || status ? (
+              status ? (
                 <button
                   type="button"
                   onClick={clearFilters}
