@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { requireAuth, requirePermission } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import {
   assertTenantCanCreate,
@@ -28,12 +28,12 @@ function normalizeRole(value: unknown): UserRole | null {
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
     const mode = new URL(req.url).searchParams.get("mode");
-    const auth = await requireRole(
-      req,
+    // Every member may list who they can assign work to; the full team
+    // list (emails, invitations) needs team.manage.
+    const auth =
       mode === "assignees"
-        ? ["ADMIN", "LAWYER", "STAFF"]
-        : ["ADMIN"],
-    );
+        ? await requireAuth(req)
+        : await requirePermission(req, "team.manage");
     if (auth.error || !auth.user) return auth.error;
 
     if (mode === "assignees") {
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "team.manage");
     if (auth.error || !auth.user) return auth.error;
 
     const body = await req.json().catch(() => ({}));

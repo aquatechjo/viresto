@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole } from "@/lib/api-auth";
+import { requireAuth, requirePermission } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import { hasCurrentAiConsent } from "@/lib/ai-consent";
@@ -36,7 +36,7 @@ function settingsResponse<T extends {
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requireAuth(req);
     if (auth.error || !auth.user) return auth.error;
 
     const tenant = await prisma.tenant.findUnique({
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "settings.manage");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(

@@ -22,7 +22,7 @@ const ADMIN_USER: AdminUser = {
   role: "ADMIN",
 };
 
-const requireRoleMock = mock.fn<(...args: unknown[]) => Promise<AuthResult>>(
+const requirePermissionMock = mock.fn<(...args: unknown[]) => Promise<AuthResult>>(
   async () => ({ error: null, user: ADMIN_USER }),
 );
 const verifySameOriginMock = mock.fn<(...args: unknown[]) => null>(() => null);
@@ -54,7 +54,7 @@ const syncSubscriptionFromPolarMock = mock.fn<
 >(async () => ({ id: "synced" }));
 
 mock.module("@/lib/api-auth", {
-  namedExports: { requireRole: requireRoleMock },
+  namedExports: { requirePermission: requirePermissionMock },
 });
 mock.module("@/lib/csrf", {
   namedExports: { verifySameOrigin: verifySameOriginMock },
@@ -84,7 +84,7 @@ before(async () => {
 });
 
 function resetMocks() {
-  requireRoleMock.mock.resetCalls();
+  requirePermissionMock.mock.resetCalls();
   verifySameOriginMock.mock.resetCalls();
   billingPlanFindFirstMock.mock.resetCalls();
   subscriptionFindFirstMock.mock.resetCalls();
@@ -99,7 +99,7 @@ function resetMocks() {
   subscriptionsListMock.mock.mockImplementation(async () => ({ result: { items: [] } }));
   syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({ id: "synced" }));
 
-  requireRoleMock.mock.mockImplementation(async () => ({
+  requirePermissionMock.mock.mockImplementation(async () => ({
     error: null,
     user: ADMIN_USER,
   }));
@@ -135,7 +135,7 @@ test("checkout: rejects non-ADMIN callers with 403 and never touches billing/Pol
   resetMocks();
 
   const forbidden = err("لا تملك صلاحية لتنفيذ هذا الإجراء.", 403);
-  requireRoleMock.mock.mockImplementation(async () => ({
+  requirePermissionMock.mock.mockImplementation(async () => ({
     error: forbidden,
     user: null,
   }));

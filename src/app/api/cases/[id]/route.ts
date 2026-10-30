@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { caseSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
@@ -9,7 +9,11 @@ import { decryptText } from "@/lib/encryption";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import { buildCaseIdentifierAccessWhere } from "@/lib/access-control";
-import { canChangeCaseTeam, canReadFinance } from "@/lib/permissions";
+import {
+  canChangeCaseTeam,
+  hasPermission,
+  rolesWithPermission,
+} from "@/lib/permissions";
 import { caseMembersAfterEdit, isCaseTeamChange } from "@/lib/case-team";
 import {
   assertCaseClientCanChange,
@@ -39,7 +43,7 @@ function safeDecrypt(value?: string | null) {
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "case.read");
     if (auth.error || !auth.user) return auth.error;
 
     const { id } = await params;
@@ -164,7 +168,11 @@ export async function GET(req: NextRequest, { params }: Params) {
       return notFound("القضية غير موجودة");
     }
 
-    const canViewFinance = canReadFinance(auth.user.role);
+    const canViewFinance = hasPermission(auth.user.role, "finance.read");
+    const canViewContact = hasPermission(
+      auth.user.role,
+      "client.contact.read",
+    );
     const paymentIds = canViewFinance ? c.payments.map((p) => p.id) : [];
     const appointmentIds = c.appointments.map((a) => a.id);
     const documentIds = c.documents.map((d) => d.id);
@@ -205,16 +213,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       invoices: canViewFinance ? c.invoices : [],
       client: {
         ...c.client,
-        email:
-          auth.user.role === "STAFF" ? null : safeDecrypt(c.client.email),
-        phone:
-          auth.user.role === "STAFF" ? null : safeDecrypt(c.client.phone),
-        nationalId:
-          auth.user.role === "STAFF"
-            ? null
-            : safeDecrypt(c.client.nationalId),
-        address:
-          auth.user.role === "STAFF" ? null : safeDecrypt(c.client.address),
+        email: canViewContact ? safeDecrypt(c.client.email) : null,
+        phone: canViewContact ? safeDecrypt(c.client.phone) : null,
+        nationalId: canViewContact ? safeDecrypt(c.client.nationalId) : null,
+        address: canViewContact ? safeDecrypt(c.client.address) : null,
       },
       activities,
     });
@@ -226,7 +228,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "case.update");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -353,7 +355,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         tenantId: auth.user.tenantId,
         isActive: true,
         role: {
-          in: ["ADMIN", "LAWYER"],
+          in: rolesWithPermission("case.lead"),
         },
       },
       select: caseUserSelect,
@@ -517,7 +519,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "case.delete");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { invalidateAuthCacheForUser, requireRole } from "@/lib/api-auth";
+import { invalidateAuthCacheForUser, requirePermission } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import {
   assertTenantCanCreate,
@@ -29,7 +29,7 @@ export async function PATCH(
 
     // An admin can always deactivate members, even from a read-only seat
     // (office over its plan's user limit): that is how the office fixes it.
-    const auth = await requireRole(req, ["ADMIN"], { allowReadOnlySeat: true });
+    const auth = await requirePermission(req, "team.manage", { allowReadOnlySeat: true });
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -234,7 +234,7 @@ export async function DELETE(
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"], { allowReadOnlySeat: true });
+    const auth = await requirePermission(req, "team.manage", { allowReadOnlySeat: true });
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(

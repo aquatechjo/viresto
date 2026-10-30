@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { decryptText } from "@/lib/encryption";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import {
@@ -18,7 +19,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "client.read");
     if (auth.error || !auth.user) return auth.error;
 
     const [exportAccess, writeAccess] = await Promise.all([
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       nationalIdHash: _nationalIdHash,
       ...safeClient
     } = client;
-    const revealSensitive = auth.user.role !== "STAFF";
+    const revealSensitive = hasPermission(auth.user.role, "client.contact.read");
 
     return ok({
       ...safeClient,

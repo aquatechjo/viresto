@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { paymentUpdateSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
@@ -34,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "payment.update");
 
     if (auth.error || !auth.user) {
       return auth.error;
@@ -207,7 +208,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (
         existing.status === "PAID" &&
         nextStatus === "CANCELLED" &&
-        auth.user!.role !== "ADMIN"
+        !hasPermission(auth.user!.role, "payment.cancel.paid")
       ) {
         return {
           ok: false as const,
@@ -536,7 +537,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "payment.delete");
 
     if (auth.error || !auth.user) {
       return auth.error;

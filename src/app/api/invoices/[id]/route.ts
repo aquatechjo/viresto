@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { logActivity } from "@/lib/activity";
@@ -135,7 +135,7 @@ function normalizeInvoiceItems(
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "finance.read");
     if (auth.error || !auth.user) return auth.error;
 
     const { id } = await params;
@@ -180,7 +180,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "invoice.update");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -609,7 +609,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "invoice.delete");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(

@@ -8,7 +8,7 @@ import { NextRequest } from "next/server";
 
 const TENANT = "tenant-1";
 
-const requireRoleMock = mock.fn(async () => ({
+const requirePermissionMock = mock.fn(async () => ({
   error: null,
   user: { userId: "user-1", tenantId: TENANT, role: "ADMIN" },
 }));
@@ -35,7 +35,7 @@ const isSyncedMock = mock.fn(
   async (subscriptionId: string, tenantId: string) => syncedRows.get(subscriptionId) === tenantId,
 );
 
-mock.module("@/lib/api-auth", { namedExports: { requireRole: requireRoleMock } });
+mock.module("@/lib/api-auth", { namedExports: { requirePermission: requirePermissionMock } });
 mock.module("@/lib/csrf", { namedExports: { verifySameOrigin: () => null } });
 mock.module("@/lib/polar", {
   namedExports: {

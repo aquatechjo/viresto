@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { apiHandler } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sanitizeAiInput, detectPromptInjection } from "@/lib/ai-security";
 import { logActivity } from "@/lib/log-activity";
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requireAuth(req);
 
     if (auth.error || !auth.user) {
       return auth.error;

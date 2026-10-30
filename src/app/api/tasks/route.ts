@@ -4,7 +4,8 @@ import { taskSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
 import {
@@ -33,7 +34,7 @@ const taskUserSelect = {
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "task.read");
     if (auth.error || !auth.user) return auth.error;
 
     const sp = new URL(req.url).searchParams;
@@ -264,7 +265,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "task.create");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -288,7 +289,10 @@ export async function POST(req: NextRequest) {
     const { clientId, caseId } = parsed.data;
     const assignedToId = parsed.data.assignedToId || auth.user.userId;
 
-    if (auth.user.role === "STAFF" && assignedToId !== auth.user.userId) {
+    if (
+      !hasPermission(auth.user.role, "task.assign.any") &&
+      assignedToId !== auth.user.userId
+    ) {
       return err("الموظف يستطيع إسناد المهمة لنفسه فقط", 403);
     }
 

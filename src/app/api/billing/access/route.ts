@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { ok } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
       getTenantSeatStateCached(auth.user.tenantId),
     ]);
 
-    const isAdmin = auth.user.role === "ADMIN";
+    const canManageBilling = hasPermission(auth.user.role, "billing.manage");
     const seatReadOnly =
       !auth.user.isSystemAdmin && isReadOnlySeat(seats, auth.user.userId);
     const canWrite = writeCheck.ok && !seatReadOnly;
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
         trialEndingSoon: isTrialEndingSoon(access),
         paymentFailed: access.paymentFailed,
         pastDueLocksAt: access.pastDueLocksAt,
-        canManageBilling: isAdmin,
+        canManageBilling,
         // More active users than the plan allows (tenant-seats.ts).
         seats: {
           limit: seats.limit,
@@ -47,8 +48,10 @@ export async function GET(req: NextRequest) {
           planName: seats.planName,
           overLimit: seats.readOnlyUsers.length > 0,
           readOnly: seatReadOnly,
-          // Who lost write access: for the admin who can fix it.
-          readOnlyUsers: isAdmin ? seats.readOnlyUsers : [],
+          // Who lost write access: for whoever can fix it by deactivating.
+          readOnlyUsers: hasPermission(auth.user.role, "team.manage")
+            ? seats.readOnlyUsers
+            : [],
         },
       },
       canWrite,
@@ -69,10 +72,7 @@ export async function GET(req: NextRequest) {
           fullExport: false,
         },
       // Plan, limits, and subscription details are administrative data.
-      billing:
-        isAdmin
-          ? writeCheck.billing ?? null
-          : null,
+      billing: canManageBilling ? writeCheck.billing ?? null : null,
     });
   });
 }

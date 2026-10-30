@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { paymentSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
@@ -28,7 +28,7 @@ const allowedStatuses = [
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "finance.read");
 
     if (auth.error || !auth.user) {
       return auth.error;
@@ -296,7 +296,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "payment.create");
 
     if (auth.error || !auth.user) {
       return auth.error;

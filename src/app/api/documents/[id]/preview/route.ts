@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { logActivity } from "@/lib/activity";
 import {
@@ -30,7 +30,7 @@ function canRenderInline(fileType?: string | null) {
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "document.read");
 
     if (auth.error || !auth.user) {
       return auth.error;

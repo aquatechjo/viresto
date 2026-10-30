@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 
 export function addActivityAndCondition(
   where: Prisma.ActivityWhereInput,
@@ -74,7 +75,9 @@ export function buildVisibleActivityWhere(
 ): Prisma.ActivityWhereInput {
   const where: Prisma.ActivityWhereInput = {
     tenantId: user.tenantId,
-    ...(user.role !== "ADMIN" ? { actorId: user.userId } : {}),
+    ...(hasPermission(user.role, "activity.read.all")
+      ? {}
+      : { actorId: user.userId }),
   };
 
   if (!canViewFinance) {

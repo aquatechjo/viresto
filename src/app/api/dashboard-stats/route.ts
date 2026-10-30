@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { DateTime } from "luxon";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole } from "@/lib/api-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { ok } from "@/lib/api-response";
 import { loadDashboard } from "@/lib/dashboard/load-dashboard";
 
@@ -9,7 +9,7 @@ const DEFAULT_TIME_ZONE = "Asia/Amman";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requireAuth(req);
     if (auth.error || !auth.user) return auth.error;
 
     /*

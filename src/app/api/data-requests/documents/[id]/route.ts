@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/log-activity";
 import { DOCUMENT_FILE_EXPORT_RATE_LIMIT } from "@/lib/expensive-route-limits";
@@ -28,7 +28,7 @@ function getResourceTypes(fileType?: string | null): CloudinaryResourceType[] {
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "office.data.manage");
     if (auth.error || !auth.user) return auth.error;
 
     const { id } = await params;

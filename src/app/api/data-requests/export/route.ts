@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/log-activity";
 import { streamOfficeDataExport } from "@/lib/office-data-export";
@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "office.data.manage");
     if (auth.error || !auth.user) return auth.error;
 
     const limit = await checkRateLimit(auth.user.tenantId, {

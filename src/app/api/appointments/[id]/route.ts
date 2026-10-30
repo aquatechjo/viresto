@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { appointmentSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
 import { formatSlot } from "@/lib/datetime";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
@@ -53,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "appointment.update");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -107,7 +108,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (
-      auth.user.role === "STAFF" &&
+      !hasPermission(auth.user.role, "appointment.update.others") &&
       exists.assignedToId !== auth.user.userId
     ) {
       return err("يمكنك تعديل المواعيد المسندة إليك فقط", 403);
@@ -219,7 +220,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       if (
-        auth.user.role === "STAFF" &&
+        !hasPermission(auth.user.role, "appointment.assign.any") &&
         assignedToId !== auth.user.userId
       ) {
         return err("الموظف يستطيع إسناد الموعد لنفسه فقط", 403);
@@ -400,7 +401,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "appointment.delete");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(

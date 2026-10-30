@@ -11,6 +11,7 @@ import {
   buildTaskAccessWhere,
   type AccessControlUser,
 } from "@/lib/access-control";
+import { hasPermission } from "@/lib/permissions";
 import {
   decryptText,
   hashSearchValue,
@@ -111,9 +112,9 @@ async function searchClients(user: AccessControlUser, q: PreparedQuery) {
   `);
 
   // Phone, national ID and email are encrypted: only an exact full value
-  // matches, through its HMAC hash. Staff never see these fields, so they
-  // can't search by them either.
-  const canSeeContact = user.role !== "STAFF";
+  // matches, through its HMAC hash. Who can't see these fields can't search
+  // by them either.
+  const canSeeContact = hasPermission(user.role, "client.contact.read");
   const phone = canSeeContact ? normalizePhone(q.raw) : null;
   const email = canSeeContact ? normalizeEmail(q.raw) : null;
   const hashMatches: Prisma.ClientWhereInput[] = canSeeContact
@@ -507,7 +508,7 @@ export async function runGlobalSearch(
   q: PreparedQuery,
   locale: Locale,
 ): Promise<SearchResults> {
-  const canSeeFinance = user.role === "ADMIN" || user.role === "LAWYER";
+  const canSeeFinance = hasPermission(user.role, "finance.read");
 
   const [clients, cases, invoices, payments, documents, appointments, tasks, team] =
     await Promise.all([
@@ -518,7 +519,7 @@ export async function runGlobalSearch(
       searchDocuments(user, q),
       searchAppointments(user, q, locale),
       searchTasks(user, q, locale),
-      user.role === "ADMIN" ? searchTeam(user, q) : none(),
+      hasPermission(user.role, "team.manage") ? searchTeam(user, q) : none(),
     ]);
 
   return { clients, cases, invoices, payments, documents, appointments, tasks, team };

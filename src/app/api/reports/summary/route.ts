@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { DateTime } from "luxon";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import {
@@ -170,7 +170,7 @@ function invoiceStatusWhere(
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "reports.read");
     if (auth.error || !auth.user) return auth.error;
 
     const reportAccess = await assertTenantHasFeature(

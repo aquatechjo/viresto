@@ -3,7 +3,7 @@ import { SubscriptionStatus } from "@prisma/client";
 import { PLANS, type PlanCode } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { getAppUrl, getPolarClient } from "@/lib/polar";
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "billing.manage");
     if (auth.error || !auth.user) return auth.error;
 
     const body = await req.json().catch(() => null);

@@ -1,4 +1,4 @@
-import { canManageCaseTeam, type UserRole } from "@/lib/permissions";
+import { hasPermission, type UserRole } from "@/lib/permissions";
 
 // Who is on a case: one lead lawyer plus members. The lead is never also
 // stored as a member, so every list returned here leaves the lead out.
@@ -18,7 +18,7 @@ export function caseMembersForCreate(input: {
 }) {
   const members = new Set(input.memberIds ?? []);
 
-  if (!canManageCaseTeam(input.actor.role)) {
+  if (!hasPermission(input.actor.role, "case.team.manage")) {
     members.add(input.actor.userId);
   }
 

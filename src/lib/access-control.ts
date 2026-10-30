@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import type { UserRole } from "@/lib/permissions";
+import { hasPermission, type UserRole } from "@/lib/permissions";
 
 export type AccessControlUser = {
   userId: string;
@@ -70,8 +70,9 @@ export function buildCaseAccessWhere(
   user: AccessControlUser,
   requestedWhere: Prisma.CaseWhereInput = {},
 ): Prisma.CaseWhereInput {
-  const accessWhere =
-    user.role === "ADMIN" ? {} : assignedCaseScope(user);
+  const accessWhere = hasPermission(user.role, "case.read.all")
+    ? {}
+    : assignedCaseScope(user);
 
   return {
     AND: [
@@ -100,8 +101,9 @@ export function buildClientAccessWhere(
   user: AccessControlUser,
   requestedWhere: Prisma.ClientWhereInput = {},
 ): Prisma.ClientWhereInput {
-  const accessWhere =
-    user.role === "ADMIN" ? {} : accessibleClientScope(user);
+  const accessWhere = hasPermission(user.role, "client.read.all")
+    ? {}
+    : accessibleClientScope(user);
 
   return {
     AND: [
@@ -130,8 +132,9 @@ export function buildDocumentAccessWhere(
   user: AccessControlUser,
   requestedWhere: Prisma.DocumentWhereInput = {},
 ): Prisma.DocumentWhereInput {
+  // A document is visible with its case.
   const accessWhere: Prisma.DocumentWhereInput =
-    user.role === "ADMIN"
+    hasPermission(user.role, "case.read.all")
       ? {}
       : {
           case: {
@@ -153,9 +156,9 @@ export function buildInvoiceAccessWhere(
   requestedWhere: Prisma.InvoiceWhereInput = {},
 ): Prisma.InvoiceWhereInput {
   const accessWhere: Prisma.InvoiceWhereInput =
-    user.role === "ADMIN"
+    hasPermission(user.role, "finance.read.all")
       ? {}
-      : user.role === "STAFF"
+      : !hasPermission(user.role, "finance.read")
         ? { id: { in: [] } }
         : {
             OR: [
@@ -195,9 +198,9 @@ export function buildPaymentAccessWhere(
   requestedWhere: Prisma.PaymentWhereInput = {},
 ): Prisma.PaymentWhereInput {
   const accessWhere: Prisma.PaymentWhereInput =
-    user.role === "ADMIN"
+    hasPermission(user.role, "finance.read.all")
       ? {}
-      : user.role === "STAFF"
+      : !hasPermission(user.role, "finance.read")
         ? { id: { in: [] } }
         : {
             OR: [
@@ -223,7 +226,7 @@ export function buildTaskAccessWhere(
   requestedWhere: Prisma.TaskWhereInput = {},
 ): Prisma.TaskWhereInput {
   const accessWhere: Prisma.TaskWhereInput =
-    user.role === "ADMIN"
+    hasPermission(user.role, "task.read.all")
       ? {}
       : {
           OR: [
@@ -247,7 +250,7 @@ export function buildAppointmentAccessWhere(
   requestedWhere: Prisma.AppointmentWhereInput = {},
 ): Prisma.AppointmentWhereInput {
   const accessWhere: Prisma.AppointmentWhereInput =
-    user.role === "ADMIN"
+    hasPermission(user.role, "appointment.read.all")
       ? {}
       : {
           OR: [

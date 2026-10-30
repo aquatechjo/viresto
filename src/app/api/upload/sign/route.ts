@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import cloudinary from "@/lib/cloudinary";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 import {
   assertTenantCanCreate,
   assertTenantCanUseStorage,
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "document.upload");
     if (auth.error || !auth.user) return auth.error;
 
     const CLOUD = process.env.CLOUDINARY_CLOUD_NAME;

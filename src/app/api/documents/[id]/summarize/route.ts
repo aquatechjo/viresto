@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { SUMMARIZE_RATE_LIMIT } from "@/lib/expensive-route-limits";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "document.summarize");
     if (auth.error || !auth.user) return auth.error;
 
     const limit = await checkRateLimit(auth.user.userId, SUMMARIZE_RATE_LIMIT);

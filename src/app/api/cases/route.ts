@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verifySameOrigin } from "@/lib/csrf";
 import { caseSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanCreate } from "@/lib/billing-limits";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/lib/access-control";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import { caseMembersForCreate } from "@/lib/case-team";
+import { rolesWithPermission } from "@/lib/permissions";
 
 const allowedStatuses = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
@@ -25,7 +26,7 @@ const caseUserSelect = {
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "case.read");
     if (auth.error || !auth.user) return auth.error;
 
     const sp = new URL(req.url).searchParams;
@@ -243,7 +244,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "case.create");
     if (auth.error || !auth.user) return auth.error;
 
     const meta = getRequestMeta(req);
@@ -296,7 +297,7 @@ export async function POST(req: NextRequest) {
         tenantId: auth.user.tenantId,
         isActive: true,
         role: {
-          in: ["ADMIN", "LAWYER"],
+          in: rolesWithPermission("case.lead"),
         },
       },
       select: caseUserSelect,
@@ -367,7 +368,7 @@ export async function POST(req: NextRequest) {
               tenantId: auth.user.tenantId,
               isActive: true,
               role: {
-                in: ["ADMIN", "LAWYER"],
+                in: rolesWithPermission("case.lead"),
               },
             },
             select: { id: true },

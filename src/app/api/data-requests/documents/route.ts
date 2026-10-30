@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ok } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 // AUDIT_REPORT.md M4: the office ADMIN lists the office's document files to
 // download them one by one (./[id]). Reachable while the office is locked.
@@ -12,7 +12,7 @@ const PAGE_SIZE = 100;
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "office.data.manage");
     if (auth.error || !auth.user) return auth.error;
 
     const cursor = req.nextUrl.searchParams.get("cursor")?.trim() || null;

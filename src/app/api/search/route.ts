@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { ok, err } from '@/lib/api-response'
-import { requireRole } from '@/lib/api-auth'
+import { requireAuth } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-handler'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { SEARCH_RATE_LIMIT } from '@/lib/expensive-route-limits'
@@ -11,7 +11,7 @@ import { prepareSearchQuery } from '@/lib/search-normalize'
 // documents, appointments, tasks and team. See src/lib/global-search.ts.
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER', 'STAFF'])
+    const auth = await requireAuth(req)
     if (auth.error || !auth.user) return auth.error
 
     const sp = new URL(req.url).searchParams

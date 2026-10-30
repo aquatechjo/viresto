@@ -13,7 +13,7 @@ import {
   buildPaymentAccessWhere,
   buildTaskAccessWhere,
 } from "@/lib/access-control";
-import { canReadFinance } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 import { buildVisibleActivityWhere } from "@/lib/activity-query";
 import { getTenantBillingLimits } from "@/lib/billing-limits";
 import { getTenantAccessCached } from "@/lib/tenant-access-server";
@@ -63,8 +63,8 @@ export async function loadDashboard(
   timeZone: string,
   nowDate: Date = new Date(),
 ): Promise<DashboardData> {
-  const canViewFinance = canReadFinance(user.role);
-  const isAdmin = user.role === "ADMIN";
+  const canViewFinance = hasPermission(user.role, "finance.read");
+  const canManageBilling = hasPermission(user.role, "billing.manage");
 
   const now = DateTime.fromJSDate(nowDate).setZone(timeZone);
   const todayStart = now.startOf("day").toJSDate();
@@ -318,7 +318,7 @@ export async function loadDashboard(
       select: { id: true, type: true, title: true, message: true, createdAt: true },
     }),
 
-    isAdmin ? loadAccount(user, nowDate) : Promise.resolve(null),
+    canManageBilling ? loadAccount(user, nowDate) : Promise.resolve(null),
   ]);
 
   const paidByInvoice = new Map<string, number>();
@@ -357,7 +357,7 @@ export async function loadDashboard(
     timeZone,
     generatedAt: nowDate.toISOString(),
     role: user.role,
-    permissions: { canViewFinance, canManageBilling: isAdmin && !user.isDemo },
+    permissions: { canViewFinance, canManageBilling: canManageBilling && !user.isDemo },
 
     kpis: {
       activeCases,

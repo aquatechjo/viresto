@@ -3,7 +3,7 @@ import { DateTime } from 'luxon'
 import { prisma } from '@/lib/prisma'
 import { ok, err } from '@/lib/api-response'
 import { apiHandler } from '@/lib/api-handler'
-import { requireRole } from '@/lib/api-auth'
+import { requirePermission } from '@/lib/api-auth'
 import { buildPaymentAccessWhere } from '@/lib/access-control'
 import { checkRateLimit } from '@/lib/rate-limit'
 import {
@@ -17,7 +17,7 @@ import {
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ['ADMIN', 'LAWYER'])
+    const auth = await requirePermission(req, 'reports.read')
     if (auth.error || !auth.user) return auth.error
 
     const reportRateLimit = await checkRateLimit(

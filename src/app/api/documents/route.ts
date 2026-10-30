@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import {
   buildCaseAccessWhere,
@@ -12,7 +12,7 @@ import {
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "document.read");
     if (auth.error || !auth.user) return auth.error;
 
     const sp = new URL(req.url).searchParams;

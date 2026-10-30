@@ -11,7 +11,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { formatJOD, formatUSD } from "@/lib/money";
 import { ok, err } from "@/lib/api-response";
-import { requireRole } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
 import { getAiUsagePeriod } from "@/lib/ai-usage-core";
@@ -192,7 +192,7 @@ function buildPlanPayload(dbPlan: DbPlanLike, isCurrent: boolean) {
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "billing.manage");
     if (auth.error || !auth.user) return auth.error;
 
     const tenant = await prisma.tenant.findUnique({

@@ -4,7 +4,7 @@ import {
   assertTenantCanCreate,
   assertTenantCanWrite,
 } from "@/lib/billing-limits";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { clientSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
 import { logActivity } from "@/lib/activity";
@@ -23,7 +23,7 @@ import {
   buildClientIdentifierAccessWhere,
   buildTaskAccessWhere,
 } from "@/lib/access-control";
-import { canReadFinance } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 type Params = { params: Promise<{ id: string }> };
@@ -61,7 +61,7 @@ function decryptClient<
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "client.read");
     if (auth.error || !auth.user) return auth.error;
 
     const { id } = await params;
@@ -104,8 +104,8 @@ export async function GET(req: NextRequest, { params }: Params) {
       return notFound("الموكل غير موجود");
     }
 
-    const revealSensitive = auth.user.role !== "STAFF";
-    const canViewFinance = canReadFinance(auth.user.role);
+    const revealSensitive = hasPermission(auth.user.role, "client.contact.read");
+    const canViewFinance = hasPermission(auth.user.role, "finance.read");
 
     return ok({
       ...decryptClient(client, revealSensitive),
@@ -122,7 +122,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "client.update");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -385,7 +385,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN"]);
+    const auth = await requirePermission(req, "client.delete");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(

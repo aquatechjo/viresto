@@ -3,7 +3,8 @@ import type { Prisma } from "@prisma/client";
 import { err } from "@/lib/api-response";
 import { COOKIE, buildCookie, clearCookie, verifyToken } from "@/lib/auth";
 import type { JWTPayload } from "@/lib/auth";
-import type { UserRole } from "@/lib/permissions";
+import type { AppPermission, UserRole } from "@/lib/permissions";
+import { rolesWithPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
   SESSION_IDLE_TIMEOUT_MS,
@@ -694,4 +695,16 @@ export async function requireRole(
     user: auth.user,
     seatReadOnly: auth.seatReadOnly ?? false,
   };
+}
+
+/**
+ * Office routes check a permission, never role names: the roles come from
+ * the matrix in permissions.ts.
+ */
+export async function requirePermission(
+  req: NextRequest,
+  permission: AppPermission,
+  options: RequireAuthOptions = {},
+) {
+  return requireRole(req, rolesWithPermission(permission), options);
 }

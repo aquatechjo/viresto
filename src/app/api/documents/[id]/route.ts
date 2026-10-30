@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, err, notFound } from "@/lib/api-response";
 import cloudinary from "@/lib/cloudinary";
 import { logActivity } from "@/lib/activity";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { apiHandler } from "@/lib/api-handler";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -20,7 +20,7 @@ function getResourceType(fileType?: string | null): "image" | "raw" | "video" {
 
 export async function GET(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "document.read");
 
     if (auth.error || !auth.user) {
       return auth.error;
@@ -58,7 +58,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "document.delete");
 
     if (auth.error || !auth.user) {
       return auth.error;

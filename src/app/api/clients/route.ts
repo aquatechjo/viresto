@@ -5,7 +5,8 @@ import { clientSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { assertTenantCanCreate } from "@/lib/billing-limits";
 import {
   encryptText,
@@ -23,7 +24,7 @@ import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "client.read");
     if (auth.error || !auth.user) return auth.error;
 
     const { searchParams } = new URL(req.url);
@@ -130,7 +131,7 @@ export async function GET(req: NextRequest) {
         createdById: _createdById,
         ...safeClient
       } = client;
-      const revealSensitive = auth.user.role !== "STAFF";
+      const revealSensitive = hasPermission(auth.user.role, "client.contact.read");
 
       return {
         ...safeClient,
@@ -165,7 +166,7 @@ export async function POST(req: NextRequest) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "client.create");
     if (auth.error || !auth.user) return auth.error;
 
     const meta = getRequestMeta(req);

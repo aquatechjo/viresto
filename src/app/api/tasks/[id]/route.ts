@@ -3,7 +3,8 @@ import { Prisma, TaskPriority, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
-import { requireRole, getRequestMeta } from "@/lib/api-auth";
+import { requirePermission, getRequestMeta } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -36,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER", "STAFF"]);
+    const auth = await requirePermission(req, "task.update");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
@@ -92,7 +93,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = await req.json().catch(() => ({}));
 
     if (
-      auth.user.role === "STAFF" &&
+      !hasPermission(auth.user.role, "task.update.others") &&
       exists.assignedToId !== auth.user.userId
     ) {
       return err("يمكنك تحديث المهام المسندة إليك فقط", 403);
@@ -175,7 +176,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (hasOwn(body, "assignedToId")) {
-      if (auth.user.role === "STAFF") {
+      if (!hasPermission(auth.user.role, "task.assign.any")) {
         return err("لا تملك صلاحية إعادة إسناد المهمة", 403);
       }
 
@@ -207,7 +208,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const changesCaseLink = hasOwn(body, "caseId");
 
     if (changesClientLink || changesCaseLink) {
-      if (auth.user.role === "STAFF") {
+      if (!hasPermission(auth.user.role, "task.edit.details")) {
         return err("لا تملك صلاحية تعديل ارتباط المهمة", 403);
       }
 
@@ -280,7 +281,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return err("لا توجد بيانات للتعديل", 400);
     }
 
-    if (auth.user.role === "STAFF") {
+    if (!hasPermission(auth.user.role, "task.edit.details")) {
       const allowedStaffFields = new Set([
         "status",
         "completed",
@@ -377,7 +378,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const csrf = verifySameOrigin(req);
     if (csrf) return csrf;
 
-    const auth = await requireRole(req, ["ADMIN", "LAWYER"]);
+    const auth = await requirePermission(req, "task.delete");
     if (auth.error || !auth.user) return auth.error;
 
     const writeCheck = await assertTenantCanWrite(
