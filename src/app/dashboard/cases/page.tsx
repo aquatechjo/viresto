@@ -8,7 +8,18 @@ import { toast } from "sonner";
 
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
+import {
+  Archive,
+  BriefcaseBusiness,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  FilePlus2,
+  ReceiptText,
+  WalletCards,
+} from "lucide-react";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -106,11 +117,10 @@ const COPY = {
     archivedClientBadge: "موكل مؤرشف",
     editCase: "تعديل",
     hero: {
-      badge: "إدارة القضايا",
       title: "القضايا",
       subtitle:
         "تابع ملفات القضايا، الموكلين، الأتعاب، المدفوعات والمستحقات من واجهة واحدة تساعدك على إدارة العمل القانوني بوضوح.",
-      newCase: "+ قضية جديدة",
+      newCase: "قضية جديدة",
     },
     stats: {
       active: "نشطة",
@@ -201,11 +211,10 @@ const COPY = {
     archivedClientBadge: "Archived client",
     editCase: "Edit",
     hero: {
-      badge: "Case management",
       title: "Cases",
       subtitle:
         "Track case files, clients, fees, payments, and receivables from one clear legal workspace.",
-      newCase: "+ New case",
+      newCase: "New case",
     },
     stats: {
       active: "Active",
@@ -357,6 +366,7 @@ function PlanLimitBanner({
 export default function CasesPage() {
   const router = useRouter();
   const { locale, isRtl } = useLocale();
+  const dir = isRtl ? "rtl" : "ltr";
   const localeKey = (locale === "ar" ? "ar" : "en") as keyof typeof COPY;
   const text = COPY[localeKey];
 
@@ -1017,10 +1027,7 @@ export default function CasesPage() {
   ];
 
   return (
-    <div
-      className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
-      dir={isRtl ? "rtl" : "ltr"}
-    >
+    <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden stagger" dir={dir}>
       {planLimit && (
         <PlanLimitBanner
           message={planLimit}
@@ -1035,54 +1042,15 @@ export default function CasesPage() {
         isRtl={isRtl}
       />
 
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className={`absolute -top-14 h-40 w-40 rounded-full ${
-            isRtl ? "-right-14" : "-left-14"
-          }`}
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className={`absolute -bottom-20 h-52 w-52 rounded-full ${
-            isRtl ? "left-16" : "right-16"
-          }`}
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {text.hero.badge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">
-              {text.hero.title}
-            </h1>
-
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              {text.hero.subtitle}
-            </p>
-          </div>
-
-          <button
-            type="button"
+      <PageHeader
+        dir={dir}
+        title={text.hero.title}
+        description={text.hero.subtitle}
+        actions={
+          <PageHeaderAction
+            primary
+            icon={FilePlus2}
+            label={text.hero.newCase}
             onClick={openCreateCaseModal}
             disabled={!writeAccess.canWrite}
             title={
@@ -1090,132 +1058,64 @@ export default function CasesPage() {
                 ? writeAccess.message || text.planLimitFallback
                 : text.hero.newCase
             }
-            className="btn h-11 shrink-0 px-5 disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              background: "#fff",
-              color: "var(--sidebar)",
-              borderColor: "rgba(255,255,255,0.32)",
-            }}
-          >
-            {text.hero.newCase}
-          </button>
-        </div>
-      </div>
+          />
+        }
+      />
 
-      {/* Status Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          {
-            label: text.stats.active,
-            value: activeCount,
-            color: "var(--brand-text)",
-            bg: "var(--green-soft)",
-          },
-          {
-            label: text.stats.inProgress,
-            value: progressCount,
-            color: "var(--warning-text)",
-            bg: "var(--amber-soft)",
-          },
-          {
-            label: text.stats.closed,
-            value: closedCount,
-            color: "#6b7280",
-            bg: "var(--card)",
-          },
+      {/* Case counts first, then the money of the same cases right under them. */}
+      <PageStats
+        dir={dir}
+        items={[
+          { label: text.stats.active, value: activeCount, icon: <BriefcaseBusiness className="h-4 w-4" />, tone: "teal" },
+          { label: text.stats.inProgress, value: progressCount, icon: <Clock3 className="h-4 w-4" />, tone: "gold" },
+          { label: text.stats.closed, value: closedCount, icon: <CheckCircle2 className="h-4 w-4" />, tone: "slate" },
           {
             label: text.stats.archived,
             value: archivedCount,
-            color: "var(--text-2)",
-            bg: "var(--card)",
+            icon: <Archive className="h-4 w-4" />,
+            tone: archivedClientCount > 0 ? "red" : "slate",
+            hint:
+              archivedClientCount > 0
+                ? `${text.stats.archivedClients}: ${archivedClientCount}`
+                : undefined,
+            hintTone: "bad",
           },
+        ]}
+      />
+
+      <PageStats
+        dir={dir}
+        items={[
+          { label: text.stats.totalFees, value: formatJOD(totalFees), icon: <ReceiptText className="h-4 w-4" />, tone: "blue" },
+          { label: text.stats.paid, value: formatJOD(totalPaid), icon: <CircleDollarSign className="h-4 w-4" />, tone: "emerald" },
           {
-            label: text.stats.archivedClients,
-            value: archivedClientCount,
-            color: archivedClientCount > 0 ? "var(--warning)" : "var(--text-2)",
-            bg: archivedClientCount > 0 ? "#fff7ed" : "var(--card)",
+            label: text.stats.remaining,
+            value: formatJOD(totalRemaining),
+            icon: <WalletCards className="h-4 w-4" />,
+            tone: totalRemaining > 0 ? "red" : "slate",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5"
-            style={{
-              background: item.bg,
-              borderColor: "var(--border)",
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
+        ]}
+      />
 
-            <p
-              className="mt-2 text-2xl font-black leading-tight"
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,320px)_auto] sm:justify-start">
-          <select
-            dir={isRtl ? "rtl" : "ltr"}
-            value={filter}
-            onChange={(event) => setFilter(event.target.value as StatusFilter)}
-            className={`input h-12 w-full cursor-pointer ${isRtl ? "!text-right" : "!text-left"}`}
-            style={{
-              textAlign: isRtl ? "right" : "left",
-              direction: isRtl ? "rtl" : "ltr",
-            }}
-            aria-label={text.table.status}
-          >
-            {STATUS_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {text.filters.statuses[key]}
-              </option>
-            ))}
-          </select>
-
-          {filter !== "all" && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="h-12 rounded-2xl px-5 text-sm font-black transition-all"
-              style={{
-                background: "var(--card)",
-                color: "var(--text-2)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {text.filters.clear}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Financial Summary */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <FinancialCard
-          label={text.stats.totalFees}
-          value={formatJOD(totalFees)}
-          isRtl={isRtl}
-        />
-        <FinancialCard
-          label={text.stats.paid}
-          value={formatJOD(totalPaid)}
-          color="var(--success)"
-          isRtl={isRtl}
-        />
-        <FinancialCard
-          label={text.stats.remaining}
-          value={formatJOD(totalRemaining)}
-          danger={totalRemaining > 0}
-          isRtl={isRtl}
-        />
-      </div>
+      <FilterBar
+        dir={dir}
+        active={filter !== "all"}
+        onClear={clearFilters}
+        clearLabel={text.filters.clear}
+      >
+        <FilterSelect
+          dir={dir}
+          value={filter}
+          onChange={(event) => setFilter(event.target.value as StatusFilter)}
+          aria-label={text.table.status}
+        >
+          {STATUS_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {text.filters.statuses[key]}
+            </option>
+          ))}
+        </FilterSelect>
+      </FilterBar>
 
       {/* Content */}
       <VDSDataTable<Case>
@@ -1943,45 +1843,4 @@ function getCaseStatusBadgeStyle(status: string) {
         color: "var(--text)",
       };
   }
-}
-
-function FinancialCard({
-  label,
-  value,
-  color = "var(--text)",
-  danger,
-  isRtl,
-}: {
-  label: string;
-  value: string;
-  color?: string;
-  danger?: boolean;
-  isRtl?: boolean;
-}) {
-  return (
-    <div
-      className="card p-5"
-      style={{
-        background: danger ? "var(--red-soft)" : "var(--card)",
-        borderColor: "var(--border)",
-      }}
-    >
-      <p
-        className="text-xs font-black"
-        style={{ color: danger ? "var(--danger)" : "var(--text-3)" }}
-      >
-        {label}
-      </p>
-
-      <p
-        dir="ltr"
-        className={`mt-2 whitespace-nowrap text-xl font-black leading-tight ${
-          isRtl ? "text-right" : "text-left"
-        }`}
-        style={{ color: danger ? "var(--danger)" : color }}
-      >
-        {value}
-      </p>
-    </div>
-  );
 }

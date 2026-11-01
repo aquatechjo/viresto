@@ -3,7 +3,22 @@ import AppLoader from "@/components/ui/AppLoader"
 import ResponsiveTable from '@/components/ui/ResponsiveTable'
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { CSSProperties } from 'react'
+import {
+  AlarmClock,
+  BriefcaseBusiness,
+  CalendarDays,
+  CircleDollarSign,
+  FileDown,
+  FileSpreadsheet,
+  FolderOpen,
+  Hourglass,
+  Percent,
+  Printer,
+  ReceiptText,
+  RefreshCw,
+  Sheet,
+} from 'lucide-react'
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from '@/components/page'
 import { toast } from 'sonner'
 import { useLocale } from '@/lib/useLocale'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
@@ -15,7 +30,6 @@ const REPORT_COPY = {
   ar: {
     months: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
     hero: {
-      badge: 'مركز التقارير والتحليلات',
       yearlyTitle: (year: number) => `التقرير السنوي ${year}`,
       monthlyTitle: (monthName: string, year: number) => `تقرير ${monthName} ${year}`,
       subtitle: 'تقارير مالية وإدارية شاملة تعرض الإيرادات، الفواتير، الدفعات، القضايا، المواعيد والمهام لمساعدة المكتب على اتخاذ قرارات أوضح.',
@@ -91,7 +105,6 @@ const REPORT_COPY = {
   en: {
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
     hero: {
-      badge: 'Reports and analytics center',
       yearlyTitle: (year: number) => `Annual report ${year}`,
       monthlyTitle: (monthName: string, year: number) => `${monthName} ${year} report`,
       subtitle: 'Comprehensive financial and operational reports covering revenue, invoices, payments, cases, appointments, and tasks to support clearer office decisions.',
@@ -351,13 +364,9 @@ export default function ReportsPage() {
   const localeState = useLocale() as { locale?: Locale }
   const locale: Locale = localeState?.locale === 'en' ? 'en' : 'ar'
   const isRtl = locale === 'ar'
+  const dir = isRtl ? 'rtl' : 'ltr'
   const copy = REPORT_COPY[locale]
   const months = copy.months
-  const fieldStyle = { textAlign: isRtl ? 'right' : 'left', direction: isRtl ? 'rtl' : 'ltr' } as CSSProperties
-  const controlClass = 'input min-h-[48px] min-w-0 w-full text-start'
-  const actionButtonClass = 'btn btn-ghost min-h-[44px] w-full justify-center whitespace-nowrap px-5'
-  const primaryActionButtonClass = 'btn btn-primary min-h-[44px] w-full justify-center whitespace-nowrap px-6'
-  const actionButtonStyle = { color: 'var(--text)' } as CSSProperties
   const reportAccess = useTenantWriteAccess(locale)
   const exportDisabled =
     !reportAccess.canWrite || reportAccess.entitlements?.fullExport !== true
@@ -776,22 +785,8 @@ if (loading) {
 
   if (error) {
     return (
-      <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger text-start">
-        <div
-          className="relative overflow-hidden rounded-[28px] border p-6"
-          style={{
-            background:
-              'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-            borderColor: 'rgba(255,255,255,0.12)',
-            boxShadow: '0 18px 50px rgba(15, 61, 62, 0.18)',
-          }}
-        >
-          <h1 className="text-2xl font-black text-white">{copy.error.title}</h1>
-
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-            {copy.error.subtitle}
-          </p>
-        </div>
+      <div dir={dir} className="min-w-0 space-y-4 stagger text-start">
+        <PageHeader dir={dir} title={copy.error.title} description={copy.error.subtitle} />
 
         <div className="card p-6">
           <p className="text-sm mb-4" style={{ color: 'var(--text-3)' }}>
@@ -807,6 +802,8 @@ if (loading) {
   }
 
   if (!data || !summary) return null
+
+  const filtersActive = Boolean(caseStatus || paymentStatusFilter || invoiceStatusFilter || clientId)
 
   return (
     <>
@@ -830,102 +827,62 @@ if (loading) {
         }
       `}</style>
 
-      <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger text-start">
+      <div dir={dir} className="min-w-0 space-y-4 stagger text-start">
         <SubscriptionReadOnlyBanner
           visible={exportDisabled}
           message={exportDisabledTitle}
           isRtl={isRtl}
         />
 
-        {/* Hero */}
-        <div
-          className="relative overflow-hidden rounded-[28px] border p-6 print:hidden"
-          style={{
-            background:
-              'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-            borderColor: 'rgba(255,255,255,0.12)',
-            boxShadow: '0 18px 50px rgba(15, 61, 62, 0.18)',
-          }}
-        >
-          <div
-            className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-            style={{ background: 'rgba(184, 115, 51, 0.16)' }}
-          />
-
-          <div
-            className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-            style={{ background: 'rgba(255,255,255,0.08)' }}
-          />
-
-          <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div
-                className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-                style={{
-                  background: 'rgba(255,255,255,0.14)',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.18)',
-                }}
-              >
-                {copy.hero.badge}
-              </div>
-
-              <h1 className="text-2xl font-black text-white">
-                {reportTitle()}
-              </h1>
-
-              <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-                {copy.hero.subtitle}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
+        <PageHeader
+          dir={dir}
+          className="print:hidden"
+          title={reportTitle()}
+          description={copy.hero.subtitle}
+          actions={
+            <>
+              <PageHeaderAction
+                primary
+                icon={Printer}
+                label={copy.actions.print}
                 onClick={() => {
                   if (!exportDisabled) window.print()
                 }}
                 disabled={exportDisabled}
                 title={exportDisabled ? exportDisabledTitle : copy.actions.print}
-                className="btn disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  background: '#fff',
-                  color: 'var(--sidebar)',
-                  borderColor: 'rgba(255,255,255,0.32)',
-                }}
-              >
-                {copy.actions.print}
-              </button>
-
-              <button
+              />
+              <PageHeaderAction
+                icon={FileDown}
+                label={exporting ? copy.actions.exporting : copy.actions.fullPdf}
                 onClick={exportFullPdf}
                 disabled={exportDisabled || exporting}
                 title={exportDisabled ? exportDisabledTitle : copy.actions.fullPdf}
-                className="btn disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  background: 'rgba(255,255,255,0.14)',
-                  color: '#fff',
-                  borderColor: 'rgba(255,255,255,0.22)',
-                }}
-              >
-                {exporting ? copy.actions.exporting : copy.actions.fullPdf}
-              </button>
-
-              <button
+              />
+              <PageHeaderAction
+                icon={FileSpreadsheet}
+                label={exporting ? copy.actions.exporting : copy.actions.fullExcel}
                 onClick={exportFullExcel}
                 disabled={exportDisabled || exporting}
                 title={exportDisabled ? exportDisabledTitle : copy.actions.fullExcel}
-                className="btn disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  background: 'rgba(184, 115, 51,0.18)',
-                  color: '#fff',
-                  borderColor: 'rgba(184, 115, 51,0.35)',
-                }}
-              >
-                {exporting ? copy.actions.exporting : copy.actions.fullExcel}
-              </button>
-            </div>
-          </div>
-        </div>
+              />
+              <PageHeaderAction
+                icon={Sheet}
+                label={exporting ? copy.actions.exporting : copy.actions.paymentsCsv}
+                onClick={exportPayments}
+                disabled={exportDisabled || exporting}
+                title={exportDisabled ? exportDisabledTitle : copy.actions.paymentsCsv}
+              />
+              <PageHeaderAction
+                icon={Sheet}
+                label={exporting ? copy.actions.exporting : copy.actions.invoicesCsv}
+                onClick={exportInvoices}
+                disabled={exportDisabled || exporting}
+                title={exportDisabled ? exportDisabledTitle : copy.actions.invoicesCsv}
+              />
+              <PageHeaderAction iconOnly icon={RefreshCw} label={copy.actions.refresh} onClick={load} />
+            </>
+          }
+        />
 
         <div className="hidden print:block">
           <h1 className="text-3xl font-black" style={{ color: 'var(--text)' }}>
@@ -937,255 +894,168 @@ if (loading) {
           </p>
         </div>
 
-        {/* Filters */}
-        <div className="card p-4 sm:p-5 print:hidden">
-          <div
-            className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 ${
-              reportType === 'monthly' ? 'xl:grid-cols-7' : 'xl:grid-cols-6'
-            }`}
+        {/* The filters decide the figures below, so they come first here. */}
+        <FilterBar
+          dir={dir}
+          className="print:hidden"
+          active={filtersActive}
+          onClear={resetFilters}
+          clearLabel={copy.actions.clearFilters}
+        >
+          <FilterSelect
+            dir={dir}
+            aria-label={copy.filters.reportType}
+            title={copy.filters.reportType}
+            value={reportType}
+            onChange={(event) => setReportType(event.target.value as ReportType)}
           >
-            <select
-              aria-label={copy.filters.reportType}
-              title={copy.filters.reportType}
-              value={reportType}
-              onChange={(event) => setReportType(event.target.value as ReportType)}
-              className={controlClass}
-              dir={isRtl ? 'rtl' : 'ltr'}
-              style={fieldStyle}
-            >
-              <option value="yearly">{copy.filters.yearly}</option>
-              <option value="monthly">{copy.filters.monthly}</option>
-            </select>
+            <option value="yearly">{copy.filters.yearly}</option>
+            <option value="monthly">{copy.filters.monthly}</option>
+          </FilterSelect>
 
-            {reportType === 'monthly' ? (
-              <select
-                aria-label={copy.filters.month}
-                title={copy.filters.month}
-                value={month}
-                onChange={(event) => setMonth(Number(event.target.value))}
-                className={controlClass}
-                dir={isRtl ? 'rtl' : 'ltr'}
-                style={fieldStyle}
-              >
-                {months.map((monthName, index) => (
-                  <option key={monthName} value={index}>
-                    {monthName}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-
-            <select
-              aria-label={copy.filters.year}
-              title={copy.filters.year}
-              value={year}
-              onChange={(event) => setYear(Number(event.target.value))}
-              className={controlClass}
-              dir={isRtl ? 'rtl' : 'ltr'}
-              style={fieldStyle}
+          {reportType === 'monthly' ? (
+            <FilterSelect
+              dir={dir}
+              aria-label={copy.filters.month}
+              title={copy.filters.month}
+              value={month}
+              onChange={(event) => setMonth(Number(event.target.value))}
             >
-              {years.map((yearItem) => (
-                <option key={yearItem} value={yearItem}>
-                  {yearItem}
+              {months.map((monthName, index) => (
+                <option key={monthName} value={index}>
+                  {monthName}
                 </option>
               ))}
-            </select>
+            </FilterSelect>
+          ) : null}
 
-            <select
-              aria-label={copy.filters.client}
-              title={copy.filters.client}
-              value={clientId}
-              onChange={(event) => setClientId(event.target.value)}
-              className={controlClass}
-              dir={isRtl ? 'rtl' : 'ltr'}
-              style={fieldStyle}
-            >
-              <option value="">{copy.filters.allClients}</option>
-
-              {data.clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              aria-label={copy.filters.caseStatus}
-              title={copy.filters.caseStatus}
-              value={caseStatus}
-              onChange={(event) => setCaseStatus(event.target.value)}
-              className={controlClass}
-              dir={isRtl ? 'rtl' : 'ltr'}
-              style={fieldStyle}
-            >
-              <option value="">{copy.filters.allCaseStatuses}</option>
-              <option value="OPEN">{copy.statuses.cases.OPEN}</option>
-              <option value="IN_PROGRESS">{copy.statuses.cases.IN_PROGRESS}</option>
-              <option value="CLOSED">{copy.statuses.cases.CLOSED}</option>
-              <option value="ARCHIVED">{copy.statuses.cases.ARCHIVED}</option>
-            </select>
-
-            <select
-              aria-label={copy.filters.paymentStatus}
-              title={copy.filters.paymentStatus}
-              value={paymentStatusFilter}
-              onChange={(event) => setPaymentStatusFilter(event.target.value)}
-              className={controlClass}
-              dir={isRtl ? 'rtl' : 'ltr'}
-              style={fieldStyle}
-            >
-              <option value="">{copy.filters.allPayments}</option>
-              <option value="PAID">{copy.statuses.payments.PAID}</option>
-              <option value="PENDING">{copy.statuses.payments.PENDING}</option>
-              <option value="OVERDUE">{copy.statuses.payments.OVERDUE}</option>
-              <option value="CANCELLED">{copy.statuses.payments.CANCELLED}</option>
-            </select>
-
-            <select
-              aria-label={copy.filters.invoiceStatus}
-              title={copy.filters.invoiceStatus}
-              value={invoiceStatusFilter}
-              onChange={(event) => setInvoiceStatusFilter(event.target.value)}
-              className={controlClass}
-              dir={isRtl ? 'rtl' : 'ltr'}
-              style={fieldStyle}
-            >
-              <option value="">{copy.filters.allInvoices}</option>
-              <option value="DRAFT">{copy.statuses.invoices.DRAFT}</option>
-              <option value="UNPAID">{copy.statuses.invoices.UNPAID}</option>
-              <option value="PARTIALLY_PAID">{copy.statuses.invoices.PARTIALLY_PAID}</option>
-              <option value="PAID">{copy.statuses.payments.PAID}</option>
-              <option value="OVERDUE">{copy.statuses.payments.OVERDUE}</option>
-              <option value="CANCELLED">{copy.statuses.invoices.CANCELLED}</option>
-            </select>
-          </div>
-
-          <div
-            className="mt-4 grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4"
-            style={{ borderColor: 'var(--border)' }}
+          <FilterSelect
+            dir={dir}
+            aria-label={copy.filters.year}
+            title={copy.filters.year}
+            value={year}
+            onChange={(event) => setYear(Number(event.target.value))}
           >
-            <button onClick={load} className={primaryActionButtonClass}>
-              {copy.actions.refresh}
-            </button>
+            {years.map((yearItem) => (
+              <option key={yearItem} value={yearItem}>
+                {yearItem}
+              </option>
+            ))}
+          </FilterSelect>
 
-            <button
-              onClick={resetFilters}
-              className={actionButtonClass}
-              style={actionButtonStyle}
-            >
-              {copy.actions.clearFilters}
-            </button>
+          <FilterSelect
+            dir={dir}
+            aria-label={copy.filters.client}
+            title={copy.filters.client}
+            value={clientId}
+            onChange={(event) => setClientId(event.target.value)}
+          >
+            <option value="">{copy.filters.allClients}</option>
+            {data.clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </FilterSelect>
 
-            <button
-              onClick={exportPayments}
-              disabled={exportDisabled || exporting}
-              title={exportDisabled ? exportDisabledTitle : copy.actions.paymentsCsv}
-              className={`${actionButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
-              style={actionButtonStyle}
-            >
-              {exporting ? copy.actions.exporting : copy.actions.paymentsCsv}
-            </button>
+          <FilterSelect
+            dir={dir}
+            aria-label={copy.filters.caseStatus}
+            title={copy.filters.caseStatus}
+            value={caseStatus}
+            onChange={(event) => setCaseStatus(event.target.value)}
+          >
+            <option value="">{copy.filters.allCaseStatuses}</option>
+            <option value="OPEN">{copy.statuses.cases.OPEN}</option>
+            <option value="IN_PROGRESS">{copy.statuses.cases.IN_PROGRESS}</option>
+            <option value="CLOSED">{copy.statuses.cases.CLOSED}</option>
+            <option value="ARCHIVED">{copy.statuses.cases.ARCHIVED}</option>
+          </FilterSelect>
 
-            <button
-              onClick={exportInvoices}
-              disabled={exportDisabled || exporting}
-              title={exportDisabled ? exportDisabledTitle : copy.actions.invoicesCsv}
-              className={`${actionButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
-              style={actionButtonStyle}
-            >
-              {exporting ? copy.actions.exporting : copy.actions.invoicesCsv}
-            </button>
-          </div>
-        </div>
+          <FilterSelect
+            dir={dir}
+            aria-label={copy.filters.paymentStatus}
+            title={copy.filters.paymentStatus}
+            value={paymentStatusFilter}
+            onChange={(event) => setPaymentStatusFilter(event.target.value)}
+          >
+            <option value="">{copy.filters.allPayments}</option>
+            <option value="PAID">{copy.statuses.payments.PAID}</option>
+            <option value="PENDING">{copy.statuses.payments.PENDING}</option>
+            <option value="OVERDUE">{copy.statuses.payments.OVERDUE}</option>
+            <option value="CANCELLED">{copy.statuses.payments.CANCELLED}</option>
+          </FilterSelect>
 
-        {/* Stats */}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
+          <FilterSelect
+            dir={dir}
+            aria-label={copy.filters.invoiceStatus}
+            title={copy.filters.invoiceStatus}
+            value={invoiceStatusFilter}
+            onChange={(event) => setInvoiceStatusFilter(event.target.value)}
+          >
+            <option value="">{copy.filters.allInvoices}</option>
+            <option value="DRAFT">{copy.statuses.invoices.DRAFT}</option>
+            <option value="UNPAID">{copy.statuses.invoices.UNPAID}</option>
+            <option value="PARTIALLY_PAID">{copy.statuses.invoices.PARTIALLY_PAID}</option>
+            <option value="PAID">{copy.statuses.payments.PAID}</option>
+            <option value="OVERDUE">{copy.statuses.payments.OVERDUE}</option>
+            <option value="CANCELLED">{copy.statuses.invoices.CANCELLED}</option>
+          </FilterSelect>
+        </FilterBar>
+
+        {/* Money first, then the caseload. */}
+        <PageStats
+          dir={dir}
+          items={[
             {
               label:
                 reportType === 'monthly'
                   ? copy.stats.monthlyRevenue(months[month])
                   : copy.stats.periodRevenue,
               value: formatJOD(summary.periodRevenue),
-              color: 'var(--success)',
-              bg: 'var(--green-soft)',
+              icon: <CircleDollarSign className="h-4 w-4" />,
+              tone: 'emerald',
             },
             {
               label: copy.stats.pendingPayments,
               value: formatJOD(summary.pendingPaymentsAmount),
-              color:
-                summary.pendingPaymentsAmount > 0 ? '#dc2626' : 'var(--text-3)',
-              bg:
-                summary.pendingPaymentsAmount > 0
-                  ? 'var(--red-soft)'
-                  : 'var(--card)',
+              icon: <Hourglass className="h-4 w-4" />,
+              tone: summary.pendingPaymentsAmount > 0 ? 'red' : 'slate',
             },
             {
               label: copy.stats.unpaidInvoices,
               value: formatJOD(summary.unpaidInvoicesAmount),
-              color:
-                summary.unpaidInvoicesAmount > 0 ? '#92400e' : 'var(--text-3)',
-              bg:
-                summary.unpaidInvoicesAmount > 0
-                  ? 'var(--amber-soft)'
-                  : 'var(--card)',
+              icon: <ReceiptText className="h-4 w-4" />,
+              tone: summary.unpaidInvoicesAmount > 0 ? 'gold' : 'slate',
             },
             {
               label: copy.stats.collectionRate,
               value: `${summary.collectionRate}%`,
-              color:
-                summary.collectionRate >= 80 ? 'var(--success)' : '#92400e',
-              bg:
-                summary.collectionRate >= 80
-                  ? 'var(--green-soft)'
-                  : 'var(--amber-soft)',
+              icon: <Percent className="h-4 w-4" />,
+              tone: summary.collectionRate >= 80 ? 'emerald' : 'gold',
             },
-            {
-              label: copy.stats.totalCases,
-              value: summary.totalCases,
-              color: 'var(--text)',
-              bg: 'var(--card)',
-            },
-            {
-              label: copy.stats.openCases,
-              value: summary.openCases,
-              color: 'var(--success)',
-              bg: 'var(--green-soft)',
-            },
+          ]}
+        />
+
+        <PageStats
+          dir={dir}
+          items={[
+            { label: copy.stats.totalCases, value: summary.totalCases, icon: <BriefcaseBusiness className="h-4 w-4" />, tone: 'teal' },
+            { label: copy.stats.openCases, value: summary.openCases, icon: <FolderOpen className="h-4 w-4" />, tone: 'emerald' },
             {
               label: copy.stats.upcomingAppointments,
               value: summary.upcomingAppointmentsCount,
-              color: '#2563eb',
-              bg: 'var(--card)',
+              icon: <CalendarDays className="h-4 w-4" />,
+              tone: 'blue',
             },
             {
               label: copy.stats.overdueTasks,
               value: summary.overdueTasksCount,
-              color: summary.overdueTasksCount > 0 ? '#dc2626' : 'var(--text-3)',
-              bg:
-                summary.overdueTasksCount > 0
-                  ? 'var(--red-soft)'
-                  : 'var(--card)',
+              icon: <AlarmClock className="h-4 w-4" />,
+              tone: summary.overdueTasksCount > 0 ? 'red' : 'slate',
             },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className="card p-5"
-              style={{
-                background: item.bg,
-                borderColor: 'var(--border)',
-              }}
-            >
-              <p className="text-xs font-black" style={{ color: item.color }}>
-                {item.label}
-              </p>
-
-              <p className="mt-2 text-2xl font-black" style={{ color: item.color }}>
-                {item.value}
-              </p>
-            </div>
-          ))}
-        </div>
+          ]}
+        />
 
         {/* Overview */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">

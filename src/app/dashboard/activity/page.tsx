@@ -18,6 +18,7 @@ import {
   type VDSDataTableColumn,
   type VDSTone,
 } from "@/components/ui/vds";
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
 import { formatInZone } from "@/lib/datetime";
@@ -44,7 +45,6 @@ interface ActivityItem {
 const COPY = {
   ar: {
     hero: {
-      badge: "كل الأنشطة",
       title: "سجل النشاط",
       subtitle:
         "متابعة العمليات التي تمت داخل المكتب حسب المستخدم والنوع والوقت.",
@@ -182,7 +182,6 @@ const COPY = {
   },
   en: {
     hero: {
-      badge: "All activities",
       title: "Activity log",
       subtitle:
         "Track actions performed in the office by user, type, and time.",
@@ -696,7 +695,6 @@ export default function ActivityPage() {
   const locale: Locale = localeState?.locale === "en" ? "en" : "ar";
   const isRtl = locale === "ar";
   const fieldDir = isRtl ? "rtl" : "ltr";
-  const fieldTextAlign = isRtl ? "right" : "left";
   const copy = COPY[locale];
 
   const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -957,191 +955,82 @@ export default function ActivityPage() {
   }
 
   return (
-    <div dir={fieldDir} className="space-y-5 stagger">
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6 text-start"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
+    <div dir={fieldDir} className="min-w-0 space-y-4 stagger">
+      <PageHeader
+        dir={fieldDir}
+        title={copy.hero.title}
+        description={copy.hero.subtitle}
+        actions={
+          <PageHeaderAction
+            icon={RefreshCw}
+            iconClassName={refreshing ? "animate-spin" : ""}
+            label={copy.hero.refresh}
+            onClick={() => void load({ showToast: true })}
+            disabled={loading || refreshing}
+          />
+        }
+      />
+
+      <PageStats
+        dir={fieldDir}
+        items={[
+          { label: copy.stats.total, value: stats.total, icon: <ActivityIcon className="h-4 w-4" />, tone: "teal" },
+          { label: copy.stats.today, value: stats.today, icon: <CalendarClock className="h-4 w-4" />, tone: "blue" },
+          { label: copy.stats.security, value: stats.security, icon: <ShieldCheck className="h-4 w-4" />, tone: "purple" },
+          { label: copy.stats.finance, value: stats.finance, icon: <ReceiptText className="h-4 w-4" />, tone: "gold" },
+        ]}
+      />
+
+      <FilterBar
+        dir={fieldDir}
+        active={hasActiveFilters}
+        onClear={clearFilters}
+        clearLabel={copy.filters.clear}
       >
-        <div
-          className={`absolute -top-14 h-40 w-40 rounded-full ${
-            isRtl ? "-right-14" : "-left-14"
-          }`}
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className={`absolute -bottom-20 h-52 w-52 rounded-full ${
-            isRtl ? "left-16" : "right-16"
-          }`}
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div
-          dir="ltr"
-          className="relative z-10 grid min-h-[132px] gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center"
+        <FilterSelect
+          dir={fieldDir}
+          value={type}
+          onChange={(e) => changeFilter(setType, e.target.value)}
+          aria-label={copy.filters.typeAria}
         >
-          <div
+          {TYPE_OPTIONS.map(([value, key]) => (
+            <option key={value} value={value}>
+              {copy.filters[key]}
+            </option>
+          ))}
+        </FilterSelect>
+
+        <FilterSelect
+          dir={fieldDir}
+          value={period}
+          onChange={(e) => changeFilter(setPeriod, e.target.value)}
+          aria-label={copy.filters.periodAria}
+        >
+          {PERIOD_OPTIONS.map(([value, key]) => (
+            <option key={value} value={value}>
+              {copy.filters[key]}
+            </option>
+          ))}
+        </FilterSelect>
+
+        {members && (
+          <FilterSelect
             dir={fieldDir}
-            className={`min-w-0 text-start ${
-              isRtl
-                ? "xl:col-start-2 xl:row-start-1 xl:justify-self-end xl:text-right"
-                : "xl:col-start-1 xl:row-start-1 xl:justify-self-start xl:text-left"
-            }`}
+            value={actorId}
+            onChange={(e) => changeFilter(setActorId, e.target.value)}
+            aria-label={copy.filters.memberAria}
           >
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {copy.hero.badge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white sm:text-3xl">
-              {copy.hero.title}
-            </h1>
-
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              {copy.hero.subtitle}
-            </p>
-          </div>
-
-          <div
-            className={`flex shrink-0 items-center ${
-              isRtl
-                ? "justify-start xl:col-start-1 xl:row-start-1 xl:justify-self-start"
-                : "justify-start xl:col-start-2 xl:row-start-1 xl:justify-self-end"
-            }`}
-          >
-            <button
-              onClick={() => void load({ showToast: true })}
-              disabled={loading || refreshing}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white px-6 py-3 text-sm font-black text-[var(--sidebar)] shadow-lg transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-              />
-              {copy.hero.refresh}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: copy.stats.total, value: stats.total, icon: ActivityIcon },
-          { label: copy.stats.today, value: stats.today, icon: CalendarClock },
-          {
-            label: copy.stats.security,
-            value: stats.security,
-            icon: ShieldCheck,
-          },
-          {
-            label: copy.stats.finance,
-            value: stats.finance,
-            icon: ReceiptText,
-          },
-        ].map((stat) => (
-          <div key={stat.label} className="card p-4 text-start">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p
-                  className="text-xs font-bold"
-                  style={{ color: "var(--text-3)" }}
-                >
-                  {stat.label}
-                </p>
-                <p
-                  className="mt-1 text-2xl font-black"
-                  style={{ color: "var(--text)" }}
-                >
-                  {stat.value}
-                </p>
-              </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
-                <stat.icon
-                  className="h-5 w-5"
-                  style={{ color: "var(--text)" }}
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="card p-4" dir={fieldDir}>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,240px))_auto] xl:justify-start">
-          <select
-            dir={fieldDir}
-            value={type}
-            onChange={(e) => changeFilter(setType, e.target.value)}
-            className="input h-12 w-full text-start"
-            style={{ textAlign: fieldTextAlign }}
-            aria-label={copy.filters.typeAria}
-          >
-            {TYPE_OPTIONS.map(([value, key]) => (
-              <option key={value} value={value}>
-                {copy.filters[key]}
+            <option value="all">{copy.filters.memberAll}</option>
+            {members.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.isActive
+                  ? member.name
+                  : `${member.name} (${copy.filters.inactive})`}
               </option>
             ))}
-          </select>
-
-          <select
-            dir={fieldDir}
-            value={period}
-            onChange={(e) => changeFilter(setPeriod, e.target.value)}
-            className="input h-12 w-full text-start"
-            style={{ textAlign: fieldTextAlign }}
-            aria-label={copy.filters.periodAria}
-          >
-            {PERIOD_OPTIONS.map(([value, key]) => (
-              <option key={value} value={value}>
-                {copy.filters[key]}
-              </option>
-            ))}
-          </select>
-
-          {members && (
-            <select
-              dir={fieldDir}
-              value={actorId}
-              onChange={(e) => changeFilter(setActorId, e.target.value)}
-              className="input h-12 w-full text-start"
-              style={{ textAlign: fieldTextAlign }}
-              aria-label={copy.filters.memberAria}
-            >
-              <option value="all">{copy.filters.memberAll}</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.isActive
-                    ? member.name
-                    : `${member.name} (${copy.filters.inactive})`}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="h-12 rounded-2xl border px-5 text-sm font-black"
-              style={{ background: "var(--card)", color: "var(--text-2)", borderColor: "var(--border)" }}
-            >
-              {copy.filters.clear}
-            </button>
-          )}
-        </div>
-      </div>
+          </FilterSelect>
+        )}
+      </FilterBar>
 
       <div className="min-w-0 space-y-3">
         <VDSDataTable<ActivityItem>

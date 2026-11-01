@@ -10,6 +10,8 @@ import {
   VDSDataTable,
   type VDSDataTableColumn,
 } from "@/components/ui/vds";
+import { ShieldCheck, UserCheck, UserPlus, Users, UserX } from "lucide-react";
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -61,11 +63,10 @@ const TEAM_COPY = {
       body: "فقط مدير النظام يستطيع إدارة الفريق.",
     },
     hero: {
-      badge: "إدارة الصلاحيات والمستخدمين",
       title: "الفريق",
       subtitle:
         "أضف أعضاء المكتب، وحدد صلاحيات كل مستخدم، وفعّل أو عطّل الوصول للنظام من مكان واحد واضح وآمن.",
-      addButton: "+ عضو جديد",
+      addButton: "عضو جديد",
     },
     stats: {
       total: "كل الأعضاء",
@@ -162,11 +163,10 @@ const TEAM_COPY = {
       body: "Only the system admin can manage the team.",
     },
     hero: {
-      badge: "Permissions and users management",
       title: "Team",
       subtitle:
         "Add office members, assign each user’s permissions, and enable or disable system access from one clear and secure place.",
-      addButton: "+ New member",
+      addButton: "New member",
     },
     stats: {
       total: "All members",
@@ -326,6 +326,7 @@ export default function TeamPage() {
   const locale: Locale = localeState?.locale === "en" ? "en" : "ar";
   const copy = TEAM_COPY[locale];
   const isRtl = locale === "ar";
+  const dir = isRtl ? "rtl" : "ltr";
   const writeAccess = useTenantWriteAccess(locale);
   const canManageTeam =
     writeAccess.canWrite && writeAccess.entitlements?.teamManagement === true;
@@ -673,24 +674,12 @@ export default function TeamPage() {
   }
   if (currentRole && currentRole !== "ADMIN") {
     return (
-      <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
-        <div
-          className="relative overflow-hidden rounded-[28px] border p-6"
-          style={{
-            background:
-              "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-            borderColor: "rgba(255,255,255,0.12)",
-            boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-          }}
-        >
-          <h1 className="text-2xl font-black text-white">
-            {copy.unauthorized.title}
-          </h1>
-
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-            {copy.unauthorized.subtitle}
-          </p>
-        </div>
+      <div dir={dir} className="min-w-0 space-y-4 stagger">
+        <PageHeader
+          dir={dir}
+          title={copy.unauthorized.title}
+          description={copy.unauthorized.subtitle}
+        />
 
         <div className="card p-10 text-center">
           <h2 className="text-2xl font-black" style={{ color: "var(--text)" }}>
@@ -706,7 +695,7 @@ export default function TeamPage() {
   }
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
+    <div dir={dir} className="min-w-0 space-y-4 stagger">
       <SubscriptionReadOnlyBanner
         visible={!canManageTeam}
         message={teamAccessMessage}
@@ -721,50 +710,15 @@ export default function TeamPage() {
         />
       )}
 
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="text-start">
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {copy.hero.badge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">
-              {copy.hero.title}
-            </h1>
-
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              {copy.hero.subtitle}
-            </p>
-          </div>
-
-          <button
-            type="button"
+      <PageHeader
+        dir={dir}
+        title={copy.hero.title}
+        description={copy.hero.subtitle}
+        actions={
+          <PageHeaderAction
+            primary
+            icon={UserPlus}
+            label={copy.hero.addButton}
             onClick={() => {
               if (!canManageTeam) return;
               const element = document.getElementById("add-team-user");
@@ -772,115 +726,54 @@ export default function TeamPage() {
             }}
             disabled={!canManageTeam}
             title={!canManageTeam ? teamAccessMessage : copy.hero.addButton}
-            className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              background: "#fff",
-              color: "var(--sidebar)",
-              borderColor: "rgba(255,255,255,0.32)",
-            }}
-          >
-            {copy.hero.addButton}
-          </button>
-        </div>
-      </div>
+          />
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            label: copy.stats.total,
-            value: users.length,
-            color: "var(--text)",
-            bg: "var(--card)",
-          },
-          {
-            label: copy.stats.active,
-            value: activeCount,
-            color: "var(--success)",
-            bg: "var(--green-soft)",
-          },
-          {
-            label: copy.stats.admins,
-            value: adminsCount,
-            color: "#2563eb",
-            bg: "var(--card)",
-          },
+      <PageStats
+        dir={dir}
+        items={[
+          { label: copy.stats.total, value: users.length, icon: <Users className="h-4 w-4" />, tone: "teal" },
+          { label: copy.stats.active, value: activeCount, icon: <UserCheck className="h-4 w-4" />, tone: "emerald" },
+          { label: copy.stats.admins, value: adminsCount, icon: <ShieldCheck className="h-4 w-4" />, tone: "blue" },
           {
             label: copy.stats.inactive,
             value: inactiveCount,
-            color: inactiveCount > 0 ? "#dc2626" : "var(--text-3)",
-            bg: inactiveCount > 0 ? "var(--red-soft)" : "var(--card)",
+            icon: <UserX className="h-4 w-4" />,
+            tone: inactiveCount > 0 ? "red" : "slate",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5 text-start"
-            style={{
-              background: item.bg,
-              borderColor: "var(--border)",
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
+        ]}
+      />
 
-            <p
-              className="mt-2 text-3xl font-black"
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-          </div>
-        ))}
-      </div>
+      <FilterBar
+        dir={dir}
+        active={roleFilter !== "all" || statusFilter !== "all"}
+        onClear={clearFilters}
+        clearLabel={copy.filters.clear}
+      >
+        <FilterSelect
+          dir={dir}
+          aria-label={copy.filters.roleAria}
+          value={roleFilter}
+          onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}
+        >
+          <option value="all">{copy.filters.allRoles}</option>
+          <option value="ADMIN">{copy.roles.ADMIN}</option>
+          <option value="LAWYER">{copy.roles.LAWYER}</option>
+          <option value="STAFF">{copy.roles.STAFF}</option>
+        </FilterSelect>
 
-      {/* Filters */}
-      <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
-          <select
-            aria-label={copy.filters.roleAria}
-            value={roleFilter}
-            onChange={(event) =>
-              setRoleFilter(event.target.value as "all" | Role)
-            }
-            className="input h-12"
-            style={fieldStyle}
-          >
-            <option value="all">{copy.filters.allRoles}</option>
-            <option value="ADMIN">{copy.roles.ADMIN}</option>
-            <option value="LAWYER">{copy.roles.LAWYER}</option>
-            <option value="STAFF">{copy.roles.STAFF}</option>
-          </select>
-
-          <select
-            aria-label={copy.filters.statusAria}
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(event.target.value as StatusFilter)
-            }
-            className="input h-12"
-            style={fieldStyle}
-          >
-            <option value="all">{copy.filters.allStatuses}</option>
-            <option value="active">{copy.status.active}</option>
-            <option value="inactive">{copy.status.inactive}</option>
-          </select>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            disabled={roleFilter === "all" && statusFilter === "all"}
-            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-copper)] disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              background: "var(--card-2)",
-              borderColor: "var(--border)",
-              color: "var(--text)",
-            }}
-          >
-            {copy.filters.clear}
-          </button>
-        </div>
-      </div>
+        <FilterSelect
+          dir={dir}
+          aria-label={copy.filters.statusAria}
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+        >
+          <option value="all">{copy.filters.allStatuses}</option>
+          <option value="active">{copy.status.active}</option>
+          <option value="inactive">{copy.status.inactive}</option>
+        </FilterSelect>
+      </FilterBar>
 
       {/* Main */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">

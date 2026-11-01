@@ -14,6 +14,8 @@ import {
   VDSEmptyState,
   type VDSTone,
 } from "@/components/ui/vds";
+import { AlarmClock, CalendarClock, CalendarDays, CalendarPlus, Gavel } from "lucide-react";
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { DateTime } from "luxon";
 import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
@@ -648,6 +650,7 @@ export default function AppointmentsPage() {
   const a = t.appointments ?? translations.ar.appointments;
   const common = t.common ?? translations.ar.common;
   const isRtl = locale === "ar";
+  const dir = isRtl ? "rtl" : "ltr";
   const tenantTimeZone = TENANT_TIME_ZONE;
   const typeLabels = TYPE_LABELS[locale] ?? TYPE_LABELS.ar;
   const appointmentLogCopy =
@@ -1264,54 +1267,22 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
+    <div dir={dir} className="min-w-0 space-y-4 stagger">
       <SubscriptionReadOnlyBanner
         visible={!writeAccess.canWrite}
         message={writeAccess.message}
         isRtl={isRtl}
       />
 
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="text-start">
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {a.hero.badge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">{a.hero.title}</h1>
-
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              {a.hero.subtitle}
-            </p>
-          </div>
-
-          <button
+      <PageHeader
+        dir={dir}
+        title={a.hero.title}
+        description={a.hero.subtitle}
+        actions={
+          <PageHeaderAction
+            primary
+            icon={CalendarPlus}
+            label={a.actions.newAppointment}
             onClick={() => openCreateModal()}
             disabled={!writeAccess.canWrite}
             title={
@@ -1319,113 +1290,63 @@ export default function AppointmentsPage() {
                 ? writeAccess.message || a.messages.saveError
                 : a.actions.newAppointment
             }
-            className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              background: "#fff",
-              color: "var(--sidebar)",
-              borderColor: "rgba(255,255,255,0.32)",
-            }}
-          >
-            {a.actions.newAppointment}
-          </button>
-        </div>
-      </div>
+          />
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            label: a.stats.total,
-            value: appts.length,
-            color: "var(--text)",
-            bg: "var(--card)",
-          },
-          {
-            label: a.stats.today,
-            value: todayAppts.length,
-            color: "var(--accent-text)",
-            bg: "var(--green-soft)",
-          },
-          {
-            label: a.stats.sessions,
-            value: courtSessions,
-            color: "#92400e",
-            bg: "var(--amber-soft)",
-          },
+      <PageStats
+        dir={dir}
+        items={[
+          { label: a.stats.total, value: appts.length, icon: <CalendarDays className="h-4 w-4" />, tone: "teal" },
+          { label: a.stats.today, value: todayAppts.length, icon: <CalendarClock className="h-4 w-4" />, tone: "blue" },
+          { label: a.stats.sessions, value: courtSessions, icon: <Gavel className="h-4 w-4" />, tone: "gold" },
           {
             label: a.stats.deadlines,
             value: deadlines,
-            color: deadlines > 0 ? "var(--danger)" : "#6b7280",
-            bg: deadlines > 0 ? "var(--red-soft)" : "var(--card)",
+            icon: <AlarmClock className="h-4 w-4" />,
+            tone: deadlines > 0 ? "red" : "slate",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5 text-start"
-            style={{
-              background: item.bg,
-              borderColor: "var(--border)",
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
+        ]}
+      />
 
-            <p
-              className="mt-2 text-3xl font-black"
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="card p-4">
-        <div
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-          dir={isRtl ? "rtl" : "ltr"}
+      <FilterBar
+        dir={dir}
+        active={typeFilter !== "all" || assigneeFilter !== "all"}
+        onClear={() => {
+          setTypeFilter("all");
+          setAssigneeFilter("all");
+        }}
+        clearLabel={a.filters.clear}
+      >
+        <FilterSelect
+          dir={dir}
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value)}
+          aria-label={a.filters.typeAria}
         >
-          <select
-            value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value)}
-            className="input h-12"
-            {...fieldDir}
-            aria-label={
-              locale === "ar"
-                ? "فلترة حسب نوع الموعد"
-                : "Filter by appointment type"
-            }
-          >
-            <option value="all" dir={isRtl ? "rtl" : "ltr"}>
-              {a.filters.chips.all}
+          <option value="all">{a.filters.chips.all}</option>
+          {Object.entries(typeLabels).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
             </option>
+          ))}
+        </FilterSelect>
 
-            {Object.entries(typeLabels).map(([key, label]) => (
-              <option key={key} value={key} dir={isRtl ? "rtl" : "ltr"}>
-                {label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={assigneeFilter}
-            onChange={(event) => setAssigneeFilter(event.target.value)}
-            className="input h-12"
-            {...fieldDir}
-            aria-label={appointmentFormCopy.assignee}
-          >
-            <option value="all">{appointmentFormCopy.allAssignees}</option>
-            <option value="me">{appointmentFormCopy.myAppointments}</option>
-            {teamMembers.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+        <FilterSelect
+          dir={dir}
+          value={assigneeFilter}
+          onChange={(event) => setAssigneeFilter(event.target.value)}
+          aria-label={appointmentFormCopy.assignee}
+        >
+          <option value="all">{appointmentFormCopy.allAssignees}</option>
+          <option value="me">{appointmentFormCopy.myAppointments}</option>
+          {teamMembers.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.name}
+            </option>
+          ))}
+        </FilterSelect>
+      </FilterBar>
 
       {/* Calendar */}
       <div className="card p-4">

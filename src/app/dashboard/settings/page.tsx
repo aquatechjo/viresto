@@ -6,7 +6,9 @@ import { toast } from "sonner";
 
 import FormField from "@/components/ui/FormField";
 import PasswordInput from "@/components/ui/PasswordInput";
+import { Building2, ShieldCheck, Sparkles, UserCog } from "lucide-react";
 import { VDSBadge, VDSCard, type VDSTone } from "@/components/ui/vds";
+import { PageHeader, PageStats } from "@/components/page";
 import { initials } from "@/lib/utils";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
@@ -113,7 +115,6 @@ const COPY = {
     verificationCodeRequired: "أدخل رمز التحقق",
     twoFAEnabledToast: "تم تفعيل التحقق الثنائي",
     twoFAVerifyError: "فشل تفعيل التحقق الثنائي",
-    heroBadge: "إعدادات النظام",
     heroTitle: "إعدادات الحساب والمكتب",
     heroDescription:
       "إدارة بيانات الحساب، معلومات المكتب، إعدادات الأمان، والمساعد الذكي من مكان واحد.",
@@ -243,7 +244,6 @@ const COPY = {
     verificationCodeRequired: "Enter the verification code",
     twoFAEnabledToast: "Two-factor authentication enabled",
     twoFAVerifyError: "Failed to enable two-factor authentication",
-    heroBadge: "System settings",
     heroTitle: "Account and office settings",
     heroDescription:
       "Manage account data, office information, security settings, and the AI assistant from one place.",
@@ -1005,89 +1005,51 @@ export default function SettingsPage() {
 
   return (
     <>
-      <div className="space-y-5 stagger" dir={direction} style={{ textAlign }}>
+      <div className="min-w-0 space-y-4 stagger" dir={direction} style={{ textAlign }}>
         <SubscriptionReadOnlyBanner
           visible={!writeAccess.canWrite}
           message={writeAccess.message}
           isRtl={isArabic}
         />
 
-        {/* Hero */}
-        <div
-          className="relative overflow-hidden rounded-[28px] border p-6"
-          style={{
-            background:
-              "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-            borderColor: "rgba(255,255,255,0.12)",
-            boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-          }}
-        >
-          <div
-            className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-            style={{ background: "rgba(184, 115, 51, 0.16)" }}
-          />
-
-          <div
-            className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-            style={{ background: "rgba(255,255,255,0.08)" }}
-          />
-
-          <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex min-w-0 items-center gap-4">
-              <div
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl text-2xl font-black"
-                style={{
-                  background: "#fff",
-                  color: "var(--sidebar)",
-                }}
-              >
-                {initials(user.name)}
-              </div>
-
-              <div className="min-w-0">
-                <div
-                  className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-                  style={{
-                    background: "rgba(255,255,255,0.14)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.18)",
-                  }}
-                >
-                  {copy.heroBadge}
-                </div>
-
-                <h1 className="truncate text-2xl font-black text-white">
-                  {copy.heroTitle}
-                </h1>
-
-                <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-                  {copy.heroDescription}
-                </p>
-              </div>
+        <PageHeader
+          dir={direction}
+          title={copy.heroTitle}
+          description={copy.heroDescription}
+          leading={
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-base font-black"
+              style={{ background: "#fff", color: "var(--sidebar)" }}
+            >
+              {initials(user.name)}
             </div>
-
-            <div className="flex flex-wrap gap-2">
+          }
+          actions={
+            <>
               <VDSBadge tone={getRoleTone(user.role)}>{roleLabel}</VDSBadge>
-
               <VDSBadge tone="gold">
                 {copy.planPrefix} {planLabel}
               </VDSBadge>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
 
-        {/* Stats */}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
+        <PageStats
+          dir={direction}
+          items={[
             {
               label: copy.statsOffice,
               value: user.tenant.name || copy.fallback,
               hint: isArabic ? "اسم المكتب" : "Office name",
+              icon: <Building2 className="h-4 w-4" />,
+              tone: "teal",
             },
             {
               label: copy.statsRole,
               value: roleLabel,
               hint: copy.statsPermissions,
+              icon: <UserCog className="h-4 w-4" />,
+              tone: "blue",
             },
             {
               label: copy.statsAi,
@@ -1097,37 +1059,19 @@ export default function SettingsPage() {
                 company.aiConsentPolicyVersion === AI_DATA_POLICY_VERSION
                   ? copy.approved
                   : copy.notApproved,
+              icon: <Sparkles className="h-4 w-4" />,
+              tone: "purple",
             },
             {
               label: copy.stats2fa,
               value: twoFAEnabled ? enabledText : disabledText,
               hint: "2FA",
+              hintTone: twoFAEnabled ? "good" : "neutral",
+              icon: <ShieldCheck className="h-4 w-4" />,
+              tone: twoFAEnabled ? "emerald" : "slate",
             },
-          ].map((item) => (
-            <VDSCard key={item.label} padded={false} className="p-5">
-              <p
-                className="text-xs font-black"
-                style={{ color: "var(--text-3)" }}
-              >
-                {item.label}
-              </p>
-
-              <p
-                className="mt-2 truncate text-xl font-black"
-                style={{ color: "var(--text)" }}
-              >
-                {item.value}
-              </p>
-
-              <p
-                className="mt-1 truncate text-xs font-bold"
-                style={{ color: "var(--text-3)" }}
-              >
-                {item.hint || "-"}
-              </p>
-            </VDSCard>
-          ))}
-        </div>
+          ]}
+        />
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
           {/* Left */}

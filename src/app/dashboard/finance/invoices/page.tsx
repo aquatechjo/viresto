@@ -6,8 +6,19 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
+import {
+  AlarmClock,
+  Archive,
+  CircleDollarSign,
+  FileText,
+  Hourglass,
+  ReceiptText,
+  RefreshCw,
+  WalletCards,
+} from "lucide-react";
 import AppLoader from "@/components/ui/AppLoader";
 import EmptyState from "@/components/ui/EmptyState";
+import { FilterBar, FilterChip, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
@@ -107,13 +118,12 @@ interface Invoice {
 const COPY = {
   ar: {
     hero: {
-      badge: "إدارة الفواتير",
       title: "الفواتير",
       subtitle:
         "إنشاء وإدارة فواتير الموكلين والقضايا، متابعة الحالات المالية، وطباعة أو إرسال الفواتير بسهولة.",
     },
     actions: {
-      create: "+ إنشاء فاتورة",
+      create: "إنشاء فاتورة",
       refresh: "تحديث",
       clear: "مسح",
       clearFilters: "مسح الفلاتر",
@@ -235,13 +245,12 @@ const COPY = {
   },
   en: {
     hero: {
-      badge: "Invoice management",
       title: "Invoices",
       subtitle:
         "Create and manage client and case invoices, track financial statuses, and print or send invoices easily.",
     },
     actions: {
-      create: "+ Create invoice",
+      create: "Create invoice",
       refresh: "Refresh",
       clear: "Clear",
       clearFilters: "Clear filters",
@@ -970,6 +979,7 @@ export default function InvoicesPage() {
   const localeState = useLocale() as { locale?: Locale };
   const locale = localeState?.locale === "en" ? "en" : "ar";
   const isRtl = locale === "ar";
+  const dir = isRtl ? "rtl" : "ltr";
   const writeAccess = useTenantWriteAccess(locale);
   const copy = COPY[locale];
   const invoiceItemPresets = INVOICE_ITEM_PRESETS[locale];
@@ -1412,57 +1422,23 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
+    <div dir={dir} className="min-w-0 space-y-4 stagger">
       <SubscriptionReadOnlyBanner
         visible={!writeAccess.canWrite}
         message={writeAccess.message}
         isRtl={isRtl}
       />
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
 
-        <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex min-h-[126px] flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {copy.hero.badge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">
-              {copy.hero.title}
-            </h1>
-
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              {copy.hero.subtitle}
-            </p>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2 self-center xl:self-auto">
-            <button
-              type="button"
+      <PageHeader
+        dir={dir}
+        title={copy.hero.title}
+        description={copy.hero.subtitle}
+        actions={
+          <>
+            <PageHeaderAction
+              primary
+              icon={ReceiptText}
+              label={copy.actions.create}
               onClick={() => setOpen(true)}
               disabled={!writeAccess.canWrite}
               title={
@@ -1470,164 +1446,100 @@ export default function InvoicesPage() {
                   ? writeAccess.message || getBlockFallback(locale)
                   : copy.actions.create
               }
-              className="btn disabled:cursor-not-allowed disabled:opacity-60"
-              style={{
-                background: "#fff",
-                color: "var(--sidebar)",
-                borderColor: "rgba(255,255,255,0.32)",
-              }}
-            >
-              {copy.actions.create}
-            </button>
-
-            <button
-              type="button"
+            />
+            <PageHeaderAction
+              iconOnly
+              icon={RefreshCw}
+              label={copy.actions.refresh}
               onClick={() => load(undefined, true)}
-              className="btn"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.22)",
-              }}
-            >
-              {copy.actions.refresh}
-            </button>
-          </div>
-        </div>
-      </div>
+            />
+          </>
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        {[
+      <PageStats
+        dir={dir}
+        items={[
           {
             label: copy.stats.totalInvoices,
             value: stats.totalCount,
             hint: copy.stats.allInvoices,
-            color: "var(--text)",
-            bg: "var(--card)",
+            icon: <FileText className="h-4 w-4" />,
+            tone: "teal",
           },
           {
             label: copy.stats.totalAmount,
             value: formatJOD(stats.totalAmount),
             hint: copy.stats.totalValue,
-            color: "var(--text)",
-            bg: "var(--card)",
+            icon: <WalletCards className="h-4 w-4" />,
+            tone: "blue",
           },
           {
             label: copy.stats.paid,
             value: formatJOD(stats.paidAmount),
             hint: copy.stats.invoice(stats.paidCount),
-            color: "var(--success)",
-            bg: "var(--green-soft)",
+            hintTone: "good",
+            icon: <CircleDollarSign className="h-4 w-4" />,
+            tone: "emerald",
           },
           {
             label: copy.stats.unpaid,
             value: formatJOD(stats.unpaidAmount),
             hint: copy.stats.unpaidHint,
-            color: stats.unpaidAmount > 0 ? "#92400e" : "var(--text-3)",
-            bg: stats.unpaidAmount > 0 ? "var(--amber-soft)" : "var(--card)",
+            icon: <Hourglass className="h-4 w-4" />,
+            tone: stats.unpaidAmount > 0 ? "gold" : "slate",
           },
           {
             label: copy.stats.overdue,
             value: stats.overdueCount,
             hint: copy.stats.overdueHint,
-            color: stats.overdueCount > 0 ? "#dc2626" : "var(--text)",
-            bg: stats.overdueCount > 0 ? "var(--red-soft)" : "var(--card)",
+            hintTone: stats.overdueCount > 0 ? "bad" : "neutral",
+            icon: <AlarmClock className="h-4 w-4" />,
+            tone: stats.overdueCount > 0 ? "red" : "slate",
           },
           {
             label: copy.stats.archivedClients,
             value: stats.archivedCount,
             hint: copy.stats.archivedHint,
-            color: stats.archivedCount > 0 ? "#b45309" : "var(--text)",
-            bg:
-              stats.archivedCount > 0
-                ? "rgba(180, 83, 9, 0.14)"
-                : "var(--card)",
+            icon: <Archive className="h-4 w-4" />,
+            tone: stats.archivedCount > 0 ? "gold" : "slate",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5"
-            style={{
-              background: item.bg,
-              borderColor: "var(--border)",
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
+        ]}
+      />
+
+      <FilterBar
+        dir={dir}
+        active={Boolean(status) || archivedOnly}
+        onClear={clearFilters}
+        clearLabel={copy.actions.clear}
+      >
+        <FilterSelect
+          dir={dir}
+          aria-label={copy.filters.statusAria}
+          value={status}
+          onChange={(event) => {
+            setStatus(event.target.value as "" | InvoiceStatus);
+            setPage(1);
+          }}
+        >
+          {statusOptions.map((item) => (
+            <option key={item.value || "all"} value={item.value}>
               {item.label}
-            </p>
+            </option>
+          ))}
+        </FilterSelect>
 
-            <p
-              className="mt-2 text-2xl font-black"
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-
-            <p
-              className="mt-1 text-xs font-bold"
-              style={{ color: "var(--text-3)" }}
-            >
-              {item.hint}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,320px)_auto_auto] sm:justify-start">
-          <select
-            aria-label={copy.filters.statusAria}
-            dir={isRtl ? "rtl" : "ltr"}
-            style={fieldStyle}
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as "" | InvoiceStatus);
-              setPage(1);
-            }}
-            className="input h-12"
-          >
-            {statusOptions.map((item) => (
-              <option key={item.value || "all"} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            onClick={() => {
-              setArchivedOnly((previous) => !previous);
-              setPage(1);
-            }}
-            className="btn h-12 whitespace-nowrap"
-            style={
-              archivedOnly
-                ? {
-                    background: "#b45309",
-                    color: "#fff",
-                    borderColor: "rgba(180, 83, 9, 0.25)",
-                  }
-                : {
-                    background: "#fff7ed",
-                    color: "#b45309",
-                    borderColor: "rgba(180, 83, 9, 0.18)",
-                  }
-            }
-          >
-            {copy.filters.archivedClient}
-          </button>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="btn btn-ghost h-12 whitespace-nowrap"
-          >
-            {copy.actions.clear}
-          </button>
-        </div>
-      </div>
+        <FilterChip
+          active={archivedOnly}
+          onClick={() => {
+            setArchivedOnly((previous) => !previous);
+            setPage(1);
+          }}
+        >
+          <Archive className="h-3.5 w-3.5" />
+          {copy.filters.archivedClient}
+        </FilterChip>
+      </FilterBar>
 
       {/* Content */}
       {loadError ? (

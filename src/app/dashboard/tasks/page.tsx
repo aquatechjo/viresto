@@ -7,6 +7,8 @@ import DateTimePicker from "@/components/ui/DateTimePicker";
 import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
 import { VDSBadge, VDSCard, VDSGrid, type VDSTone } from "@/components/ui/vds";
+import { AlarmClock, CheckCircle2, Clock3, ListPlus, ListTodo } from "lucide-react";
+import { FilterBar, FilterChip, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import PageLoader from "@/components/ui/PageLoader";
 import { formatDate } from "@/lib/utils";
 import { translations, type Locale } from "@/lib/i18n";
@@ -207,13 +209,12 @@ function statusBadgeStyle(status: TaskStatus) {
 const TASK_TRANSLATIONS = {
   ar: {
     hero: {
-      badge: "إدارة العمل اليومي",
       title: "المهام",
       subtitle:
         "تابع المهام المرتبطة بالقضايا والموكلين، وحدد الأولويات والمواعيد النهائية لضمان عدم تفويت أي إجراء مهم.",
     },
     actions: {
-      newTask: "+ مهمة جديدة",
+      newTask: "مهمة جديدة",
       addTask: "+ إضافة مهمة",
       deleteTask: "حذف المهمة",
       deleting: "جاري الحذف...",
@@ -231,7 +232,6 @@ const TASK_TRANSLATIONS = {
       allPriorities: "جميع الأولويات",
       allClients: "جميع الموكلين",
       allCases: "جميع القضايا",
-      apply: "بحث",
       clear: "مسح الفلاتر",
       chips: { all: "الكل", pending: "معلقة", done: "منتهية" },
     },
@@ -277,13 +277,12 @@ const TASK_TRANSLATIONS = {
   },
   en: {
     hero: {
-      badge: "Daily work management",
       title: "Tasks",
       subtitle:
         "Track tasks linked to cases and clients, set priorities and deadlines, and avoid missing any important action.",
     },
     actions: {
-      newTask: "+ New task",
+      newTask: "New task",
       addTask: "+ Add task",
       deleteTask: "Delete task",
       deleting: "Deleting...",
@@ -301,7 +300,6 @@ const TASK_TRANSLATIONS = {
       allPriorities: "All priorities",
       allClients: "All clients",
       allCases: "All cases",
-      apply: "Filter",
       clear: "Clear filters",
       chips: { all: "All", pending: "Pending", done: "Completed" },
     },
@@ -367,6 +365,7 @@ export default function TasksPage() {
     : TASK_TRANSLATIONS[locale];
   const common = tAny.common ?? translations.ar.common;
   const isRtl = locale === "ar";
+  const dir = isRtl ? "rtl" : "ltr";
   const priorityLabels = PRIORITY_LABELS[locale] ?? PRIORITY_LABELS.ar;
   const statusLabels = STATUS_LABELS[locale] ?? STATUS_LABELS.ar;
   const fieldProps = {
@@ -801,56 +800,22 @@ export default function TasksPage() {
     : cases;
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
+    <div dir={dir} className="min-w-0 space-y-4 stagger">
       <SubscriptionReadOnlyBanner
         visible={!writeAccess.canWrite}
         message={writeAccess.message}
         isRtl={isRtl}
       />
 
-      {/* Header */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6 text-start"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {taskCopy.hero.badge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">
-              {taskCopy.hero.title}
-            </h1>
-
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              {taskCopy.hero.subtitle}
-            </p>
-          </div>
-
-          <button
+      <PageHeader
+        dir={dir}
+        title={taskCopy.hero.title}
+        description={taskCopy.hero.subtitle}
+        actions={
+          <PageHeaderAction
+            primary
+            icon={ListPlus}
+            label={taskCopy.actions.newTask}
             onClick={openCreateTaskModal}
             disabled={!writeAccess.canWrite}
             title={
@@ -858,200 +823,104 @@ export default function TasksPage() {
                 ? writeAccess.message || taskCopy.messages.createError
                 : taskCopy.actions.newTask
             }
-            className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              background: "#fff",
-              color: "var(--sidebar)",
-              borderColor: "rgba(255,255,255,0.32)",
-            }}
-          >
-            {taskCopy.actions.newTask}
-          </button>
-        </div>
-      </div>
+          />
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            label: taskCopy.stats.total,
-            value: total,
-            color: "var(--text)",
-            bg: "var(--card)",
-          },
-          {
-            label: taskCopy.stats.pending,
-            value: pending,
-            color: "var(--text)",
-            bg: "var(--green-soft)",
-          },
-          {
-            label: taskCopy.stats.done,
-            value: done,
-            color: "var(--text-2)",
-            bg: "var(--card)",
-          },
+      <PageStats
+        dir={dir}
+        items={[
+          { label: taskCopy.stats.total, value: total, icon: <ListTodo className="h-4 w-4" />, tone: "teal" },
+          { label: taskCopy.stats.pending, value: pending, icon: <Clock3 className="h-4 w-4" />, tone: "gold" },
+          { label: taskCopy.stats.done, value: done, icon: <CheckCircle2 className="h-4 w-4" />, tone: "emerald" },
           {
             label: taskCopy.stats.overdue,
             value: overdue,
-            color: "#dc2626",
-            bg: "var(--red-soft)",
+            icon: <AlarmClock className="h-4 w-4" />,
+            tone: overdue > 0 ? "red" : "slate",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5 text-start"
-            style={{
-              background: item.bg,
-              borderColor: "var(--border)",
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
+        ]}
+      />
 
-            <p
-              className="mt-2 text-3xl font-black"
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-          </div>
+      <FilterBar
+        dir={dir}
+        active={
+          priorityFilter !== "all" ||
+          assigneeFilter !== "all" ||
+          clientFilter !== "all" ||
+          caseFilter !== "all" ||
+          filter !== "all"
+        }
+        onClear={clearFilters}
+        clearLabel={taskCopy.filters.clear}
+        footer={(
+          [
+            ["all", taskCopy.filters.chips.all],
+            ["pending", taskCopy.filters.chips.pending],
+            ["done", taskCopy.filters.chips.done],
+          ] as ["all" | "pending" | "done", string][]
+        ).map(([key, label]) => (
+          <FilterChip key={key} active={filter === key} onClick={() => setFilter(key)}>
+            {label}
+          </FilterChip>
         ))}
-      </div>
+      >
+        <FilterSelect
+          dir={dir}
+          aria-label={taskCopy.filters.priorityAria}
+          value={priorityFilter}
+          onChange={(event) => setPriorityFilter(event.target.value)}
+        >
+          <option value="all">{taskCopy.filters.allPriorities}</option>
+          <option value="URGENT">{priorityLabels.URGENT}</option>
+          <option value="HIGH">{priorityLabels.HIGH}</option>
+          <option value="MEDIUM">{priorityLabels.MEDIUM}</option>
+          <option value="LOW">{priorityLabels.LOW}</option>
+        </FilterSelect>
 
-      {/* Filters */}
-      <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-          <select
-            aria-label={taskCopy.filters.priorityAria}
-            value={priorityFilter}
-            onChange={(event) => setPriorityFilter(event.target.value)}
-            className="input h-12"
-            {...fieldProps}
-          >
-            <option value="all" dir={isRtl ? "rtl" : "ltr"}>
-              {taskCopy.filters.allPriorities}
+        <FilterSelect
+          dir={dir}
+          aria-label={locale === "ar" ? "فلترة حسب المسؤول" : "Filter by assignee"}
+          value={assigneeFilter}
+          onChange={(event) => setAssigneeFilter(event.target.value)}
+        >
+          <option value="all">{locale === "ar" ? "جميع المسؤولين" : "All assignees"}</option>
+          <option value="me">{locale === "ar" ? "مهامي" : "My tasks"}</option>
+          {members.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.name}
             </option>
-            <option value="URGENT" dir={isRtl ? "rtl" : "ltr"}>
-              {priorityLabels.URGENT}
-            </option>
-            <option value="HIGH" dir={isRtl ? "rtl" : "ltr"}>
-              {priorityLabels.HIGH}
-            </option>
-            <option value="MEDIUM" dir={isRtl ? "rtl" : "ltr"}>
-              {priorityLabels.MEDIUM}
-            </option>
-            <option value="LOW" dir={isRtl ? "rtl" : "ltr"}>
-              {priorityLabels.LOW}
-            </option>
-          </select>
-
-          <select
-            aria-label={
-              locale === "ar" ? "فلترة حسب المسؤول" : "Filter by assignee"
-            }
-            value={assigneeFilter}
-            onChange={(event) => setAssigneeFilter(event.target.value)}
-            className="input h-12"
-            {...fieldProps}
-          >
-            <option value="all">
-              {locale === "ar" ? "جميع المسؤولين" : "All assignees"}
-            </option>
-            <option value="me">{locale === "ar" ? "مهامي" : "My tasks"}</option>
-            {members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            aria-label={taskCopy.filters.clientAria}
-            value={clientFilter}
-            onChange={(event) => setClientFilter(event.target.value)}
-            className="input h-12"
-            {...fieldProps}
-          >
-            <option value="all" dir={isRtl ? "rtl" : "ltr"}>
-              {taskCopy.filters.allClients}
-            </option>
-            {clients.map((client) => (
-              <option
-                key={client.id}
-                value={client.id}
-                dir={isRtl ? "rtl" : "ltr"}
-              >
-                {client.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            aria-label={taskCopy.filters.caseAria}
-            value={caseFilter}
-            onChange={(event) => setCaseFilter(event.target.value)}
-            className="input h-12"
-            {...fieldProps}
-          >
-            <option value="all" dir={isRtl ? "rtl" : "ltr"}>
-              {taskCopy.filters.allCases}
-            </option>
-            {cases.map((caseItem) => (
-              <option
-                key={caseItem.id}
-                value={caseItem.id}
-                dir={isRtl ? "rtl" : "ltr"}
-              >
-                {caseItem.title}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-black transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-copper)]"
-            style={{
-              background: "var(--card-2)",
-              borderColor: "var(--border)",
-              color: "var(--text)",
-            }}
-          >
-            {taskCopy.filters.clear}
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {(
-            [
-              ["all", taskCopy.filters.chips.all],
-              ["pending", taskCopy.filters.chips.pending],
-              ["done", taskCopy.filters.chips.done],
-            ] as ["all" | "pending" | "done", string][]
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={
-                filter === key
-                  ? {
-                      background: "var(--accent-fill)",
-                      color: "#fff",
-                    }
-                  : {
-                      background: "var(--green-soft)",
-                      color: "var(--text-2)",
-                    }
-              }
-            >
-              {label}
-            </button>
           ))}
-        </div>
-      </div>
+        </FilterSelect>
+
+        <FilterSelect
+          dir={dir}
+          aria-label={taskCopy.filters.clientAria}
+          value={clientFilter}
+          onChange={(event) => setClientFilter(event.target.value)}
+        >
+          <option value="all">{taskCopy.filters.allClients}</option>
+          {clients.map((client) => (
+            <option key={client.id} value={client.id}>
+              {client.name}
+            </option>
+          ))}
+        </FilterSelect>
+
+        <FilterSelect
+          dir={dir}
+          aria-label={taskCopy.filters.caseAria}
+          value={caseFilter}
+          onChange={(event) => setCaseFilter(event.target.value)}
+        >
+          <option value="all">{taskCopy.filters.allCases}</option>
+          {cases.map((caseItem) => (
+            <option key={caseItem.id} value={caseItem.id}>
+              {caseItem.title}
+            </option>
+          ))}
+        </FilterSelect>
+      </FilterBar>
 
       {/* Content */}
       {loading ? (

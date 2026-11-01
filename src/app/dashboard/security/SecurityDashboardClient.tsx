@@ -1,10 +1,19 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import {
+  Activity as ActivityIcon,
+  LogIn,
+  MonitorSmartphone,
+  RefreshCw,
+  Trash2,
+  TriangleAlert,
+  Upload,
+} from 'lucide-react'
 
 import PageLoader from '@/components/ui/PageLoader'
 import EmptyState from '@/components/ui/EmptyState'
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from '@/components/page'
 import { formatDate } from '@/lib/utils'
 
 interface Activity {
@@ -190,185 +199,79 @@ export default function SecurityDashboardClient() {
   }
 
   return (
-    <div className="space-y-5 stagger">
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-          borderColor: 'rgba(255,255,255,0.12)',
-          boxShadow: '0 18px 50px rgba(15, 61, 62, 0.18)',
-        }}
-      >
-        <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: 'rgba(184, 115, 51, 0.16)' }}
-        />
-
-        <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: 'rgba(255,255,255,0.08)' }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
-              }}
-            >
-              Security Audit
-            </div>
-
-            <h1 className="text-2xl font-black text-white">
-              لوحة مراقبة الأمان
-            </h1>
-
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              متابعة عمليات تسجيل الدخول، رفع وحذف الملفات، والأنشطة الحساسة داخل النظام لمراجعة أي حركة غير طبيعية.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
+    <div dir="rtl" className="min-w-0 space-y-4 stagger">
+      <PageHeader
+        dir="rtl"
+        title="لوحة مراقبة الأمان"
+        description="متابعة عمليات تسجيل الدخول، رفع وحذف الملفات، والأنشطة الحساسة داخل النظام لمراجعة أي حركة غير طبيعية."
+        actions={
+          <>
+            <PageHeaderAction
+              primary
+              icon={MonitorSmartphone}
+              label="الجلسات النشطة"
               href="/dashboard/security/sessions"
-              className="btn"
-              style={{
-                background: '#fff',
-                color: 'var(--sidebar)',
-                borderColor: 'rgba(255,255,255,0.32)',
-              }}
-            >
-              الجلسات النشطة
-            </Link>
+            />
+            <PageHeaderAction iconOnly icon={RefreshCw} label="تحديث" onClick={load} />
+          </>
+        }
+      />
 
-            <button
-              type="button"
-              onClick={load}
-              className="btn"
-              style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                borderColor: 'rgba(255,255,255,0.22)',
-              }}
-            >
-              تحديث
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          {
-            label: 'إجمالي الأحداث',
-            value: stats.totalEvents,
-            hint: 'آخر 50 عملية',
-            bg: 'var(--card)',
-            color: 'var(--text)',
-          },
-          {
-            label: 'تسجيل الدخول',
-            value: stats.loginEvents,
-            hint: 'نجاح أو فشل',
-            bg: 'var(--card)',
-            color: '#2563eb',
-          },
-          {
-            label: 'عمليات الرفع',
-            value: stats.uploadEvents,
-            hint: 'مستندات وملفات',
-            bg: 'var(--green-soft)',
-            color: 'var(--success)',
-          },
-          {
-            label: 'عمليات الحذف',
-            value: stats.deleteEvents,
-            hint: 'إجراءات حساسة',
-            bg: 'var(--red-soft)',
-            color: '#dc2626',
-          },
+      <PageStats
+        dir="rtl"
+        items={[
+          { label: 'إجمالي الأحداث', value: stats.totalEvents, hint: 'آخر 50 عملية', icon: <ActivityIcon className="h-4 w-4" />, tone: 'teal' },
+          { label: 'تسجيل الدخول', value: stats.loginEvents, hint: 'نجاح أو فشل', icon: <LogIn className="h-4 w-4" />, tone: 'blue' },
+          { label: 'عمليات الرفع', value: stats.uploadEvents, hint: 'مستندات وملفات', icon: <Upload className="h-4 w-4" />, tone: 'emerald' },
+          { label: 'عمليات الحذف', value: stats.deleteEvents, hint: 'إجراءات حساسة', icon: <Trash2 className="h-4 w-4" />, tone: 'red' },
           {
             label: 'عالية الخطورة',
             value: stats.highRiskEvents,
             hint: 'فشل/حذف/اشتباه',
-            bg: stats.highRiskEvents > 0 ? 'var(--amber-soft)' : 'var(--card)',
-            color: stats.highRiskEvents > 0 ? '#92400e' : 'var(--text)',
+            hintTone: stats.highRiskEvents > 0 ? 'bad' : 'neutral',
+            icon: <TriangleAlert className="h-4 w-4" />,
+            tone: stats.highRiskEvents > 0 ? 'gold' : 'slate',
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5"
-            style={{
-              background: item.bg,
-              borderColor: 'var(--border)',
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
+        ]}
+      />
+
+      <FilterBar
+        dir="rtl"
+        active={Boolean(filter || period)}
+        onClear={() => {
+          setFilter('')
+          setPeriod('')
+        }}
+        clearLabel="مسح الفلاتر"
+      >
+        <FilterSelect
+          dir="rtl"
+          aria-label="فلترة سجلات الأمان"
+          title="فلترة سجلات الأمان"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+        >
+          {FILTERS.map((item) => (
+            <option key={item.value || 'all'} value={item.value}>
               {item.label}
-            </p>
+            </option>
+          ))}
+        </FilterSelect>
 
-            <p className="mt-2 text-3xl font-black" style={{ color: item.color }}>
-              {item.value}
-            </p>
-
-            <p className="mt-1 text-xs font-bold" style={{ color: 'var(--text-3)' }}>
-              {item.hint}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(2,minmax(0,240px))_auto] xl:justify-start">
-          <select
-            aria-label="فلترة سجلات الأمان"
-            title="فلترة سجلات الأمان"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            className="input h-12"
-          >
-            {FILTERS.map((item) => (
-              <option key={item.value || 'all'} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            aria-label="فلترة الفترة"
-            title="فلترة الفترة"
-            value={period}
-            onChange={(event) => setPeriod(event.target.value)}
-            className="input h-12"
-          >
-            {PERIODS.map((item) => (
-              <option key={item.value || 'all'} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-
-          {(filter || period) && (
-            <button
-              type="button"
-              onClick={() => {
-                setFilter('')
-                setPeriod('')
-              }}
-              className="btn btn-ghost h-12 whitespace-nowrap"
-            >
-              مسح الفلاتر
-            </button>
-          )}
-        </div>
-      </div>
+        <FilterSelect
+          dir="rtl"
+          aria-label="فلترة الفترة"
+          title="فلترة الفترة"
+          value={period}
+          onChange={(event) => setPeriod(event.target.value)}
+        >
+          {PERIODS.map((item) => (
+            <option key={item.value || 'all'} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </FilterSelect>
+      </FilterBar>
 
       {/* Activity List */}
       <div className="card overflow-hidden p-0">

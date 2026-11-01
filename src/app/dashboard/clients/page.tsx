@@ -3,7 +3,9 @@ import AppLoader from "@/components/ui/AppLoader";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { BriefcaseBusiness, UserPlus, Users, UserX } from "lucide-react";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
+import { FilterBar, FilterChip, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
@@ -44,11 +46,10 @@ type LocaleKey = "ar" | "en";
 
 const pageText = {
   ar: {
-    heroBadge: "إدارة علاقات الموكلين",
     title: "الموكلون",
     subtitle:
       "تابع بيانات الموكلين، معلومات التواصل، عدد القضايا والمواعيد المرتبطة بكل موكل من واجهة منظمة وسريعة.",
-    newClient: "+ موكل جديد",
+    newClient: "موكل جديد",
     stats: {
       total: "كل الموكلين",
       thisMonth: "هذا الشهر",
@@ -134,11 +135,10 @@ const pageText = {
     },
   },
   en: {
-    heroBadge: "Client relationship management",
     title: "Clients",
     subtitle:
       "Track client details, contact information, linked cases, and appointments from a clean and fast workspace.",
-    newClient: "+ New client",
+    newClient: "New client",
     stats: {
       total: "All clients",
       thisMonth: "This month",
@@ -602,6 +602,7 @@ function CreateClientModal({
 export default function ClientsPage() {
   const router = useRouter();
   const { locale, isRtl } = useLocale();
+  const dir = isRtl ? "rtl" : "ltr";
   const localeKey = (locale === "en" ? "en" : "ar") as LocaleKey;
   const text = pageText[localeKey];
 
@@ -839,55 +840,22 @@ export default function ClientsPage() {
 
   return (
     <>
-      <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 text-start stagger">
+      <div dir={dir} className="min-w-0 space-y-4 text-start stagger">
         <SubscriptionReadOnlyBanner
           visible={!writeAccess.canWrite}
           message={writeAccess.message}
           isRtl={isRtl}
         />
 
-        {/* Hero */}
-        <div
-          className="relative overflow-hidden rounded-[28px] border p-6"
-          style={{
-            background:
-              "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-            borderColor: "rgba(255,255,255,0.12)",
-            boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-          }}
-        >
-          <div
-            className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-            style={{ background: "rgba(184, 115, 51, 0.16)" }}
-          />
-
-          <div
-            className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-            style={{ background: "rgba(255,255,255,0.08)" }}
-          />
-
-          <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0 flex-1">
-              <div
-                className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-                style={{
-                  background: "rgba(255,255,255,0.14)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                }}
-              >
-                {text.heroBadge}
-              </div>
-
-              <h1 className="text-2xl font-black text-white">{text.title}</h1>
-
-              <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-                {text.subtitle}
-              </p>
-            </div>
-
-            <button
-              type="button"
+        <PageHeader
+          dir={dir}
+          title={text.title}
+          description={text.subtitle}
+          actions={
+            <PageHeaderAction
+              primary
+              icon={UserPlus}
+              label={text.newClient}
               onClick={openCreateModal}
               disabled={!writeAccess.canWrite}
               title={
@@ -895,67 +863,38 @@ export default function ClientsPage() {
                   ? writeAccess.message || text.validation.planLimit
                   : text.newClient
               }
-              className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl px-5 text-sm font-black transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-              style={{
-                background: "#fff",
-                color: "var(--sidebar)",
-                borderColor: "rgba(255,255,255,0.32)",
-              }}
-            >
-              {text.newClient}
-            </button>
-          </div>
-        </div>
+            />
+          }
+        />
 
-        {/* Stats */}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              label: text.stats.total,
-              value: summary.total,
-              color: "var(--text)",
-              bg: "var(--card)",
-            },
-            {
-              label: text.stats.thisMonth,
-              value: summary.newThisMonth,
-              color: "var(--brand-text)",
-              bg: "var(--green-soft)",
-            },
-            {
-              label: text.stats.withCases,
-              value: summary.withCases,
-              color: "var(--warning-text)",
-              bg: "var(--amber-soft)",
-            },
-            {
-              label: text.stats.withoutCases,
-              value: summary.withoutCases,
-              color: "#6b7280",
-              bg: "var(--card)",
-            },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className="card p-5"
-              style={{
-                background: item.bg,
-                borderColor: "var(--border)",
-              }}
-            >
-              <p className="text-xs font-black" style={{ color: item.color }}>
-                {item.label}
-              </p>
+        <PageStats
+          dir={dir}
+          items={[
+            { label: text.stats.total, value: summary.total, icon: <Users className="h-4 w-4" />, tone: "teal" },
+            { label: text.stats.thisMonth, value: summary.newThisMonth, icon: <UserPlus className="h-4 w-4" />, tone: "blue" },
+            { label: text.stats.withCases, value: summary.withCases, icon: <BriefcaseBusiness className="h-4 w-4" />, tone: "gold" },
+            { label: text.stats.withoutCases, value: summary.withoutCases, icon: <UserX className="h-4 w-4" />, tone: "slate" },
+          ]}
+        />
 
-              <p
-                className="mt-2 text-2xl font-black leading-tight"
-                style={{ color: item.color }}
-              >
-                {item.value}
-              </p>
-            </div>
+        <FilterBar
+          dir={dir}
+          active={archiveFilter !== "active"}
+          onClear={clearFilters}
+          clearLabel={text.filters.clear}
+        >
+          {(
+            [
+              ["active", text.filters.activeClients],
+              ["archived", text.filters.archivedClients],
+              ["all", text.filters.allClients],
+            ] as [ArchiveFilter, string][]
+          ).map(([key, label]) => (
+            <FilterChip key={key} active={archiveFilter === key} onClick={() => setArchiveFilter(key)}>
+              {label}
+            </FilterChip>
           ))}
-        </div>
+        </FilterBar>
 
         {/* Clients table */}
         <VDSDataTable<Client>
@@ -978,60 +917,6 @@ export default function ClientsPage() {
               `/dashboard/clients/${client.publicId ?? client.id}`,
             );
           }}
-          toolbar={
-            <div
-              dir={isRtl ? "rtl" : "ltr"}
-              className="space-y-4 border-b p-4"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <div className="flex w-full items-center gap-2 overflow-x-auto pb-1">
-                {(
-                  [
-                    ["active", text.filters.activeClients],
-                    ["archived", text.filters.archivedClients],
-                    ["all", text.filters.allClients],
-                  ] as [ArchiveFilter, string][]
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setArchiveFilter(key)}
-                    className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
-                    style={
-                      archiveFilter === key
-                        ? {
-                            background: "rgba(184,115,51,0.18)",
-                            color: "var(--text-1)",
-                            border: "1px solid rgba(184,115,51,0.35)",
-                          }
-                        : {
-                            background: "var(--green-soft)",
-                            color: "var(--text-2)",
-                            border: "1px solid var(--border)",
-                          }
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
-
-                {archiveFilter !== "active" ? (
-                  <button
-                    type="button"
-                    onClick={clearFilters}
-                    className="h-10 min-w-[112px] shrink-0 rounded-2xl px-4 text-xs font-black transition-all"
-                    style={{
-                      background: "var(--card)",
-                      color: "var(--text-2)",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    {text.filters.clear}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          }
           labels={{
             emptyTitle: loadError
               ? localeKey === "ar" ? "تعذر تحميل الموكلين" : "Could not load clients"

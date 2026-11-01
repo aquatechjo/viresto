@@ -106,9 +106,10 @@ export function StatCard({
 const GRID_COLUMNS: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-2",
-  3: "grid-cols-1 sm:grid-cols-3",
+  // Two per row on phones, the third across both columns.
+  3: "grid-cols-2 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1",
   4: "grid-cols-2 xl:grid-cols-4",
-  5: "grid-cols-2 md:grid-cols-3 xl:grid-cols-5",
+  5: "grid-cols-2 md:grid-cols-3 xl:grid-cols-5 [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1",
   6: "grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
 };
 

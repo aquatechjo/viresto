@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  Laptop,
+  LogOut,
+  MapPin,
+  MonitorSmartphone,
+  RefreshCw,
+  ShieldAlert,
+  Smartphone,
+} from "lucide-react";
 import PageLoader from "@/components/ui/PageLoader";
+import { PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import EmptyState from "@/components/ui/EmptyState";
 import { formatDate } from "@/lib/utils";
 import { parseDevice } from "@/lib/device";
@@ -210,150 +220,48 @@ export default function SessionsClient() {
   }
 
   return (
-    <div className="space-y-5 stagger">
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              Active Sessions
-            </div>
-
-            <h1 className="text-2xl font-black text-white">
-              الأجهزة والجلسات النشطة
-            </h1>
-
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              راقب الأجهزة المتصلة بحسابك، وتحقق من آخر نشاط، وأنهِ أي جلسة غير
-              معروفة لحماية الحساب.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={load}
-              className="btn"
-              style={{
-                background: "#fff",
-                color: "var(--sidebar)",
-                borderColor: "rgba(255,255,255,0.32)",
-              }}
-            >
-              تحديث
-            </button>
-
-            <button
-              type="button"
+    <div dir="rtl" className="min-w-0 space-y-4 stagger">
+      <PageHeader
+        dir="rtl"
+        title="الأجهزة والجلسات النشطة"
+        description="راقب الأجهزة المتصلة بحسابك، وتحقق من آخر نشاط، وأنهِ أي جلسة غير معروفة لحماية الحساب."
+        actions={
+          <>
+            {/* Ending sessions is destructive, so it is not the gold action. */}
+            <PageHeaderAction
+              icon={LogOut}
+              label={actionLoading === "others" ? "جاري الإنهاء..." : "إنهاء الجلسات الأخرى"}
               onClick={revokeOtherSessions}
               disabled={actionLoading === "others" || stats.others === 0}
-              className="btn"
-              style={{
-                background: "rgba(239,68,68,0.18)",
-                color: "#fff",
-                borderColor: "rgba(239,68,68,0.32)",
-              }}
-            >
-              {actionLoading === "others"
-                ? "جاري الإنهاء..."
-                : "إنهاء الجلسات الأخرى"}
-            </button>
-          </div>
-        </div>
-      </div>
+            />
+            <PageHeaderAction iconOnly icon={RefreshCw} label="تحديث" onClick={load} />
+          </>
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          {
-            label: "إجمالي الجلسات",
-            value: stats.total,
-            hint: "كل الأجهزة المتصلة",
-            bg: "var(--card)",
-            color: "var(--text)",
-          },
-          {
-            label: "الجلسة الحالية",
-            value: stats.current,
-            hint: "هذا الجهاز",
-            bg: "var(--green-soft)",
-            color: "var(--success)",
-          },
+      <PageStats
+        dir="rtl"
+        items={[
+          { label: "إجمالي الجلسات", value: stats.total, hint: "كل الأجهزة المتصلة", icon: <MonitorSmartphone className="h-4 w-4" />, tone: "teal" },
+          { label: "الجلسة الحالية", value: stats.current, hint: "هذا الجهاز", icon: <Laptop className="h-4 w-4" />, tone: "emerald" },
           {
             label: "أجهزة أخرى",
             value: stats.others,
             hint: "جلسات يمكن إنهاؤها",
-            bg: stats.others > 0 ? "var(--amber-soft)" : "var(--card)",
-            color: stats.others > 0 ? "#92400e" : "var(--text)",
+            icon: <Smartphone className="h-4 w-4" />,
+            tone: stats.others > 0 ? "gold" : "slate",
           },
-          {
-            label: "مواقع مختلفة",
-            value: stats.locations,
-            hint: "حسب بيانات IP",
-            bg: "var(--card)",
-            color: "var(--text)",
-          },
+          { label: "مواقع مختلفة", value: stats.locations, hint: "حسب بيانات IP", icon: <MapPin className="h-4 w-4" />, tone: "blue" },
           {
             label: "IP غير معروف",
             value: stats.unknownIp,
             hint: "يحتاج مراجعة",
-            bg: stats.unknownIp > 0 ? "var(--red-soft)" : "var(--card)",
-            color: stats.unknownIp > 0 ? "#dc2626" : "var(--text)",
+            hintTone: stats.unknownIp > 0 ? "bad" : "neutral",
+            icon: <ShieldAlert className="h-4 w-4" />,
+            tone: stats.unknownIp > 0 ? "red" : "slate",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5"
-            style={{
-              background: item.bg,
-              borderColor: "var(--border)",
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
-
-            <p
-              className="mt-2 text-3xl font-black"
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-
-            <p
-              className="mt-1 text-xs font-bold"
-              style={{ color: "var(--text-3)" }}
-            >
-              {item.hint}
-            </p>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
 
       {/* Security Note */}
       {stats.others > 0 && (

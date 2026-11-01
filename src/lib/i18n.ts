@@ -160,7 +160,6 @@ export const translations = {
 
     documents: {
       hero: {
-        badge: "إدارة الأرشيف القانوني",
         title: "المستندات",
         subtitle:
           "نظّم ملفات المكتب، واربط كل مستند بالموكل أو القضية، مع إمكانية المعاينة والتصنيف والتلخيص الذكي من مكان واحد.",
@@ -185,7 +184,6 @@ export const translations = {
       filters: {
         categoryAria: "فلترة حسب التصنيف",
         allCategories: "جميع التصنيفات",
-        apply: "بحث",
         clear: "مسح الفلاتر",
         types: {
           all: "الكل",
@@ -258,7 +256,6 @@ export const translations = {
 
     payments: {
       hero: {
-        badge: "الإدارة المالية",
         title: "المدفوعات",
         subtitle:
           "تابع أتعاب القضايا، المبالغ المحصلة، المستحقات ونسبة التحصيل لكل قضية من واجهة مالية واضحة تساعدك على مراقبة أداء المكتب.",
@@ -274,7 +271,6 @@ export const translations = {
         financialCases: "عدد القضايا المالية",
       },
       filters: {
-        apply: "بحث",
         clear: "مسح الفلاتر",
         chips: {
           all: "الكل",
@@ -314,13 +310,12 @@ export const translations = {
 
     appointments: {
       hero: {
-        badge: "التقويم القانوني",
         title: "المواعيد",
         subtitle:
           "تابع الجلسات والاجتماعات والمواعيد النهائية من تقويم واحد، مع ربط كل موعد بالموكل أو القضية لتسهيل متابعة العمل اليومي.",
       },
       actions: {
-        newAppointment: "+ موعد جديد",
+        newAppointment: "موعد جديد",
         saveChanges: "حفظ التعديل",
         close: "إغلاق",
         edit: "تعديل الموعد",
@@ -334,7 +329,7 @@ export const translations = {
       filters: {
         typeAria: "فلترة حسب نوع الموعد",
         allTypes: "جميع الأنواع",
-        apply: "بحث",
+        clear: "مسح الفلاتر",
         chips: {
           all: "الكل",
           sessions: "جلسات",
@@ -400,7 +395,6 @@ export const translations = {
 
     team: {
       hero: {
-        badge: "إدارة الصلاحيات والمستخدمين",
         title: "الفريق",
         subtitle:
           "أضف أعضاء المكتب، وحدد صلاحيات كل مستخدم، وفعّل أو عطّل الوصول للنظام من مكان واحد واضح وآمن.",
@@ -424,7 +418,6 @@ export const translations = {
         statusAria: "فلترة حسب الحالة",
         allRoles: "جميع الصلاحيات",
         allStatuses: "جميع الحالات",
-        apply: "يحث",
         chips: {
           all: "الكل",
           admins: "المدراء",
@@ -671,7 +664,6 @@ export const translations = {
 
     documents: {
       hero: {
-        badge: "Legal archive management",
         title: "Documents",
         subtitle:
           "Organize office files, link each document to a client or case, preview, classify, and summarize documents with AI from one place.",
@@ -696,7 +688,6 @@ export const translations = {
       filters: {
         categoryAria: "Filter by category",
         allCategories: "All categories",
-        apply: "Filter",
         clear: "Clear filters",
         types: {
           all: "All",
@@ -772,7 +763,6 @@ export const translations = {
 
     payments: {
       hero: {
-        badge: "Financial management",
         title: "Payments",
         subtitle:
           "Track case fees, collected amounts, outstanding balances, and collection rates through a clear financial view that helps monitor office performance.",
@@ -788,7 +778,6 @@ export const translations = {
         financialCases: "Financial cases",
       },
       filters: {
-        apply: "Filter",
         clear: "Clear filters",
         chips: {
           all: "All",
@@ -829,13 +818,12 @@ export const translations = {
 
     appointments: {
       hero: {
-        badge: "Legal calendar",
         title: "Appointments",
         subtitle:
           "Track court sessions, meetings, and deadlines from one calendar, and link each appointment to a client or case to keep daily work organized.",
       },
       actions: {
-        newAppointment: "+ New appointment",
+        newAppointment: "New appointment",
         saveChanges: "Save changes",
         close: "Close",
         edit: "Edit appointment",
@@ -849,7 +837,7 @@ export const translations = {
       filters: {
         typeAria: "Filter by appointment type",
         allTypes: "All types",
-        apply: "Filter",
+        clear: "Clear filters",
         chips: {
           all: "All",
           sessions: "Sessions",
@@ -920,7 +908,6 @@ export const translations = {
 
     team: {
       hero: {
-        badge: "Permissions and users management",
         title: "Team",
         subtitle:
           "Add office members, define each user's permissions, and enable or disable system access from one clear and secure place.",
@@ -944,7 +931,6 @@ export const translations = {
         statusAria: "Filter by status",
         allRoles: "All roles",
         allStatuses: "All statuses",
-        apply: "Filter",
         chips: {
           all: "All",
           admins: "Admins",

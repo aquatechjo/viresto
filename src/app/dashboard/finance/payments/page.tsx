@@ -6,8 +6,10 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
+import { AlarmClock, CircleDollarSign, CirclePlus, HandCoins, Hourglass, RefreshCw } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 import AppLoader from '@/components/ui/AppLoader'
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from '@/components/page'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 import { formatInvoiceNumber } from '@/lib/invoice-print'
@@ -113,7 +115,6 @@ const INITIAL_PAYMENT_FORM = {
 const COPY = {
   ar: {
     hero: {
-      badge: 'الإدارة المالية',
       title: 'سجل الدفعات',
       subtitle:
         'تابع جميع الدفعات المسجلة على الفواتير والقضايا، وحالات التحصيل والروابط المالية من سجل واحد واضح.',
@@ -215,7 +216,6 @@ const COPY = {
   },
   en: {
     hero: {
-      badge: 'Financial management',
       title: 'Payment ledger',
       subtitle:
         'Track payments recorded against invoices and cases, collection statuses, and financial links from one clear ledger.',
@@ -586,6 +586,7 @@ export default function PaymentsPage() {
   const localeState = useLocale() as { locale?: Locale }
   const locale: Locale = localeState.locale === 'en' ? 'en' : 'ar'
   const isRtl = locale === 'ar'
+  const dir = isRtl ? 'rtl' : 'ltr'
   const copy = COPY[locale]
   const confirm = useConfirm()
   const prompt = usePrompt()
@@ -1000,162 +1001,89 @@ export default function PaymentsPage() {
   if (loading) return <AppLoader fullScreen={false} />
 
   return (
-    <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-5 stagger">
+    <div dir={dir} className="min-w-0 space-y-4 stagger">
       <SubscriptionReadOnlyBanner
         visible={!writeAccess.canWrite}
         message={writeAccess.message}
         isRtl={isRtl}
       />
 
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6 text-start"
-        style={{
-          background:
-            'linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)',
-          borderColor: 'rgba(255,255,255,0.12)',
-          boxShadow: '0 18px 50px rgba(15, 61, 62, 0.18)',
-        }}
-      >
-        <div
-          className={`absolute -top-14 h-40 w-40 rounded-full ${
-            isRtl ? '-right-14' : '-left-14'
-          }`}
-          style={{ background: 'rgba(184, 115, 51, 0.16)' }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
-              }}
-            >
-              {copy.hero.badge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">{copy.hero.title}</h1>
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              {copy.hero.subtitle}
-            </p>
-          </div>
-
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <button
-              type="button"
+      <PageHeader
+        dir={dir}
+        title={copy.hero.title}
+        description={copy.hero.subtitle}
+        actions={
+          <>
+            <PageHeaderAction
+              primary
+              icon={CirclePlus}
+              label={copy.actions.addPayment}
               onClick={() => setPaymentOpen(true)}
               disabled={!writeAccess.canWrite}
-              title={
-                !writeAccess.canWrite ? writeAccess.message || undefined : undefined
-              }
-              className="btn min-h-[46px] px-6 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: 'var(--landing-copper)',
-                color: 'var(--landing-canvas)',
-                borderColor: 'rgba(184,115,51,0.5)',
-              }}
-            >
-              + {copy.actions.addPayment}
-            </button>
-
-            <button
-              type="button"
+              title={!writeAccess.canWrite ? writeAccess.message || undefined : undefined}
+            />
+            <PageHeaderAction
+              iconOnly
+              icon={RefreshCw}
+              label={copy.actions.refresh}
               onClick={() => load(undefined, true)}
-              className="btn min-h-[46px] px-6"
-              style={{
-                background: '#fff',
-                color: 'var(--sidebar)',
-                borderColor: 'rgba(255,255,255,0.35)',
-              }}
-            >
-              {copy.actions.refresh}
-            </button>
-          </div>
-        </div>
-      </div>
+            />
+          </>
+        }
+      />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
+      <PageStats
+        dir={dir}
+        items={[
           {
             label: copy.stats.collected,
             value: formatJOD(stats.collected),
-            color: 'var(--success)',
-            background: 'var(--green-soft)',
+            icon: <CircleDollarSign className="h-4 w-4" />,
+            tone: 'emerald',
           },
           {
             label: copy.stats.pending,
             value: formatJOD(stats.pending),
-            color: '#92400e',
-            background: 'var(--amber-soft)',
+            icon: <Hourglass className="h-4 w-4" />,
+            tone: 'gold',
           },
           {
             label: copy.stats.overdue,
             value: formatJOD(stats.overdue),
-            color: '#dc2626',
-            background: 'var(--red-soft)',
+            icon: <AlarmClock className="h-4 w-4" />,
+            tone: stats.overdue > 0 ? 'red' : 'slate',
           },
           {
             label: copy.stats.direct,
             value: stats.direct,
-            color: 'var(--text)',
-            background: 'var(--card)',
+            icon: <HandCoins className="h-4 w-4" />,
+            tone: 'blue',
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5 text-start"
-            style={{ background: item.background }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
-            <p className="mt-2 text-2xl font-black" style={{ color: item.color }}>
-              {item.value}
-            </p>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
 
-      <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(220px,300px)_auto] sm:justify-start">
-          <select
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as '' | PaymentStatus)
-              setPage(1)
-            }}
-            className="input min-h-[48px] w-full text-start"
-            aria-label={copy.filters.status}
-            dir={isRtl ? 'rtl' : 'ltr'}
-            style={{
-              direction: isRtl ? 'rtl' : 'ltr',
-              textAlign: isRtl ? 'right' : 'left',
-              backgroundPosition: isRtl
-                ? 'left 16px center'
-                : 'right 16px center',
-              paddingInlineStart: '16px',
-              paddingInlineEnd: '44px',
-            }}
-          >
-            <option value="">{copy.filters.all}</option>
-            <option value="PAID">{copy.statuses.PAID}</option>
-            <option value="PENDING">{copy.statuses.PENDING}</option>
-            <option value="OVERDUE">{copy.statuses.OVERDUE}</option>
-            <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
-          </select>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="btn btn-ghost min-h-[48px] whitespace-nowrap px-5"
-            style={{ color: 'var(--text)' }}
-          >
-            {copy.actions.clear}
-          </button>
-        </div>
-      </div>
+      <FilterBar
+        dir={dir}
+        active={Boolean(status)}
+        onClear={clearFilters}
+        clearLabel={copy.actions.clear}
+      >
+        <FilterSelect
+          dir={dir}
+          value={status}
+          onChange={(event) => {
+            setStatus(event.target.value as '' | PaymentStatus)
+            setPage(1)
+          }}
+          aria-label={copy.filters.status}
+        >
+          <option value="">{copy.filters.all}</option>
+          <option value="PAID">{copy.statuses.PAID}</option>
+          <option value="PENDING">{copy.statuses.PENDING}</option>
+          <option value="OVERDUE">{copy.statuses.OVERDUE}</option>
+          <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
+        </FilterSelect>
+      </FilterBar>
 
       {error ? (
         <div className="card p-6 text-start">

@@ -12,6 +12,8 @@ import {
   VDSIcon,
   type VDSTone,
 } from "@/components/ui/vds";
+import { FileImage, Files, FileText, FileType, FileUp } from "lucide-react";
+import { FilterBar, FilterChip, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { fileSizeLabel, relativeTime } from "@/lib/utils";
 import {
   getApiMessage,
@@ -345,6 +347,7 @@ export default function DocumentsPage() {
   const t = localeState?.t ?? translations[locale] ?? translations.ar;
   const d = t.documents ?? translations.ar.documents;
   const isRtl = locale === "ar";
+  const dir = isRtl ? "rtl" : "ltr";
 
   const linkCopy = {
     selectCase: isRtl ? "اختر قضية" : "Select a case",
@@ -819,7 +822,7 @@ export default function DocumentsPage() {
     return <AppLoader fullScreen={false} />;
   }
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
+    <div dir={dir} className="min-w-0 space-y-4 stagger">
       {planLimit && (
         <PlanLimitBanner
           message={planLimit}
@@ -836,196 +839,71 @@ export default function DocumentsPage() {
         isRtl={isRtl}
       />
 
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="text-start">
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {d.hero.badge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">{d.hero.title}</h1>
-
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-              {d.hero.subtitle}
-            </p>
-          </div>
-
-          <button
-            type="button"
+      <PageHeader
+        dir={dir}
+        title={d.hero.title}
+        description={d.hero.subtitle}
+        actions={
+          <PageHeaderAction
+            primary
+            icon={FileUp}
+            label={d.actions.upload}
+            onClick={openUploadModal}
             disabled={!writeAccess.canWrite}
             title={
               !writeAccess.canWrite
                 ? writeAccess.message || d.messages.planLimitFallback
                 : d.actions.upload
             }
-            onClick={openUploadModal}
-            className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              background: "#fff",
-              color: "var(--sidebar)",
-              borderColor: "rgba(255,255,255,0.32)",
-            }}
-          >
-            + {d.actions.upload}
-          </button>
-        </div>
-      </div>
+          />
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            label: d.stats.total,
-            value: totalDocs,
-            color: "var(--text)",
-            bg: "var(--card)",
-          },
-          {
-            label: d.stats.pdf,
-            value: pdfCount,
-            color: "#dc2626",
-            bg: "var(--red-soft)",
-          },
-          {
-            label: d.stats.images,
-            value: imageCount,
-            color: "#7c3aed",
-            bg: "var(--card)",
-          },
-          {
-            label: d.stats.word,
-            value: wordCount,
-            color: "#2563eb",
-            bg: "var(--green-soft)",
-          },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5 text-start"
-            style={{
-              background: item.bg,
-              borderColor: "var(--border)",
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
+      <PageStats
+        dir={dir}
+        items={[
+          { label: d.stats.total, value: totalDocs, icon: <Files className="h-4 w-4" />, tone: "teal" },
+          { label: d.stats.pdf, value: pdfCount, icon: <FileText className="h-4 w-4" />, tone: "red" },
+          { label: d.stats.images, value: imageCount, icon: <FileImage className="h-4 w-4" />, tone: "purple" },
+          { label: d.stats.word, value: wordCount, icon: <FileType className="h-4 w-4" />, tone: "blue" },
+        ]}
+      />
 
-            <p
-              className="mt-2 text-3xl font-black"
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-          </div>
-        ))}
-      </div>
-      {/* Filters */}
-      <div className="card p-4" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,320px)_auto] sm:justify-start">
-          <select
-            aria-label={d.filters.categoryAria}
-            value={selectedTag}
-            onChange={(event) => {
-              setSelectedTag(event.target.value);
+      <FilterBar
+        dir={dir}
+        active={filter !== "all" || Boolean(selectedTag)}
+        onClear={clearFilters}
+        clearLabel={d.filters.clear}
+        footer={FILTERS.map((key) => (
+          <FilterChip
+            key={key}
+            active={filter === key}
+            onClick={() => {
+              setFilter(key);
               setPage(1);
             }}
-            dir={isRtl ? "rtl" : "ltr"}
-            style={{ textAlign: isRtl ? "right" : "left" }}
-            className="input h-12"
           >
-            <option dir={isRtl ? "rtl" : "ltr"} value="">
-              {d.filters.allCategories}
+            {d.filters.types[key]}
+          </FilterChip>
+        ))}
+      >
+        <FilterSelect
+          dir={dir}
+          aria-label={d.filters.categoryAria}
+          value={selectedTag}
+          onChange={(event) => {
+            setSelectedTag(event.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">{d.filters.allCategories}</option>
+          {AVAILABLE_TAGS.map((tag) => (
+            <option key={tag.value} value={tag.value}>
+              {d.tags[tag.key]}
             </option>
-
-            {AVAILABLE_TAGS.map((tag) => (
-              <option
-                key={tag.value}
-                dir={isRtl ? "rtl" : "ltr"}
-                value={tag.value}
-              >
-                {d.tags[tag.key]}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="btn btn-ghost h-12 whitespace-nowrap"
-          >
-            {d.filters.apply}
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-wrap justify-start gap-2">
-          {FILTERS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                setFilter(key);
-                setPage(1);
-              }}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={
-                filter === key
-                  ? {
-                      background: "var(--accent-fill)",
-                      color: "#fff",
-                    }
-                  : {
-                      background: "var(--green-soft)",
-                      color: "var(--text-2)",
-                    }
-              }
-            >
-              {d.filters.types[key]}
-            </button>
           ))}
-
-          {(filter !== "all" || selectedTag) && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="rounded-2xl px-4 py-2 text-xs font-black transition-all"
-              style={{
-                background: "var(--card)",
-                color: "var(--text-2)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {d.filters.clear}
-            </button>
-          )}
-        </div>
-      </div>
+        </FilterSelect>
+      </FilterBar>
 
       {/* Upload Area */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_360px]">

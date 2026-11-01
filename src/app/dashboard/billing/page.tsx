@@ -7,6 +7,7 @@ import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
 import AppLoader from "@/components/ui/AppLoader";
+import { PageHeader } from "@/components/page";
 import { isPlanCode } from "@/lib/trial-copy";
 import TrialStatusCard, {
   daysPhrase,
@@ -468,6 +469,7 @@ async function checkCheckoutActivation(
 export default function BillingPage() {
   const { locale } = useLocale();
   const isArabic = locale === "ar";
+  const dir = isArabic ? "rtl" : "ltr";
   const billing = translations[locale].billingPage;
 
   const labels = {
@@ -758,8 +760,8 @@ export default function BillingPage() {
 
   if (demoBlocked) {
     return (
-      <div className="space-y-6" dir={isArabic ? "rtl" : "ltr"}>
-        <h1 className="text-3xl font-black">{billing.title}</h1>
+      <div className="min-w-0 space-y-4" dir={dir}>
+        <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
         <div className="card p-6 text-sm font-semibold" style={{ color: "var(--muted)" }}>
           {isArabic
             ? DEMO_BLOCKED_MESSAGE
@@ -771,8 +773,8 @@ export default function BillingPage() {
 
   if (memberView) {
     return (
-      <div className="space-y-6" dir={isArabic ? "rtl" : "ltr"}>
-        <h1 className="text-3xl font-black">{billing.title}</h1>
+      <div className="min-w-0 space-y-4" dir={dir}>
+        <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
         <TrialStatusCard
           access={memberAccess}
           isArabic={isArabic}
@@ -787,11 +789,14 @@ export default function BillingPage() {
 
   if (!data) {
     return (
-      <div className="card p-6">
-        <h1 className="mb-2 text-2xl font-black">{billing.unavailableTitle}</h1>
-        <p className="text-sm" style={{ color: "var(--muted)" }}>
-          {billing.unavailableDescription}
-        </p>
+      <div className="min-w-0 space-y-4" dir={dir}>
+        <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
+        <div className="card p-6">
+          <h2 className="mb-2 text-xl font-black">{billing.unavailableTitle}</h2>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            {billing.unavailableDescription}
+          </p>
+        </div>
       </div>
     );
   }
@@ -836,15 +841,8 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="space-y-6" dir={isArabic ? "rtl" : "ltr"}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-3xl font-black">{billing.title}</h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-            {billing.subtitle}
-          </p>
-        </div>
-      </div>
+    <div className="min-w-0 space-y-4" dir={dir}>
+      <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
 
       {!checkoutPending && (
         <TrialStatusCard
