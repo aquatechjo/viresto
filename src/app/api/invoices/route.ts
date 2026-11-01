@@ -32,6 +32,11 @@ const allowedStatuses = [
   "CANCELLED",
 ] as const;
 
+// Filter value, not a stored status: what is still to collect. The same
+// statuses as the "unpaid" figure below.
+const OUTSTANDING = "OUTSTANDING";
+const outstandingStatuses = ["UNPAID", "PARTIALLY_PAID", "OVERDUE"] as const;
+
 type CalculatedItem = {
   description: string;
   quantity: number;
@@ -151,7 +156,7 @@ export async function GET(req: NextRequest) {
       ? 20
       : Math.min(Math.max(limitRaw, 1), 100);
 
-    if (status && !allowedStatuses.includes(status as any)) {
+    if (status && status !== OUTSTANDING && !allowedStatuses.includes(status as any)) {
       return err("حالة الفاتورة غير صالحة", 400);
     }
 
@@ -235,7 +240,11 @@ export async function GET(req: NextRequest) {
     }
 
     const where = buildInvoiceAccessWhere(auth.user, {
-        ...(status ? { status: status as any } : {}),
+        ...(status === OUTSTANDING
+          ? { status: { in: [...outstandingStatuses] } }
+          : status
+            ? { status: status as any }
+            : {}),
         ...(archivedOnly
           ? {
               OR: [
@@ -357,7 +366,7 @@ export async function GET(req: NextRequest) {
 
         result.totalAmount += invoiceTotal;
         result.paidAmount += paid;
-        if (["UNPAID", "PARTIALLY_PAID", "OVERDUE"].includes(invoice.status)) {
+        if ((outstandingStatuses as readonly string[]).includes(invoice.status)) {
           result.unpaidAmount += Math.max(0, invoiceTotal - paid);
         }
         if (invoice.status === "OVERDUE") result.overdueCount += 1;

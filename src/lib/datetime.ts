@@ -118,6 +118,12 @@ export function toDateKey(value: DateInput) {
   return DateTime.fromJSDate(date).setZone(APP_TIME_ZONE).toISODate() ?? "invalid-date";
 }
 
+/** Start of the Amman calendar day of `now`, as a UTC instant. */
+export function zonedDayStart(now: DateInput = new Date()) {
+  const date = toDate(now) ?? new Date();
+  return DateTime.fromJSDate(date).setZone(APP_TIME_ZONE).startOf("day").toJSDate();
+}
+
 /**
  * Stored date-only field (invoice dueDate) → "yyyy-MM-dd" for <input
  * type="date">. The form sends "yyyy-MM-dd" and the API's

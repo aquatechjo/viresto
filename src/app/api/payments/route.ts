@@ -246,20 +246,34 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // The figures ignore the status filter (they are the cards that set it),
+    // but keep the office, the role's access and any case/client/invoice.
+    const statsWhere = buildPaymentAccessWhere(auth.user, {
+      ...(caseId ? { caseId } : {}),
+      ...(clientId ? { clientId } : {}),
+      ...(invoiceId ? { invoiceId } : {}),
+    });
+
     const [payments, total, grouped, direct] = await prisma.$transaction([
       paymentsQuery,
       totalQuery,
       prisma.payment.groupBy({
         by: ["status"],
-        where,
+        where: statsWhere,
         orderBy: { status: "asc" },
         _sum: { amount: true },
+        _count: { _all: true },
       }),
-      prisma.payment.count({ where: { AND: [where, { invoiceId: null }] } }),
+      prisma.payment.count({ where: { AND: [statsWhere, { invoiceId: null }] } }),
     ]);
 
     const amountByStatus = Object.fromEntries(
       grouped.map((item) => [item.status, Number(item._sum?.amount || 0)]),
+    );
+    const totalCount = grouped.reduce(
+      (sum, item) =>
+        sum + (typeof item._count === "object" ? item._count?._all ?? 0 : 0),
+      0,
     );
 
     return ok({
@@ -274,6 +288,7 @@ export async function GET(req: NextRequest) {
         collected: amountByStatus.PAID || 0,
         pending: amountByStatus.PENDING || 0,
         overdue: amountByStatus.OVERDUE || 0,
+        count: totalCount,
         direct,
       },
     });

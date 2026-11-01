@@ -13,6 +13,7 @@ import {
   buildClientAccessWhere,
   buildTaskAccessWhere,
 } from "@/lib/access-control";
+import { CLOSED_TASK_STATUSES, overdueTaskBefore } from "@/lib/task-overdue";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
@@ -67,18 +68,27 @@ export async function GET(req: NextRequest) {
       return err("أولوية المهمة غير صالحة", 400);
     }
 
-    if (!["all", "pending", "done"].includes(scope)) {
+    if (!["all", "pending", "done", "overdue"].includes(scope)) {
       return err("فلتر المهام غير صالح", 400);
     }
+
+    const now = new Date();
+    const openStatus = { notIn: [...CLOSED_TASK_STATUSES] as any };
+    const overdueWhere = {
+      status: openStatus,
+      dueDate: { lt: overdueTaskBefore(now) },
+    };
 
     const accessWhere = buildTaskAccessWhere(auth.user);
     const where = buildTaskAccessWhere(auth.user, {
         ...(status ? { status: status as any } : {}),
         ...(scope === "pending"
-          ? { status: { notIn: ["COMPLETED", "CANCELLED"] as any } }
+          ? { status: openStatus }
           : scope === "done"
             ? { status: "COMPLETED" as any }
-            : {}),
+            : scope === "overdue"
+              ? overdueWhere
+              : {}),
         ...(assignedToId === "me"
           ? { assignedToId: auth.user.userId }
           : assignedToId
@@ -94,10 +104,9 @@ export async function GET(req: NextRequest) {
         ...(caseId ? { caseId } : {}),
       });
 
-    const now = new Date();
     const pendingWhere = {
       ...accessWhere,
-      status: { notIn: ["COMPLETED", "CANCELLED"] as any },
+      status: openStatus,
     };
 
     const taskRowsPromise = prisma.$transaction([
@@ -147,12 +156,7 @@ export async function GET(req: NextRequest) {
         prisma.task.count({ where: accessWhere }),
         prisma.task.count({ where: pendingWhere }),
         prisma.task.count({ where: { ...accessWhere, status: "COMPLETED" } }),
-        prisma.task.count({
-          where: {
-            ...pendingWhere,
-            dueDate: { lt: now },
-          },
-        }),
+        prisma.task.count({ where: { ...accessWhere, ...overdueWhere } }),
         ])
       : Promise.resolve(null);
 

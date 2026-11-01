@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
+import { DateTime } from "luxon";
+import { APP_TIME_ZONE } from "@/lib/datetime";
 import { prisma } from "@/lib/prisma";
 import { clientSchema } from "@/lib/validations";
 import { ok, err } from "@/lib/api-response";
@@ -83,19 +85,13 @@ export async function GET(req: NextRequest) {
     };
     const where = buildClientAccessWhere(auth.user, requestedWhere);
 
-    const archiveWhere: Prisma.ClientWhereInput = {
-      ...(archive === "active"
-        ? { archivedAt: null }
-        : archive === "archived"
-          ? { archivedAt: { not: null } }
-          : {}),
-    };
-    const summaryWhere = buildClientAccessWhere(auth.user, archiveWhere);
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
+    // The page's figures are office totals: they never follow the archive
+    // filter, so the filter cards keep their numbers while switching.
+    const summaryWhere = buildClientAccessWhere(auth.user);
+    // "New this month" counts from the 1st in Amman, not in the server's zone.
+    const monthStart = DateTime.now().setZone(APP_TIME_ZONE).startOf("month").toJSDate();
 
-    const [data, total, withCases, newThisMonth] = await Promise.all([
+    const [data, total, summaryTotal, archivedCount, newThisMonth] = await Promise.all([
       prisma.client.findMany({
         where,
         include: {
@@ -116,18 +112,14 @@ export async function GET(req: NextRequest) {
       }),
 
       prisma.client.count({ where }),
+      prisma.client.count({ where: summaryWhere }),
       prisma.client.count({
-        where: {
-          ...summaryWhere,
-          cases: { some: buildCaseAccessWhere(auth.user) },
-        },
+        where: { AND: [summaryWhere, { archivedAt: { not: null } }] },
       }),
       prisma.client.count({
-        where: { ...summaryWhere, createdAt: { gte: monthStart } },
+        where: { AND: [summaryWhere, { createdAt: { gte: monthStart } }] },
       }),
     ]);
-
-    const summaryTotal = await prisma.client.count({ where: summaryWhere });
 
     const decryptedData = data.map((client) => {
       const {
@@ -158,8 +150,8 @@ export async function GET(req: NextRequest) {
         pages: Math.ceil(total / limit),
         summary: {
           total: summaryTotal,
-          withCases,
-          withoutCases: Math.max(0, summaryTotal - withCases),
+          active: summaryTotal - archivedCount,
+          archived: archivedCount,
           newThisMonth,
         },
       },
