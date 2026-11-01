@@ -4,7 +4,21 @@ import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleDollarSign,
+  FileDown,
+  HandCoins,
+  MessageCircle,
+  Pencil,
+  Printer,
+  ReceiptText,
+  Trash2,
+  WalletCards,
+} from "lucide-react";
 import AppLoader from "@/components/ui/AppLoader";
+import { PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { useLocale } from "@/lib/useLocale";
 import type { Locale } from "@/lib/i18n";
 import { formatJOD, parseAmount, parseOptionalAmount } from "@/lib/money";
@@ -167,7 +181,7 @@ const INVOICE_DETAILS_COPY = {
     notFoundTitle: "الفاتورة غير موجودة",
     notFoundText:
       "تعذر العثور على الفاتورة المطلوبة، أو أنها حُذفت، أو أن الرابط غير صحيح.",
-    backToInvoices: "← رجوع للفواتير",
+    backToInvoices: "رجوع للفواتير",
     detailsBadge: "تفاصيل الفاتورة",
     invoiceTitle: (number: string) => `فاتورة ${number}`,
     detailsSubtitle:
@@ -264,7 +278,7 @@ const INVOICE_DETAILS_COPY = {
     notFoundTitle: "Invoice not found",
     notFoundText:
       "The requested invoice could not be found. It may have been deleted or the link may be invalid.",
-    backToInvoices: "← Back to invoices",
+    backToInvoices: "Back to invoices",
     detailsBadge: "Invoice details",
     invoiceTitle: (number: string) => `Invoice ${number}`,
     detailsSubtitle:
@@ -659,6 +673,9 @@ export default function InvoiceDetailsPage() {
   const localeState = useLocale() as { locale?: Locale };
   const appLocale: Locale = localeState?.locale === "en" ? "en" : "ar";
   const appIsRtl = appLocale === "ar";
+  const dir = appIsRtl ? "rtl" : "ltr";
+  // "Back" points toward the reading start: right in Arabic, left in English.
+  const BackIcon = appIsRtl ? ArrowRight : ArrowLeft;
   const ui = INVOICE_DETAILS_COPY[appLocale];
   const statusLabels = STATUS_LABELS[appLocale];
   const id = params.id as string;
@@ -1181,29 +1198,15 @@ export default function InvoiceDetailsPage() {
 
   if (!invoice) {
     return (
-      <div dir={appIsRtl ? "rtl" : "ltr"} className="space-y-5 stagger">
-        <div
-          className="relative overflow-hidden rounded-[28px] border p-6"
-          style={{
-            background:
-              "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-            borderColor: "rgba(255,255,255,0.12)",
-            boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-          }}
-        >
-          <h1 className="text-2xl font-black text-white">{ui.notFoundTitle}</h1>
-
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-white/75">
-            {ui.notFoundText}
-          </p>
-        </div>
+      <div dir={dir} className="min-w-0 space-y-4 stagger">
+        <PageHeader dir={dir} title={ui.notFoundTitle} description={ui.notFoundText} />
 
         <div className="card p-8 text-center">
           <button
             onClick={() => router.push("/dashboard/finance/invoices")}
             className="btn btn-primary"
           >
-            {ui.backToInvoices.replace("← ", "")}
+            {ui.backToInvoices}
           </button>
         </div>
       </div>
@@ -1234,185 +1237,54 @@ export default function InvoiceDetailsPage() {
 
   return (
     <div
-      dir={appIsRtl ? "rtl" : "ltr"}
-      className="space-y-5 stagger print:space-y-4 print:bg-white print:text-black"
+      dir={dir}
+      className="min-w-0 space-y-4 stagger print:space-y-4 print:bg-white print:text-black"
     >
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6 print:hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className="absolute -left-14 -top-14 h-40 w-40 rounded-full"
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className="absolute -bottom-20 right-16 h-52 w-52 rounded-full"
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <button
-              onClick={() => router.push("/dashboard/finance/invoices")}
-              className="mb-3 rounded-full px-3 py-1 text-xs font-black text-white/80 transition hover:bg-white/10"
+      <PageHeader
+        dir={dir}
+        className="print:hidden"
+        eyebrow={
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span>{ui.detailsBadge}</span>
+            <span
+              className="rounded-full px-2 py-0.5 text-[11px] font-black"
+              style={{ background: "#fff", color: "var(--sidebar)" }}
             >
-              {ui.backToInvoices}
-            </button>
-
-            <div
-              className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-black"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {ui.detailsBadge}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">
-              {ui.invoiceTitle(formatInvoiceNumber(invoice.invoiceNumber))}
-            </h1>
-
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              {ui.detailsSubtitle}
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-2">
+              {statusLabels[invoice.status]}
+            </span>
+            {archivedInvoice && (
               <span
-                className="rounded-full px-3 py-1 text-xs font-black"
-                style={{
-                  background: "rgba(255,255,255,0.14)",
-                  color: "#fff",
-                }}
+                className="rounded-full px-2 py-0.5 text-[11px] font-black"
+                style={{ background: "#fff7ed", color: "#b45309" }}
               >
-                {ui.status}: {statusLabels[invoice.status]}
+                {ui.archivedClient}
               </span>
-
-              <span
-                className="rounded-full px-3 py-1 text-xs font-black"
-                style={{
-                  background: "rgba(184, 115, 51,0.18)",
-                  color: "#fff",
-                }}
-              >
-                {ui.total}: <bdi>{formatJOD(invoice.total)}</bdi>
-              </span>
-
-              {archivedInvoice && (
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-black"
-                  style={{
-                    background: "#fff7ed",
-                    color: "#b45309",
-                    border: "1px solid rgba(180, 83, 9, 0.18)",
-                  }}
-                >
-                  {ui.archivedClient}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className="inline-flex rounded-2xl border p-1"
-              style={{
-                background: "rgba(255,255,255,0.12)",
-                borderColor: "rgba(255,255,255,0.22)",
-              }}
-              aria-label={invoiceCopy.language}
-            >
-              <button
-                type="button"
-                onClick={() => setInvoiceLocale("ar")}
-                className="rounded-xl px-3 py-2 text-xs font-black transition"
-                style={{
-                  background: invoiceLocale === "ar" ? "#fff" : "transparent",
-                  color:
-                    invoiceLocale === "ar"
-                      ? "var(--sidebar)"
-                      : "rgba(255,255,255,0.82)",
-                }}
-              >
-                {ui.arabic}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setInvoiceLocale("en")}
-                className="rounded-xl px-3 py-2 text-xs font-black transition"
-                style={{
-                  background: invoiceLocale === "en" ? "#fff" : "transparent",
-                  color:
-                    invoiceLocale === "en"
-                      ? "var(--sidebar)"
-                      : "rgba(255,255,255,0.82)",
-                }}
-              >
-                {ui.english}
-              </button>
-            </div>
-
-            <button
+            )}
+          </span>
+        }
+        title={ui.invoiceTitle(formatInvoiceNumber(invoice.invoiceNumber))}
+        description={ui.detailsSubtitle}
+        actions={
+          <>
+            <PageHeaderAction
+              primary
+              icon={Pencil}
+              label={ui.edit}
               onClick={openEditModal}
               disabled={!canEditFinancials}
               title={canEditFinancials ? ui.editTitle : ui.editBlockedTitle}
-              className="btn disabled:cursor-not-allowed disabled:opacity-60"
-              style={{
-                background: "#fff",
-                color: "var(--sidebar)",
-                borderColor: "rgba(255,255,255,0.32)",
-              }}
-            >
-              {ui.edit}
-            </button>
-
-            <button
-              onClick={printInvoice}
-              className="btn"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.22)",
-              }}
-            >
-              {ui.print}
-            </button>
-
-            <button
+            />
+            <PageHeaderAction icon={Printer} label={ui.print} onClick={printInvoice} />
+            <PageHeaderAction
+              icon={FileDown}
+              label={pdfLoading ? ui.creatingPdf : "PDF"}
               onClick={downloadInvoicePDF}
               disabled={pdfLoading}
-              className="btn"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.22)",
-              }}
-            >
-              {pdfLoading ? ui.creatingPdf : "PDF"}
-            </button>
-
-            <button
-              onClick={sendInvoiceWhatsApp}
-              className="btn"
-              style={{
-                background: "rgba(34,197,94,0.18)",
-                color: "#fff",
-                borderColor: "rgba(34,197,94,0.32)",
-              }}
-            >
-              {ui.whatsapp}
-            </button>
-
-            <button
+            />
+            <PageHeaderAction icon={MessageCircle} label={ui.whatsapp} onClick={sendInvoiceWhatsApp} />
+            <PageHeaderAction
+              icon={Trash2}
+              label={ui.delete}
               onClick={deleteInvoice}
               disabled={archivedInvoice || hasPayments}
               title={
@@ -1422,48 +1294,75 @@ export default function InvoiceDetailsPage() {
                     ? ui.deletePaymentsTitle
                     : ui.deleteTitle
               }
-              className="btn disabled:cursor-not-allowed disabled:opacity-60"
-              style={{
-                background: "rgba(239,68,68,0.18)",
-                color: "#fff",
-                borderColor: "rgba(239,68,68,0.32)",
-              }}
+            />
+
+            {/* Language of the printed invoice, not of the app. */}
+            <div
+              className="inline-flex h-9 items-center rounded-xl border p-0.5"
+              style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.16)" }}
+              aria-label={invoiceCopy.language}
             >
-              {ui.delete}
-            </button>
-          </div>
-        </div>
-      </div>
+              {(["ar", "en"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setInvoiceLocale(value)}
+                  aria-pressed={invoiceLocale === value}
+                  className="h-full rounded-[10px] px-2.5 text-xs font-black transition"
+                  style={{
+                    background: invoiceLocale === value ? "#fff" : "transparent",
+                    color: invoiceLocale === value ? "var(--sidebar)" : "rgba(255,255,255,0.82)",
+                  }}
+                >
+                  {value === "ar" ? ui.arabic : ui.english}
+                </button>
+              ))}
+            </div>
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <InfoCard
-          label={ui.invoiceTotal}
-          value={formatJOD(invoice.total)}
-          hint={ui.finalAmount}
-          tone="green"
-        />
+            <PageHeaderAction
+              icon={BackIcon}
+              label={ui.backToInvoices}
+              href="/dashboard/finance/invoices"
+            />
+          </>
+        }
+      />
 
-        <InfoCard
-          label={ui.paidAmount}
-          value={formatJOD(paidTotal)}
-          hint={ui.collectedPayments(paidPayments.length)}
-          tone="green"
-        />
-
-        <InfoCard
-          label={ui.remainingAmount}
-          value={formatJOD(remainingTotal)}
-          hint={remainingTotal > 0 ? ui.remainingToCollect : ui.fullyCollected}
-          tone={remainingTotal > 0 ? "amber" : "green"}
-        />
-
-        <InfoCard
-          label={ui.paymentCount}
-          value={payments.length}
-          hint={ui.allLinkedPayments}
-        />
-      </div>
+      <PageStats
+        dir={dir}
+        className="print:hidden"
+        items={[
+          {
+            label: ui.invoiceTotal,
+            value: formatJOD(invoice.total),
+            hint: ui.finalAmount,
+            icon: <ReceiptText className="h-4 w-4" />,
+            tone: "blue",
+          },
+          {
+            label: ui.paidAmount,
+            value: formatJOD(paidTotal),
+            hint: ui.collectedPayments(paidPayments.length),
+            icon: <CircleDollarSign className="h-4 w-4" />,
+            tone: "emerald",
+          },
+          {
+            label: ui.remainingAmount,
+            value: formatJOD(remainingTotal),
+            hint: remainingTotal > 0 ? ui.remainingToCollect : ui.fullyCollected,
+            hintTone: remainingTotal > 0 ? "bad" : "good",
+            icon: <WalletCards className="h-4 w-4" />,
+            tone: remainingTotal > 0 ? "gold" : "emerald",
+          },
+          {
+            label: ui.paymentCount,
+            value: payments.length,
+            hint: ui.allLinkedPayments,
+            icon: <HandCoins className="h-4 w-4" />,
+            tone: "teal",
+          },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12 print:block">
         {/* Sidebar */}
@@ -2341,61 +2240,6 @@ export default function InvoiceDetailsPage() {
         status={successMotion?.status}
         onComplete={() => setSuccessMotion(null)}
       />
-    </div>
-  );
-}
-
-function InfoCard({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string | number;
-  hint: string;
-  tone?: "green" | "amber" | "red";
-}) {
-  const style =
-    tone === "green"
-      ? {
-          background: "var(--green-soft)",
-          color: "var(--success)",
-        }
-      : tone === "amber"
-        ? {
-            background: "var(--amber-soft)",
-            color: "#92400e",
-          }
-        : tone === "red"
-          ? {
-              background: "var(--red-soft)",
-              color: "#dc2626",
-            }
-          : {
-              background: "var(--card)",
-              color: "var(--text)",
-            };
-
-  return (
-    <div
-      className="card p-5 text-start"
-      style={{
-        background: style.background,
-        borderColor: "var(--border)",
-      }}
-    >
-      <p className="text-xs font-black" style={{ color: style.color }}>
-        {label}
-      </p>
-
-      <p className="mt-2 text-2xl font-black" style={{ color: style.color }}>
-        {value}
-      </p>
-
-      <p className="mt-1 text-xs font-bold" style={{ color: "var(--text-3)" }}>
-        {hint}
-      </p>
     </div>
   );
 }

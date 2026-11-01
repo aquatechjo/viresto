@@ -5,8 +5,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleDollarSign,
+  Pencil,
+  Percent,
+  ReceiptText,
+  Wallet,
+  WalletCards,
+} from "lucide-react";
 import AppLoader from "@/components/ui/AppLoader";
 import Modal from "@/components/ui/Modal";
+import { PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import FormField from "@/components/ui/FormField";
 import { fileSizeLabel, formatDate } from "@/lib/utils";
@@ -348,8 +359,13 @@ export default function CaseDetailPage() {
   const router = useRouter();
   const { locale, isRtl } = useLocale();
   const isArabic = locale === "ar";
+  const dir = isRtl ? "rtl" : "ltr";
+  // "Back" points toward the reading start: right in Arabic, left in English.
+  const BackIcon = isRtl ? ArrowRight : ArrowLeft;
   const pageText = {
     back: isArabic ? "رجوع" : "Back",
+    newPayment: isArabic ? "دفعة" : "Payment",
+    newInvoice: isArabic ? "فاتورة" : "Invoice",
     caseFile: isArabic ? "ملف القضية" : "Case file",
     editCase: isArabic ? "تعديل القضية" : "Edit case",
     editCaseTitle: isArabic ? "تعديل بيانات القضية" : "Edit case details",
@@ -1274,7 +1290,7 @@ export default function CaseDetailPage() {
   }
   if (!c) {
     return (
-      <div className="space-y-5 stagger" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="min-w-0 space-y-4 stagger" dir={dir}>
         <div className="card p-10 text-center">
           <h1 className="text-2xl font-black" style={{ color: "var(--text)" }}>
             {pageText.notFoundTitle}
@@ -1297,218 +1313,60 @@ export default function CaseDetailPage() {
 
   return (
     <div
-      className="case-detail-page min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
-      dir={isRtl ? "rtl" : "ltr"}
+      className="case-detail-page min-w-0 max-w-full space-y-4 overflow-x-hidden stagger"
+      dir={dir}
       style={{ "--text-3": "var(--text-2)" } as CSSProperties}
     >
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className={`absolute -top-14 h-40 w-40 rounded-full ${isRtl ? "-right-14" : "-left-14"}`}
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className={`absolute -bottom-20 h-52 w-52 rounded-full ${isRtl ? "left-16" : "right-16"}`}
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+      <PageHeader
+        dir={dir}
+        eyebrow={
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span>{pageText.caseFile}</span>
+            <span
+              className="rounded-full px-2 py-0.5 text-[11px] font-black"
+              style={{ background: "#fff", color: "var(--sidebar)" }}
+            >
+              {statusText[c.status] || c.status}
+            </span>
+            {caseArchived && (
               <span
-                className="inline-flex rounded-full px-3 py-1 text-xs font-black"
-                style={{
-                  background: "rgba(255,255,255,0.14)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                }}
+                className="rounded-full px-2 py-0.5 text-[11px] font-black"
+                style={{ background: "#fff7ed", color: "var(--warning)" }}
               >
-                {pageText.caseFile}
+                {pageText.archivedClient}
               </span>
-
-              <span
-                className="rounded-full px-3 py-1 text-xs font-black"
-                style={{
-                  background: "#fff",
-                  color: "var(--sidebar)",
-                }}
-              >
-                {statusText[c.status] || c.status}
+            )}
+            {c.caseNumber && (
+              <span>
+                · {pageText.caseNumber}: <bdi>{c.caseNumber}</bdi>
               </span>
-
-              {caseArchived && (
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-black"
-                  style={{
-                    background: "#fff7ed",
-                    color: "var(--warning)",
-                    border: "1px solid rgba(180, 83, 9, 0.22)",
-                  }}
-                >
-                  {pageText.archivedClient}
-                </span>
-              )}
-
-              {c.caseNumber && (
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-bold"
-                  style={{
-                    background: "rgba(255,255,255,0.12)",
-                    color: "#fff",
-                  }}
-                >
-                  {pageText.caseNumber}: {c.caseNumber}
-                </span>
-              )}
-            </div>
-
-            <h1 className="text-2xl font-black text-white">{c.title}</h1>
-
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-              {c.court || pageText.noCourt} · {pageText.added}{" "}
-              {displayDate(c.createdAt, isArabic)}
-            </p>
-
-            {c.description && (
-              <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-                {c.description}
-              </p>
             )}
-          </div>
-
-          <div
-            dir={isRtl ? "rtl" : "ltr"}
-            className="flex flex-wrap items-center justify-start gap-2"
-          >
-            {isArabic ? (
-              <>
-                <button
-                  type="button"
-                  onClick={openCaseEdit}
-                  disabled={caseArchived}
-                  title={
-                    caseArchived ? pageText.archivedCaseEditBlocked : undefined
-                  }
-                  className="btn disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{
-                    background: "rgba(255,255,255,0.14)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.22)",
-                  }}
-                >
-                  {pageText.editCase}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setInvoiceOpen(true)}
-                  className="btn"
-                  style={{
-                    background: "rgba(255,255,255,0.14)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.22)",
-                  }}
-                >
-                  {pageText.invoice}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPaymentOpen(true)}
-                  className="btn"
-                  style={{
-                    background: "rgba(184, 115, 51,0.18)",
-                    color: "#fff",
-                    borderColor: "rgba(184, 115, 51,0.35)",
-                  }}
-                >
-                  {pageText.payment}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => router.back()}
-                  className="btn"
-                  style={{
-                    background: "#fff",
-                    color: "var(--sidebar)",
-                    borderColor: "rgba(255,255,255,0.32)",
-                  }}
-                >
-                  {pageText.back}
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => router.back()}
-                  className="btn"
-                  style={{
-                    background: "#fff",
-                    color: "var(--sidebar)",
-                    borderColor: "rgba(255,255,255,0.32)",
-                  }}
-                >
-                  {pageText.back}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={openCaseEdit}
-                  disabled={caseArchived}
-                  title={
-                    caseArchived ? pageText.archivedCaseEditBlocked : undefined
-                  }
-                  className="btn disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{
-                    background: "rgba(255,255,255,0.14)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.22)",
-                  }}
-                >
-                  {pageText.editCase}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPaymentOpen(true)}
-                  className="btn"
-                  style={{
-                    background: "rgba(184, 115, 51,0.18)",
-                    color: "#fff",
-                    borderColor: "rgba(184, 115, 51,0.35)",
-                  }}
-                >
-                  {pageText.payment}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setInvoiceOpen(true)}
-                  className="btn"
-                  style={{
-                    background: "rgba(255,255,255,0.14)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.22)",
-                  }}
-                >
-                  {pageText.invoice}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+          </span>
+        }
+        title={c.title}
+        description={
+          <>
+            {c.court || pageText.noCourt} · {pageText.added}{" "}
+            {displayDate(c.createdAt, isArabic)}
+            {c.description && <span className="mt-1 block">{c.description}</span>}
+          </>
+        }
+        actions={
+          <>
+            <PageHeaderAction
+              primary
+              icon={Pencil}
+              label={pageText.editCase}
+              onClick={openCaseEdit}
+              disabled={caseArchived}
+              title={caseArchived ? pageText.archivedCaseEditBlocked : undefined}
+            />
+            <PageHeaderAction icon={Wallet} label={pageText.newPayment} onClick={() => setPaymentOpen(true)} />
+            <PageHeaderAction icon={ReceiptText} label={pageText.newInvoice} onClick={() => setInvoiceOpen(true)} />
+            <PageHeaderAction icon={BackIcon} label={pageText.back} onClick={() => router.back()} />
+          </>
+        }
+      />
 
       {caseArchived && (
         <div
@@ -1523,55 +1381,35 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
+      <PageStats
+        dir={dir}
+        items={[
           {
             label: pageText.agreedFees,
             value: formatJOD(c.feeAgreed || 0),
-            color: "var(--text)",
-            bg: "var(--card)",
+            icon: <ReceiptText className="h-4 w-4" />,
+            tone: "blue",
           },
           {
             label: pageText.collected,
             value: formatJOD(totals.totalPaid),
-            color: "var(--success)",
-            bg: "var(--green-soft)",
+            icon: <CircleDollarSign className="h-4 w-4" />,
+            tone: "emerald",
           },
           {
             label: pageText.remaining,
             value: formatJOD(totals.remaining),
-            color: totals.remaining > 0 ? "var(--danger)" : "var(--text-3)",
-            bg: totals.remaining > 0 ? "var(--red-soft)" : "var(--card)",
+            icon: <WalletCards className="h-4 w-4" />,
+            tone: totals.remaining > 0 ? "red" : "slate",
           },
           {
             label: pageText.collectionRate,
             value: `${Math.round(totals.pct)}%`,
-            color: totals.pct >= 80 ? "var(--success)" : "#92400e",
-            bg: totals.pct >= 80 ? "var(--green-soft)" : "var(--amber-soft)",
+            icon: <Percent className="h-4 w-4" />,
+            tone: totals.pct >= 80 ? "emerald" : "gold",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5"
-            style={{ background: item.bg, borderColor: "var(--border)" }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
-
-            <p
-              dir="ltr"
-              className={`mt-2 whitespace-nowrap text-xl font-black leading-tight ${
-                isRtl ? "text-right" : "text-left"
-              }`}
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
 
       {/* Official case details */}
       <div className="card p-5" dir={isRtl ? "rtl" : "ltr"}>

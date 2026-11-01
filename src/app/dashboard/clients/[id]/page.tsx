@@ -5,6 +5,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  Archive,
+  ArchiveRestore,
+  CircleDollarSign,
+  FileDown,
+  IdCard,
+  Mail,
+  Pencil,
+  Percent,
+  Phone,
+  ReceiptText,
+  Trash2,
+  WalletCards,
+} from "lucide-react";
+import { PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { getApiMessage } from "@/lib/plan-ui";
 import Modal from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
@@ -324,6 +339,7 @@ export default function ClientDetailPage() {
   const [archiving, setArchiving] = useState(false);
   const [, setConfirmDeleteOpen] = useState(false);
   const { locale, isRtl } = useLocale();
+  const dir = isRtl ? "rtl" : "ltr";
   const localeKey = locale === "ar" ? "ar" : "en";
   const text = COPY[localeKey];
   const writeAccess = useTenantWriteAccess(localeKey);
@@ -661,7 +677,7 @@ export default function ClientDetailPage() {
   if (!client) {
     return (
       <div
-        className="min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
+        className="min-w-0 max-w-full space-y-4 overflow-x-hidden stagger"
         dir={isRtl ? "rtl" : "ltr"}
       >
         <div className="card p-10 text-center">
@@ -686,128 +702,58 @@ export default function ClientDetailPage() {
 
   return (
     <div
-      className="client-detail-page min-w-0 max-w-full space-y-5 overflow-x-hidden stagger"
-      dir={isRtl ? "rtl" : "ltr"}
+      className="client-detail-page min-w-0 max-w-full space-y-4 overflow-x-hidden stagger"
+      dir={dir}
       style={{ "--text-3": "var(--text-2)" } as CSSProperties}
     >
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden rounded-[28px] border p-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--sidebar) 0%, var(--sidebar-hover) 60%, var(--sidebar-dark) 100%)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 18px 50px rgba(15, 61, 62, 0.18)",
-        }}
-      >
-        <div
-          className={`absolute -top-14 h-40 w-40 rounded-full ${
-            isRtl ? "-right-14" : "-left-14"
-          }`}
-          style={{ background: "rgba(184, 115, 51, 0.16)" }}
-        />
-
-        <div
-          className={`absolute -bottom-20 h-52 w-52 rounded-full ${
-            isRtl ? "left-16" : "right-16"
-          }`}
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <div
-              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl text-2xl font-black"
-              style={{
-                background: "#fff",
-                color: "var(--sidebar)",
-              }}
-            >
-              {initials(client.name)}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div
-                className="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-extrabold"
-                style={{
-                  background: client.archivedAt
-                    ? "rgba(245,158,11,0.16)"
-                    : "rgba(255,255,255,0.14)",
-                  color: "#fff",
-                  border: client.archivedAt
-                    ? "1px solid rgba(245,158,11,0.38)"
-                    : "1px solid rgba(255,255,255,0.18)",
-                }}
-              >
-                {client.archivedAt ? text.archivedClient : text.clientFile}
-              </div>
-
-              <h1 className="truncate text-2xl font-black text-white">
-                {client.name}
-              </h1>
-
-              {client.archivedAt && (
-                <p className="mt-2 max-w-3xl text-sm font-bold leading-7 text-amber-200">
-                  {text.archivedNotice}
-                </p>
-              )}
-
-              <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-white/75">
-                {text.clientSince}{" "}
-                {formatClientDate(client.createdAt, localeKey)} ·{" "}
-                {(client.cases ?? []).length} {text.linkedCaseSentence}
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {client.phone && (
-                  <span
-                    dir="ltr"
-                    className="rounded-full px-3 py-1 text-xs font-bold"
-                    style={{
-                      background: "rgba(255,255,255,0.14)",
-                      color: "#fff",
-                    }}
-                  >
-                    📞 {client.phone}
-                  </span>
-                )}
-
-                {client.email && (
-                  <span
-                    dir="ltr"
-                    className="rounded-full px-3 py-1 text-xs font-bold"
-                    style={{
-                      background: "rgba(255,255,255,0.14)",
-                      color: "#fff",
-                    }}
-                  >
-                    ✉️ {client.email}
-                  </span>
-                )}
-
-                {client.nationalId && (
-                  <span
-                    dir="ltr"
-                    className="rounded-full px-3 py-1 text-xs font-bold"
-                    style={{
-                      background: "rgba(255,255,255,0.14)",
-                      color: "#fff",
-                    }}
-                  >
-                    🪪 {client.nationalId}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
+      {/* The archived notice is the banner below, not repeated here. */}
+      <PageHeader
+        dir={dir}
+        leading={
           <div
-            className={`flex flex-wrap gap-2 ${
-              isRtl ? "justify-start xl:justify-end" : "justify-start"
-            }`}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-base font-black"
+            style={{ background: "#fff", color: "var(--sidebar)" }}
           >
-            <button
-              type="button"
+            {initials(client.name)}
+          </div>
+        }
+        eyebrow={client.archivedAt ? text.archivedClient : text.clientFile}
+        title={client.name}
+        description={
+          <>
+            {text.clientSince} {formatClientDate(client.createdAt, localeKey)} ·{" "}
+            {(client.cases ?? []).length} {text.linkedCaseSentence}
+            {(client.phone || client.email || client.nationalId) && (
+              <span className="mt-1.5 flex flex-wrap gap-1.5">
+                {(
+                  [
+                    [Phone, client.phone],
+                    [Mail, client.email],
+                    [IdCard, client.nationalId],
+                  ] as const
+                ).map(([Icon, value]) =>
+                  value ? (
+                    <span
+                      key={String(value)}
+                      dir="ltr"
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white"
+                      style={{ background: "rgba(255,255,255,0.14)" }}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {String(value)}
+                    </span>
+                  ) : null,
+                )}
+              </span>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <PageHeaderAction
+              primary
+              icon={Pencil}
+              label={text.edit}
               onClick={() => {
                 if (isArchivedClient) {
                   toast.error(text.restoreBeforeEdit);
@@ -819,77 +765,49 @@ export default function ClientDetailPage() {
               }}
               disabled={isArchivedClient}
               title={isArchivedClient ? text.restoreBeforeEdit : text.edit}
-              className="btn h-11 px-5 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.22)",
-              }}
-            >
-              {text.edit}
-            </button>
-
-            <button
-              type="button"
+            />
+            <PageHeaderAction
+              icon={client?.archivedAt ? ArchiveRestore : Archive}
+              label={
+                archiving
+                  ? localeKey === "ar"
+                    ? "جاري التنفيذ..."
+                    : "Processing..."
+                  : client?.archivedAt
+                    ? localeKey === "ar"
+                      ? "استعادة"
+                      : "Restore"
+                    : localeKey === "ar"
+                      ? "أرشفة"
+                      : "Archive"
+              }
               onClick={archiveClient}
               disabled={archiving || deleting}
-              className="btn h-11 px-5"
-              style={{
-                background: "rgba(184, 115, 51,0.16)",
-                color: "#fff",
-                borderColor: "rgba(184, 115, 51,0.38)",
-              }}
-            >
-              {archiving
-                ? localeKey === "ar"
-                  ? "جاري التنفيذ..."
-                  : "Processing..."
-                : client?.archivedAt
-                  ? localeKey === "ar"
-                    ? "استعادة"
-                    : "Restore"
-                  : localeKey === "ar"
-                    ? "أرشفة"
-                    : "Archive"}
-            </button>
-
-            <button
-              type="button"
-              onClick={deleteClient}
-              disabled={deleting}
-              className="btn h-11 px-5"
-              style={{
-                background: "rgba(220,38,38,0.16)",
-                color: "#fff",
-                borderColor: "rgba(248,113,113,0.45)",
-              }}
-            >
-              {deleting
-                ? localeKey === "ar"
-                  ? "جاري الحذف..."
-                  : "Deleting..."
-                : localeKey === "ar"
-                  ? "حذف"
-                  : "Delete"}
-            </button>
-
-            <button
-              type="button"
+            />
+            <PageHeaderAction
+              icon={FileDown}
+              label={exporting ? text.exporting : text.pdf}
               onClick={exportClientPDF}
               disabled={exporting || !canExport}
               title={!canExport ? exportBlockedMessage : text.pdf}
-              className="btn h-11 px-5"
-              style={{
-                background: "rgba(184, 115, 51,0.18)",
-                color: "#fff",
-                borderColor: "rgba(184, 115, 51,0.35)",
-              }}
-            >
-              {exporting ? text.exporting : text.pdf}
-            </button>
-          </div>
-        </div>
-      </div>
+            />
+            <PageHeaderAction
+              icon={Trash2}
+              label={
+                deleting
+                  ? localeKey === "ar"
+                    ? "جاري الحذف..."
+                    : "Deleting..."
+                  : localeKey === "ar"
+                    ? "حذف"
+                    : "Delete"
+              }
+              onClick={deleteClient}
+              disabled={deleting}
+            />
+          </>
+        }
+      />
 
       {isArchivedClient && (
         <div
@@ -931,63 +849,35 @@ export default function ClientDetailPage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
+      <PageStats
+        dir={dir}
+        items={[
           {
             label: text.stats.totalFees,
             value: formatJOD(totals.totalFees),
-            color: "var(--text)",
-            bg: "var(--card)",
+            icon: <ReceiptText className="h-4 w-4" />,
+            tone: "blue",
           },
           {
             label: text.stats.paid,
             value: formatJOD(totals.totalPaid),
-            color: "var(--text)",
-            bg: "var(--green-soft)",
+            icon: <CircleDollarSign className="h-4 w-4" />,
+            tone: "emerald",
           },
           {
             label: text.stats.remaining,
             value: formatJOD(totals.totalRemaining),
-            color: totals.totalRemaining > 0 ? "var(--danger)" : "var(--text-3)",
-            bg: totals.totalRemaining > 0 ? "var(--red-soft)" : "var(--card)",
+            icon: <WalletCards className="h-4 w-4" />,
+            tone: totals.totalRemaining > 0 ? "red" : "slate",
           },
           {
             label: text.stats.collectionRate,
             value: `${Math.round(totals.collectionRate)}%`,
-            color: totals.collectionRate >= 80 ? "var(--text)" : "#92400e",
-            bg:
-              totals.collectionRate >= 80
-                ? "var(--green-soft)"
-                : "var(--amber-soft)",
+            icon: <Percent className="h-4 w-4" />,
+            tone: totals.collectionRate >= 80 ? "emerald" : "gold",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="card p-5"
-            style={{
-              background: item.bg,
-              borderColor: "var(--border)",
-            }}
-          >
-            <p className="text-xs font-black" style={{ color: item.color }}>
-              {item.label}
-            </p>
-
-            <p
-              dir="ltr"
-              className={`
-    mt-2 whitespace-nowrap font-black leading-tight
-    ${item.label === text.stats.collectionRate ? "text-2xl" : "text-xl"}
-    ${isRtl ? "text-right" : "text-left"}
-  `}
-              style={{ color: item.color }}
-            >
-              {item.value}
-            </p>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         {/* Client Info */}
