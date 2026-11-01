@@ -30,12 +30,17 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q")?.trim();
 
-    const normalizedEmail = q ? normalizeEmail(q) : null;
-    const normalizedPhone = q ? normalizePhone(q) : null;
+    // Matching a full phone, email or national ID tells the caller whose it
+    // is, so only roles that can read those fields may search by them.
+    const canSearchContact =
+      Boolean(q) && hasPermission(auth.user.role, "client.contact.read");
+    const normalizedEmail = canSearchContact ? normalizeEmail(q!) : null;
+    const normalizedPhone = canSearchContact ? normalizePhone(q!) : null;
 
     const emailHash = normalizedEmail ? hashSearchValue(normalizedEmail) : null;
     const phoneHash = normalizedPhone ? hashSearchValue(normalizedPhone) : null;
-    const nationalIdHash = q ? hashSearchValue(q.trim()) : null;
+    const nationalIdHash = canSearchContact ? hashSearchValue(q!) : null;
+    const publicId = q && /^\d{1,9}$/.test(q) ? Number(q) : null;
 
     const pageRaw = Number(searchParams.get("page") || 1);
     const limitRaw = Number(searchParams.get("limit") || 10);
@@ -68,6 +73,7 @@ export async function GET(req: NextRequest) {
                   mode: "insensitive" as const,
                 },
               },
+              ...(publicId ? [{ publicId }] : []),
               ...(emailHash ? [{ emailHash }] : []),
               ...(phoneHash ? [{ phoneHash }] : []),
               ...(nationalIdHash ? [{ nationalIdHash }] : []),
