@@ -5,7 +5,6 @@ import Link from 'next/link'
 
 import PageLoader from '@/components/ui/PageLoader'
 import EmptyState from '@/components/ui/EmptyState'
-import { VDSSearchInput } from '@/components/ui/vds/table'
 import { formatDate } from '@/lib/utils'
 
 interface Activity {
@@ -30,6 +29,15 @@ const FILTERS = [
   { value: 'PAYMENT_ADDED', label: 'إضافة دفعة' },
   { value: 'CASE_CREATED', label: 'إنشاء قضية' },
   { value: 'CLIENT_CREATED', label: 'إنشاء موكل' },
+]
+
+// Same values as the period filter of /api/activity (Amman days).
+const PERIODS = [
+  { value: '', label: 'كل الأوقات' },
+  { value: 'today', label: 'اليوم' },
+  { value: '7d', label: 'آخر 7 أيام' },
+  { value: '30d', label: 'آخر 30 يومًا' },
+  { value: '90d', label: 'آخر 90 يومًا' },
 ]
 
 function eventLabel(type?: string | null) {
@@ -106,7 +114,7 @@ export default function SecurityDashboardClient() {
   const [loading, setLoading] = useState(true)
   const [activities, setActivities] = useState<Activity[]>([])
   const [filter, setFilter] = useState('')
-  const [search, setSearch] = useState('')
+  const [period, setPeriod] = useState('')
 
   async function load() {
     try {
@@ -116,6 +124,7 @@ export default function SecurityDashboardClient() {
       params.set('limit', '50')
 
       if (filter) params.set('type', filter)
+      if (period) params.set('period', period)
 
       const response = await fetch(`/api/activity?${params.toString()}`, {
         cache: 'no-store',
@@ -148,24 +157,7 @@ export default function SecurityDashboardClient() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter])
-
-  const filteredActivities = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
-    if (!query) return activities
-
-    return activities.filter((activity) => {
-      return (
-        activity.type?.toLowerCase().includes(query) ||
-        activity.title?.toLowerCase().includes(query) ||
-        activity.message?.toLowerCase().includes(query) ||
-        activity.entityType?.toLowerCase().includes(query) ||
-        activity.ipAddress?.toLowerCase().includes(query) ||
-        activity.actorId?.toLowerCase().includes(query)
-      )
-    })
-  }, [activities, search])
+  }, [filter, period])
 
   const stats = useMemo(() => {
     const totalEvents = activities.length
@@ -334,16 +326,7 @@ export default function SecurityDashboardClient() {
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_.8fr_auto]">
-          <VDSSearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="ابحث بالنوع، العنوان، IP، أو المستخدم..."
-            aria-label="البحث في سجلات الأمان"
-            dir="rtl"
-            clearLabel="مسح البحث"
-          />
-
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(2,minmax(0,240px))_auto] xl:justify-start">
           <select
             aria-label="فلترة سجلات الأمان"
             title="فلترة سجلات الأمان"
@@ -358,16 +341,32 @@ export default function SecurityDashboardClient() {
             ))}
           </select>
 
-          <button
-            type="button"
-            onClick={() => {
-              setSearch('')
-              setFilter('')
-            }}
-            className="btn btn-ghost h-12 whitespace-nowrap"
+          <select
+            aria-label="فلترة الفترة"
+            title="فلترة الفترة"
+            value={period}
+            onChange={(event) => setPeriod(event.target.value)}
+            className="input h-12"
           >
-            مسح الفلاتر
-          </button>
+            {PERIODS.map((item) => (
+              <option key={item.value || 'all'} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+
+          {(filter || period) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilter('')
+                setPeriod('')
+              }}
+              className="btn btn-ghost h-12 whitespace-nowrap"
+            >
+              مسح الفلاتر
+            </button>
+          )}
         </div>
       </div>
 
@@ -383,7 +382,7 @@ export default function SecurityDashboardClient() {
             </h2>
 
             <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-              {filteredActivities.length} نتيجة ظاهرة من أصل {activities.length}
+              {activities.length} حدث (أحدث 50 كحد أقصى)
             </p>
           </div>
 
@@ -396,7 +395,7 @@ export default function SecurityDashboardClient() {
           )}
         </div>
 
-        {filteredActivities.length === 0 ? (
+        {activities.length === 0 ? (
           <div className="p-8">
             <EmptyState
               icon="🛡️"
@@ -410,7 +409,7 @@ export default function SecurityDashboardClient() {
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-            {filteredActivities.map((activity) => (
+            {activities.map((activity) => (
               <div
                 key={activity.id}
                 className="flex flex-col gap-4 p-5 transition-all hover:bg-black/[0.02] xl:flex-row xl:items-start xl:justify-between"

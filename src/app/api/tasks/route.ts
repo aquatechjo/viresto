@@ -45,7 +45,6 @@ export async function GET(req: NextRequest) {
     const priority = sp.get("priority")?.trim().toUpperCase() || "";
     const clientId = sp.get("clientId")?.trim() || "";
     const caseId = sp.get("caseId")?.trim() || "";
-    const query = sp.get("q")?.trim().slice(0, 100) || "";
     const includeStats = sp.get("includeStats") !== "false";
     const includeOptions = sp.get("includeOptions") === "true";
     const pageInput = Number(sp.get("page") || "1");
@@ -93,17 +92,6 @@ export async function GET(req: NextRequest) {
         ...(priority ? { priority: priority as any } : {}),
         ...(clientId ? { clientId } : {}),
         ...(caseId ? { caseId } : {}),
-        ...(query
-          ? {
-              OR: [
-                { title: { contains: query, mode: "insensitive" as const } },
-                { description: { contains: query, mode: "insensitive" as const } },
-                { assignedTo: { name: { contains: query, mode: "insensitive" as const } } },
-                { client: { name: { contains: query, mode: "insensitive" as const } } },
-                { case: { title: { contains: query, mode: "insensitive" as const } } },
-              ],
-            }
-          : {}),
       });
 
     const now = new Date();

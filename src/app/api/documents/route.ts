@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
     const sp = new URL(req.url).searchParams;
     const caseId = sp.get("caseId");
     const clientId = sp.get("clientId");
-    const q = sp.get("q")?.trim();
     const type = sp.get("type");
     const tag = sp.get("tag")?.trim();
     const includeSummary = sp.get("includeSummary") !== "false";
@@ -71,15 +70,6 @@ export async function GET(req: NextRequest) {
                   ],
                 }
               : {}),
-        ...(q
-          ? {
-              OR: [
-                { fileName: { contains: q, mode: "insensitive" } },
-                { client: { is: { name: { contains: q, mode: "insensitive" } } } },
-                { case: { is: { title: { contains: q, mode: "insensitive" } } } },
-              ],
-            }
-          : {}),
       };
     const where = buildDocumentAccessWhere(auth.user, requestedWhere);
     const summaryWhere = buildDocumentAccessWhere(auth.user);

@@ -42,7 +42,12 @@ export async function GET(req: NextRequest) {
 
     const type = sp.get("type")?.trim() || undefined;
     const category = sp.get("category")?.trim() || undefined;
-    const q = sp.get("q")?.trim() || undefined;
+    const periodStart = activityPeriodStart(sp.get("period"));
+    const canViewEveryone = hasPermission(auth.user.role, "activity.read.all");
+    // Without activity.read.all the list is already the user's own.
+    const actorId = canViewEveryone
+      ? sp.get("actorId")?.trim() || undefined
+      : undefined;
 
     // لا تعمل count افتراضيًا لأنه مكلف تحت الضغط.
     // استخدم /api/activity?withTotal=1 فقط إذا واجهة معينة تحتاج رقم total دقيق.
@@ -70,31 +75,24 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (q) {
-      addActivityAndCondition(where, {
-        OR: [
-          { title: { contains: q, mode: "insensitive" } },
-          { message: { contains: q, mode: "insensitive" } },
-          { type: { contains: q, mode: "insensitive" } },
-          { entityType: { contains: q, mode: "insensitive" } },
-        ],
-      });
+    if (periodStart) {
+      addActivityAndCondition(where, { createdAt: { gte: periodStart } });
+    }
+
+    if (actorId) {
+      addActivityAndCondition(where, { actorId });
     }
 
     const takePlusOne = limit + 1;
 
     const statsWhere = buildVisibleActivityWhere(auth.user, canViewFinance);
 
-    const startOfToday = DateTime.now()
-      .setZone("Asia/Amman")
-      .startOf("day")
-      .toUTC()
-      .toJSDate();
+    const startOfToday = activityPeriodStart("today")!;
     const securityCondition = buildActivityCategoryCondition("security");
     const paymentCondition = buildActivityCategoryCondition("payments");
     const invoiceCondition = buildActivityCategoryCondition("invoices");
 
-    const [activitiesPlusOne, total, statsTotal, statsToday, statsSecurity, statsFinance] = await Promise.all([
+    const [activitiesPlusOne, total, statsTotal, statsToday, statsSecurity, statsFinance, members] = await Promise.all([
       prisma.activity.findMany({
         where,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -119,6 +117,15 @@ export async function GET(req: NextRequest) {
           ],
         },
       }),
+      // Choices for the user filter, deactivated members included: their
+      // past actions stay in the log.
+      canViewEveryone
+        ? prisma.user.findMany({
+            where: { tenantId: auth.user.tenantId },
+            orderBy: [{ isActive: "desc" }, { name: "asc" }],
+            select: { id: true, name: true, isActive: true },
+          })
+        : Promise.resolve(null),
     ]);
 
     const hasNextPage = activitiesPlusOne.length > limit;
@@ -185,6 +192,22 @@ export async function GET(req: NextRequest) {
         security: statsSecurity,
         finance: statsFinance,
       },
+      members,
     });
   });
+}
+
+const PERIOD_DAYS: Record<string, number> = { today: 0, "7d": 6, "30d": 29, "90d": 89 };
+
+/** Start of an Amman-time period ending today, as UTC; null for "all". */
+function activityPeriodStart(period: string | null) {
+  const days = period ? PERIOD_DAYS[period] : undefined;
+  if (days === undefined) return null;
+
+  return DateTime.now()
+    .setZone("Asia/Amman")
+    .startOf("day")
+    .minus({ days })
+    .toUTC()
+    .toJSDate();
 }

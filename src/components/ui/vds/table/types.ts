@@ -17,7 +17,6 @@ export interface VDSDataTableColumn<T> {
 }
 
 export interface VDSDataTableLabels {
-  searchPlaceholder?: string;
   emptyTitle?: string;
   emptyDescription?: string;
   selectedLabel?: (count: number) => string;

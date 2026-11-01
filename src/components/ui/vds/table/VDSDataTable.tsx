@@ -23,7 +23,6 @@ interface VDSDataTableProps<T> {
   toolbar?: ReactNode;
   filters?: ReactNode;
   actions?: ReactNode;
-  search?: ReactNode;
   emptyAction?: ReactNode;
   emptyIcon?: ReactNode;
   selectable?: boolean;
@@ -48,7 +47,6 @@ export default function VDSDataTable<T>({
   toolbar,
   filters,
   actions,
-  search,
   emptyAction,
   emptyIcon,
   selectable = false,
@@ -133,9 +131,8 @@ export default function VDSDataTable<T>({
   return (
     <VDSCard padded={false} className={`overflow-hidden ${className}`}>
       {toolbar ??
-        (search || filters || actions ? (
+        (filters || actions ? (
           <VDSTableToolbar
-            search={search}
             filters={filters}
             actions={actions}
           />

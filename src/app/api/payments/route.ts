@@ -186,17 +186,6 @@ export async function GET(req: NextRequest) {
         ...(clientId ? { clientId } : {}),
         ...(invoiceId ? { invoiceId } : {}),
         ...(status ? { status: status as any } : {}),
-        ...(q
-          ? {
-              OR: [
-                { reference: { contains: q, mode: "insensitive" as const } },
-                { client: { name: { contains: q, mode: "insensitive" as const } } },
-                { case: { title: { contains: q, mode: "insensitive" as const } } },
-                { case: { caseNumber: { contains: q, mode: "insensitive" as const } } },
-                { invoice: { invoiceNumber: { contains: q, mode: "insensitive" as const } } },
-              ],
-            }
-          : {}),
       });
 
     const paymentsQuery = prisma.payment.findMany({

@@ -244,15 +244,6 @@ export async function GET(req: NextRequest) {
               ],
             }
           : {}),
-        ...(q
-          ? {
-              OR: [
-                { invoiceNumber: { contains: q, mode: "insensitive" } },
-                { client: { name: { contains: q, mode: "insensitive" } } },
-                { case: { title: { contains: q, mode: "insensitive" } } },
-              ],
-            }
-          : {}),
       });
     const statsWhere = buildInvoiceAccessWhere(auth.user);
 

@@ -9,7 +9,6 @@ import {
   FileText,
   ReceiptText,
   RefreshCw,
-  Search,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -19,7 +18,6 @@ import {
   type VDSDataTableColumn,
   type VDSTone,
 } from "@/components/ui/vds";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import { useLocale } from "@/lib/useLocale";
 import AppLoader from "@/components/ui/AppLoader";
 import { formatInZone } from "@/lib/datetime";
@@ -59,9 +57,17 @@ const COPY = {
       finance: "حركات مالية",
     },
     filters: {
-      searchPlaceholder: "ابحث في النشاط...",
-      search: "بحث",
       typeAria: "فلترة نوع النشاط",
+      periodAria: "فلترة الفترة",
+      periodAll: "كل الأوقات",
+      periodToday: "اليوم",
+      period7d: "آخر 7 أيام",
+      period30d: "آخر 30 يومًا",
+      period90d: "آخر 90 يومًا",
+      memberAria: "فلترة المستخدم",
+      memberAll: "كل المستخدمين",
+      inactive: "معطّل",
+      clear: "مسح الفلاتر",
       all: "كل الأنشطة",
       clients: "الموكلون",
       cases: "القضايا",
@@ -189,9 +195,17 @@ const COPY = {
       finance: "Financial actions",
     },
     filters: {
-      searchPlaceholder: "Search activity...",
-      search: "Search",
       typeAria: "Filter activity type",
+      periodAria: "Filter period",
+      periodAll: "All time",
+      periodToday: "Today",
+      period7d: "Last 7 days",
+      period30d: "Last 30 days",
+      period90d: "Last 90 days",
+      memberAria: "Filter user",
+      memberAll: "All users",
+      inactive: "Inactive",
+      clear: "Clear filters",
       all: "All activities",
       clients: "Clients",
       cases: "Cases",
@@ -428,6 +442,20 @@ const TYPE_OPTIONS = [
   ["invoices", "invoices"],
   ["security", "security"],
 ] as const;
+
+const PERIOD_OPTIONS = [
+  ["all", "periodAll"],
+  ["today", "periodToday"],
+  ["7d", "period7d"],
+  ["30d", "period30d"],
+  ["90d", "period90d"],
+] as const;
+
+interface ActivityMember {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
 
 function resolveActivityKey(
   value?: string | null,
@@ -685,8 +713,10 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [type, setType] = useState("all");
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
+  const [period, setPeriod] = useState("all");
+  const [actorId, setActorId] = useState("all");
+  // Null for users who only see their own activity: no user filter then.
+  const [members, setMembers] = useState<ActivityMember[] | null>(null);
 
   async function load({ showToast = false }: { showToast?: boolean } = {}) {
     try {
@@ -698,8 +728,9 @@ export default function ActivityPage() {
         limit: String(limit),
       });
 
-      if (query.trim()) params.set("q", query.trim());
       if (type !== "all") params.set("category", type);
+      if (period !== "all") params.set("period", period);
+      if (actorId !== "all") params.set("actorId", actorId);
 
       const res = await fetch(`/api/activity?${params.toString()}`, {
         cache: "no-store",
@@ -716,6 +747,7 @@ export default function ActivityPage() {
       setActivities(payload.items);
       setPagination(payload.pagination);
       if (data?.data?.stats) setStats(data.data.stats);
+      setMembers(Array.isArray(data?.data?.members) ? data.data.members : null);
 
       if (showToast) toast.success(copy.messages.refreshed);
     } catch {
@@ -729,27 +761,19 @@ export default function ActivityPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locale, page, type, query]);
+  }, [locale, page, type, period, actorId]);
 
-  function applySearch() {
-    const nextQuery = search.trim();
-
-    if (page !== 1) {
-      setPage(1);
-    }
-
-    if (query !== nextQuery) {
-      setQuery(nextQuery);
-      return;
-    }
-
-    if (page === 1) {
-      void load();
-    }
+  function changeFilter(setter: (value: string) => void, value: string) {
+    setter(value);
+    setPage(1);
   }
 
-  function changeType(nextType: string) {
-    setType(nextType);
+  const hasActiveFilters = type !== "all" || period !== "all" || actorId !== "all";
+
+  function clearFilters() {
+    setType("all");
+    setPeriod("all");
+    setActorId("all");
     setPage(1);
   }
 
@@ -1054,55 +1078,70 @@ export default function ActivityPage() {
         ))}
       </div>
 
-      <form
-        className="card p-4"
-        dir={fieldDir}
-        onSubmit={(event) => {
-          event.preventDefault();
-          applySearch();
-        }}
-      >
-        <div className="grid gap-3 xl:grid-cols-[1fr_auto_260px] xl:items-center">
-          <VDSSearchInput
-            dir={fieldDir}
-            value={search}
-            onChange={setSearch}
-            placeholder={copy.filters.searchPlaceholder}
-            aria-label={copy.filters.search}
-            clearLabel={fieldDir === "rtl" ? "مسح البحث" : "Clear search"}
-          />
-
-          <button
-            type="submit"
-            disabled={refreshing}
-            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/30 dark:bg-[var(--brand-surface-hover)] dark:text-emerald-50 dark:hover:bg-[var(--brand-border-strong)]"
-            title={copy.filters.search}
-          >
-            <Search className="h-4 w-4" />
-            <span>{copy.filters.search}</span>
-          </button>
-
+      <div className="card p-4" dir={fieldDir}>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,240px))_auto] xl:justify-start">
           <select
             dir={fieldDir}
             value={type}
-            onChange={(e) => changeType(e.target.value)}
+            onChange={(e) => changeFilter(setType, e.target.value)}
             className="input h-12 w-full text-start"
             style={{ textAlign: fieldTextAlign }}
             aria-label={copy.filters.typeAria}
           >
             {TYPE_OPTIONS.map(([value, key]) => (
-              <option
-                key={value}
-                value={value}
-                dir={fieldDir}
-                style={{ textAlign: fieldTextAlign }}
-              >
+              <option key={value} value={value}>
                 {copy.filters[key]}
               </option>
             ))}
           </select>
+
+          <select
+            dir={fieldDir}
+            value={period}
+            onChange={(e) => changeFilter(setPeriod, e.target.value)}
+            className="input h-12 w-full text-start"
+            style={{ textAlign: fieldTextAlign }}
+            aria-label={copy.filters.periodAria}
+          >
+            {PERIOD_OPTIONS.map(([value, key]) => (
+              <option key={value} value={value}>
+                {copy.filters[key]}
+              </option>
+            ))}
+          </select>
+
+          {members && (
+            <select
+              dir={fieldDir}
+              value={actorId}
+              onChange={(e) => changeFilter(setActorId, e.target.value)}
+              className="input h-12 w-full text-start"
+              style={{ textAlign: fieldTextAlign }}
+              aria-label={copy.filters.memberAria}
+            >
+              <option value="all">{copy.filters.memberAll}</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.isActive
+                    ? member.name
+                    : `${member.name} (${copy.filters.inactive})`}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="h-12 rounded-2xl border px-5 text-sm font-black"
+              style={{ background: "var(--card)", color: "var(--text-2)", borderColor: "var(--border)" }}
+            >
+              {copy.filters.clear}
+            </button>
+          )}
         </div>
-      </form>
+      </div>
 
       <div className="min-w-0 space-y-3">
         <VDSDataTable<ActivityItem>

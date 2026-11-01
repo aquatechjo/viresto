@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import PageLoader from "@/components/ui/PageLoader";
 import EmptyState from "@/components/ui/EmptyState";
-import { VDSSearchInput } from "@/components/ui/vds/table";
 import { formatDate } from "@/lib/utils";
 import { parseDevice } from "@/lib/device";
 
@@ -49,7 +48,6 @@ export default function SessionsClient() {
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   function confirmToast(message: string) {
     return new Promise<boolean>((resolve) => {
       let settled = false;
@@ -184,25 +182,6 @@ export default function SessionsClient() {
     load();
   }, []);
 
-  const filteredSessions = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    if (!query) return sessions;
-
-    return sessions.filter((session) => {
-      const device = parseDevice(session.userAgent).toLowerCase();
-      const ip = session.ipAddress?.toLowerCase() || "";
-      const country = session.country?.toLowerCase() || "";
-      const city = session.city?.toLowerCase() || "";
-
-      return (
-        device.includes(query) ||
-        ip.includes(query) ||
-        country.includes(query) ||
-        city.includes(query)
-      );
-    });
-  }, [sessions, search]);
 
   const stats = useMemo(() => {
     const current = sessions.filter((session) => session.isCurrent).length;
@@ -376,28 +355,6 @@ export default function SessionsClient() {
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="card p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_auto]">
-          <VDSSearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="ابحث بالجهاز، المتصفح، IP، الدولة أو المدينة..."
-            aria-label="البحث في الجلسات"
-            dir="rtl"
-            clearLabel="مسح البحث"
-          />
-
-          <button
-            type="button"
-            onClick={() => setSearch("")}
-            className="btn btn-ghost h-12 whitespace-nowrap"
-          >
-            مسح البحث
-          </button>
-        </div>
-      </div>
-
       {/* Security Note */}
       {stats.others > 0 && (
         <div
@@ -414,16 +371,12 @@ export default function SessionsClient() {
       )}
 
       {/* Sessions */}
-      {filteredSessions.length === 0 ? (
+      {sessions.length === 0 ? (
         <div className="card p-8">
           <EmptyState
             icon="💻"
             title="لا توجد جلسات"
-            description={
-              sessions.length === 0
-                ? "لا توجد جلسات نشطة حاليًا."
-                : "لا توجد جلسات مطابقة للبحث الحالي."
-            }
+            description="لا توجد جلسات نشطة حاليًا."
           />
         </div>
       ) : (
@@ -438,7 +391,7 @@ export default function SessionsClient() {
               </h2>
 
               <p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>
-                {filteredSessions.length} جلسة ظاهرة من أصل {sessions.length}
+                {sessions.length} جلسة نشطة
               </p>
             </div>
 
@@ -452,7 +405,7 @@ export default function SessionsClient() {
           </div>
 
           <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-            {filteredSessions.map((session) => {
+            {sessions.map((session) => {
               const risk = getSessionRisk(session);
               const device = parseDevice(session.userAgent);
 
