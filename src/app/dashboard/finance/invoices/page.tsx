@@ -1137,12 +1137,10 @@ export default function InvoicesPage() {
     try {
       const params = new URLSearchParams();
 
-      if (archivedOnly) {
-        params.set("archivedOnly", "true");
-      } else {
-        params.set("excludeArchivedClients", "true");
-        if (status) params.set("status", status);
-      }
+      // Invoices of archived clients are records: "All" and the status cards
+      // include them; their own card is a sub-filter.
+      if (archivedOnly) params.set("archivedOnly", "true");
+      else if (status) params.set("status", status);
       params.set("page", String(page));
       params.set("limit", "20");
       if (hasLoadedStatsRef.current && !forceStats) {
