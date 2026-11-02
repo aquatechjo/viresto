@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
-import { AlarmClock, CircleDollarSign, CirclePlus, HandCoins, Hourglass, RefreshCw } from 'lucide-react'
+import { AlarmClock, CircleDollarSign, CirclePlus, HandCoins, Hourglass, RefreshCw, Wallet } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 import AppLoader from '@/components/ui/AppLoader'
 import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from '@/components/page'
@@ -148,6 +148,7 @@ const COPY = {
       cancellationReasonRequired: 'سبب الإلغاء مطلوب ويجب ألا يقل عن 5 أحرف.',
     },
     stats: {
+      all: 'كل الدفعات',
       collected: 'إجمالي المحصل',
       pending: 'دفعات معلقة',
       overdue: 'دفعات متأخرة',
@@ -155,7 +156,7 @@ const COPY = {
     },
     filters: {
       status: 'حالة الدفعة',
-      all: 'جميع الحالات',
+      other: 'حالات أخرى',
     },
     form: {
       title: 'تسجيل دفعة جديدة',
@@ -250,6 +251,7 @@ const COPY = {
         'A cancellation reason of at least 5 characters is required.',
     },
     stats: {
+      all: 'All payments',
       collected: 'Total collected',
       pending: 'Pending payments',
       overdue: 'Overdue payments',
@@ -257,7 +259,7 @@ const COPY = {
     },
     filters: {
       status: 'Payment status',
-      all: 'All statuses',
+      other: 'Other statuses',
     },
     form: {
       title: 'Record a new payment',
@@ -594,11 +596,13 @@ export default function PaymentsPage() {
 
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadedOnce, setLoadedOnce] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState<'' | PaymentStatus>('')
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 })
-  const [serverStats, setServerStats] = useState({ collected: 0, pending: 0, overdue: 0, direct: 0 })
+  // Office totals: the API leaves the status filter out of them.
+  const [serverStats, setServerStats] = useState({ collected: 0, pending: 0, overdue: 0, count: 0, direct: 0 })
   const hasLoadedStatsRef = useRef(false)
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null)
   const [draftStatuses, setDraftStatuses] = useState<
@@ -662,7 +666,7 @@ export default function PaymentsPage() {
       setPayments(unwrapPayments(payload))
       const result = (payload as { data?: unknown })?.data as {
         pagination?: { page: number; total: number; totalPages: number }
-        stats?: { collected: number; pending: number; overdue: number; direct: number }
+        stats?: { collected: number; pending: number; overdue: number; count: number; direct: number }
       } | null
       if (result?.pagination) setPagination(result.pagination)
       if (result?.stats) {
@@ -675,6 +679,7 @@ export default function PaymentsPage() {
       setError(copy.labels.loadError)
     } finally {
       setLoading(false)
+      setLoadedOnce(true)
     }
   }, [status, page, copy.labels.loadError])
 
@@ -998,7 +1003,9 @@ export default function PaymentsPage() {
     }
   }
 
-  if (loading) return <AppLoader fullScreen={false} />
+  // Only the first load replaces the page; a filter change keeps the cards
+  // on screen.
+  if (loading && !loadedOnce) return <AppLoader fullScreen={false} />
 
   return (
     <div dir={dir} className="min-w-0 space-y-4 stagger">
@@ -1032,24 +1039,43 @@ export default function PaymentsPage() {
         }
       />
 
+      {/* The cards are the status filter; direct case payments is a figure. */}
       <PageStats
         dir={dir}
+        filter={{
+          value: status,
+          onChange: (value) => {
+            setStatus(value as '' | PaymentStatus)
+            setPage(1)
+          },
+          allValue: '',
+        }}
         items={[
+          {
+            label: copy.stats.all,
+            value: stats.count,
+            filterValue: '',
+            icon: <Wallet className="h-4 w-4" />,
+            tone: 'teal',
+          },
           {
             label: copy.stats.collected,
             value: formatJOD(stats.collected),
+            filterValue: 'PAID',
             icon: <CircleDollarSign className="h-4 w-4" />,
             tone: 'emerald',
           },
           {
             label: copy.stats.pending,
             value: formatJOD(stats.pending),
+            filterValue: 'PENDING',
             icon: <Hourglass className="h-4 w-4" />,
             tone: 'gold',
           },
           {
             label: copy.stats.overdue,
             value: formatJOD(stats.overdue),
+            filterValue: 'OVERDUE',
             icon: <AlarmClock className="h-4 w-4" />,
             tone: stats.overdue > 0 ? 'red' : 'slate',
           },
@@ -1062,25 +1088,17 @@ export default function PaymentsPage() {
         ]}
       />
 
-      <FilterBar
-        dir={dir}
-        active={Boolean(status)}
-        onClear={clearFilters}
-        clearLabel={copy.actions.clear}
-      >
+      <FilterBar dir={dir}>
         <FilterSelect
           dir={dir}
-          value={status}
+          value={status === 'CANCELLED' ? status : ''}
           onChange={(event) => {
             setStatus(event.target.value as '' | PaymentStatus)
             setPage(1)
           }}
           aria-label={copy.filters.status}
         >
-          <option value="">{copy.filters.all}</option>
-          <option value="PAID">{copy.statuses.PAID}</option>
-          <option value="PENDING">{copy.statuses.PENDING}</option>
-          <option value="OVERDUE">{copy.statuses.OVERDUE}</option>
+          <option value="">{copy.filters.other}</option>
           <option value="CANCELLED">{copy.statuses.CANCELLED}</option>
         </FilterSelect>
       </FilterBar>

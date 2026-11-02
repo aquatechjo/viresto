@@ -8,8 +8,9 @@ import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
 import { VDSBadge, VDSCard, VDSGrid, type VDSTone } from "@/components/ui/vds";
 import { AlarmClock, CheckCircle2, Clock3, ListPlus, ListTodo } from "lucide-react";
-import { FilterBar, FilterChip, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import PageLoader from "@/components/ui/PageLoader";
+import { isTaskOverdue } from "@/lib/task-overdue";
 import { formatDate } from "@/lib/utils";
 import { translations, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/lib/useLocale";
@@ -43,6 +44,9 @@ interface Task {
     } | null;
   } | null;
 }
+
+/** The status cards; the API's scope parameter. */
+type TaskScope = "all" | "pending" | "done" | "overdue";
 
 type TaskStatus =
   "TODO" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "CANCELLED";
@@ -233,7 +237,6 @@ const TASK_TRANSLATIONS = {
       allClients: "جميع الموكلين",
       allCases: "جميع القضايا",
       clear: "مسح الفلاتر",
-      chips: { all: "الكل", pending: "معلقة", done: "منتهية" },
     },
     status: { pending: "معلقة", done: "منتهية" },
     empty: {
@@ -301,7 +304,6 @@ const TASK_TRANSLATIONS = {
       allClients: "All clients",
       allCases: "All cases",
       clear: "Clear filters",
-      chips: { all: "All", pending: "Pending", done: "Completed" },
     },
     status: { pending: "Pending", done: "Completed" },
     empty: {
@@ -377,7 +379,7 @@ export default function TasksPage() {
   };
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "pending" | "done">("all");
+  const [filter, setFilter] = useState<TaskScope>("all");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(INIT);
   const [saving, setSaving] = useState(false);
@@ -496,10 +498,11 @@ export default function TasksPage() {
   }, [load]);
 
   const now = useMemo(() => new Date(), []);
-  const isOverdue = useCallback((task: Task) => {
-    const status = getTaskStatus(task);
-    return status !== "COMPLETED" && status !== "CANCELLED" && !!task.dueDate && new Date(task.dueDate) < now;
-  }, [getTaskStatus, now]);
+  // Same rule as the API's overdue scope: due before today in Amman.
+  const isOverdue = useCallback(
+    (task: Task) => isTaskOverdue({ status: getTaskStatus(task), dueDate: task.dueDate }, now),
+    [getTaskStatus, now],
+  );
 
   const isSoon = useCallback((task: Task) => {
     const status = getTaskStatus(task);
@@ -653,13 +656,18 @@ export default function TasksPage() {
     }
   }
 
-  function clearFilters() {
+  // The filter bar's clear button leaves the status cards alone.
+  function clearSelectFilters() {
     setPriorityFilter("all");
     setClientFilter("all");
     setCaseFilter("all");
     setAssigneeFilter("all");
-    setFilter("all");
     setPage(1);
+  }
+
+  function clearFilters() {
+    clearSelectFilters();
+    setFilter("all");
   }
 
   function openCreateTaskModal() {
@@ -827,15 +835,22 @@ export default function TasksPage() {
         }
       />
 
+      {/* The cards are the status filter; the other filters stay below. */}
       <PageStats
         dir={dir}
+        filter={{
+          value: filter,
+          onChange: (value) => setFilter(value as TaskScope),
+          allValue: "all",
+        }}
         items={[
-          { label: taskCopy.stats.total, value: total, icon: <ListTodo className="h-4 w-4" />, tone: "teal" },
-          { label: taskCopy.stats.pending, value: pending, icon: <Clock3 className="h-4 w-4" />, tone: "gold" },
-          { label: taskCopy.stats.done, value: done, icon: <CheckCircle2 className="h-4 w-4" />, tone: "emerald" },
+          { label: taskCopy.stats.total, value: total, filterValue: "all", icon: <ListTodo className="h-4 w-4" />, tone: "teal" },
+          { label: taskCopy.stats.pending, value: pending, filterValue: "pending", icon: <Clock3 className="h-4 w-4" />, tone: "gold" },
+          { label: taskCopy.stats.done, value: done, filterValue: "done", icon: <CheckCircle2 className="h-4 w-4" />, tone: "emerald" },
           {
             label: taskCopy.stats.overdue,
             value: overdue,
+            filterValue: "overdue",
             icon: <AlarmClock className="h-4 w-4" />,
             tone: overdue > 0 ? "red" : "slate",
           },
@@ -848,22 +863,10 @@ export default function TasksPage() {
           priorityFilter !== "all" ||
           assigneeFilter !== "all" ||
           clientFilter !== "all" ||
-          caseFilter !== "all" ||
-          filter !== "all"
+          caseFilter !== "all"
         }
-        onClear={clearFilters}
+        onClear={clearSelectFilters}
         clearLabel={taskCopy.filters.clear}
-        footer={(
-          [
-            ["all", taskCopy.filters.chips.all],
-            ["pending", taskCopy.filters.chips.pending],
-            ["done", taskCopy.filters.chips.done],
-          ] as ["all" | "pending" | "done", string][]
-        ).map(([key, label]) => (
-          <FilterChip key={key} active={filter === key} onClick={() => setFilter(key)}>
-            {label}
-          </FilterChip>
-        ))}
       >
         <FilterSelect
           dir={dir}

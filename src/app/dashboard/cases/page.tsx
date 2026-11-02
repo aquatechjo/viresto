@@ -15,11 +15,13 @@ import {
   CircleDollarSign,
   Clock3,
   FilePlus2,
+  Layers,
   ReceiptText,
+  UserX,
   WalletCards,
 } from "lucide-react";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
-import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
+import { PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import {
   getApiMessage,
   isPlanLimitResponse,
@@ -80,16 +82,13 @@ interface ClientOpt {
   archivedAt?: string | null;
 }
 
-const STATUS_KEYS = [
-  "all",
-  "OPEN",
-  "IN_PROGRESS",
-  "CLOSED",
-  "ARCHIVED",
-  "ARCHIVED_CLIENT",
-] as const;
-
-type StatusFilter = (typeof STATUS_KEYS)[number];
+type StatusFilter =
+  | "all"
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "CLOSED"
+  | "ARCHIVED"
+  | "ARCHIVED_CLIENT";
 
 const CASE_STATUS_KEYS = ["OPEN", "IN_PROGRESS", "CLOSED", "ARCHIVED"] as const;
 
@@ -562,6 +561,7 @@ export default function CasesPage() {
   const closedCount = summary.counts.CLOSED || 0;
   const archivedCount = summary.counts.ARCHIVED || 0;
   const archivedClientCount = summary.archivedClientCount;
+  const allCount = Object.values(summary.counts).reduce((sum, count) => sum + (count || 0), 0);
 
   function paid(item: Case) {
     return item.payments
@@ -1062,29 +1062,33 @@ export default function CasesPage() {
         }
       />
 
-      {/* Case counts first, then the money of the same cases right under them. */}
+      {/* The status cards are the filter; the money under them is figures only. */}
       <PageStats
         dir={dir}
+        filter={{
+          value: filter,
+          onChange: (value) => setFilter(value as StatusFilter),
+          allValue: "all",
+        }}
         items={[
-          { label: text.stats.active, value: activeCount, icon: <BriefcaseBusiness className="h-4 w-4" />, tone: "teal" },
-          { label: text.stats.inProgress, value: progressCount, icon: <Clock3 className="h-4 w-4" />, tone: "gold" },
-          { label: text.stats.closed, value: closedCount, icon: <CheckCircle2 className="h-4 w-4" />, tone: "slate" },
+          { label: text.filters.statuses.all, value: allCount, filterValue: "all", icon: <Layers className="h-4 w-4" />, tone: "teal" },
+          { label: text.stats.active, value: activeCount, filterValue: "OPEN", icon: <BriefcaseBusiness className="h-4 w-4" />, tone: "teal" },
+          { label: text.stats.inProgress, value: progressCount, filterValue: "IN_PROGRESS", icon: <Clock3 className="h-4 w-4" />, tone: "gold" },
+          { label: text.stats.closed, value: closedCount, filterValue: "CLOSED", icon: <CheckCircle2 className="h-4 w-4" />, tone: "slate" },
+          { label: text.stats.archived, value: archivedCount, filterValue: "ARCHIVED", icon: <Archive className="h-4 w-4" />, tone: "slate" },
           {
-            label: text.stats.archived,
-            value: archivedCount,
-            icon: <Archive className="h-4 w-4" />,
+            label: text.stats.archivedClients,
+            value: archivedClientCount,
+            filterValue: "ARCHIVED_CLIENT",
+            icon: <UserX className="h-4 w-4" />,
             tone: archivedClientCount > 0 ? "red" : "slate",
-            hint:
-              archivedClientCount > 0
-                ? `${text.stats.archivedClients}: ${archivedClientCount}`
-                : undefined,
-            hintTone: "bad",
           },
         ]}
       />
 
       <PageStats
         dir={dir}
+        displayOnly
         items={[
           { label: text.stats.totalFees, value: formatJOD(totalFees), icon: <ReceiptText className="h-4 w-4" />, tone: "blue" },
           { label: text.stats.paid, value: formatJOD(totalPaid), icon: <CircleDollarSign className="h-4 w-4" />, tone: "emerald" },
@@ -1096,26 +1100,6 @@ export default function CasesPage() {
           },
         ]}
       />
-
-      <FilterBar
-        dir={dir}
-        active={filter !== "all"}
-        onClear={clearFilters}
-        clearLabel={text.filters.clear}
-      >
-        <FilterSelect
-          dir={dir}
-          value={filter}
-          onChange={(event) => setFilter(event.target.value as StatusFilter)}
-          aria-label={text.table.status}
-        >
-          {STATUS_KEYS.map((key) => (
-            <option key={key} value={key}>
-              {text.filters.statuses[key]}
-            </option>
-          ))}
-        </FilterSelect>
-      </FilterBar>
 
       {/* Content */}
       <VDSDataTable<Case>

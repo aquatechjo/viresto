@@ -13,7 +13,7 @@ import {
   type VDSTone,
 } from "@/components/ui/vds";
 import { FileImage, Files, FileText, FileType, FileUp } from "lucide-react";
-import { FilterBar, FilterChip, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { fileSizeLabel, relativeTime } from "@/lib/utils";
 import {
   getApiMessage,
@@ -247,7 +247,6 @@ const FILE_ICON: Record<string, { label: string; color: string }> = {
   },
 };
 
-const FILTERS: Filter[] = ["all", "pdf", "image", "doc"];
 
 const AVAILABLE_TAGS = [
   { value: "عقد", key: "contract" },
@@ -387,6 +386,7 @@ export default function DocumentsPage() {
   const [uploadTag, setUploadTag] = useState("");
 
   const [loading, setLoading] = useState(true);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
   const uploadBusy =
@@ -500,6 +500,7 @@ export default function DocumentsPage() {
       setLoadError(true);
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, [d.messages.loadError, filter, page, selectedTag]);
 
@@ -818,7 +819,9 @@ export default function DocumentsPage() {
     }
   }
 
-  if (loading) {
+  // Only the first load replaces the page; a filter change keeps the cards
+  // on screen.
+  if (loading && !loadedOnce) {
     return <AppLoader fullScreen={false} />;
   }
   return (
@@ -859,33 +862,33 @@ export default function DocumentsPage() {
         }
       />
 
+      {/* The cards filter by file type; the category stays in the bar. */}
       <PageStats
         dir={dir}
+        filter={{
+          value: filter,
+          onChange: (value) => {
+            setFilter(value as Filter);
+            setPage(1);
+          },
+          allValue: "all",
+        }}
         items={[
-          { label: d.stats.total, value: totalDocs, icon: <Files className="h-4 w-4" />, tone: "teal" },
-          { label: d.stats.pdf, value: pdfCount, icon: <FileText className="h-4 w-4" />, tone: "red" },
-          { label: d.stats.images, value: imageCount, icon: <FileImage className="h-4 w-4" />, tone: "purple" },
-          { label: d.stats.word, value: wordCount, icon: <FileType className="h-4 w-4" />, tone: "blue" },
+          { label: d.stats.total, value: totalDocs, filterValue: "all", icon: <Files className="h-4 w-4" />, tone: "teal" },
+          { label: d.stats.pdf, value: pdfCount, filterValue: "pdf", icon: <FileText className="h-4 w-4" />, tone: "red" },
+          { label: d.stats.images, value: imageCount, filterValue: "image", icon: <FileImage className="h-4 w-4" />, tone: "purple" },
+          { label: d.stats.word, value: wordCount, filterValue: "doc", icon: <FileType className="h-4 w-4" />, tone: "blue" },
         ]}
       />
 
       <FilterBar
         dir={dir}
-        active={filter !== "all" || Boolean(selectedTag)}
-        onClear={clearFilters}
+        active={Boolean(selectedTag)}
+        onClear={() => {
+          setSelectedTag("");
+          setPage(1);
+        }}
         clearLabel={d.filters.clear}
-        footer={FILTERS.map((key) => (
-          <FilterChip
-            key={key}
-            active={filter === key}
-            onClick={() => {
-              setFilter(key);
-              setPage(1);
-            }}
-          >
-            {d.filters.types[key]}
-          </FilterChip>
-        ))}
       >
         <FilterSelect
           dir={dir}

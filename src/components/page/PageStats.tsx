@@ -16,7 +16,25 @@ export interface StatItem {
   tone?: VDSTone;
   /** Makes the card a link, as on the dashboard. */
   href?: string;
+  /**
+   * In a filtering PageStats (`filter` prop): the filter value this card
+   * selects. Cards without one are figures only and look it.
+   */
+  filterValue?: string;
 }
+
+/**
+ * Makes cards with a filterValue toggle buttons for one filter state: a
+ * card is on while `value` equals its filterValue, and pressing the card
+ * that is on goes back to `allValue`.
+ */
+export interface StatsFilter {
+  value: string;
+  onChange: (value: string) => void;
+  allValue: string;
+}
+
+type CardMode = "plain" | "filter" | "display";
 
 const HINT_COLORS: Record<StatHintTone, string> = {
   good: "text-emerald-700 dark:text-emerald-300",
@@ -41,21 +59,50 @@ export function StatCard({
   tone = "teal",
   href,
   dir,
-}: StatItem & {
+  mode = "plain",
+  active = false,
+  onSelect,
+}: Omit<StatItem, "filterValue"> & {
   // The UI direction: amounts mix digits with an Arabic unit, so they
   // follow the page instead of guessing from their first letter.
   dir: "rtl" | "ltr";
+  /** plain: a figure. filter: a toggle button. display: a figure next to filter cards. */
+  mode?: CardMode;
+  active?: boolean;
+  onSelect?: () => void;
 }) {
   const text = String(value);
   const [amount, unit] = splitUnit(text);
-  const className = `flex h-full min-w-0 flex-col justify-between gap-2 border p-3.5 text-start sm:p-4 ${
+  const interactive = Boolean(href) || mode === "filter";
+  const className = `flex h-full w-full min-w-0 flex-col justify-between gap-2 border p-3.5 text-start sm:p-4 ${
     hint !== undefined ? "min-h-[124px]" : "min-h-[104px]"
-  } ${href ? "group transition duration-200 hover:-translate-y-0.5" : ""}`;
-  const style = {
-    background: "var(--card)",
-    borderColor: "var(--border)",
-    borderRadius: vds.radius.surface,
-  };
+  } ${
+    interactive
+      ? "group cursor-pointer transition duration-200 hover:-translate-y-0.5 hover:border-[var(--border-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]/50"
+      : ""
+  }`;
+  // A figure beside filter cards is flat and dashed, so it doesn't read as
+  // one more button.
+  const style =
+    mode === "filter" && active
+      ? {
+          background: "rgba(184,115,51,0.08)",
+          borderColor: "var(--gold)",
+          boxShadow: "0 0 0 1px var(--gold)",
+          borderRadius: vds.radius.surface,
+        }
+      : mode === "display"
+        ? {
+            background: "var(--card-2)",
+            borderColor: "var(--border)",
+            borderStyle: "dashed" as const,
+            borderRadius: vds.radius.surface,
+          }
+        : {
+            background: "var(--card)",
+            borderColor: "var(--border)",
+            borderRadius: vds.radius.surface,
+          };
 
   const body = (
     <>
@@ -90,6 +137,14 @@ export function StatCard({
     </>
   );
 
+  if (mode === "filter") {
+    return (
+      <button type="button" aria-pressed={active} onClick={onSelect} className={className} style={style}>
+        {body}
+      </button>
+    );
+  }
+
   return href ? (
     <Link href={href} className={className} style={style}>
       {body}
@@ -116,19 +171,46 @@ const GRID_COLUMNS: Record<number, string> = {
 export default function PageStats({
   items,
   dir,
+  filter,
+  displayOnly = false,
   className = "",
 }: {
   items: StatItem[];
   dir: "rtl" | "ltr";
+  /** Turns the cards that have a filterValue into the page's filter. */
+  filter?: StatsFilter;
+  /** Figures shown on a page whose other cards filter (e.g. amounts). */
+  displayOnly?: boolean;
   className?: string;
 }) {
   const columns = GRID_COLUMNS[items.length] ?? GRID_COLUMNS[6];
 
   return (
     <div className={`grid min-w-0 gap-3 ${columns} ${className}`}>
-      {items.map((item) => (
-        <StatCard key={item.label} {...item} dir={dir} />
-      ))}
+      {items.map(({ filterValue, ...item }) => {
+        if (filter && filterValue !== undefined) {
+          const active = filter.value === filterValue;
+          return (
+            <StatCard
+              key={item.label}
+              {...item}
+              dir={dir}
+              mode="filter"
+              active={active}
+              onSelect={() => filter.onChange(active ? filter.allValue : filterValue)}
+            />
+          );
+        }
+
+        return (
+          <StatCard
+            key={item.label}
+            {...item}
+            dir={dir}
+            mode={filter || displayOnly ? "display" : "plain"}
+          />
+        );
+      })}
     </div>
   );
 }

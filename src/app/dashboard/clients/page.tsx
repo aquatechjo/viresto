@@ -3,9 +3,9 @@ import AppLoader from "@/components/ui/AppLoader";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { BriefcaseBusiness, UserPlus, Users, UserX } from "lucide-react";
+import { Archive, UserCheck, UserPlus, Users } from "lucide-react";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
-import { FilterBar, FilterChip, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
+import { PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
@@ -52,16 +52,9 @@ const pageText = {
     newClient: "موكل جديد",
     stats: {
       total: "كل الموكلين",
-      thisMonth: "هذا الشهر",
-      withCases: "لديهم قضايا",
-      withoutCases: "بدون قضايا",
+      thisMonth: "جدد هذا الشهر",
     },
     filters: {
-      ariaCaseFilter: "فلترة حسب القضايا",
-      allClients: "جميع الموكلين",
-      withCases: "لديهم قضايا",
-      withoutCases: "بدون قضايا",
-      all: "الكل",
       clear: "مسح الفلاتر",
       activeClients: "النشطون",
       archivedClients: "المؤرشفون",
@@ -141,18 +134,10 @@ const pageText = {
     newClient: "New client",
     stats: {
       total: "All clients",
-      thisMonth: "This month",
-      withCases: "With cases",
-      withoutCases: "Without cases",
+      thisMonth: "New this month",
     },
     filters: {
-      ariaCaseFilter: "Filter by cases",
-      allClients: "All clients",
-      withCases: "With cases",
-      withoutCases: "Without cases",
-      all: "All",
       clear: "Clear filters",
-
       activeClients: "Active",
       archivedClients: "Archived",
     },
@@ -608,16 +593,18 @@ export default function ClientsPage() {
 
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  // Office totals from the API; they don't change with the archive filter.
   const [summary, setSummary] = useState({
     total: 0,
-    withCases: 0,
-    withoutCases: 0,
+    active: 0,
+    archived: 0,
     newThisMonth: 0,
   });
-  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
+  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const writeAccess = useTenantWriteAccess(localeKey);
 
@@ -654,7 +641,10 @@ export default function ClientsPage() {
     } catch (error) {
       if ((error as Error).name !== "AbortError") setLoadError(true);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+        setLoadedOnce(true);
+      }
     }
   }, [archiveFilter, page]);
 
@@ -665,7 +655,7 @@ export default function ClientsPage() {
   }, [load]);
 
   function clearFilters() {
-    setArchiveFilter("active");
+    setArchiveFilter("all");
   }
 
   function openCreateModal() {
@@ -834,7 +824,9 @@ export default function ClientsPage() {
     [localeKey, text],
   );
 
-  if (loading && clients.length === 0) {
+  // Only the first load replaces the page; switching a filter card keeps
+  // the cards on screen while the table shows its own loading state.
+  if (loading && !loadedOnce) {
     return <AppLoader fullScreen={false} />;
   }
 
@@ -867,34 +859,21 @@ export default function ClientsPage() {
           }
         />
 
+        {/* All / active / archived filter the list; "new this month" is a figure. */}
         <PageStats
           dir={dir}
+          filter={{
+            value: archiveFilter,
+            onChange: (value) => setArchiveFilter(value as ArchiveFilter),
+            allValue: "all",
+          }}
           items={[
-            { label: text.stats.total, value: summary.total, icon: <Users className="h-4 w-4" />, tone: "teal" },
+            { label: text.stats.total, value: summary.total, filterValue: "all", icon: <Users className="h-4 w-4" />, tone: "teal" },
+            { label: text.filters.activeClients, value: summary.active, filterValue: "active", icon: <UserCheck className="h-4 w-4" />, tone: "emerald" },
+            { label: text.filters.archivedClients, value: summary.archived, filterValue: "archived", icon: <Archive className="h-4 w-4" />, tone: "slate" },
             { label: text.stats.thisMonth, value: summary.newThisMonth, icon: <UserPlus className="h-4 w-4" />, tone: "blue" },
-            { label: text.stats.withCases, value: summary.withCases, icon: <BriefcaseBusiness className="h-4 w-4" />, tone: "gold" },
-            { label: text.stats.withoutCases, value: summary.withoutCases, icon: <UserX className="h-4 w-4" />, tone: "slate" },
           ]}
         />
-
-        <FilterBar
-          dir={dir}
-          active={archiveFilter !== "active"}
-          onClear={clearFilters}
-          clearLabel={text.filters.clear}
-        >
-          {(
-            [
-              ["active", text.filters.activeClients],
-              ["archived", text.filters.archivedClients],
-              ["all", text.filters.allClients],
-            ] as [ArchiveFilter, string][]
-          ).map(([key, label]) => (
-            <FilterChip key={key} active={archiveFilter === key} onClick={() => setArchiveFilter(key)}>
-              {label}
-            </FilterChip>
-          ))}
-        </FilterBar>
 
         {/* Clients table */}
         <VDSDataTable<Client>
@@ -924,7 +903,7 @@ export default function ClientsPage() {
             emptyDescription:
               loadError
                 ? localeKey === "ar" ? "تحقق من الاتصال ثم أعد المحاولة." : "Check your connection and try again."
-                : archiveFilter === "active"
+                : archiveFilter === "all"
                 ? text.empty.noClients
                 : text.empty.noResults,
             previousPage: localeKey === "ar" ? "السابق" : "Previous",
@@ -940,7 +919,7 @@ export default function ClientsPage() {
               <button type="button" onClick={() => load()} className="btn btn-primary">
                 {localeKey === "ar" ? "إعادة المحاولة" : "Try again"}
               </button>
-            ) : archiveFilter === "active" ? (
+            ) : archiveFilter === "all" ? (
               <button
                 type="button"
                 onClick={openCreateModal}

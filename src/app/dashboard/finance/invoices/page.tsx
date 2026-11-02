@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import AppLoader from "@/components/ui/AppLoader";
 import EmptyState from "@/components/ui/EmptyState";
-import { FilterBar, FilterChip, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
+import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
@@ -37,6 +37,11 @@ type InvoiceStatus =
   | "PAID"
   | "OVERDUE"
   | "CANCELLED";
+
+// The list filter. OUTSTANDING (API value) = unpaid, partially paid and
+// overdue; ARCHIVED_CLIENT is the archivedOnly flag, not a status.
+const ARCHIVED_CLIENT_VIEW = "ARCHIVED_CLIENT";
+type InvoiceView = "" | InvoiceStatus | "OUTSTANDING" | typeof ARCHIVED_CLIENT_VIEW;
 
 interface ClientOption {
   id: string;
@@ -152,8 +157,7 @@ const COPY = {
     },
     filters: {
       statusAria: "فلترة الفواتير حسب الحالة",
-      allStatuses: "كل الحالات",
-      archivedClient: "موكل مؤرشف",
+      otherStatuses: "حالات أخرى",
     },
     empty: {
       title: "لا توجد فواتير",
@@ -279,8 +283,7 @@ const COPY = {
     },
     filters: {
       statusAria: "Filter invoices by status",
-      allStatuses: "All statuses",
-      archivedClient: "Archived client",
+      otherStatuses: "Other statuses",
     },
     empty: {
       title: "No invoices",
@@ -1000,13 +1003,9 @@ export default function InvoicesPage() {
     direction: isRtl ? "rtl" : "ltr",
   } as CSSProperties;
 
-  const statusOptions: Array<{ value: "" | InvoiceStatus; label: string }> = [
-    { value: "", label: copy.filters.allStatuses },
+  // The statuses without a card. Picking one leaves no card on.
+  const otherStatusOptions: Array<{ value: InvoiceView; label: string }> = [
     { value: "DRAFT", label: copy.statuses.DRAFT },
-    { value: "UNPAID", label: copy.statuses.UNPAID },
-    { value: "PARTIALLY_PAID", label: copy.statuses.PARTIALLY_PAID },
-    { value: "PAID", label: copy.statuses.PAID },
-    { value: "OVERDUE", label: copy.statuses.OVERDUE },
     { value: "CANCELLED", label: copy.statuses.CANCELLED },
   ];
 
@@ -1016,6 +1015,7 @@ export default function InvoicesPage() {
   const [cases, setCases] = useState<CaseOption[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
@@ -1028,8 +1028,9 @@ export default function InvoicesPage() {
   const [mounted, setMounted] = useState(false);
   const [successInvoice, setSuccessInvoice] = useState<{ id: string; number?: string; status?: string } | null>(null);
 
-  const [status, setStatus] = useState<"" | InvoiceStatus>("");
-  const [archivedOnly, setArchivedOnly] = useState(false);
+  // One filter: the cards and the "other statuses" select both set it.
+  const [status, setStatus] = useState<InvoiceView>("");
+  const archivedOnly = status === ARCHIVED_CLIENT_VIEW;
 
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState("");
@@ -1136,8 +1137,8 @@ export default function InvoicesPage() {
     try {
       const params = new URLSearchParams();
 
-      if (status) params.set("status", status);
       if (archivedOnly) params.set("archivedOnly", "true");
+      else if (status) params.set("status", status);
       params.set("page", String(page));
       params.set("limit", "20");
       if (hasLoadedStatsRef.current && !forceStats) {
@@ -1173,6 +1174,7 @@ export default function InvoicesPage() {
       setLoadError(locale === "ar" ? "تعذر تحميل الفواتير. حاول مرة أخرى." : "Unable to load invoices. Please try again.");
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, [archivedOnly, copy.empty.filtered, locale, page, status]);
 
@@ -1413,11 +1415,12 @@ export default function InvoicesPage() {
 
   function clearFilters() {
     setStatus("");
-    setArchivedOnly(false);
     setPage(1);
   }
 
-  if (!mounted || loading) {
+  // Only the first load replaces the page; a filter change keeps the cards
+  // on screen.
+  if (!mounted || (loading && !loadedOnce)) {
     return <AppLoader fullScreen={false} />;
   }
 
@@ -1457,13 +1460,23 @@ export default function InvoicesPage() {
         }
       />
 
+      {/* The cards are the status filter; the total amount is a figure. */}
       <PageStats
         dir={dir}
+        filter={{
+          value: status,
+          onChange: (value) => {
+            setStatus(value as InvoiceView);
+            setPage(1);
+          },
+          allValue: "",
+        }}
         items={[
           {
             label: copy.stats.totalInvoices,
             value: stats.totalCount,
             hint: copy.stats.allInvoices,
+            filterValue: "",
             icon: <FileText className="h-4 w-4" />,
             tone: "teal",
           },
@@ -1479,6 +1492,7 @@ export default function InvoicesPage() {
             value: formatJOD(stats.paidAmount),
             hint: copy.stats.invoice(stats.paidCount),
             hintTone: "good",
+            filterValue: "PAID",
             icon: <CircleDollarSign className="h-4 w-4" />,
             tone: "emerald",
           },
@@ -1486,6 +1500,7 @@ export default function InvoicesPage() {
             label: copy.stats.unpaid,
             value: formatJOD(stats.unpaidAmount),
             hint: copy.stats.unpaidHint,
+            filterValue: "OUTSTANDING",
             icon: <Hourglass className="h-4 w-4" />,
             tone: stats.unpaidAmount > 0 ? "gold" : "slate",
           },
@@ -1494,6 +1509,7 @@ export default function InvoicesPage() {
             value: stats.overdueCount,
             hint: copy.stats.overdueHint,
             hintTone: stats.overdueCount > 0 ? "bad" : "neutral",
+            filterValue: "OVERDUE",
             icon: <AlarmClock className="h-4 w-4" />,
             tone: stats.overdueCount > 0 ? "red" : "slate",
           },
@@ -1501,44 +1517,30 @@ export default function InvoicesPage() {
             label: copy.stats.archivedClients,
             value: stats.archivedCount,
             hint: copy.stats.archivedHint,
+            filterValue: ARCHIVED_CLIENT_VIEW,
             icon: <Archive className="h-4 w-4" />,
             tone: stats.archivedCount > 0 ? "gold" : "slate",
           },
         ]}
       />
 
-      <FilterBar
-        dir={dir}
-        active={Boolean(status) || archivedOnly}
-        onClear={clearFilters}
-        clearLabel={copy.actions.clear}
-      >
+      <FilterBar dir={dir}>
         <FilterSelect
           dir={dir}
           aria-label={copy.filters.statusAria}
-          value={status}
+          value={otherStatusOptions.some((item) => item.value === status) ? status : ""}
           onChange={(event) => {
-            setStatus(event.target.value as "" | InvoiceStatus);
+            setStatus(event.target.value as InvoiceView);
             setPage(1);
           }}
         >
-          {statusOptions.map((item) => (
-            <option key={item.value || "all"} value={item.value}>
+          <option value="">{copy.filters.otherStatuses}</option>
+          {otherStatusOptions.map((item) => (
+            <option key={item.value} value={item.value}>
               {item.label}
             </option>
           ))}
         </FilterSelect>
-
-        <FilterChip
-          active={archivedOnly}
-          onClick={() => {
-            setArchivedOnly((previous) => !previous);
-            setPage(1);
-          }}
-        >
-          <Archive className="h-3.5 w-3.5" />
-          {copy.filters.archivedClient}
-        </FilterChip>
       </FilterBar>
 
       {/* Content */}

@@ -108,6 +108,10 @@ function getAppointmentTone(type: string): VDSTone {
   }
 }
 
+// Values of the page's single filter besides the appointment types.
+const TODAY_FILTER = "today";
+const CARD_TYPES = ["COURT_SESSION", "DEADLINE"];
+
 const TYPE_LABELS: Record<Locale, Record<string, string>> = {
   ar: {
     COURT_SESSION: "جلسة",
@@ -653,6 +657,8 @@ export default function AppointmentsPage() {
   const dir = isRtl ? "rtl" : "ltr";
   const tenantTimeZone = TENANT_TIME_ZONE;
   const typeLabels = TYPE_LABELS[locale] ?? TYPE_LABELS.ar;
+  // Types without a card, for the "other types" select.
+  const otherTypes = Object.entries(typeLabels).filter(([key]) => !CARD_TYPES.includes(key));
   const appointmentLogCopy =
     locale === "ar"
       ? {
@@ -736,6 +742,7 @@ export default function AppointmentsPage() {
   const [form, setForm] = useState(INIT);
 
   const [typeFilter, setTypeFilter] = useState("all");
+  const otherTypeSelected = otherTypes.some(([key]) => key === typeFilter);
   const [assigneeFilter, setAssigneeFilter] = useState("all");
   const [calendarRange, setCalendarRange] = useState<{
     from: string;
@@ -909,7 +916,13 @@ export default function AppointmentsPage() {
 
   const filteredAppts = useMemo(() => {
     return appts.filter((appt) => {
-      const matchesType = typeFilter === "all" || appt.type === typeFilter;
+      // One filter for the cards and the type select: "today" is the Amman
+      // calendar day, anything else an appointment type.
+      const matchesType =
+        typeFilter === "all" ||
+        (typeFilter === TODAY_FILTER
+          ? toDateKey(appt.startTime) === todayKey
+          : appt.type === typeFilter);
       const matchesAssignee =
         assigneeFilter === "all" ||
         (assigneeFilter === "me"
@@ -918,7 +931,7 @@ export default function AppointmentsPage() {
 
       return matchesType && matchesAssignee;
     });
-  }, [appts, assigneeFilter, currentUserId, typeFilter]);
+  }, [appts, assigneeFilter, currentUserId, todayKey, typeFilter]);
 
   const appointmentLog = useMemo(
     () =>
@@ -1294,15 +1307,18 @@ export default function AppointmentsPage() {
         }
       />
 
+      {/* The cards and the "other types" select set the same filter. */}
       <PageStats
         dir={dir}
+        filter={{ value: typeFilter, onChange: setTypeFilter, allValue: "all" }}
         items={[
-          { label: a.stats.total, value: appts.length, icon: <CalendarDays className="h-4 w-4" />, tone: "teal" },
-          { label: a.stats.today, value: todayAppts.length, icon: <CalendarClock className="h-4 w-4" />, tone: "blue" },
-          { label: a.stats.sessions, value: courtSessions, icon: <Gavel className="h-4 w-4" />, tone: "gold" },
+          { label: a.stats.total, value: appts.length, filterValue: "all", icon: <CalendarDays className="h-4 w-4" />, tone: "teal" },
+          { label: a.stats.today, value: todayAppts.length, filterValue: TODAY_FILTER, icon: <CalendarClock className="h-4 w-4" />, tone: "blue" },
+          { label: a.stats.sessions, value: courtSessions, filterValue: "COURT_SESSION", icon: <Gavel className="h-4 w-4" />, tone: "gold" },
           {
             label: a.stats.deadlines,
             value: deadlines,
+            filterValue: "DEADLINE",
             icon: <AlarmClock className="h-4 w-4" />,
             tone: deadlines > 0 ? "red" : "slate",
           },
@@ -1311,21 +1327,21 @@ export default function AppointmentsPage() {
 
       <FilterBar
         dir={dir}
-        active={typeFilter !== "all" || assigneeFilter !== "all"}
+        active={otherTypeSelected || assigneeFilter !== "all"}
         onClear={() => {
-          setTypeFilter("all");
+          if (otherTypeSelected) setTypeFilter("all");
           setAssigneeFilter("all");
         }}
         clearLabel={a.filters.clear}
       >
         <FilterSelect
           dir={dir}
-          value={typeFilter}
-          onChange={(event) => setTypeFilter(event.target.value)}
+          value={otherTypeSelected ? typeFilter : ""}
+          onChange={(event) => setTypeFilter(event.target.value || "all")}
           aria-label={a.filters.typeAria}
         >
-          <option value="all">{a.filters.chips.all}</option>
-          {Object.entries(typeLabels).map(([key, label]) => (
+          <option value="">{a.filters.otherTypes}</option>
+          {otherTypes.map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>

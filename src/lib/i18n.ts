@@ -185,12 +185,6 @@ export const translations = {
         categoryAria: "فلترة حسب التصنيف",
         allCategories: "جميع التصنيفات",
         clear: "مسح الفلاتر",
-        types: {
-          all: "الكل",
-          pdf: "PDF",
-          image: "صور",
-          doc: "Word",
-        },
       },
       upload: {
         fileAria: "رفع ملف",
@@ -329,6 +323,7 @@ export const translations = {
       filters: {
         typeAria: "فلترة حسب نوع الموعد",
         allTypes: "جميع الأنواع",
+        otherTypes: "أنواع أخرى",
         clear: "مسح الفلاتر",
         chips: {
           all: "الكل",
@@ -689,12 +684,6 @@ export const translations = {
         categoryAria: "Filter by category",
         allCategories: "All categories",
         clear: "Clear filters",
-        types: {
-          all: "All",
-          pdf: "PDF",
-          image: "Images",
-          doc: "Word",
-        },
       },
       upload: {
         fileAria: "Upload file",
@@ -837,6 +826,7 @@ export const translations = {
       filters: {
         typeAria: "Filter by appointment type",
         allTypes: "All types",
+        otherTypes: "Other types",
         clear: "Clear filters",
         chips: {
           all: "All",
