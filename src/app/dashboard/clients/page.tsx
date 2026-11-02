@@ -3,7 +3,7 @@ import AppLoader from "@/components/ui/AppLoader";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Archive, UserCheck, UserPlus, Users } from "lucide-react";
+import { Archive, UserPlus, Users } from "lucide-react";
 import { VDSDataTable, type VDSDataTableColumn } from "@/components/ui/vds";
 import { PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import { useLocale } from "@/lib/useLocale";
@@ -41,7 +41,8 @@ interface Client {
   };
 }
 
-type ArchiveFilter = "active" | "archived" | "all";
+// "active" is the page's "All": archived clients only show on their card.
+type ArchiveFilter = "active" | "archived";
 type LocaleKey = "ar" | "en";
 
 const pageText = {
@@ -56,7 +57,6 @@ const pageText = {
     },
     filters: {
       clear: "مسح الفلاتر",
-      activeClients: "النشطون",
       archivedClients: "المؤرشفون",
     },
     empty: {
@@ -138,7 +138,6 @@ const pageText = {
     },
     filters: {
       clear: "Clear filters",
-      activeClients: "Active",
       archivedClients: "Archived",
     },
     empty: {
@@ -600,11 +599,10 @@ export default function ClientsPage() {
   // Office totals from the API; they don't change with the archive filter.
   const [summary, setSummary] = useState({
     total: 0,
-    active: 0,
     archived: 0,
     newThisMonth: 0,
   });
-  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("all");
+  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const writeAccess = useTenantWriteAccess(localeKey);
 
@@ -655,7 +653,7 @@ export default function ClientsPage() {
   }, [load]);
 
   function clearFilters() {
-    setArchiveFilter("all");
+    setArchiveFilter("active");
   }
 
   function openCreateModal() {
@@ -859,17 +857,16 @@ export default function ClientsPage() {
           }
         />
 
-        {/* All / active / archived filter the list; "new this month" is a figure. */}
+        {/* "All" (not archived) and "archived" filter the list; "new this month" is a figure. */}
         <PageStats
           dir={dir}
           filter={{
             value: archiveFilter,
             onChange: (value) => setArchiveFilter(value as ArchiveFilter),
-            allValue: "all",
+            allValue: "active",
           }}
           items={[
-            { label: text.stats.total, value: summary.total, filterValue: "all", icon: <Users className="h-4 w-4" />, tone: "teal" },
-            { label: text.filters.activeClients, value: summary.active, filterValue: "active", icon: <UserCheck className="h-4 w-4" />, tone: "emerald" },
+            { label: text.stats.total, value: summary.total, filterValue: "active", icon: <Users className="h-4 w-4" />, tone: "teal" },
             { label: text.filters.archivedClients, value: summary.archived, filterValue: "archived", icon: <Archive className="h-4 w-4" />, tone: "slate" },
             { label: text.stats.thisMonth, value: summary.newThisMonth, icon: <UserPlus className="h-4 w-4" />, tone: "blue" },
           ]}
@@ -903,7 +900,7 @@ export default function ClientsPage() {
             emptyDescription:
               loadError
                 ? localeKey === "ar" ? "تحقق من الاتصال ثم أعد المحاولة." : "Check your connection and try again."
-                : archiveFilter === "all"
+                : archiveFilter === "active"
                 ? text.empty.noClients
                 : text.empty.noResults,
             previousPage: localeKey === "ar" ? "السابق" : "Previous",
@@ -919,7 +916,7 @@ export default function ClientsPage() {
               <button type="button" onClick={() => load()} className="btn btn-primary">
                 {localeKey === "ar" ? "إعادة المحاولة" : "Try again"}
               </button>
-            ) : archiveFilter === "all" ? (
+            ) : archiveFilter === "active" ? (
               <button
                 type="button"
                 onClick={openCreateModal}

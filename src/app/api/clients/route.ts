@@ -149,8 +149,8 @@ export async function GET(req: NextRequest) {
         total,
         pages: Math.ceil(total / limit),
         summary: {
-          total: summaryTotal,
-          active: summaryTotal - archivedCount,
+          // "All" on the clients page is every client not archived.
+          total: summaryTotal - archivedCount,
           archived: archivedCount,
           newThisMonth,
         },

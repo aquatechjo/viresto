@@ -36,6 +36,9 @@ export async function GET(req: NextRequest) {
     const q = sp.get("q")?.trim();
     const includeArchivedClients = sp.get("includeArchivedClients") === "true";
     const archivedClientOnly = sp.get("archivedClientOnly") === "true";
+    // The cases page's "All": everything not archived, i.e. not ARCHIVED and
+    // not a case of an archived client (those only show on their own cards).
+    const excludeArchived = sp.get("excludeArchived") === "true";
     const sort = sp.get("sort") === "updated" ? "updated" : "created";
 
     const pageRaw = Number(sp.get("page") || 1);
@@ -77,7 +80,11 @@ export async function GET(req: NextRequest) {
         ? { client: { archivedAt: { not: null } } }
         : {}),
 
-      ...(status ? { status: status as any } : {}),
+      ...(status
+        ? { status: status as any }
+        : excludeArchived
+          ? { status: { not: "ARCHIVED" as const } }
+          : {}),
       ...(clientId ? { clientId } : {}),
 
       ...(q
@@ -142,11 +149,16 @@ export async function GET(req: NextRequest) {
 
     const where = buildCaseAccessWhere(auth.user, requestedWhere);
 
-    const summaryWhere = buildCaseAccessWhere(auth.user, {
-      ...(includeArchivedClients ? {} : { client: { archivedAt: null } }),
+    // Figures with fixed meanings, whatever the request filters: status
+    // counts cover cases of non-archived clients (as the status cards list
+    // them), "archived" is every ARCHIVED case, and the money covers every
+    // case in the user's access, as before.
+    const summaryWhere = buildCaseAccessWhere(auth.user);
+    const currentClientWhere = buildCaseAccessWhere(auth.user, {
+      client: { archivedAt: null },
     });
 
-    const [data, total, statusCounts, feeAggregate, paidAggregate, archivedClientCount] =
+    const [data, total, statusCounts, feeAggregate, paidAggregate, archivedClientCount, archivedCount] =
       await Promise.all([
       prisma.case.findMany({
         where,
@@ -196,7 +208,7 @@ export async function GET(req: NextRequest) {
       prisma.case.count({ where }),
       prisma.case.groupBy({
         by: ["status"],
-        where: summaryWhere,
+        where: currentClientWhere,
         _count: { _all: true },
       }),
       prisma.case.aggregate({
@@ -212,11 +224,16 @@ export async function GET(req: NextRequest) {
           client: { archivedAt: { not: null } },
         }),
       }),
+      prisma.case.count({
+        where: buildCaseAccessWhere(auth.user, { status: "ARCHIVED" }),
+      }),
     ]);
 
-    const counts = Object.fromEntries(
+    const counts: Record<string, number> = Object.fromEntries(
       statusCounts.map((item) => [item.status, item._count._all]),
     );
+    // "All" on the cases page: not ARCHIVED and the client not archived.
+    const allCount = (counts.OPEN || 0) + (counts.IN_PROGRESS || 0) + (counts.CLOSED || 0);
     const totalFees = Number(feeAggregate._sum.feeAgreed || 0);
     const totalPaid = Number(paidAggregate._sum.amount || 0);
 
@@ -229,6 +246,8 @@ export async function GET(req: NextRequest) {
         pages: Math.ceil(total / limit),
         summary: {
           counts,
+          allCount,
+          archivedCount,
           archivedClientCount,
           totalFees,
           totalPaid,

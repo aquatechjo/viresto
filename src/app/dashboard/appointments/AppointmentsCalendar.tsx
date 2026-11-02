@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -45,6 +45,8 @@ interface AppointmentsCalendarProps {
   onDateClick: (info: any) => void;
   onEventClick: (info: any) => void;
   onRangeChange?: (range: { from: string; to: string }) => void;
+  /** Each change moves the calendar to today (in its time zone, Amman). */
+  todaySignal?: number;
 }
 
 export default function AppointmentsCalendar({
@@ -56,14 +58,21 @@ export default function AppointmentsCalendar({
   onDateClick,
   onEventClick,
   onRangeChange,
+  todaySignal = 0,
 }: AppointmentsCalendarProps) {
   const isRtl = locale === "ar";
   const isMobile = useIsMobile();
   const dayLetters = MOBILE_DAY_LETTERS[isRtl ? "ar" : "en"];
+  const calendarRef = useRef<FullCalendar>(null);
+
+  useEffect(() => {
+    if (todaySignal > 0) calendarRef.current?.getApi().today();
+  }, [todaySignal]);
 
   return (
     <div className="appointments-calendar" dir={isRtl ? "rtl" : "ltr"}>
       <FullCalendar
+        ref={calendarRef}
         key={isMobile ? "mobile" : "desktop"}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
         initialView="dayGridMonth"

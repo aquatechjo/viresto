@@ -148,6 +148,9 @@ export async function GET(req: NextRequest) {
     const includeStats = sp.get("includeStats") !== "false";
     const clientId = sp.get("clientId")?.trim() || "";
     const archivedOnly = sp.get("archivedOnly") === "true";
+    // The invoices page: invoices of archived clients only show on their own
+    // card, never in "All" or the status cards.
+    const excludeArchivedClients = sp.get("excludeArchivedClients") === "true";
     const pageRaw = Number(sp.get("page") || 1);
     const page = Number.isNaN(pageRaw) ? 1 : Math.max(Math.floor(pageRaw), 1);
 
@@ -252,7 +255,12 @@ export async function GET(req: NextRequest) {
                 { case: { client: { archivedAt: { not: null } } } },
               ],
             }
-          : {}),
+          : excludeArchivedClients
+            ? {
+                client: { archivedAt: null },
+                OR: [{ caseId: null }, { case: { client: { archivedAt: null } } }],
+              }
+            : {}),
       });
     const statsWhere = buildInvoiceAccessWhere(auth.user);
 
@@ -356,8 +364,15 @@ export async function GET(req: NextRequest) {
         : invoice.client,
     }));
 
+    // Every figure but archivedCount leaves out archived clients, the same
+    // invoices the "All" card lists.
     const stats = statRows.reduce(
       (result, invoice) => {
+        if (invoice.client?.archivedAt || invoice.case?.client?.archivedAt) {
+          result.archivedCount += 1;
+          return result;
+        }
+        result.totalCount += 1;
         const invoiceTotal = Number(invoice.total || 0);
         const paid = invoice.payments.reduce(
           (sum, payment) => sum + Number(payment.amount || 0),
@@ -371,9 +386,6 @@ export async function GET(req: NextRequest) {
         }
         if (invoice.status === "OVERDUE") result.overdueCount += 1;
         if (invoice.status === "PAID") result.paidCount += 1;
-        if (invoice.client?.archivedAt || invoice.case?.client?.archivedAt) {
-          result.archivedCount += 1;
-        }
         return result;
       },
       {
@@ -383,7 +395,7 @@ export async function GET(req: NextRequest) {
         overdueCount: 0,
         paidCount: 0,
         archivedCount: 0,
-        totalCount: statRows.length,
+        totalCount: 0,
       },
     );
 

@@ -390,6 +390,8 @@ export default function CasesPage() {
   const [loadError, setLoadError] = useState(false);
   const [summary, setSummary] = useState({
     counts: {} as Record<string, number>,
+    allCount: 0,
+    archivedCount: 0,
     archivedClientCount: 0,
     totalFees: 0,
     totalPaid: 0,
@@ -445,15 +447,20 @@ export default function CasesPage() {
       setLoading(true);
       setLoadError(false);
 
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: "20",
-        includeArchivedClients: "true",
-      });
-      if (filter !== "all" && filter !== "ARCHIVED_CLIENT") {
+      // Archived cases and cases of archived clients only come from their
+      // own cards; "All" and the status cards leave both out.
+      const params = new URLSearchParams({ page: String(page), limit: "20" });
+      if (filter === "all") {
+        params.set("excludeArchived", "true");
+      } else if (filter === "ARCHIVED_CLIENT") {
+        params.set("includeArchivedClients", "true");
+        params.set("archivedClientOnly", "true");
+      } else if (filter === "ARCHIVED") {
+        params.set("includeArchivedClients", "true");
+        params.set("status", filter);
+      } else {
         params.set("status", filter);
       }
-      if (filter === "ARCHIVED_CLIENT") params.set("archivedClientOnly", "true");
 
       const casesRes = await fetch(`/api/cases?${params.toString()}`, { signal });
 
@@ -559,9 +566,10 @@ export default function CasesPage() {
   const activeCount = summary.counts.OPEN || 0;
   const progressCount = summary.counts.IN_PROGRESS || 0;
   const closedCount = summary.counts.CLOSED || 0;
-  const archivedCount = summary.counts.ARCHIVED || 0;
+  // Same definitions as the list each card loads (see the API's summary).
+  const archivedCount = summary.archivedCount;
   const archivedClientCount = summary.archivedClientCount;
-  const allCount = Object.values(summary.counts).reduce((sum, count) => sum + (count || 0), 0);
+  const allCount = summary.allCount;
 
   function paid(item: Case) {
     return item.payments

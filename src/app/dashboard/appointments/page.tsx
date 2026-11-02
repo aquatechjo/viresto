@@ -26,6 +26,7 @@ import {
   formatTimeRange,
   toDateKey,
   toZonedInputValue,
+  zonedDayStart,
   zonedInputToUtcIso,
 } from "@/lib/datetime";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
@@ -725,6 +726,11 @@ export default function AppointmentsPage() {
   };
 
   const [appts, setAppts] = useState<Appt[]>([]);
+  // Today in Amman, loaded on its own: the card counts today whatever month
+  // the calendar shows.
+  const [todayAppts, setTodayAppts] = useState<Appt[]>([]);
+  // Bumped by the "today" card to bring the calendar back to today.
+  const [calendarTodaySignal, setCalendarTodaySignal] = useState(0);
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -762,8 +768,18 @@ export default function AppointmentsPage() {
               : ""
           }`;
 
-        const [appointmentsRes, clientsData, teamData] = await Promise.all([
+        const todayStart = zonedDayStart();
+        const tomorrowStart = DateTime.fromJSDate(todayStart)
+          .setZone(APP_TIME_ZONE)
+          .plus({ days: 1 })
+          .toJSDate();
+        const todayUrl = `/api/appointments?includeArchivedClients=true&from=${encodeURIComponent(
+          todayStart.toISOString(),
+        )}&to=${encodeURIComponent(tomorrowStart.toISOString())}`;
+
+        const [appointmentsRes, todayRes, clientsData, teamData] = await Promise.all([
           fetch(appointmentsUrl),
+          fetch(todayUrl),
           fetchJsonCached<any>(
             "/api/clients?limit=100&archive=active",
             15_000,
@@ -777,6 +793,17 @@ export default function AppointmentsPage() {
 
         setAppts(
           Array.isArray(appointmentsData.data) ? appointmentsData.data : [],
+        );
+        const todayData = todayRes.ok
+          ? await todayRes.json().catch(() => ({ data: [] }))
+          : { data: [] };
+        // The range also returns appointments that only overlap today; the
+        // card and the "today" filter count those that start today.
+        const todayKeyNow = toDateKey(todayStart);
+        setTodayAppts(
+          (Array.isArray(todayData.data) ? (todayData.data as Appt[]) : []).filter(
+            (appt) => toDateKey(appt.startTime) === todayKeyNow,
+          ),
         );
         setClients(
           Array.isArray(clientsData.data?.data)
@@ -808,6 +835,7 @@ export default function AppointmentsPage() {
 
         if (!options?.silent) {
           setAppts([]);
+          setTodayAppts([]);
           setClients([]);
           setTeamMembers([]);
         }
@@ -903,19 +931,16 @@ export default function AppointmentsPage() {
     [tenantTimeZone],
   );
 
-  const todayAppts = useMemo(
-    () =>
-      appts.filter((appt) => toDateKey(appt.startTime) === todayKey),
-    [appts, todayKey],
-  );
-
   const courtSessions = appts.filter(
     (appt) => appt.type === "COURT_SESSION",
   ).length;
   const deadlines = appts.filter((appt) => appt.type === "DEADLINE").length;
 
   const filteredAppts = useMemo(() => {
-    return appts.filter((appt) => {
+    // "Today" lists the same appointments the card counts, even if the
+    // calendar has moved to another month since.
+    const source = typeFilter === TODAY_FILTER ? todayAppts : appts;
+    return source.filter((appt) => {
       // One filter for the cards and the type select: "today" is the Amman
       // calendar day, anything else an appointment type.
       const matchesType =
@@ -931,7 +956,7 @@ export default function AppointmentsPage() {
 
       return matchesType && matchesAssignee;
     });
-  }, [appts, assigneeFilter, currentUserId, todayKey, typeFilter]);
+  }, [appts, assigneeFilter, currentUserId, todayAppts, todayKey, typeFilter]);
 
   const appointmentLog = useMemo(
     () =>
@@ -1310,7 +1335,14 @@ export default function AppointmentsPage() {
       {/* The cards and the "other types" select set the same filter. */}
       <PageStats
         dir={dir}
-        filter={{ value: typeFilter, onChange: setTypeFilter, allValue: "all" }}
+        filter={{
+          value: typeFilter,
+          onChange: (value) => {
+            setTypeFilter(value);
+            if (value === TODAY_FILTER) setCalendarTodaySignal((count) => count + 1);
+          },
+          allValue: "all",
+        }}
         items={[
           { label: a.stats.total, value: appts.length, filterValue: "all", icon: <CalendarDays className="h-4 w-4" />, tone: "teal" },
           { label: a.stats.today, value: todayAppts.length, filterValue: TODAY_FILTER, icon: <CalendarClock className="h-4 w-4" />, tone: "blue" },
@@ -1369,6 +1401,7 @@ export default function AppointmentsPage() {
         <AppointmentsCalendar
           locale={locale}
           timeZone={tenantTimeZone}
+          todaySignal={calendarTodaySignal}
           events={calendarEvents}
           onRangeChange={(range) => {
             setCalendarRange((current) =>
