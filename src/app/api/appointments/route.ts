@@ -13,6 +13,7 @@ import {
   buildCaseAccessWhere,
   buildClientAccessWhere,
 } from "@/lib/access-control";
+import { appointmentListWhere } from "@/lib/appointment-query";
 
 const appointmentUserSelect = {
   id: true,
@@ -67,64 +68,16 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await prisma.appointment.findMany({
-      where: buildAppointmentAccessWhere(auth.user, {
-        ...(assignedToId === "me"
-          ? { assignedToId: auth.user.userId }
-          : assignedToId
-            ? { assignedToId }
-            : {}),
-
-        ...(includeArchivedClients
-          ? {}
-          : {
-              AND: [
-                {
-                  OR: [
-                    {
-                      clientId: null,
-                    },
-                    {
-                      client: {
-                        archivedAt: null,
-                      },
-                    },
-                  ],
-                },
-                {
-                  OR: [
-                    {
-                      caseId: null,
-                    },
-                    {
-                      case: {
-                        client: {
-                          archivedAt: null,
-                        },
-                      },
-                    },
-                  ],
-                },
-              ],
-            }),
-
-        ...(fromDate || toDate
-          ? {
-              AND: [
-                ...(toDate ? [{ startTime: { lt: toDate } }] : []),
-                ...(fromDate
-                  ? [
-                      {
-                        OR: [
-                          { endTime: { gt: fromDate } },
-                          { endTime: null, startTime: { gte: fromDate } },
-                        ],
-                      },
-                    ]
-                  : []),
-              ],
-            }
-          : {}),
-      }),
+      where: buildAppointmentAccessWhere(
+        auth.user,
+        appointmentListWhere({
+          userId: auth.user.userId,
+          assignedToId,
+          includeArchivedClients,
+          from: fromDate,
+          to: toDate,
+        }),
+      ),
 
       include: {
         client: {
