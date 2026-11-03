@@ -1,18 +1,29 @@
 import nextEnv from "@next/env";
 import { pathToFileURL } from "node:url";
 
-// Runs before `npm run dev` (predev), never before a build (AUDIT_REPORT.md
-// C1). A development server must not hold production billing or email
-// keys: one click on a local billing page would open a real Polar checkout
-// or change a real subscription, and local emails would go out from the
-// production sender. Builds are unaffected (Vercel builds production on
-// purpose); this only stops `next dev`.
+// Runs before `npm run dev` (predev), from next.config.js when the
+// development server starts (so a bare `next dev` is covered too), and
+// before the local-only Prisma scripts (`--database`). Never before a
+// build (AUDIT_REPORT.md C1): Vercel builds production on purpose.
 //
-// Set ALLOW_PRODUCTION_KEYS_IN_DEV=1 to start anyway (still warns).
+// A development server must not hold production billing or email keys:
+// one click on a local billing page would open a real Polar checkout or
+// change a real subscription, and local emails would go out from the
+// production sender. Set ALLOW_PRODUCTION_KEYS_IN_DEV=1 to start anyway
+// (still warns).
+//
+// Nor may it touch the production database. Neon puts the branch's
+// endpoint id (ep-...) first in the host, and it is the only part of the
+// URL that differs between branches (database, user and region are the
+// same; the password changes on rotation). PROD_DB_ENDPOINT_ID names the
+// production one. Unset while the URL is on Neon, we cannot tell, so we
+// refuse. No override: there is no reason to develop on production.
 
 const { loadEnvConfig } = nextEnv;
 
 export const PRODUCTION_DOMAIN = "virestojo.com";
+
+const DATABASE_URL_NAMES = ["DATABASE_URL", "DIRECT_URL"];
 
 function value(env, name) {
   return String(env[name] ?? "").trim();
@@ -30,13 +41,21 @@ function isProductionHost(host) {
   return host === PRODUCTION_DOMAIN || host.endsWith(`.${PRODUCTION_DOMAIN}`);
 }
 
+/** The Neon endpoint id of a database URL (pooled or direct), or "". */
+export function neonEndpointId(url) {
+  const host = hostOf(url);
+  if (!host.endsWith(".neon.tech")) return "";
+  return host.split(".")[0].replace(/-pooler$/, "");
+}
+
 /** Problems with running `next dev` on this environment; empty when safe. */
 export function findProductionKeysInDev(env) {
   const problems = [];
 
-  if (value(env, "POLAR_ACCESS_TOKEN") && value(env, "POLAR_ENVIRONMENT") === "production") {
+  const polarEnvironment = value(env, "POLAR_ENVIRONMENT");
+  if (value(env, "POLAR_ACCESS_TOKEN") && polarEnvironment !== "sandbox") {
     problems.push(
-      "POLAR_ACCESS_TOKEN is a production token (POLAR_ENVIRONMENT=production): local checkouts, plan changes and refund handling would act on real customers. Use a Polar sandbox token and POLAR_ENVIRONMENT=sandbox.",
+      `POLAR_ACCESS_TOKEN is set with POLAR_ENVIRONMENT=${polarEnvironment || "(empty)"}: locally only a Polar sandbox token with POLAR_ENVIRONMENT=sandbox is allowed, or local checkouts, plan changes and refund handling could act on real customers.`,
     );
   }
 
@@ -58,33 +77,71 @@ export function findProductionKeysInDev(env) {
   return problems;
 }
 
-function main() {
-  loadEnvConfig(process.cwd(), true, { info() {}, error() {} });
+/** Problems with the database this environment points at; empty when safe. */
+export function findProductionDatabaseInDev(env) {
+  const problems = [];
+  const productionEndpoint = value(env, "PROD_DB_ENDPOINT_ID").toLowerCase();
 
-  const problems = findProductionKeysInDev(process.env);
-  if (problems.length === 0) return;
+  for (const name of DATABASE_URL_NAMES) {
+    const endpoint = neonEndpointId(value(env, name));
+    if (!endpoint) continue;
 
-  const allowed = process.env.ALLOW_PRODUCTION_KEYS_IN_DEV === "1";
+    if (!productionEndpoint) {
+      problems.push(
+        `${name} is a Neon database but PROD_DB_ENDPOINT_ID is not set, so it cannot be told apart from production. Set PROD_DB_ENDPOINT_ID to the production branch's endpoint id (ep-...) in .env.`,
+      );
+    } else if (endpoint === productionEndpoint) {
+      problems.push(
+        `${name} points at the PRODUCTION database (Neon endpoint ${endpoint}). Use the Neon dev branch locally (see OPERATIONS.md, "Development environment").`,
+      );
+    }
+  }
+
+  return problems;
+}
+
+function printProblems(title, problems) {
   const bar = "=".repeat(78);
-
   console.error(`\n${bar}`);
-  console.error(" PRODUCTION KEYS IN A DEVELOPMENT ENVIRONMENT");
+  console.error(` ${title}`);
   console.error(bar);
   for (const problem of problems) console.error(` - ${problem}`);
   console.error(bar);
+}
 
-  if (allowed) {
-    console.error(" ALLOW_PRODUCTION_KEYS_IN_DEV=1 is set: starting anyway.");
-    console.error(`${bar}\n`);
-    return;
+/**
+ * Loads the env files like Next.js does and checks them. Returns false when
+ * the development environment must not start; prints why.
+ */
+export function checkDevelopmentEnvironment({ databaseOnly = false } = {}) {
+  loadEnvConfig(process.cwd(), true, { info() {}, error() {} });
+
+  const databaseProblems = findProductionDatabaseInDev(process.env);
+  if (databaseProblems.length > 0) {
+    printProblems("PRODUCTION DATABASE IN A DEVELOPMENT ENVIRONMENT", databaseProblems);
+    console.error(" Refusing to start. Fix DATABASE_URL / DIRECT_URL in .env (no override).\n");
+    return false;
+  }
+  if (databaseOnly) return true;
+
+  const problems = findProductionKeysInDev(process.env);
+  if (problems.length === 0) return true;
+
+  printProblems("PRODUCTION KEYS IN A DEVELOPMENT ENVIRONMENT", problems);
+
+  if (process.env.ALLOW_PRODUCTION_KEYS_IN_DEV === "1") {
+    console.error(" ALLOW_PRODUCTION_KEYS_IN_DEV=1 is set: starting anyway.\n");
+    return true;
   }
 
-  console.error(" `npm run dev` refuses to start. Fix .env / .env.local (see .env.example),");
-  console.error(" or set ALLOW_PRODUCTION_KEYS_IN_DEV=1 to start anyway.");
-  console.error(`${bar}\n`);
-  process.exit(1);
+  console.error(" Refusing to start. Fix .env (see .env.example), or set");
+  console.error(" ALLOW_PRODUCTION_KEYS_IN_DEV=1 to start anyway.\n");
+  return false;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  main();
+  const ok = checkDevelopmentEnvironment({
+    databaseOnly: process.argv.includes("--database"),
+  });
+  if (!ok) process.exit(1);
 }

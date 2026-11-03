@@ -72,3 +72,54 @@ Neon Instant Restore overwrites the selected branch state and briefly interrupts
 - Monthly: validate recovery on an isolated Neon branch, never on Production.
 - After every rollback or restore: run smoke checks and verify login, billing access, uploads, notifications, and one read-only financial report.
 - After legal text changes: update the version constants in `src/lib/legal-policy.ts`, then verify that new users record the new acceptance version.
+
+## 7. Development environment
+
+Local development never touches production: its own database branch, its own secrets, sandbox or empty third-party keys.
+
+### Files
+
+- `.env`: every development value, database URLs included. Next.js and the Prisma CLI both read it (Prisma never reads `.env.local`). Template: `.env.example`.
+- `.env.local`: E2E variables only. Never a database URL: Next.js would use it and Prisma would not, so the two would silently talk to different databases.
+- Neither is committed (`.gitignore` excludes `.env*` except `.env.example`). No production value belongs in either; production values live only in Vercel.
+
+### Create the dev branch
+
+1. Neon console → the project → Branches → create a branch (e.g. `dev`) from `production`.
+2. Copy its pooled connection string into `DATABASE_URL` and its direct (non-pooler) one into `DIRECT_URL` in `.env`.
+3. Set `PROD_DB_ENDPOINT_ID` in `.env` to the endpoint id (`ep-...`) of the production branch.
+4. Check: `npx prisma migrate status` lists the same migrations as Production.
+5. Wipe the copied data and seed the dev data (below). The branch starts as a copy of production, and its encrypted fields cannot be read with the dev keys anyway.
+
+### Dev secrets
+
+The dev branch uses its own secrets, generated for it and never shared with production: `JWT_SECRET`, `ENCRYPTION_KEY` (`ENCRYPTION_KEY_ID="dev"`, `ENCRYPTION_PREVIOUS_KEYS` empty), `SEARCH_HASH_SECRET`, `VERIFICATION_SECRET`, `PASSWORD_RESET_SECRET`, `CRON_SECRET`, `HEALTHCHECK_SECRET`. Data encrypted with the production keys cannot be decrypted locally, and that is intended.
+
+Third parties: Turnstile uses Cloudflare's official test keys; Resend is empty (codes print to the dev server log); Polar takes a sandbox token only (`POLAR_ENVIRONMENT="sandbox"`); Cloudinary, Upstash, OpenAI and Sentry are empty until dev accounts exist for them.
+
+### Reset the dev data
+
+```bash
+npm run db:reset
+npm run db:seed
+ALLOW_DEMO_SEED=true DEMO_ADMIN_PASSWORD=<12+ characters> npm run db:seed:demo
+```
+
+`db:reset` drops every table of the dev branch and re-applies the migrations (Prisma then runs `prisma/seed.ts`).
+
+**Never use Neon's "Reset from parent" once real offices exist.** It copies production, with real clients' data, onto this machine. Reset with `db:reset` and the seeds instead.
+
+### The guard
+
+`scripts/check-dev-keys.mjs` refuses to start:
+
+- the dev server (from `next.config.js`, in the development-server phase only, so `next build` and Vercel never run it),
+- and `npm run db:migrate`, `db:reset`, `db:studio`, `db:seed:demo` (their `pre` scripts, `--database`),
+
+when `DATABASE_URL` or `DIRECT_URL` points at the Neon endpoint `PROD_DB_ENDPOINT_ID`, or at any Neon endpoint while `PROD_DB_ENDPOINT_ID` is empty (it cannot tell). There is no override for the database check.
+
+The Neon endpoint id is the only part of a connection string that differs between branches: database name, user and region are the same, and the password changes on rotation. It survives a branch reset, and it is not a secret.
+
+The dev server also refuses a Polar token unless `POLAR_ENVIRONMENT="sandbox"`, a Resend key with a production sender, and `APP_URL` / `NEXT_PUBLIC_APP_URL` on virestojo.com. `ALLOW_PRODUCTION_KEYS_IN_DEV=1` overrides these key checks, never the database check.
+
+`npm run db:deploy` and `npm run db:seed` are not guarded: the launch runbook runs them against production on purpose.

@@ -1,4 +1,5 @@
 const { withSentryConfig } = require('@sentry/nextjs/config')
+const { PHASE_DEVELOPMENT_SERVER } = require('next/constants')
 
 const allowedOrigins = process.env.ALLOWED_SERVER_ACTION_ORIGINS
   ? process.env.ALLOWED_SERVER_ACTION_ORIGINS.split(',').map((origin) => origin.trim())
@@ -32,7 +33,7 @@ const uploadSourceMaps = Boolean(
   process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT,
 )
 
-module.exports = withSentryConfig(nextConfig, {
+const config = withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -44,3 +45,14 @@ module.exports = withSentryConfig(nextConfig, {
     deleteSourcemapsAfterUpload: true,
   },
 })
+
+// The development server refuses a production database or production keys
+// (scripts/check-dev-keys.mjs), also when started with a bare `next dev`.
+// Only in this phase: builds (on Vercel or locally) never run the check.
+module.exports = async (phase) => {
+  if (phase === PHASE_DEVELOPMENT_SERVER) {
+    const { checkDevelopmentEnvironment } = await import('./scripts/check-dev-keys.mjs')
+    if (!checkDevelopmentEnvironment()) process.exit(1)
+  }
+  return config
+}
