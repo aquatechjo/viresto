@@ -83,6 +83,15 @@ Local development never touches production: its own database branch, its own sec
 - `.env.local`: E2E variables only. Never a database URL: Next.js would use it and Prisma would not, so the two would silently talk to different databases.
 - Neither is committed (`.gitignore` excludes `.env*` except `.env.example`). No production value belongs in either; production values live only in Vercel.
 
+### Neon branches (checked in the Neon console, 2026-11-03)
+
+| Branch | Endpoint id |
+|---|---|
+| `production` (Default) | `ep-noisy-rain-aqby4u2n` |
+| `dev` | `ep-patient-cake-aqguafst` |
+
+`ep-fancy-cake-aqcx4bb3`, which older local env files referred to, no longer exists in Neon (an old, deleted branch).
+
 ### Create the dev branch
 
 1. Neon console → the project → Branches → create a branch (e.g. `dev`) from `production`.
