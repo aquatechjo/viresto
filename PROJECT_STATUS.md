@@ -695,8 +695,10 @@
 
 - **لماذا الـ endpoint ID:** الجزء الوحيد من رابط Neon الذي يختلف بين الفروع (اسم القاعدة والمستخدم والمنطقة متطابقة، وكلمة السر تتغير بالتدوير)، ثابت بعد reset، وليس سرًّا.
 - **التحقق:** `dev-keys` + `env-check` ‏17/17 (5 اختبارات جديدة)، lint نظيف للملفات المعدلة، `npm run build` ناجح (الـ build لا يشغّل الحارس: استدعاء الـ config بمراحل build/server/export مع رابط Neon وهمي أعاد الـ config، ومرحلة التطوير رفضت)، و`npx next dev` المباشر برابط Neon وهمي خرج بـ 1 مع رسالة الحارس. **ملاحظة:** Next 16 يطبع "Ready" قبل تحميل الـ config، ثم يخرج فورًا. لم يُشغَّل `test:unit` كاملًا. HawkScan لم يعمل (`HAWK_API_KEY` غير مضبوط).
-- **endpoint الإنتاج المستخرج من `.env.local` القديم:** عُرض على المستخدم للمطابقة مع لوحة Neon؛ لم يُكتب في `.env` بعد.
-- **`E2E_ALLOWED_DATABASE_HOST`** في `.env.local` يشير لفرع ليس الإنتاج ولا فرع dev القديم في `.env`؛ يُحدَّث إلى host فرع dev الجديد.
+- **فروع Neon (من لوحة Neon، تأكيد المستخدم 2026-11-03):** الإنتاج (Default) `ep-noisy-rain-aqby4u2n`؛ dev ‏`ep-patient-cake-aqguafst`؛ `ep-fancy-cake-aqcx4bb3` غير موجود في Neon (فرع قديم محذوف). مسجّلة في `OPERATIONS.md` §7.
+- **تصحيح لتشخيص سابق:** قلتُ إن `.env.local` القديم هو الإنتاج، وإن Prisma CLI لم يكن يصل إليه. **كلاهما خطأ.** endpoints `.env.production.backup` (بالأسماء فقط): `.env` → `DATABASE_URL` = **الإنتاج** `ep-noisy-rain` (pooled)، `DIRECT_URL` و`SHADOW_DATABASE_URL` = `ep-fancy-cake` (محذوف)؛ `.env.local` → `DATABASE_URL`/`DIRECT_URL` = `ep-patient-cake` (dev)، `E2E_ALLOWED_DATABASE_HOST` = `ep-fancy-cake`. أي: سيرفر التطوير كان على `ep-patient-cake` (لأن Next يقدّم `.env.local`)، بينما كل سكربت `tsx` يقرأ `.env` فقط (مثل `db:seed`) كان يكتب على **الإنتاج**، و`prisma migrate` كان يفشل على `DIRECT_URL` المحذوف.
+- **`PROD_DB_ENDPOINT_ID`** في `.env` = `ep-noisy-rain-aqby4u2n` (بعد تصحيح أول قيمة خاطئة). الحارس يقبل روابط dev الحالية (خروج 0) ويرفض رابطًا وهميًا على `ep-noisy-rain` (خروج 1).
+- **`E2E_ALLOWED_DATABASE_HOST`** في `.env.local` = host فرع dev (pooled، صيغة `URL.host` التي يقارن بها `seed-e2e.ts`؛ التكامل وE2E يحذفان `-pooler`).
 - **`.claude/launch.json`** (غير ملتزم): إعداد `viresto-dev-safe` لم يعد ضروريًا.
 
 ## 3. تنظيف نظام الدفع اليدوي القديم (CliQ / تحويل بنكي) — ✅ مكتمل
