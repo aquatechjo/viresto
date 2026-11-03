@@ -34,6 +34,12 @@ messages passed through here-strings or pipes.
   here-string a message into `git commit`. A one-line ASCII message may
   use `-m`.
 
+## Standing rule: database writes need approval by name
+
+Any command that writes to a database (reset, seed, migrate, a tsx script
+that writes) and was not approved by name in this session: stop and ask
+first, even on dev. Never re-run a destructive command a second time.
+
 ## Archiving rule
 
 Archiving hides entities, never records.
