@@ -34,6 +34,19 @@ messages passed through here-strings or pipes.
   here-string a message into `git commit`. A one-line ASCII message may
   use `-m`.
 
+## Archiving rule
+
+Archiving hides entities, never records.
+
+- Entities (clients and cases): an archived one leaves "All" and every
+  default list; it shows only under its own "archived" card or filter.
+- Records (invoices, payments, documents, tasks, appointments) stay in
+  "All" with an "archived client" mark, and count in every figure and
+  amount (a debt on an archived client must not vanish from
+  "uncollected"). An "archived clients" card is only a sub-filter, with
+  its own number.
+- Every stat card's number must equal the total of the list it opens.
+
 ## Dates and times
 
 Users are in Jordan: everything they type or read is `Asia/Amman` time.
