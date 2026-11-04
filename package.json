@@ -25,8 +25,6 @@
     "predb:studio": "node scripts/check-dev-keys.mjs --database",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "predb:seed:demo": "node scripts/check-dev-keys.mjs --database",
-    "db:seed:demo": "tsx prisma/seed-demo.ts",
     "seed:e2e": "tsx prisma/seed-e2e.ts",
     "email:preview": "tsx scripts/preview-emails.ts"
   },

@@ -110,11 +110,10 @@ Third parties: Turnstile uses Cloudflare's official test keys; Resend is empty (
 
 ```bash
 npm run db:reset
-npm run db:seed
-ALLOW_DEMO_SEED=true DEMO_ADMIN_PASSWORD=<12+ characters> npm run db:seed:demo
+npm run seed:e2e
 ```
 
-`db:reset` drops every table of the dev branch and re-applies the migrations (Prisma then runs `prisma/seed.ts`).
+`db:reset` drops every table of the dev branch and re-applies the migrations (Prisma then runs `prisma/seed.ts`: the billing plans). `seed:e2e` creates the E2E login (`E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` in `.env.local`) as the admin of an active PRO office. For sample data, open demo mode in the app (`src/lib/demo`): it builds its own sandbox office.
 
 **Never use Neon's "Reset from parent" once real offices exist.** It copies production, with real clients' data, onto this machine. Reset with `db:reset` and the seeds instead.
 
@@ -123,7 +122,7 @@ ALLOW_DEMO_SEED=true DEMO_ADMIN_PASSWORD=<12+ characters> npm run db:seed:demo
 `scripts/check-dev-keys.mjs` refuses to start:
 
 - the dev server (from `next.config.js`, in the development-server phase only, so `next build` and Vercel never run it),
-- and `npm run db:migrate`, `db:reset`, `db:studio`, `db:seed:demo` (their `pre` scripts, `--database`),
+- and `npm run db:migrate`, `db:reset`, `db:studio` (their `pre` scripts, `--database`),
 
 when `DATABASE_URL` or `DIRECT_URL` points at the Neon endpoint `PROD_DB_ENDPOINT_ID`, or at any Neon endpoint while `PROD_DB_ENDPOINT_ID` is empty (it cannot tell). There is no override for the database check.
 
