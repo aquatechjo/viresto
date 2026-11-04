@@ -23,6 +23,7 @@ import {
   sendEmailChangeCompletedEmail,
 } from "@/lib/email";
 import { EMAIL_CHANGE_CODE_TTL_MINUTES } from "@/lib/verification-policy";
+import { normalizeEmail } from "@/lib/encryption";
 import {
   describeError,
   describeSendResult,
@@ -52,10 +53,6 @@ const requestSchema = z.discriminatedUnion("action", [
     code: z.string().regex(/^\d{6}$/),
   }),
 ]);
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
 
 function maskEmail(email: string) {
   const [localPart = "", domain = ""] = email.split("@");

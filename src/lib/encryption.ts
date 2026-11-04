@@ -202,13 +202,16 @@ export function decryptText(value?: string | null) {
   throw new Error("Encrypted value has an unsupported format");
 }
 
-export function normalizeEmail(value?: string | null) {
-  return value?.trim().toLowerCase() || null;
-}
+// The one normalization of each searchable field, used both before saving
+// (encryption and hash) and before searching, so the two always agree.
+export { normalizePhone } from "@/lib/phone";
+export { normalizeNationalId } from "@/lib/digits";
 
-export function normalizePhone(value?: string | null) {
-  if (!value) return null;
-  return value.replace(/[^\d+]/g, "").trim() || null;
+// A string always gives a string ("" stays ""); no value gives null.
+export function normalizeEmail(value: string): string;
+export function normalizeEmail(value?: string | null): string | null;
+export function normalizeEmail(value?: string | null) {
+  return typeof value === "string" ? value.trim().toLowerCase() : null;
 }
 
 export function hashSearchValue(value?: string | null) {

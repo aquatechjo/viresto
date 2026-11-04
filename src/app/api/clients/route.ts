@@ -15,6 +15,7 @@ import {
   decryptText,
   normalizeEmail,
   normalizePhone,
+  normalizeNationalId,
   hashSearchValue,
 } from "@/lib/encryption";
 import {
@@ -38,10 +39,13 @@ export async function GET(req: NextRequest) {
       Boolean(q) && hasPermission(auth.user.role, "client.contact.read");
     const normalizedEmail = canSearchContact ? normalizeEmail(q!) : null;
     const normalizedPhone = canSearchContact ? normalizePhone(q!) : null;
+    const normalizedNationalId = canSearchContact ? normalizeNationalId(q!) : null;
 
     const emailHash = normalizedEmail ? hashSearchValue(normalizedEmail) : null;
     const phoneHash = normalizedPhone ? hashSearchValue(normalizedPhone) : null;
-    const nationalIdHash = canSearchContact ? hashSearchValue(q!) : null;
+    const nationalIdHash = normalizedNationalId
+      ? hashSearchValue(normalizedNationalId)
+      : null;
     const publicId = q && /^\d{1,9}$/.test(q) ? Number(q) : null;
 
     const pageRaw = Number(searchParams.get("page") || 1);
@@ -182,13 +186,15 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = normalizeEmail(parsed.data.email);
     const normalizedPhone = normalizePhone(parsed.data.phone);
-    const normalizedNationalId = parsed.data.nationalId?.trim() || null;
+    const normalizedNationalId = normalizeNationalId(parsed.data.nationalId);
 
+    // The normalized values are what is stored, so the ciphertext and the
+    // search hash always describe the same string.
     const secureData = {
       ...parsed.data,
-      email: encryptText(parsed.data.email),
-      phone: encryptText(parsed.data.phone),
-      nationalId: encryptText(parsed.data.nationalId),
+      email: encryptText(normalizedEmail ?? parsed.data.email),
+      phone: encryptText(normalizedPhone ?? parsed.data.phone),
+      nationalId: encryptText(normalizedNationalId ?? parsed.data.nationalId),
       address: encryptText(parsed.data.address),
       notes: encryptText(parsed.data.notes),
       emailHash: normalizedEmail ? hashSearchValue(normalizedEmail) : null,

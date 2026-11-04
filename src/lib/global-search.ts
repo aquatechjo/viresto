@@ -17,9 +17,11 @@ import {
   hashSearchValue,
   normalizeEmail,
   normalizePhone,
+  normalizeNationalId,
 } from "@/lib/encryption";
 import { formatDate, formatDateTime } from "@/lib/datetime";
 import { formatJOD } from "@/lib/money";
+import { formatPhoneForDisplay } from "@/lib/phone";
 import {
   containsNormalized,
   searchableFields,
@@ -117,11 +119,12 @@ async function searchClients(user: AccessControlUser, q: PreparedQuery) {
   const canSeeContact = hasPermission(user.role, "client.contact.read");
   const phone = canSeeContact ? normalizePhone(q.raw) : null;
   const email = canSeeContact ? normalizeEmail(q.raw) : null;
+  const nationalId = canSeeContact ? normalizeNationalId(q.raw) : null;
   const hashMatches: Prisma.ClientWhereInput[] = canSeeContact
     ? [
         ...(phone ? [{ phoneHash: hashSearchValue(phone) }] : []),
         ...(email ? [{ emailHash: hashSearchValue(email) }] : []),
-        { nationalIdHash: hashSearchValue(q.raw) },
+        ...(nationalId ? [{ nationalIdHash: hashSearchValue(nationalId) }] : []),
       ]
     : [];
 
@@ -145,7 +148,9 @@ async function searchClients(user: AccessControlUser, q: PreparedQuery) {
     title: client.name,
     meta: compact([
       `#${client.publicId}`,
-      canSeeContact ? safeDecrypt(client.phone) : null,
+      canSeeContact
+        ? formatPhoneForDisplay(safeDecrypt(client.phone), { isolate: true })
+        : null,
     ]),
     href: `/dashboard/clients/${client.publicId}`,
     badge: client.archivedAt ? "ARCHIVED" : undefined,

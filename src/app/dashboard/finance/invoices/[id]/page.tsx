@@ -1,5 +1,6 @@
 "use client";
 
+import { formatPhoneForDisplay } from "@/lib/phone";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -1480,7 +1481,10 @@ export default function InvoiceDetailsPage() {
 
             <div className="mt-4 space-y-3">
               <MiniLine label={ui.name} value={invoice.client?.name} />
-              <MiniLine label={ui.phone} value={invoice.client?.phone} />
+              <MiniLine
+                label={ui.phone}
+                value={formatPhoneForDisplay(invoice.client?.phone, { isolate: true })}
+              />
               <MiniLine label={ui.email} value={invoice.client?.email} />
 
               {archivedInvoice && (
@@ -1724,7 +1728,7 @@ export default function InvoiceDetailsPage() {
                       textAlign: invoiceIsRtl ? "right" : "left",
                     }}
                   >
-                    {invoice.client?.phone || "-"}
+                    {formatPhoneForDisplay(invoice.client?.phone, { isolate: true }) || "-"}
                   </p>
                   <p
                     className="mt-1 break-all text-xs font-semibold text-[#4d6767]"

@@ -17,9 +17,15 @@ import {
 } from "@/lib/plan-ui";
 import { useFormDraft } from "@/lib/useFormDraft";
 import DigitsInput from "@/components/ui/DigitsInput";
+import PhoneInput from "@/components/ui/PhoneInput";
+import {
+  PHONE_INVALID_MESSAGE,
+  PHONE_INVALID_MESSAGE_EN,
+  formatPhoneForDisplay,
+  isValidPhone,
+} from "@/lib/phone";
 import {
   NATIONAL_ID_DIGITS_MESSAGE,
-  PHONE_DIGITS_MESSAGE,
   TEN_DIGITS,
 } from "@/lib/digits";
 import { formatInZone, NUMERIC_DATE } from "@/lib/datetime";
@@ -109,7 +115,7 @@ const pageText = {
       nameRequired: "اسم الموكل مطلوب.",
       phoneRequired: "رقم الهاتف مطلوب.",
       nationalIdRequired: "الرقم الوطني مطلوب.",
-      phoneInvalid: PHONE_DIGITS_MESSAGE,
+      phoneInvalid: PHONE_INVALID_MESSAGE,
       nationalIdInvalid: NATIONAL_ID_DIGITS_MESSAGE,
       nameTooLong: "اسم الموكل طويل جدًا.",
       phoneTooLong: "رقم الهاتف طويل جدًا.",
@@ -188,7 +194,7 @@ const pageText = {
       nameRequired: "Client name is required.",
       phoneRequired: "Phone number is required.",
       nationalIdRequired: "National ID is required.",
-      phoneInvalid: "Phone number must be 10 digits",
+      phoneInvalid: PHONE_INVALID_MESSAGE_EN,
       nationalIdInvalid: "National ID must be 10 digits",
       nameTooLong: "Client name is too long.",
       phoneTooLong: "Phone number is too long.",
@@ -265,7 +271,7 @@ function validateClientPayload(
   if (!payload.phone) return text.validation.phoneRequired;
   if (!payload.nationalId) return text.validation.nationalIdRequired;
 
-  if (!TEN_DIGITS.test(payload.phone)) return text.validation.phoneInvalid;
+  if (!isValidPhone(payload.phone)) return text.validation.phoneInvalid;
   if (!TEN_DIGITS.test(payload.nationalId))
     return text.validation.nationalIdInvalid;
   if (isTooLong(payload.name, 120)) return text.validation.nameTooLong;
@@ -447,7 +453,7 @@ function CreateClientModal({
                 {text.modal.labels.phone}{" "}
                 <span className="text-red-300">*</span>
               </label>
-              <DigitsInput
+              <PhoneInput
                 className={`input ${isRtl ? "!text-right" : "!text-left"}`}
                 name="viresto_client_phone"
                 autoComplete="new-password"
@@ -456,7 +462,7 @@ function CreateClientModal({
                 onValueChange={(phone) => setForm({ ...form, phone })}
                 incompleteMessage={text.validation.phoneInvalid}
                 error={
-                  attempted && !TEN_DIGITS.test(form.phone)
+                  attempted && !isValidPhone(form.phone)
                     ? text.validation.phoneInvalid
                     : null
                 }
@@ -731,7 +737,7 @@ export default function ClientsPage() {
         sortable: true,
         cell: (client) => (
           <span dir="ltr" className="whitespace-nowrap font-semibold">
-            {client.phone || text.card.dash}
+            {formatPhoneForDisplay(client.phone) || text.card.dash}
           </span>
         ),
       },

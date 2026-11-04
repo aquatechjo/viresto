@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs'
 import { amiriFont } from './fonts/amiri-font'
 import { formatJOD } from './money'
 import { formatDate, formatDateTime } from './datetime'
+import { formatPhoneForDisplay } from './phone'
 
 export function exportToCSV(filename: string, rows: Record<string, any>[]) {
   if (!rows.length) return
@@ -312,7 +313,8 @@ doc.setFont('Amiri', 'normal')
     head: [['البيان', 'القيمة']],
     body: [
       ['الاسم', client.name || '-'],
-      ['الهاتف', client.phone || '-'],
+      // No spaces: jsPDF lays digit groups out right to left in Arabic rows.
+      ['الهاتف', formatPhoneForDisplay(client.phone).replace(/ /g, '') || '-'],
       ['البريد', client.email || '-'],
       ['العنوان', client.address || '-'],
       ['رقم الهوية', client.nationalId || '-'],

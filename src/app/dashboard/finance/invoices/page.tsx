@@ -1,5 +1,6 @@
 "use client";
 
+import { formatPhoneForDisplay } from "@/lib/phone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -1767,7 +1768,7 @@ export default function InvoicesPage() {
                               className="text-xs"
                               style={{ color: "var(--text-3)" }}
                             >
-                              <span dir="ltr">{invoice.client.phone}</span>
+                              <span dir="ltr">{formatPhoneForDisplay(invoice.client.phone)}</span>
                             </p>
                           )}
 

@@ -70,3 +70,19 @@ test("name and publicId search work for every role", async () => {
     assert.ok((await searchWhere(role, "42")).includes('"publicId":42'), role);
   }
 });
+
+test("every way to type a phone searches the same hash, and so does a spaced national ID", async () => {
+  const { hashSearchValue } = await import("../../src/lib/encryption");
+  const phoneHash = hashSearchValue("+962791234567")!;
+  for (const q of ["0791234567", "+962791234567", "00962791234567", "962791234567", "٠٧٩١٢٣٤٥٦٧", "079 123 4567"]) {
+    assert.ok((await searchWhere("ADMIN", q)).includes(phoneHash), q);
+  }
+
+  const nationalIdHash = hashSearchValue("9991234567")!;
+  for (const q of ["9991234567", "٩٩٩١٢٣٤٥٦٧", "999 123 4567"]) {
+    assert.ok((await searchWhere("ADMIN", q)).includes(nationalIdHash), q);
+  }
+
+  // Text that is no national ID is not hashed as one.
+  assert.ok(!(await searchWhere("ADMIN", "أحمد")).includes("nationalIdHash"));
+});

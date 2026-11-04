@@ -129,7 +129,8 @@ test("a locked office's ADMIN downloads all office data; other roles cannot", as
   assert.equal(data.users.length, 2);
   assert.equal(data.clients.length, 1);
   assert.equal(data.clients[0].name, "Export Client");
-  assert.equal(data.clients[0].phone, "0791111111", "client fields are decrypted");
+  // Decrypted, in the stored E.164 form.
+  assert.equal(data.clients[0].phone, "+962791111111", "client fields are decrypted");
   assert.equal(data.clients[0].notes, "notes of Export Client");
   assert.ok(data.subscriptions.length >= 1);
   for (const key of ["cases", "caseMembers", "appointments", "tasks", "documents", "invoices", "payments", "activities"]) {

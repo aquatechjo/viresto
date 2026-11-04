@@ -1,5 +1,6 @@
 "use client";
 
+import { formatPhoneForDisplay } from "@/lib/phone";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
@@ -1263,7 +1264,7 @@ export default function CasesPage() {
                             }`}
                             style={{ color: "var(--text-3)" }}
                           >
-                            {client.phone || ""}
+                            {formatPhoneForDisplay(client.phone)}
                             {client.nationalId ? ` - ${client.nationalId}` : ""}
                           </span>
                         )}

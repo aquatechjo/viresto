@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { formatJOD } from "@/lib/money";
 import { formatInZone } from "@/lib/datetime";
+import { formatPhoneForDisplay, normalizePhone } from "@/lib/phone";
 
 export type InvoiceLocale = "ar" | "en";
 
@@ -202,6 +203,10 @@ export function safeInvoiceFilename(invoiceNumber?: string | null) {
 
 export function normalizeWhatsAppPhone(phone?: string | null) {
   if (!phone) return "";
+
+  // wa.me takes the E.164 digits without "+".
+  const normalized = normalizePhone(phone);
+  if (normalized) return normalized.slice(1);
 
   const cleaned = phone.replace(/[^\d+]/g, "");
 
@@ -951,7 +956,7 @@ export function buildInvoicePrintHtml(
         <div class="box">
           <h3>${escapeHtml(copy.clientDetails)}</h3>
           <div class="main-value">${escapeHtml(invoice.client?.name || "-")}</div>
-          <div class="muted numeric">${escapeHtml(invoice.client?.phone || "-")}</div>
+          <div class="muted numeric">${escapeHtml(formatPhoneForDisplay(invoice.client?.phone) || "-")}</div>
           <div class="muted" style="text-align:${textAlign};">${escapeHtml(
             invoice.client?.email || "-",
           )}</div>

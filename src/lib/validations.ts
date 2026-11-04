@@ -2,10 +2,10 @@ import { z } from "zod";
 import { hasValidJodPrecision, MAX_JOD_AMOUNT } from "@/lib/money";
 import {
   NATIONAL_ID_DIGITS_MESSAGE,
-  PHONE_DIGITS_MESSAGE,
   TEN_DIGITS,
   toLatinDigits,
 } from "@/lib/digits";
+import { normalizePhone, PHONE_INVALID_MESSAGE } from "@/lib/phone";
 
 // Upper bounds for free text, so one request cannot store megabytes per field.
 export const SHORT_TEXT_MAX = 200;
@@ -46,15 +46,7 @@ export const registerSchema = z.object({
     .email("بريد إلكتروني غير صالح")
     .max(160, "البريد الإلكتروني طويل جدًا"),
 
-  phone: z
-    .string()
-    .trim()
-    .min(10, "رقم الهاتف غير صحيح")
-    .max(20, "رقم الهاتف طويل جدًا")
-    .regex(
-      /^(\+9627\d{8}|07\d{8})$/,
-      "أدخل رقم هاتف أردني صحيح مثل 07XXXXXXXX",
-    ),
+  phone: phoneSchema(),
 
   password: strongPasswordSchema,
   acceptTerms: z.literal(true, {
@@ -75,7 +67,23 @@ export const registerSchema = z.object({
   ),
 });
 
-// Exactly 10 digits (phone, national ID). Arabic/Persian digits count as
+// A phone number in any accepted form (src/lib/phone.ts), returned in
+// E.164 ("+962791234567"): what is encrypted, hashed and compared.
+function phoneSchema() {
+  return z
+    .string({ required_error: PHONE_INVALID_MESSAGE, invalid_type_error: PHONE_INVALID_MESSAGE })
+    .max(40, PHONE_INVALID_MESSAGE)
+    .transform((value, ctx) => {
+      const normalized = normalizePhone(value);
+      if (!normalized) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: PHONE_INVALID_MESSAGE });
+        return z.NEVER;
+      }
+      return normalized;
+    });
+}
+
+// Exactly 10 digits (national ID). Arabic/Persian digits count as
 // digits; nothing else (spaces, "+", "-") is stripped: the input already
 // sends clean digits, so anything else is rejected rather than guessed at.
 function tenDigits(message: string) {
@@ -96,7 +104,7 @@ export const clientSchema = z.object({
     .optional()
     .or(z.literal("")),
 
-  phone: tenDigits(PHONE_DIGITS_MESSAGE),
+  phone: phoneSchema(),
   nationalId: tenDigits(NATIONAL_ID_DIGITS_MESSAGE),
 
   address: z.string().trim().max(500, "Address is too long").optional().or(z.literal("")),

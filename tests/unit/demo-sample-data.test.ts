@@ -8,6 +8,7 @@ import {
   demoPhone,
 } from "../../src/lib/demo/sample-data";
 import { isDemoEmail } from "../../src/lib/demo/constants";
+import { normalizePhone } from "@/lib/phone";
 
 const NOW = new Date("2026-10-18T09:00:00.000Z");
 
@@ -21,7 +22,7 @@ function build(now = NOW) {
     // Reversible stand-ins, so the test can read what would be encrypted.
     encrypt: (value) => `enc(${value})`,
     hash: (value) => `hash(${value})`,
-    normalizePhone: (value) => value,
+    normalizePhone,
     normalizeEmail: (value) => value.trim().toLowerCase(),
   });
 }
@@ -59,10 +60,10 @@ test("phones, national IDs and emails are fake by construction", () => {
     const phone = plain(client.phone);
     const nationalId = plain(client.nationalId);
 
-    // 10 digits like the form requires, but on the unallocated 070 prefix
+    // Stored in E.164 like every phone, on the unallocated 070 prefix
     // (Jordanian mobiles are 077/078/079).
-    assert.match(phone, /^0700000\d{3}$/);
-    assert.doesNotMatch(phone, /^07[789]/);
+    assert.match(phone, /^\+962700000\d{3}$/);
+    assert.doesNotMatch(phone, /^\+9627[789]/);
     // Real national numbers never start with 0.
     assert.match(nationalId, /^00000000\d{2}$/);
 

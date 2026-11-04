@@ -1,5 +1,6 @@
 "use client";
 
+import { formatPhoneForDisplay } from "@/lib/phone";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
@@ -1638,7 +1639,7 @@ export default function CaseDetailPage() {
                     className={`mt-1 truncate text-sm font-bold ${isRtl ? "text-right" : "text-left"}`}
                     style={{ color: "var(--text)" }}
                   >
-                    {c.client.phone || pageText.notAdded}
+                    {formatPhoneForDisplay(c.client.phone) || pageText.notAdded}
                   </p>
                 </div>
 

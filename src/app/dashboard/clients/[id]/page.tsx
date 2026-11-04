@@ -32,9 +32,15 @@ import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { formatJOD } from "@/lib/money";
 import { formatInZone } from "@/lib/datetime";
 import DigitsInput from "@/components/ui/DigitsInput";
+import PhoneInput from "@/components/ui/PhoneInput";
+import {
+  PHONE_INVALID_MESSAGE,
+  PHONE_INVALID_MESSAGE_EN,
+  formatPhoneForDisplay,
+  isValidPhone,
+} from "@/lib/phone";
 import {
   NATIONAL_ID_DIGITS_MESSAGE,
-  PHONE_DIGITS_MESSAGE,
   TEN_DIGITS,
 } from "@/lib/digits";
 interface ClientCase {
@@ -108,7 +114,7 @@ const COPY = {
     clientNotFound: "الموكل غير موجود",
     loadError: "تعذر تحميل بيانات الموكل",
     nameRequired: "اسم الموكل مطلوب",
-    phoneInvalid: PHONE_DIGITS_MESSAGE,
+    phoneInvalid: PHONE_INVALID_MESSAGE,
     nationalIdInvalid: NATIONAL_ID_DIGITS_MESSAGE,
     saved: "تم حفظ بيانات الموكل",
     saveError: "تعذر حفظ بيانات الموكل",
@@ -199,7 +205,7 @@ const COPY = {
     clientNotFound: "Client not found",
     loadError: "Could not load client data",
     nameRequired: "Client name is required",
-    phoneInvalid: "Phone number must be 10 digits",
+    phoneInvalid: PHONE_INVALID_MESSAGE_EN,
     nationalIdInvalid: "National ID must be 10 digits",
     saved: "Client details saved",
     saveError: "Could not save client details",
@@ -379,7 +385,7 @@ export default function ClientDetailPage() {
         setClient(data.data);
         setForm({
           name: data.data.name ?? "",
-          phone: data.data.phone ?? "",
+          phone: formatPhoneForDisplay(data.data.phone),
           email: data.data.email ?? "",
           nationalId: data.data.nationalId ?? "",
           address: data.data.address ?? "",
@@ -463,7 +469,7 @@ export default function ClientDetailPage() {
     // Saved values from before this rule (e.g. "+962…") are shown as they
     // are; saving asks for 10 digits, under the field.
     setAttempted(true);
-    if (!TEN_DIGITS.test(form.phone.trim()) || !TEN_DIGITS.test(form.nationalId.trim())) {
+    if (!isValidPhone(form.phone) || !TEN_DIGITS.test(form.nationalId.trim())) {
       return;
     }
 
@@ -727,7 +733,7 @@ export default function ClientDetailPage() {
               <span className="mt-1.5 flex flex-wrap gap-1.5">
                 {(
                   [
-                    [Phone, client.phone],
+                    [Phone, formatPhoneForDisplay(client.phone)],
                     [Mail, client.email],
                     [IdCard, client.nationalId],
                   ] as const
@@ -918,7 +924,7 @@ export default function ClientDetailPage() {
               <InfoRow
                 icon="📞"
                 label={text.info.phone}
-                value={client.phone}
+                value={formatPhoneForDisplay(client.phone)}
                 empty={text.info.empty}
                 forceLtr
                 isRtl={isRtl}
@@ -1260,7 +1266,7 @@ export default function ClientDetailPage() {
           setEditing(false);
           setForm({
             name: client.name ?? "",
-            phone: client.phone ?? "",
+            phone: formatPhoneForDisplay(client.phone),
             email: client.email ?? "",
             nationalId: client.nationalId ?? "",
             address: client.address ?? "",
@@ -1305,14 +1311,14 @@ export default function ClientDetailPage() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={text.modal.phone}>
-              <DigitsInput
+              <PhoneInput
                 value={form.phone}
                 onValueChange={(phone) =>
                   setForm((previous) => ({ ...previous, phone }))
                 }
                 incompleteMessage={text.phoneInvalid}
                 error={
-                  attempted && !TEN_DIGITS.test(form.phone.trim())
+                  attempted && !isValidPhone(form.phone)
                     ? text.phoneInvalid
                     : null
                 }
@@ -1406,7 +1412,7 @@ export default function ClientDetailPage() {
                 setEditing(false);
                 setForm({
                   name: client.name ?? "",
-                  phone: client.phone ?? "",
+                  phone: formatPhoneForDisplay(client.phone),
                   email: client.email ?? "",
                   nationalId: client.nationalId ?? "",
                   address: client.address ?? "",

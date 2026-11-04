@@ -228,9 +228,10 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
       tenantId,
       createdById: users.admin,
       name: seed.name,
-      phone: encrypt(phone),
+      // Stored normalized (E.164), like the hash and like real clients.
+      phone: encrypt(normalizedPhone ?? phone),
       nationalId: encrypt(nationalId),
-      email: email ? encrypt(email) : null,
+      email: normalizedEmail ? encrypt(normalizedEmail) : null,
       address: encrypt(seed.city),
       notes: seed.notes ? encrypt(seed.notes) : null,
       phoneHash: normalizedPhone ? hash(normalizedPhone) : null,

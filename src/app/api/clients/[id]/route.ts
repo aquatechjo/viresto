@@ -15,6 +15,7 @@ import {
   decryptText,
   normalizeEmail,
   normalizePhone,
+  normalizeNationalId,
   hashSearchValue,
 } from "@/lib/encryption";
 import {
@@ -285,7 +286,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const normalizedEmail = normalizeEmail(parsed.data.email);
     const normalizedPhone = normalizePhone(parsed.data.phone);
-    const normalizedNationalId = parsed.data.nationalId.trim();
+    const normalizedNationalId = normalizeNationalId(parsed.data.nationalId);
 
     const emailHash = normalizedEmail ? hashSearchValue(normalizedEmail) : null;
     const phoneHash = normalizedPhone ? hashSearchValue(normalizedPhone) : null;
@@ -347,9 +348,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const secureData = {
       ...parsed.data,
-      email: encryptText(parsed.data.email || ""),
-      phone: encryptText(parsed.data.phone),
-      nationalId: encryptText(parsed.data.nationalId),
+      // Stored normalized, like the hashes above.
+      email: encryptText(normalizedEmail ?? ""),
+      phone: encryptText(normalizedPhone ?? parsed.data.phone),
+      nationalId: encryptText(normalizedNationalId ?? parsed.data.nationalId),
       address: encryptText(parsed.data.address || ""),
       notes: encryptText(parsed.data.notes || ""),
       emailHash,

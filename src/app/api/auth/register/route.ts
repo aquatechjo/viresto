@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
+import { normalizePhone } from "@/lib/phone";
 import { err } from "@/lib/api-response";
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -20,18 +21,6 @@ import { APP_TRIAL_DAYS, buildAppTrial } from "@/lib/tenant-access";
 // It is not a paid plan: no Polar subscription, amount 0, and it locks the
 // app when it ends unless the office subscribes (see tenant-access.ts).
 const TRIAL_PLAN_CODE = "PRO";
-
-function normalizeJordanPhone(phone: string) {
-  const cleaned = phone.replace(/\s+/g, "").trim();
-
-  if (cleaned.startsWith("+962")) return cleaned;
-
-  if (cleaned.startsWith("07")) {
-    return `+962${cleaned.slice(1)}`;
-  }
-
-  return cleaned;
-}
 
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
@@ -79,7 +68,8 @@ export async function POST(req: NextRequest) {
 
     const { tenantName, name, phone, password, signupPlan } = parsed.data;
     const email = parsed.data.email.trim().toLowerCase();
-    const normalizedPhone = normalizeJordanPhone(phone);
+    // E.164 already (registerSchema runs normalizePhone), like client phones.
+    const normalizedPhone = normalizePhone(phone) ?? phone;
 
     const existingPhone = await prisma.user.findFirst({
       where: {

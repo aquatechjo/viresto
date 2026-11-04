@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation'
 import { getApiMessage, isPlanLimitResponse, planLimitMessage } from '@/lib/plan-ui'
 import { useLocale } from '@/lib/useLocale'
 import DigitsInput from '@/components/ui/DigitsInput'
-import { NATIONAL_ID_DIGITS_MESSAGE, PHONE_DIGITS_MESSAGE, TEN_DIGITS } from '@/lib/digits'
+import PhoneInput from '@/components/ui/PhoneInput'
+import { NATIONAL_ID_DIGITS_MESSAGE, TEN_DIGITS } from '@/lib/digits'
+import { PHONE_INVALID_MESSAGE, PHONE_INVALID_MESSAGE_EN, isValidPhone } from '@/lib/phone'
 
 const COPY = {
   ar: {
@@ -15,7 +17,7 @@ const COPY = {
     errorTitle: 'تعذر تنفيذ العملية',
     planLimitFallback: 'وصلت إلى حد الموكلين المسموح في خطتك الحالية.',
     addFallback: 'تعذر إضافة الموكل',
-    phoneInvalid: PHONE_DIGITS_MESSAGE,
+    phoneInvalid: PHONE_INVALID_MESSAGE,
     nationalIdInvalid: NATIONAL_ID_DIGITS_MESSAGE,
     billing: 'عرض الاشتراك والخطة',
     fields: {
@@ -36,7 +38,7 @@ const COPY = {
     errorTitle: 'Could not complete the action',
     planLimitFallback: 'You have reached the client limit allowed by your current plan.',
     addFallback: 'Could not add client',
-    phoneInvalid: 'Phone number must be 10 digits',
+    phoneInvalid: PHONE_INVALID_MESSAGE_EN,
     nationalIdInvalid: 'National ID must be 10 digits',
     billing: 'View billing and plan',
     fields: {
@@ -75,7 +77,7 @@ export default function NewClientPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setAttempted(true)
-    if (!TEN_DIGITS.test(form.phone) || !TEN_DIGITS.test(form.nationalId)) return
+    if (!isValidPhone(form.phone) || !TEN_DIGITS.test(form.nationalId)) return
 
     setLoading(true)
     setError('')
@@ -144,7 +146,7 @@ export default function NewClientPage() {
             required
           />
 
-          <DigitsInput
+          <PhoneInput
             className={`input h-12 w-full ${isRtl ? 'text-right' : 'text-left'}`}
             name="clientPhone"
             autoComplete="off"
@@ -152,7 +154,7 @@ export default function NewClientPage() {
             value={form.phone}
             onValueChange={(phone) => setForm({ ...form, phone })}
             incompleteMessage={text.phoneInvalid}
-            error={attempted && !TEN_DIGITS.test(form.phone) ? text.phoneInvalid : null}
+            error={attempted && !isValidPhone(form.phone) ? text.phoneInvalid : null}
           />
 
           <input
