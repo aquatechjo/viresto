@@ -202,9 +202,25 @@ export function decryptText(value?: string | null) {
   throw new Error("Encrypted value has an unsupported format");
 }
 
+/** Id of the key new values are encrypted with (ENCRYPTION_KEY_ID). */
+export function activeEncryptionKeyId() {
+  return getKeyring().active.id;
+}
+
+/**
+ * Which key a stored value was encrypted with: its key id, "legacy" for
+ * the old format without one, or null for a value stored in plain text.
+ */
+export function encryptionKeyIdOf(value?: string | null) {
+  if (!value || !value.startsWith("enc:")) return null;
+  const parts = value.split(":");
+  return parts.length === 6 && parts[1] === "v2" ? parts[2] : "legacy";
+}
+
 // The one normalization of each searchable field, used both before saving
 // (encryption and hash) and before searching, so the two always agree.
 export { normalizePhone } from "@/lib/phone";
+import { normalizePhone as normalizePhoneValue } from "@/lib/phone";
 export { normalizeNationalId } from "@/lib/digits";
 
 // A string always gives a string ("" stays ""); no value gives null.
@@ -212,6 +228,26 @@ export function normalizeEmail(value: string): string;
 export function normalizeEmail(value?: string | null): string | null;
 export function normalizeEmail(value?: string | null) {
   return typeof value === "string" ? value.trim().toLowerCase() : null;
+}
+
+/**
+ * The phone hashes a search or duplicate check must match: the E.164 one
+ * (what is saved now) and, until scripts/backfill-search-hashes.ts has run
+ * on the database, the forms rows saved before 2026-11-04 were hashed in
+ * (the local 07... form, and the old digits-and-"+" cleanup of the value).
+ * Empty when the value is no phone number. Remove the legacy forms once the
+ * backfill has run (PROJECT_STATUS.md).
+ */
+export function phoneSearchHashes(value?: string | null): string[] {
+  const e164 = normalizePhoneValue(value);
+  if (!e164) return [];
+
+  const forms = new Set([e164]);
+  if (e164.startsWith("+962")) forms.add(`0${e164.slice(4)}`);
+  const legacy = (value ?? "").replace(/[^\d+]/g, "");
+  if (legacy) forms.add(legacy);
+
+  return [...forms].map((form) => hashSearchValue(form)!);
 }
 
 export function hashSearchValue(value?: string | null) {

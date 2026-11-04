@@ -181,3 +181,21 @@ test("WhatsApp links use the E.164 digits", () => {
   assert.equal(normalizeWhatsAppPhone("+966501234567"), "966501234567");
   assert.equal(normalizeWhatsAppPhone(""), "");
 });
+
+test("until the backfill runs, search also matches the hashes of rows saved the old way", async () => {
+  const { hashSearchValue, phoneSearchHashes } = await import("@/lib/encryption");
+  const oldLocal = hashSearchValue("0791234567")!; // saved as 07..., the form since 2026-10-26
+  const e164 = hashSearchValue("+962791234567")!;
+
+  for (const typed of ["0791234567", "+962791234567", "00962791234567", "٠٧٩١٢٣٤٥٦٧"]) {
+    const hashes = phoneSearchHashes(typed);
+    assert.ok(hashes.includes(e164), typed);
+    assert.ok(hashes.includes(oldLocal), typed);
+  }
+  // A row saved as "00962 79..." was hashed as "00962791234567".
+  assert.ok(phoneSearchHashes("00962 79 123 4567").includes(hashSearchValue("00962791234567")!));
+  // Saudi: E.164 only (no local Jordanian form).
+  assert.deepEqual(phoneSearchHashes("+966501234567"), [hashSearchValue("+966501234567")]);
+  // No phone, no hash: free text is never hashed as a phone.
+  assert.deepEqual(phoneSearchHashes("أحمد 12"), []);
+});

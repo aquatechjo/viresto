@@ -132,3 +132,20 @@ The Neon endpoint id is the only part of a connection string that differs betwee
 The dev server also refuses a Polar token unless `POLAR_ENVIRONMENT="sandbox"`, a Resend key with a production sender, and `APP_URL` / `NEXT_PUBLIC_APP_URL` on virestojo.com. `ALLOW_PRODUCTION_KEYS_IN_DEV=1` overrides these key checks, never the database check.
 
 `npm run db:deploy` and `npm run db:seed` are not guarded: the launch runbook runs them against production on purpose.
+
+## 8. Client contact backfill (run once, in the key rotation session)
+
+`scripts/backfill-search-hashes.ts` brings every client's phone, email and national ID in line with the rules the app applies on save and search (phone E.164, national ID Latin digits, email lower case): it re-encrypts each changed field and every value not under the active key, address and notes included, and recomputes `phoneHash`, `emailHash` and `nationalIdHash` with the current `SEARCH_HASH_SECRET`.
+
+Run it once, during the key rotation, after deploying the code that normalizes on save and search:
+
+1. Confirm a Neon restore point of the production branch.
+2. Put the new keys in a temporary env file (`ENCRYPTION_KEY`, `ENCRYPTION_KEY_ID`, `SEARCH_HASH_SECRET`), the old encryption key in `ENCRYPTION_PREVIOUS_KEYS`, and the production `DATABASE_URL`. Delete the file when done.
+3. Dry run (reads only, prints counts and client publicIds, never a value):
+   `npx tsx --env-file=<file> scripts/backfill-search-hashes.ts`
+4. Review: unreadable rows (a missing key), clients of one office that would share a phone, email or national ID, values that do not normalize (kept as they are, hash cleared: fix them by hand).
+5. Apply, naming the endpoint of `DATABASE_URL`:
+   `npx tsx --env-file=<file> scripts/backfill-search-hashes.ts --apply --endpoint=ep-...`
+   It refuses unreadable rows and duplicates unless `--skip-unreadable` / `--allow-collisions` are passed. Rows edited during the run are skipped and listed; run it again. `updatedAt` is kept.
+
+Until it runs, search and the duplicate check also match the hashes rows saved before 2026-11-04 were given (`phoneSearchHashes` in `src/lib/encryption.ts`: the local `07...` form and the old cleanup). Remove those legacy forms after the backfill.

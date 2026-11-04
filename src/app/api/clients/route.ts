@@ -17,6 +17,7 @@ import {
   normalizePhone,
   normalizeNationalId,
   hashSearchValue,
+  phoneSearchHashes,
 } from "@/lib/encryption";
 import {
   buildAppointmentAccessWhere,
@@ -38,11 +39,10 @@ export async function GET(req: NextRequest) {
     const canSearchContact =
       Boolean(q) && hasPermission(auth.user.role, "client.contact.read");
     const normalizedEmail = canSearchContact ? normalizeEmail(q!) : null;
-    const normalizedPhone = canSearchContact ? normalizePhone(q!) : null;
     const normalizedNationalId = canSearchContact ? normalizeNationalId(q!) : null;
 
     const emailHash = normalizedEmail ? hashSearchValue(normalizedEmail) : null;
-    const phoneHash = normalizedPhone ? hashSearchValue(normalizedPhone) : null;
+    const phoneHashes = canSearchContact ? phoneSearchHashes(q!) : [];
     const nationalIdHash = normalizedNationalId
       ? hashSearchValue(normalizedNationalId)
       : null;
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
               },
               ...(publicId ? [{ publicId }] : []),
               ...(emailHash ? [{ emailHash }] : []),
-              ...(phoneHash ? [{ phoneHash }] : []),
+              ...(phoneHashes.length > 0 ? [{ phoneHash: { in: phoneHashes } }] : []),
               ...(nationalIdHash ? [{ nationalIdHash }] : []),
             ],
           }
@@ -205,7 +205,10 @@ export async function POST(req: NextRequest) {
     };
 
     const duplicateConditions = [
-      ...(secureData.phoneHash ? [{ phoneHash: secureData.phoneHash }] : []),
+      // Legacy hashes too, until the backfill has run (phoneSearchHashes).
+      ...(secureData.phoneHash
+        ? [{ phoneHash: { in: phoneSearchHashes(normalizedPhone) } }]
+        : []),
       ...(secureData.nationalIdHash
         ? [{ nationalIdHash: secureData.nationalIdHash }]
         : []),

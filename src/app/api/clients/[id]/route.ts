@@ -17,6 +17,7 @@ import {
   normalizePhone,
   normalizeNationalId,
   hashSearchValue,
+  phoneSearchHashes,
 } from "@/lib/encryption";
 import {
   buildAppointmentAccessWhere,
@@ -295,7 +296,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       : null;
 
     const duplicateConditions = [
-      ...(phoneHash ? [{ phoneHash }] : []),
+      // Legacy hashes too, until the backfill has run (phoneSearchHashes).
+      ...(phoneHash ? [{ phoneHash: { in: phoneSearchHashes(normalizedPhone) } }] : []),
       ...(nationalIdHash ? [{ nationalIdHash }] : []),
       ...(emailHash ? [{ emailHash }] : []),
     ];

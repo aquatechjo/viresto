@@ -18,6 +18,7 @@ import {
   normalizeEmail,
   normalizePhone,
   normalizeNationalId,
+  phoneSearchHashes,
 } from "@/lib/encryption";
 import { formatDate, formatDateTime } from "@/lib/datetime";
 import { formatJOD } from "@/lib/money";
@@ -122,7 +123,7 @@ async function searchClients(user: AccessControlUser, q: PreparedQuery) {
   const nationalId = canSeeContact ? normalizeNationalId(q.raw) : null;
   const hashMatches: Prisma.ClientWhereInput[] = canSeeContact
     ? [
-        ...(phone ? [{ phoneHash: hashSearchValue(phone) }] : []),
+        ...(phone ? [{ phoneHash: { in: phoneSearchHashes(q.raw) } }] : []),
         ...(email ? [{ emailHash: hashSearchValue(email) }] : []),
         ...(nationalId ? [{ nationalIdHash: hashSearchValue(nationalId) }] : []),
       ]
