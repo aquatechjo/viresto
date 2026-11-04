@@ -40,6 +40,15 @@ Any command that writes to a database (reset, seed, migrate, a tsx script
 that writes) and was not approved by name in this session: stop and ask
 first, even on dev. Never re-run a destructive command a second time.
 
+## Standing rule: no direct push to main for code
+
+Production has a real customer, and every push to `main` deploys.
+
+- Any code change goes on a branch, is checked on its Vercel Preview
+  deployment, and is merged into `main` only with the user's approval.
+- The only exception: documentation commits (`PROJECT_STATUS.md`,
+  `OPERATIONS.md`), pushed to `main` with the user's approval.
+
 ## Archiving rule
 
 Archiving hides entities, never records.
