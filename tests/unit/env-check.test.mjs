@@ -120,3 +120,38 @@ test("POLAR_ORGANIZATION_ID is not required (the app never reads it)", () => {
   delete env.POLAR_ORGANIZATION_ID;
   assert.deepEqual(validateEnvironment(env).errors, []);
 });
+
+const neonUrl = (endpoint, pooled = false) =>
+  `postgresql://user:password@${endpoint}${pooled ? "-pooler" : ""}.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require`;
+
+test("a Preview build fails when either database URL is on the production Neon endpoint", () => {
+  for (const [name, pooled] of [["DATABASE_URL", true], ["DIRECT_URL", false]]) {
+    const env = { ...validEnvironment(), VERCEL_ENV: "preview" };
+    env[name] = neonUrl("ep-noisy-rain-aqby4u2n", pooled);
+    const { errors } = validateEnvironment(env);
+    assert.equal(errors.length, 1, name);
+    assert.match(errors[0], new RegExp(`^${name} points at the production database`));
+    assert.doesNotMatch(errors[0], /password/);
+  }
+});
+
+test("a Preview build on another Neon endpoint passes", () => {
+  const env = {
+    ...validEnvironment(),
+    VERCEL_ENV: "preview",
+    DATABASE_URL: neonUrl("ep-patient-cake-aqguafst", true),
+    DIRECT_URL: neonUrl("ep-patient-cake-aqguafst"),
+  };
+  assert.deepEqual(validateEnvironment(env).errors, []);
+});
+
+test("Production builds still use the production endpoint", () => {
+  const env = {
+    ...validEnvironment(),
+    VERCEL_ENV: "production",
+    POLAR_ENVIRONMENT: "production",
+    DATABASE_URL: neonUrl("ep-noisy-rain-aqby4u2n", true),
+    DIRECT_URL: neonUrl("ep-noisy-rain-aqby4u2n"),
+  };
+  assert.deepEqual(validateEnvironment(env).errors, []);
+});

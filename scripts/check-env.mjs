@@ -1,5 +1,6 @@
 import nextEnv from "@next/env";
 import { pathToFileURL } from "node:url";
+import { neonEndpointId } from "./check-dev-keys.mjs";
 
 const { loadEnvConfig } = nextEnv;
 
@@ -17,6 +18,11 @@ const REQUIRED_VALUES = [
   "ALLOWED_SERVER_ACTION_ORIGINS",
   "POLAR_ENVIRONMENT",
 ];
+
+// The Neon endpoint id of the production branch (OPERATIONS.md,
+// "Neon branches"). Not a secret. Fixed here on purpose: a Preview build
+// must fail on the production database even when an env var is forgotten.
+export const PRODUCTION_DB_ENDPOINT_ID = "ep-noisy-rain-aqby4u2n";
 
 const SECRET_RULES = [
   ["JWT_SECRET", 32],
@@ -129,6 +135,18 @@ export function validateEnvironment(env) {
     const value = valueOf(name);
     if (value && !isPostgresUrl(value)) {
       errors.push(`${name} must be a PostgreSQL connection URL`);
+    }
+  }
+
+  // A Preview deployment holds unreviewed code: it must never reach the
+  // real customers' database (OPERATIONS.md, "Preview deployments").
+  if (valueOf("VERCEL_ENV") === "preview") {
+    for (const name of ["DATABASE_URL", "DIRECT_URL"]) {
+      if (neonEndpointId(valueOf(name)) === PRODUCTION_DB_ENDPOINT_ID) {
+        errors.push(
+          `${name} points at the production database (Neon endpoint ${PRODUCTION_DB_ENDPOINT_ID}) on a Preview deployment; give Preview its own database URL`,
+        );
+      }
     }
   }
 
