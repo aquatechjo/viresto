@@ -40,14 +40,21 @@ Any command that writes to a database (reset, seed, migrate, a tsx script
 that writes) and was not approved by name in this session: stop and ask
 first, even on dev. Never re-run a destructive command a second time.
 
-## Standing rule: no direct push to main for code
+## Standing rule: pushing to main, and production data
 
 Production has a real customer, and every push to `main` deploys.
+There are no feature branches and no Preview deployments (the deferred
+plan is in `OPERATIONS.md`, "Preview deployments").
 
-- Any code change goes on a branch, is checked on its Vercel Preview
-  deployment, and is merged into `main` only with the user's approval.
-- The only exception: documentation commits (`PROJECT_STATUS.md`,
-  `OPERATIONS.md`), pushed to `main` with the user's approval.
+- Code is pushed straight to `main`, and only after `npm run build`,
+  `npm run lint` and the unit tests pass, and the change has been tried
+  on the local dev server (the Neon `dev` branch).
+- Any operation that writes production data (a script, a delete, a
+  migration that changes existing rows) needs, before it runs, a backup
+  Neon branch made from `production`, and the user's approval by name.
+- No write or delete on the real customer's office (see
+  `PROJECT_STATUS.md`, the production section) without the user's
+  approval by name.
 
 ## Archiving rule
 
