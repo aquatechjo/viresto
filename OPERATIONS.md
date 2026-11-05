@@ -148,3 +148,85 @@ Run it once, during the key rotation, after deploying the code that normalizes o
    It refuses unreadable rows and duplicates unless `--skip-unreadable` / `--allow-collisions` are passed. Rows edited during the run are skipped and listed; run it again. `updatedAt` is kept.
 
 Until it runs, search and the duplicate check also match the hashes rows saved before 2026-11-04 were given (`phoneSearchHashes` in `src/lib/encryption.ts`: the local `07...` form and the old cleanup). Remove those legacy forms after the backfill.
+
+## 9. Preview deployments (deferred)
+
+Decision of 2026-11-05: code goes straight to `main` (see `CLAUDE.md`), so Preview deployments are not used. This section is the plan for the day they are. Nothing in it needs code changes beyond what is already in place.
+
+### State on 2026-11-05 (done by hand in Vercel)
+
+- Deployment Protection (Vercel Authentication) is on for Preview.
+- Old Preview deployments were deleted. A deployment keeps the variables it was built with, so they could still reach the production database.
+- Ignored Build Step skips every build that is not production: `[ "$VERCEL_ENV" != "production" ] && exit 0`. Remove it only once Preview has its own values (below).
+- `DATABASE_URL` and `DIRECT_URL` are scoped to Production only.
+- Guard in code: `scripts/check-env.mjs` fails a build with `VERCEL_ENV=preview` when `DATABASE_URL` or `DIRECT_URL` is on the production Neon endpoint `ep-noisy-rain-aqby4u2n` (fixed in the script, not an env var).
+
+### Preview values
+
+"dev" means: the value from the local `.env` (the Neon `dev` branch and its secrets). Never copy a production value into Preview.
+
+| Variable | Preview value |
+|---|---|
+| `DATABASE_URL` / `DIRECT_URL` | dev pooled / direct URL (`ep-patient-cake-aqguafst`) |
+| `ENCRYPTION_KEY`, `SEARCH_HASH_SECRET` | dev, identical character for character (see below) |
+| `ENCRYPTION_KEY_ID` | `dev` |
+| `ENCRYPTION_PREVIOUS_KEYS` | not set |
+| `JWT_SECRET`, `PASSWORD_RESET_SECRET`, `VERIFICATION_SECRET`, `CRON_SECRET`, `HEALTHCHECK_SECRET` | dev |
+| `APP_URL`, `NEXT_PUBLIC_APP_URL` | `https://` + the Preview alias under test (never virestojo.com) |
+| `ALLOWED_SERVER_ACTION_ORIGINS` | that alias's host, no protocol (wildcards are rejected) |
+| `POLAR_ENVIRONMENT` | `sandbox` |
+| `POLAR_ACCESS_TOKEN` | a sandbox.polar.sh token |
+| `POLAR_WEBHOOK_SECRET` | the sandbox webhook secret, or any random 32+ characters |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | a separate free Upstash database (required, see below) |
+| `RESEND_API_KEY` | a separate Resend key |
+| `EMAIL_FROM` | `Viresto Preview <onboarding@resend.dev>` (delivers to the Resend account owner only) |
+| `EMAIL_REPLY_TO` | not set |
+| `CLOUDINARY_*` (3) | a separate Cloudinary cloud; until one exists, non-empty dummies (uploads fail) |
+| `TURNSTILE_SECRET_KEY` / `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare's public test keys |
+| `OPENAI_API_KEY` | not set (AI off), or a separate key with a spending cap |
+| `TURNSTILE_ENABLED`, `PUBLIC_REGISTER_ENABLED`, `NEXT_PUBLIC_REGISTER_ENABLED`, `OPENAI_*_MODEL`, `NEXT_PUBLIC_SENTRY_*`, `SENTRY_*`, `APP_NAME`, `EMAIL_LOGO_FRAME`, `PRISMA_TRANSACTION_TIMEOUT_MS`, `AUTH_CACHE_TTL_MS` | same as production is fine (Sentry tags events `preview`) |
+
+Never in Vercel: `PROD_DB_ENDPOINT_ID`, `ALLOW_PRODUCTION_KEYS_IN_DEV`, `ENV_VALIDATION_STRICT`, `E2E_*`, `INTEGRATION_DATABASE_URL`. `PRODUCTION_URL` belongs to GitHub Actions only. Vercel sets `VERCEL_ENV`, `NEXT_PUBLIC_VERCEL_ENV` and `VERCEL_GIT_COMMIT_SHA` itself.
+
+**Encryption keys.** The dev branch is encrypted with the dev `ENCRYPTION_KEY` (id `dev`) and its search hashes use the dev `SEARCH_HASH_SECRET`. With another key, clients cannot be decrypted and phone search finds nobody. With the production keys, dev data becomes a mix of two keys, and a Preview leak becomes a leak of the production key. A distinct `JWT_SECRET` keeps production sessions from working on Preview and back.
+
+### What an empty value does on Preview
+
+Preview builds run with `NODE_ENV=production`, so `prebuild` runs `check-env.mjs` in strict mode.
+
+The build fails when any of these is empty or invalid: `DATABASE_URL`, `DIRECT_URL`, the three Cloudinary values, both Upstash values, `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`, `ALLOWED_SERVER_ACTION_ORIGINS`, `POLAR_ENVIRONMENT`, the 32+ character distinct secrets (`JWT_SECRET`, `PASSWORD_RESET_SECRET`, `VERIFICATION_SECRET`, `SEARCH_HASH_SECRET`, `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`), `ENCRYPTION_KEY` (base64 of 32 bytes), an `https://` `APP_URL`, and the Turnstile keys when registration is on.
+
+The build passes but a feature breaks:
+
+- Upstash dummy or down: every rate-limited route (login, register, forgot password) is refused, because the limiter fails closed in production. Preview is unusable without a real Upstash database.
+- Resend dummy: no email, verification codes included.
+- Cloudinary dummy: document and logo uploads fail.
+- Polar sandbox: checkout does not work either way, because the dev `BillingPlan` rows hold production product ids.
+- `OPENAI_API_KEY` empty: AI features off (a warning only).
+- `HEALTHCHECK_SECRET` empty: `/api/health` answers 401.
+
+Preview does not migrate: `migrate-production.mjs` runs only with `VERCEL_ENV=production`. Migrate the dev branch from a local machine. Crons run on Production only.
+
+### Steps in Vercel, per variable
+
+Order: `DATABASE_URL` and `DIRECT_URL` (done), then the three encryption values, then the rest.
+
+1. Settings → Environment Variables → find the variable.
+2. ⋯ → Edit: keep **Production** only (untick Preview and Development; Development is what `vercel env pull` reads by default). Do not change the value. Save.
+3. Add New: the same name, the Preview value, Environments = **Preview** only (all Preview branches), **Sensitive** on. Save.
+4. Repeat for every variable whose Preview value differs. The "same as production" ones may stay on both.
+5. Filter the list by Preview: no row may be on Production and Preview at once, except the "same as production" ones.
+6. Check team-level Shared Environment Variables: none may be linked to this project on Preview.
+7. Production is untouched: its values did not change, and a change only applies to new deployments.
+8. Last, remove the Ignored Build Step.
+
+### Checking that Preview is on dev, without exposing a secret
+
+- The build log shows `[ENV_OK]` and `[migrate-production] skipped: VERCEL_ENV=preview`. A build on the production database fails with `DATABASE_URL points at the production database`.
+- Neon → `dev` branch → Monitoring: a connection appears after signing in on the Preview.
+- Signing in with the dev E2E account shows an office with no clients. This is a hint, not proof: the account may also exist on production from before 2026-11-03.
+- Optional code change: after the `HEALTHCHECK_SECRET` check, `/api/health` could also return the database endpoint id (the first label of the `DATABASE_URL` host) and `ENCRYPTION_KEY_ID`. Neither is a secret.
+
+### Neon's Vercel integration
+
+Not now. By default it creates one branch per Preview from the project's default branch, which is `production`: every Preview would get a copy of the real customer's data (unreadable without the production keys, but copied), branches pile up, and the integration writes the Preview `DATABASE_URL` itself. One manual `dev` branch is simpler and holds no customer data. Revisit only if each Preview needs its own database, and only if the integration can branch from `dev` (not checked in Neon's documentation).
