@@ -45,10 +45,18 @@ export function initials(name: string): string {
   return parts[0]?.slice(0, 2) ?? '؟'
 }
 
+/**
+ * Latin letters and digits only, joined by single dashes. Accents are
+ * dropped (é → e); every other character (Arabic included) separates
+ * words. "" when nothing Latin is left: the caller picks a fallback.
+ */
 export function slugify(text: string): string {
   return text
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^\w-]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
     .slice(0, 40)
+    .replace(/-+$/, '')
 }

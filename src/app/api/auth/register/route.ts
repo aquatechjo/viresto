@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
 import { normalizePhone } from "@/lib/phone";
 import { err } from "@/lib/api-response";
-import { slugify } from "@/lib/utils";
+import { tenantSlugBase } from "@/lib/tenant-slug";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       return err("إعدادات خطة التجربة غير مكتملة.", 500);
     }
 
-    const baseSlug = slugify(tenantName) || `office-${Date.now().toString(36)}`;
+    const baseSlug = tenantSlugBase(tenantName);
     let slug = baseSlug;
     let i = 1;
 
