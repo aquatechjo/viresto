@@ -53,6 +53,7 @@ model Tenant {
   documents              Document[]
   invoices               Invoice[]
   invoiceSequences       InvoiceSequence[]
+  receiptSequences       ReceiptSequence[]
   notifications          Notification[]
   payments               Payment[]
   sessions               Session[]
@@ -220,6 +221,7 @@ model User {
   leadCases            Case[]               @relation("CaseLeadLawyer")
   caseMemberships      CaseMember[]
   cancelledPayments    Payment[]            @relation("PaymentCancelledBy")
+  cancelledInvoices    Invoice[]            @relation("InvoiceCancelledBy")
   assignedAppointments Appointment[]        @relation("AppointmentAssignee")
   createdAppointments  Appointment[]        @relation("AppointmentCreator")
   notifications        Notification[]
@@ -346,6 +348,10 @@ model Payment {
   cancelledById      String?
   cancellationReason String?
 
+  // رقم الإيصال R-YYYY-NNNN: يُعطى عند التحصيل، أو عند أول طباعة لدفعة
+  // محصّلة قديمة بلا رقم. فريد داخل المكتب.
+  receiptNumber String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -355,6 +361,7 @@ model Payment {
   invoice     Invoice? @relation(fields: [invoiceId, tenantId], references: [id, tenantId], onDelete: Restrict)
   cancelledBy User?    @relation("PaymentCancelledBy", fields: [cancelledById, tenantId], references: [id, tenantId], onDelete: Restrict)
 
+  @@unique([tenantId, receiptNumber])
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, status, paidAt])
@@ -559,28 +566,45 @@ model InvoiceSequence {
   @@id([tenantId, year])
 }
 
+model ReceiptSequence {
+  tenantId   String
+  year       Int
+  nextNumber Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, year])
+}
+
 model Invoice {
-  id            String        @id @default(cuid())
-  publicId      Int           @unique @default(autoincrement())
-  tenantId      String
-  clientId      String
-  caseId        String?
-  invoiceNumber String
-  status        InvoiceStatus @default(UNPAID)
-  issueDate     DateTime      @default(now())
-  dueDate       DateTime?
-  subtotal      Decimal       @default(0) @db.Decimal(18, 3)
-  tax           Decimal       @default(0) @db.Decimal(18, 3)
-  discount      Decimal       @default(0) @db.Decimal(18, 3)
-  total         Decimal       @default(0) @db.Decimal(18, 3)
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  case          Case?         @relation(fields: [caseId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  client        Client        @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  items         InvoiceItem[]
-  payments      Payment[]
+  id                 String        @id @default(cuid())
+  publicId           Int           @unique @default(autoincrement())
+  tenantId           String
+  clientId           String
+  caseId             String?
+  invoiceNumber      String
+  status             InvoiceStatus @default(UNPAID)
+  issueDate          DateTime      @default(now())
+  dueDate            DateTime?
+  subtotal           Decimal       @default(0) @db.Decimal(18, 3)
+  tax                Decimal       @default(0) @db.Decimal(18, 3)
+  discount           Decimal       @default(0) @db.Decimal(18, 3)
+  total              Decimal       @default(0) @db.Decimal(18, 3)
+  notes              String?
+  // الإلغاء نهائي: من ألغى، ومتى، ولماذا (السبب إلزامي في الواجهة).
+  cancelledAt        DateTime?
+  cancelledById      String?
+  cancellationReason String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  cancelledBy        User?         @relation("InvoiceCancelledBy", fields: [cancelledById, tenantId], references: [id, tenantId], onDelete: Restrict)
+  case               Case?         @relation(fields: [caseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  client             Client        @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  tenant             Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items              InvoiceItem[]
+  payments           Payment[]
 
   @@unique([tenantId, invoiceNumber])
   @@unique([id, tenantId])
@@ -590,6 +614,7 @@ model Invoice {
   @@index([tenantId, clientId, issueDate])
   @@index([clientId])
   @@index([caseId])
+  @@index([cancelledById])
 }
 
 model InvoiceItem {
