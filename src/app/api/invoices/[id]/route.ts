@@ -15,7 +15,7 @@ import {
   buildInvoiceIdentifierAccessWhere,
 } from "@/lib/access-control";
 import { roundMoney } from "@/lib/finance";
-import { MAX_JOD_AMOUNT } from "@/lib/money";
+import { calculateInvoiceTotals } from "@/lib/invoice-totals";
 import {
   assertCaseCanAcceptAmount,
   isCaseFinancialLimitError,
@@ -33,75 +33,6 @@ const allowedStatuses = [
 ] as const;
 
 type InvoiceStatusValue = (typeof allowedStatuses)[number];
-
-type CalculatedItem = {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-};
-
-function calculateTotals(
-  itemsInput: Array<{
-    description: string;
-    quantity: number;
-    unitPrice: number;
-  }>,
-  taxInput = 0,
-  discountInput = 0,
-) {
-  const items: CalculatedItem[] = itemsInput.map((item) => {
-    const quantity = roundMoney(Number(item.quantity));
-    const unitPrice = roundMoney(Number(item.unitPrice));
-
-    return {
-      description: item.description.trim(),
-      quantity,
-      unitPrice,
-      total: roundMoney(quantity * unitPrice),
-    };
-  });
-
-  const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
-  const tax = roundMoney(Number(taxInput || 0));
-  const discount = roundMoney(Number(discountInput || 0));
-  const beforeDiscount = roundMoney(subtotal + tax);
-
-  if (
-    items.some((item) => item.total > MAX_JOD_AMOUNT) ||
-    subtotal > MAX_JOD_AMOUNT ||
-    beforeDiscount > MAX_JOD_AMOUNT
-  ) {
-    return {
-      error: "إجمالي الفاتورة أكبر من الحد المالي المسموح",
-      items,
-      subtotal,
-      tax,
-      discount,
-      total: 0,
-    };
-  }
-
-  if (discount > beforeDiscount) {
-    return {
-      error: "الخصم لا يمكن أن يكون أكبر من المجموع مع الضريبة",
-      items,
-      subtotal,
-      tax,
-      discount,
-      total: 0,
-    };
-  }
-
-  return {
-    error: null,
-    items,
-    subtotal,
-    tax,
-    discount,
-    total: roundMoney(beforeDiscount - discount),
-  };
-}
 
 function decryptInvoiceClient<T extends { client?: any }>(invoice: T | null) {
   if (!invoice?.client) return invoice;
@@ -378,7 +309,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.discount !== undefined;
 
     const totals = shouldRecalculateTotals
-      ? calculateTotals(
+      ? calculateInvoiceTotals(
           itemsForTotals,
           data.tax !== undefined ? data.tax : Number(invoice.tax),
           data.discount !== undefined

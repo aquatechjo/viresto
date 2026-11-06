@@ -16,7 +16,11 @@ import {
   buildInvoiceAccessWhere,
 } from "@/lib/access-control";
 import { roundMoney } from "@/lib/finance";
-import { MAX_JOD_AMOUNT } from "@/lib/money";
+import { calculateInvoiceTotals } from "@/lib/invoice-totals";
+import {
+  OUTSTANDING_INVOICE_STATUSES,
+  summarizeInvoiceStats,
+} from "@/lib/invoice-stats";
 import { formatSequentialInvoiceNumber } from "@/lib/financial-audit";
 import {
   assertCaseCanAcceptAmount,
@@ -35,76 +39,7 @@ const allowedStatuses = [
 // Filter value, not a stored status: what is still to collect. The same
 // statuses as the "unpaid" figure below.
 const OUTSTANDING = "OUTSTANDING";
-const outstandingStatuses = ["UNPAID", "PARTIALLY_PAID", "OVERDUE"] as const;
-
-type CalculatedItem = {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-};
-
-function calculateTotals(
-  itemsInput: Array<{
-    description: string;
-    quantity: number;
-    unitPrice: number;
-  }>,
-  taxInput = 0,
-  discountInput = 0,
-) {
-  const items: CalculatedItem[] = itemsInput.map((item) => {
-    const quantity = roundMoney(Number(item.quantity));
-    const unitPrice = roundMoney(Number(item.unitPrice));
-
-    return {
-      description: item.description.trim(),
-      quantity,
-      unitPrice,
-      total: roundMoney(quantity * unitPrice),
-    };
-  });
-
-  const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
-  const tax = roundMoney(Number(taxInput || 0));
-  const discount = roundMoney(Number(discountInput || 0));
-  const beforeDiscount = roundMoney(subtotal + tax);
-
-  if (
-    items.some((item) => item.total > MAX_JOD_AMOUNT) ||
-    subtotal > MAX_JOD_AMOUNT ||
-    beforeDiscount > MAX_JOD_AMOUNT
-  ) {
-    return {
-      error: "إجمالي الفاتورة أكبر من الحد المالي المسموح",
-      items,
-      subtotal,
-      tax,
-      discount,
-      total: 0,
-    };
-  }
-
-  if (discount > beforeDiscount) {
-    return {
-      error: "الخصم لا يمكن أن يكون أكبر من المجموع مع الضريبة",
-      items,
-      subtotal,
-      tax,
-      discount,
-      total: 0,
-    };
-  }
-
-  return {
-    error: null,
-    items,
-    subtotal,
-    tax,
-    discount,
-    total: roundMoney(beforeDiscount - discount),
-  };
-}
+const outstandingStatuses = OUTSTANDING_INVOICE_STATUSES;
 
 async function allocateInvoiceNumber(
   tenantId: string,
@@ -356,39 +291,7 @@ export async function GET(req: NextRequest) {
         : invoice.client,
     }));
 
-    // Invoices of archived clients are records: they count in every figure
-    // (a debt must not vanish from "uncollected"), and archivedCount is the
-    // subset behind the "archived clients" card.
-    const stats = statRows.reduce(
-      (result, invoice) => {
-        const invoiceTotal = Number(invoice.total || 0);
-        const paid = invoice.payments.reduce(
-          (sum, payment) => sum + Number(payment.amount || 0),
-          0,
-        );
-
-        result.totalAmount += invoiceTotal;
-        result.paidAmount += paid;
-        if ((outstandingStatuses as readonly string[]).includes(invoice.status)) {
-          result.unpaidAmount += Math.max(0, invoiceTotal - paid);
-        }
-        if (invoice.status === "OVERDUE") result.overdueCount += 1;
-        if (invoice.status === "PAID") result.paidCount += 1;
-        if (invoice.client?.archivedAt || invoice.case?.client?.archivedAt) {
-          result.archivedCount += 1;
-        }
-        return result;
-      },
-      {
-        totalAmount: 0,
-        paidAmount: 0,
-        unpaidAmount: 0,
-        overdueCount: 0,
-        paidCount: 0,
-        archivedCount: 0,
-        totalCount: statRows.length,
-      },
-    );
+    const stats = summarizeInvoiceStats(statRows);
 
     return ok({
       items: decryptedInvoices,
@@ -440,7 +343,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const notes = data.notes?.trim() || null;
-    const totals = calculateTotals(data.items, data.tax, data.discount);
+    const totals = calculateInvoiceTotals(data.items, data.tax, data.discount);
 
     if (totals.error) {
       return err(totals.error, 400);
