@@ -7,6 +7,7 @@ import {
 } from "@/lib/notifications";
 import { formatDateTime, overdueFrom, pastDueBefore } from "@/lib/datetime";
 import { rolesWithPermission } from "@/lib/permissions";
+import { invoiceStatusWhere } from "@/lib/finance";
 import { financialRecipients, uniqueIds } from "@/lib/notification-recipients";
 
 const APPOINTMENT_SOON_HOURS = 24;
@@ -241,7 +242,8 @@ export async function generateImportantNotifications(tenantId: string) {
     prisma.invoice.findMany({
       where: {
         tenantId,
-        status: { in: ["UNPAID", "PARTIALLY_PAID"] },
+        // OVERDUE: a legacy stored status, read as unpaid (finance.ts).
+        status: { in: ["UNPAID", "PARTIALLY_PAID", "OVERDUE"] },
         dueDate: { gte: invoicePastDueBefore, lte: invoiceSoonTo },
       },
       select: {
@@ -262,13 +264,7 @@ export async function generateImportantNotifications(tenantId: string) {
     prisma.invoice.findMany({
       where: {
         tenantId,
-        OR: [
-          { status: "OVERDUE" },
-          {
-            status: { in: ["UNPAID", "PARTIALLY_PAID"] },
-            dueDate: { lt: invoicePastDueBefore },
-          },
-        ],
+        ...invoiceStatusWhere("OVERDUE", now),
       },
       select: {
         id: true,

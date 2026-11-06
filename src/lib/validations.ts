@@ -322,7 +322,7 @@ export const invoiceUpdateSchema = z.object({
   caseId: z.string().optional().nullable(),
   dueDate: optionalDateString,
   status: z
-    .enum(["DRAFT", "UNPAID", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])
+    .enum(["DRAFT", "UNPAID", "PARTIALLY_PAID", "PAID", "CANCELLED"])
     .optional(),
   tax: nonNegativeMoney.optional(),
   discount: nonNegativeMoney.optional(),

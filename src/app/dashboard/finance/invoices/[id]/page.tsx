@@ -31,6 +31,7 @@ import {
   printInvoiceDocument,
   safeInvoiceFilename,
 } from "@/lib/invoice-print";
+import { invoiceStatusText, invoiceStatusTone } from "@/lib/invoice-status-display";
 import { formatInZone, toDateOnlyInputValue } from "@/lib/datetime";
 
 type InvoiceStatus =
@@ -63,6 +64,8 @@ interface Invoice {
   publicId?: number;
   invoiceNumber: string;
   status: InvoiceStatus;
+  /** Computed from the due date by the API, never stored. */
+  isOverdue?: boolean;
   issueDate: string;
   dueDate?: string | null;
   subtotal: number;
@@ -1251,7 +1254,7 @@ export default function InvoiceDetailsPage() {
               className="rounded-full px-2 py-0.5 text-[11px] font-black"
               style={{ background: "#fff", color: "var(--sidebar)" }}
             >
-              {statusLabels[invoice.status]}
+              {invoiceStatusText(invoice.status, invoice.isOverdue, statusLabels)}
             </span>
             {archivedInvoice && (
               <span
@@ -1381,10 +1384,10 @@ export default function InvoiceDetailsPage() {
               </div>
 
               <span
-                className={`${statusClasses[invoice.status]} shrink-0`}
-                style={statusStyles[invoice.status]}
+                className={`${statusClasses[invoiceStatusTone(invoice.status, invoice.isOverdue) as InvoiceStatus]} shrink-0`}
+                style={statusStyles[invoiceStatusTone(invoice.status, invoice.isOverdue) as InvoiceStatus]}
               >
-                {statusLabels[invoice.status]}
+                {invoiceStatusText(invoice.status, invoice.isOverdue, statusLabels)}
               </span>
             </div>
 
@@ -1433,12 +1436,6 @@ export default function InvoiceDetailsPage() {
                 {statusLabels.PAID} — {ui.automatic}
               </option>
 
-              <option
-                value="OVERDUE"
-                style={{ textAlign: appIsRtl ? "right" : "left" }}
-              >
-                {statusLabels.OVERDUE}
-              </option>
               <option
                 value="CANCELLED"
                 style={{ textAlign: appIsRtl ? "right" : "left" }}
@@ -1632,7 +1629,8 @@ export default function InvoiceDetailsPage() {
                   </div>
 
                   <p className="mt-4 text-xs font-black leading-5 text-white/80">
-                    {invoiceCopy.status}: {invoiceCopy.statuses[invoice.status]}
+                    {invoiceCopy.status}:{" "}
+                    {invoiceStatusText(invoice.status, invoice.isOverdue, invoiceCopy.statuses)}
                   </p>
                 </div>
               </div>

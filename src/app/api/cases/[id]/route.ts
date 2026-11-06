@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withInvoiceState } from "@/lib/finance";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { caseSchema } from "@/lib/validations";
 import { ok, err, notFound } from "@/lib/api-response";
@@ -210,7 +211,9 @@ export async function GET(req: NextRequest, { params }: Params) {
     return ok({
       ...c,
       payments: canViewFinance ? c.payments : [],
-      invoices: canViewFinance ? c.invoices : [],
+      invoices: canViewFinance
+        ? c.invoices.map((invoice) => withInvoiceState(invoice))
+        : [],
       client: {
         ...c.client,
         email: canViewContact ? safeDecrypt(c.client.email) : null,

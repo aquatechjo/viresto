@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isPastDue, overdueFrom, pastDueBefore } from "@/lib/datetime";
-import { calculateInvoiceStatus } from "@/lib/finance";
+import { calculateInvoiceStatus, effectiveInvoiceState } from "@/lib/finance";
 import { isInvoiceOverdue } from "@/lib/report-finance";
 
 // An invoice due on 26 Oct is late only from 27 Oct 00:00 in Amman, never
@@ -47,10 +47,14 @@ for (const [label, now] of Object.entries(ammanMoments) as [keyof typeof ammanMo
     // The database filter (reports, notifications) agrees with isPastDue.
     assert.equal(dueDate.getTime() < pastDueBefore(now).getTime(), late);
 
-    // Invoice status written after payment changes.
+    // The stored status never becomes OVERDUE; "overdue" is computed.
     assert.equal(
-      calculateInvoiceStatus({ currentStatus: "UNPAID", total: 100, paidTotal: 0, dueDate, now }),
-      late ? "OVERDUE" : "UNPAID",
+      calculateInvoiceStatus({ currentStatus: "UNPAID", total: 100, paidTotal: 0 }),
+      "UNPAID",
+    );
+    assert.deepEqual(
+      effectiveInvoiceState({ status: "UNPAID", total: 100, paidTotal: 0, dueDate }, now),
+      { status: "UNPAID", isOverdue: late },
     );
 
     // Reports' overdue amount.
@@ -68,7 +72,7 @@ test("no due date, an invalid one, or a paid invoice is never overdue", () => {
   assert.equal(isPastDue(undefined, later), false);
   assert.equal(isPastDue("not a date", later), false);
   assert.equal(
-    calculateInvoiceStatus({ currentStatus: "UNPAID", total: 100, paidTotal: 100, dueDate, now: later }),
+    calculateInvoiceStatus({ currentStatus: "UNPAID", total: 100, paidTotal: 100 }),
     "PAID",
   );
 });

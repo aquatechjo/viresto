@@ -330,9 +330,8 @@ export async function loadDashboard(
     .map((invoice) => {
       const outstanding = Math.max(Number(invoice.total ?? 0) - (paidByInvoice.get(invoice.id) ?? 0), 0);
       // Due before today, not before now: an invoice due today is not late.
-      const isOverdue =
-        outstanding > 0 &&
-        (invoice.status === "OVERDUE" || isPastDue(invoice.dueDate, nowDate));
+      // Never from a stored OVERDUE: overdue is computed (finance.ts).
+      const isOverdue = outstanding > 0 && isPastDue(invoice.dueDate, nowDate);
       return { issueDate: invoice.issueDate, outstanding, isOverdue };
     })
     .filter((invoice) => invoice.outstanding > 0);

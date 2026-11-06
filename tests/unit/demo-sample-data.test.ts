@@ -9,6 +9,7 @@ import {
 } from "../../src/lib/demo/sample-data";
 import { isDemoEmail } from "../../src/lib/demo/constants";
 import { normalizePhone } from "@/lib/phone";
+import { effectiveInvoiceState } from "@/lib/finance";
 
 const NOW = new Date("2026-10-18T09:00:00.000Z");
 
@@ -127,9 +128,19 @@ test("invoices are paid, partially paid and unpaid, and agree with their payment
   const data = build();
   const statuses = new Set(data.invoices.map((item) => item.status));
 
-  for (const status of ["PAID", "PARTIALLY_PAID", "UNPAID", "OVERDUE"]) {
+  for (const status of ["PAID", "PARTIALLY_PAID", "UNPAID"]) {
     assert.ok(statuses.has(status as never), status);
   }
+  // Overdue is computed, never stored; the demo still has a late invoice.
+  assert.ok(!statuses.has("OVERDUE" as never));
+  assert.ok(
+    data.invoices.some(
+      (item) => effectiveInvoiceState(
+        { status: item.status ?? "UNPAID", total: item.total, dueDate: item.dueDate ?? null, paidTotal: 0 },
+        NOW,
+      ).isOverdue,
+    ),
+  );
 
   for (const invoice of data.invoices) {
     const paid = data.payments
@@ -139,7 +150,7 @@ test("invoices are paid, partially paid and unpaid, and agree with their payment
 
     if (invoice.status === "PAID") assert.equal(paid, total);
     if (invoice.status === "PARTIALLY_PAID") assert.ok(paid > 0 && paid < total);
-    if (invoice.status === "UNPAID" || invoice.status === "OVERDUE") assert.equal(paid, 0);
+    if (invoice.status === "UNPAID") assert.equal(paid, 0);
   }
 
   assert.equal(data.invoiceSequence.nextNumber, data.invoices.length + 1);

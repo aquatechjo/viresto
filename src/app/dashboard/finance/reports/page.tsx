@@ -25,6 +25,7 @@ import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 import { formatJOD } from "@/lib/money";
 import { formatInZone, NUMERIC_DATE } from '@/lib/datetime'
+import { invoiceStatusText } from '@/lib/invoice-status-display'
 
 const REPORT_COPY = {
   ar: {
@@ -321,11 +322,9 @@ function invoiceDisplayStatus(
   invoice: ReportInvoice,
   copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en
 ) {
-  if (invoice.isOverdue && invoice.status === 'PARTIALLY_PAID') {
-    return `${copy.statuses.invoices.OVERDUE} • ${copy.statuses.invoices.PARTIALLY_PAID}`
+  if (invoice.isOverdue) {
+    return invoiceStatusText(invoice.status, true, copy.statuses.invoices)
   }
-
-  if (invoice.isOverdue) return copy.statuses.invoices.OVERDUE
   return invoiceStatusLabel(invoice.status, copy)
 }
 

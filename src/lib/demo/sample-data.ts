@@ -11,6 +11,7 @@ import type {
 } from "@prisma/client";
 import { DateTime } from "luxon";
 import { formatSequentialInvoiceNumber } from "@/lib/financial-audit";
+import { invoiceStatusFromPayments } from "@/lib/finance";
 import { DEMO_EMAIL_DOMAIN } from "@/lib/demo/constants";
 
 // The sample office a trial user explores in demo mode: realistic Jordanian
@@ -195,10 +196,9 @@ const INVOICES: Array<{ case: number; items: Array<[string, number]>; paid: numb
 
 const PAYMENT_METHODS: PaymentMethod[] = ["CASH", "BANK_TRANSFER", "CHECK", "BANK_TRANSFER"];
 
-function invoiceStatus(total: number, paid: number, due: Date, now: Date): InvoiceStatus {
-  if (paid >= total) return "PAID";
-  if (paid > 0) return "PARTIALLY_PAID";
-  return due.getTime() < now.getTime() ? "OVERDUE" : "UNPAID";
+// Never OVERDUE: overdue is computed from the due date when read (finance.ts).
+function invoiceStatus(total: number, paid: number): InvoiceStatus {
+  return invoiceStatusFromPayments(total, paid);
 }
 
 // Open cases left untouched for over 30 days (the dashboard flags them).
@@ -410,7 +410,7 @@ export function buildDemoSampleData(input: DemoSampleInput): DemoSampleData {
       clientId: linked.clientId,
       caseId: linked.id,
       invoiceNumber: formatSequentialInvoiceNumber(year, index + 1),
-      status: invoiceStatus(total, paid, dueDate, now),
+      status: invoiceStatus(total, paid),
       issueDate,
       dueDate,
       subtotal: total,

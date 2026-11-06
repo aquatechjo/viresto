@@ -14,7 +14,7 @@ import {
   buildClientAccessWhere,
   buildInvoiceIdentifierAccessWhere,
 } from "@/lib/access-control";
-import { roundMoney } from "@/lib/finance";
+import { roundMoney, withInvoiceState } from "@/lib/finance";
 import { calculateInvoiceTotals } from "@/lib/invoice-totals";
 import {
   assertCaseCanAcceptAmount,
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       return notFound("الفاتورة غير موجودة");
     }
 
-    return ok(decryptInvoiceClient(invoice));
+    return ok(withInvoiceState(decryptInvoiceClient(invoice)!));
   });
 }
 
@@ -169,6 +169,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       !allowedStatuses.includes(statusRaw as any)
     ) {
       return err("حالة الفاتورة غير صالحة", 400);
+    }
+
+    // Overdue is computed from the due date (finance.ts), never set.
+    if (statusRaw === "OVERDUE") {
+      return err(
+        "حالة التأخر تُحسب تلقائيًا من تاريخ الاستحقاق، ولا تُضبط يدويًا.",
+        400,
+      );
     }
 
     const parsed = invoiceCreateSchema.partial().safeParse(body);
@@ -531,7 +539,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       throw error;
     }
 
-    return ok(decryptInvoiceClient(updated));
+    return ok(withInvoiceState(decryptInvoiceClient(updated)!));
   });
 }
 

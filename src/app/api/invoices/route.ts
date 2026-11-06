@@ -15,7 +15,11 @@ import {
   buildClientAccessWhere,
   buildInvoiceAccessWhere,
 } from "@/lib/access-control";
-import { roundMoney } from "@/lib/finance";
+import {
+  invoiceStatusWhere,
+  roundMoney,
+  withInvoiceState,
+} from "@/lib/finance";
 import { calculateInvoiceTotals } from "@/lib/invoice-totals";
 import {
   OUTSTANDING_INVOICE_STATUSES,
@@ -174,12 +178,14 @@ export async function GET(req: NextRequest) {
       return ok(cases);
     }
 
+    const now = new Date();
     const where = buildInvoiceAccessWhere(auth.user, {
-        ...(status === OUTSTANDING
-          ? { status: { in: [...outstandingStatuses] } }
-          : status
-            ? { status: status as any }
-            : {}),
+        // OVERDUE is computed from the due date, never stored (finance.ts).
+        AND: [
+          status === OUTSTANDING
+            ? { status: { in: [...outstandingStatuses] } }
+            : invoiceStatusWhere(status, now),
+        ],
         ...(archivedOnly
           ? {
               OR: [
@@ -240,7 +246,7 @@ export async function GET(req: NextRequest) {
       ]);
 
       const decryptedInvoices = invoices.map((invoice) => ({
-        ...invoice,
+        ...withInvoiceState(invoice, now),
         client: invoice.client
           ? {
               ...invoice.client,
@@ -270,6 +276,7 @@ export async function GET(req: NextRequest) {
         select: {
           total: true,
           status: true,
+          dueDate: true,
           client: { select: { archivedAt: true } },
           case: { select: { client: { select: { archivedAt: true } } } },
           payments: {
@@ -281,7 +288,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const decryptedInvoices = invoices.map((invoice) => ({
-      ...invoice,
+      ...withInvoiceState(invoice, now),
       client: invoice.client
         ? {
             ...invoice.client,
@@ -291,7 +298,7 @@ export async function GET(req: NextRequest) {
         : invoice.client,
     }));
 
-    const stats = summarizeInvoiceStats(statRows);
+    const stats = summarizeInvoiceStats(statRows, now);
 
     return ok({
       items: decryptedInvoices,
@@ -490,6 +497,6 @@ export async function POST(req: NextRequest) {
       throw error;
     }
 
-    return ok(invoice, 201);
+    return ok(withInvoiceState(invoice), 201);
   });
 }

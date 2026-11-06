@@ -57,13 +57,18 @@ test("the earlier checks keep their own message", () => {
   );
 });
 
+const NOW = new Date("2026-11-06T09:00:00.000Z");
+const PAST_DUE = new Date("2026-10-01");
+
 const row = (
   status: string,
   total: number,
   paid: number[] = [],
   archived = false,
+  dueDate: Date | null = null,
 ): InvoiceStatRow => ({
   status,
+  dueDate,
   total,
   payments: paid.map((amount) => ({ amount })),
   client: { archivedAt: archived ? new Date("2026-01-01") : null },
@@ -75,10 +80,10 @@ test("list stats: drafts and cancelled invoices are not money billed", () => {
     row("UNPAID", 100),
     row("PARTIALLY_PAID", 50, [20]),
     row("PAID", 30, [30]),
-    row("OVERDUE", 10),
+    row("UNPAID", 10, [], false, PAST_DUE),
     row("DRAFT", 1000),
     row("CANCELLED", 500),
-  ]);
+  ], NOW);
   assert.equal(stats.totalAmount, 190);
   assert.equal(stats.paidAmount, 50);
   assert.equal(stats.unpaidAmount, 100 + 30 + 10);
@@ -98,4 +103,19 @@ test("list stats: archived clients' invoices count, drafts included in archivedC
   assert.equal(stats.unpaidAmount, 50);
   assert.equal(stats.archivedCount, 2);
   assert.equal(stats.totalCount, 3);
+});
+
+test("list stats: overdue is counted from the due date, and a legacy stored OVERDUE from its payments", () => {
+  const stats = summarizeInvoiceStats([
+    row("UNPAID", 100, [], false, PAST_DUE), // overdue
+    row("PARTIALLY_PAID", 100, [40], false, PAST_DUE), // overdue
+    row("OVERDUE", 100, [30], false, PAST_DUE), // legacy: partly paid, overdue
+    row("OVERDUE", 100, [100], false, PAST_DUE), // legacy: fully paid, not overdue
+    row("OVERDUE", 100, [], false, new Date("2026-12-01")), // legacy: not yet due
+    row("UNPAID", 100, [], false, new Date("2026-11-06")), // due today: not late
+    row("DRAFT", 100, [], false, PAST_DUE), // a draft is never overdue
+  ], NOW);
+  assert.equal(stats.overdueCount, 3);
+  assert.equal(stats.paidCount, 1);
+  assert.equal(stats.unpaidAmount, 100 + 60 + 70 + 100 + 100);
 });

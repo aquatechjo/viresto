@@ -1,5 +1,7 @@
 // The figures of the invoice list's stat cards (GET /api/invoices).
 
+import { collectedTotal, effectiveInvoiceState } from "@/lib/finance";
+
 /** Still to collect: the "unpaid" card and its OUTSTANDING filter. */
 export const OUTSTANDING_INVOICE_STATUSES = [
   "UNPAID",
@@ -10,6 +12,7 @@ export const OUTSTANDING_INVOICE_STATUSES = [
 export type InvoiceStatRow = {
   total: unknown;
   status: string;
+  dueDate: Date | string | null;
   client?: { archivedAt: Date | null } | null;
   case?: { client?: { archivedAt: Date | null } | null } | null;
   /** PAID payments only. */
@@ -35,7 +38,10 @@ export type InvoiceStats = {
  * the money figures. They still count in totalCount and archivedCount,
  * whose cards open lists that show them.
  */
-export function summarizeInvoiceStats(rows: InvoiceStatRow[]): InvoiceStats {
+export function summarizeInvoiceStats(
+  rows: InvoiceStatRow[],
+  now: Date = new Date(),
+): InvoiceStats {
   const stats: InvoiceStats = {
     totalAmount: 0,
     paidAmount: 0,
@@ -48,20 +54,23 @@ export function summarizeInvoiceStats(rows: InvoiceStatRow[]): InvoiceStats {
 
   for (const invoice of rows) {
     const invoiceTotal = Number(invoice.total || 0);
-    const paid = invoice.payments.reduce(
-      (sum, payment) => sum + Number(payment.amount || 0),
-      0,
+    const paid = collectedTotal(invoice.payments);
+    // Effective status: a legacy stored OVERDUE is read from its payments,
+    // and "overdue" comes from the due date (finance.ts).
+    const { status, isOverdue } = effectiveInvoiceState(
+      { status: invoice.status, total: invoice.total, dueDate: invoice.dueDate, paidTotal: paid },
+      now,
     );
 
-    if (invoice.status !== "DRAFT" && invoice.status !== "CANCELLED") {
+    if (status !== "DRAFT" && status !== "CANCELLED") {
       stats.totalAmount += invoiceTotal;
       stats.paidAmount += paid;
     }
-    if ((OUTSTANDING_INVOICE_STATUSES as readonly string[]).includes(invoice.status)) {
+    if ((OUTSTANDING_INVOICE_STATUSES as readonly string[]).includes(status)) {
       stats.unpaidAmount += Math.max(0, invoiceTotal - paid);
     }
-    if (invoice.status === "OVERDUE") stats.overdueCount += 1;
-    if (invoice.status === "PAID") stats.paidCount += 1;
+    if (isOverdue) stats.overdueCount += 1;
+    if (status === "PAID") stats.paidCount += 1;
     if (invoice.client?.archivedAt || invoice.case?.client?.archivedAt) {
       stats.archivedCount += 1;
     }

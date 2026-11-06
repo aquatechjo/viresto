@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  invoiceStatusText as invoiceStatusDisplay,
+  invoiceStatusTone,
+} from "@/lib/invoice-status-display";
 import { formatPhoneForDisplay } from "@/lib/phone";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -108,6 +112,8 @@ interface Invoice {
   publicId?: number;
   invoiceNumber: string;
   status: string;
+  /** Computed from the due date by the API, never stored. */
+  isOverdue?: boolean;
   issueDate: string;
   dueDate?: string | null;
   subtotal: number;
@@ -545,6 +551,7 @@ export default function CaseDetailPage() {
   const invoiceStatusText: Record<string, string> = {
     DRAFT: isArabic ? "مسودة" : "Draft",
     UNPAID: isArabic ? "غير مدفوعة" : "Unpaid",
+    PARTIALLY_PAID: isArabic ? "مدفوعة جزئيًا" : "Partially paid",
     PAID: isArabic ? "مدفوعة" : "Paid",
     OVERDUE: isArabic ? "متأخرة" : "Overdue",
     CANCELLED: isArabic ? "ملغاة" : "Cancelled",
@@ -2027,8 +2034,11 @@ export default function CaseDetailPage() {
                     id: "status",
                     header: pageText.status,
                     cell: (invoice) => (
-                      <span className={BADGE_CLASS} style={badgeVisualStyle(invoice.status)}>
-                        {invoiceStatusText[invoice.status] || invoice.status}
+                      <span
+                        className={BADGE_CLASS}
+                        style={badgeVisualStyle(invoiceStatusTone(invoice.status, invoice.isOverdue))}
+                      >
+                        {invoiceStatusDisplay(invoice.status, invoice.isOverdue, invoiceStatusText)}
                       </span>
                     ),
                   },

@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { invoiceStatusText } from "@/lib/invoice-status-display";
 import { formatJOD } from "@/lib/money";
 import { formatInZone } from "@/lib/datetime";
 import { formatPhoneForDisplay, normalizePhone } from "@/lib/phone";
@@ -17,6 +18,8 @@ export type PrintableInvoice = {
   id: string;
   invoiceNumber: string;
   status: PrintableInvoiceStatus;
+  /** Computed from the due date by the API (finance.ts); never stored. */
+  isOverdue?: boolean;
   issueDate: string;
   dueDate?: string | null;
   subtotal: number;
@@ -102,6 +105,7 @@ const COPY = {
     statuses: {
       DRAFT: "مسودة",
       UNPAID: "غير مدفوعة",
+      PARTIALLY_PAID: "مدفوعة جزئيًا",
       PAID: "مدفوعة",
       OVERDUE: "متأخرة",
       CANCELLED: "ملغاة",
@@ -152,6 +156,7 @@ const COPY = {
     statuses: {
       DRAFT: "Draft",
       UNPAID: "Unpaid",
+      PARTIALLY_PAID: "Partially paid",
       PAID: "Paid",
       OVERDUE: "Overdue",
       CANCELLED: "Cancelled",
@@ -346,7 +351,7 @@ export function buildInvoiceWhatsAppMessage(
 ${copy.whatsappIntro}
 
 ${copy.invoiceNumber}: ${formatInvoiceNumber(invoice.invoiceNumber)}
-${copy.status}: ${copy.statuses[invoice.status]}
+${copy.status}: ${invoiceStatusText(invoice.status, invoice.isOverdue, copy.statuses)}
 ${copy.caseDetails}: ${caseText}
 ${copy.issueDate}: ${date(invoice.issueDate, locale)}
 ${copy.dueDate}: ${date(invoice.dueDate, locale)}
@@ -927,7 +932,7 @@ export function buildInvoicePrintHtml(
         <h2>${escapeHtml(copy.invoice)}</h2>
         <div class="invoice-number">${escapeHtml(invoiceNo)}</div>
         <div class="status-row">
-          <div class="status-chip">${escapeHtml(copy.statuses[invoice.status])}</div>
+          <div class="status-chip">${escapeHtml(invoiceStatusText(invoice.status, invoice.isOverdue, copy.statuses))}</div>
         </div>
       </div>
     </section>
@@ -967,7 +972,7 @@ export function buildInvoicePrintHtml(
           <div class="main-value">${escapeHtml(caseText)}</div>
           <div class="muted">
             ${escapeHtml(copy.status)}:
-            ${escapeHtml(copy.statuses[invoice.status])}
+            ${escapeHtml(invoiceStatusText(invoice.status, invoice.isOverdue, copy.statuses))}
           </div>
           <div class="muted">
             ${

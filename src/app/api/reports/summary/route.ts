@@ -22,7 +22,11 @@ import {
   isInvoiceOverdue,
   normalizeReportTimeZone,
 } from "@/lib/report-finance";
-import { roundMoney } from "@/lib/finance";
+import {
+  effectiveInvoiceState,
+  invoiceStatusWhere,
+  roundMoney,
+} from "@/lib/finance";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   REPORT_EXPORT_LIMIT,
@@ -34,7 +38,6 @@ import {
   assertTenantCanWrite,
   assertTenantHasFeature,
 } from "@/lib/billing-limits";
-import { pastDueBefore } from "@/lib/datetime";
 
 type ReportType = "monthly" | "yearly";
 type CaseStatus = "OPEN" | "IN_PROGRESS" | "CLOSED" | "ARCHIVED";
@@ -147,26 +150,6 @@ function paymentPeriodWhere(params: {
   };
 }
 
-function invoiceStatusWhere(
-  status: string,
-  now: Date,
-): Prisma.InvoiceWhereInput {
-  if (!status) return {};
-
-  if (status === "OVERDUE") {
-    return {
-      OR: [
-        { status: "OVERDUE" },
-        {
-          status: { in: ["UNPAID", "PARTIALLY_PAID"] },
-          dueDate: { lt: pastDueBefore(now) },
-        },
-      ],
-    };
-  }
-
-  return { status: status as InvoiceStatus };
-}
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -480,6 +463,11 @@ export async function GET(req: NextRequest) {
 
     const periodInvoices = periodInvoicesRaw.map((invoice) => ({
       ...invoice,
+      // A legacy stored OVERDUE shows the status its payments give.
+      status: effectiveInvoiceState(
+        { ...invoice, paidTotal: getInvoicePaidAmount(invoice) },
+        now,
+      ).status,
       paidAmount: getInvoicePaidAmount(invoice),
       remainingAmount: getInvoiceRemainingAmount(invoice),
       isOverdue: isInvoiceOverdue(invoice, now),

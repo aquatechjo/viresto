@@ -166,7 +166,6 @@ test("compares balances using fils precision", () => {
       currentStatus: "UNPAID",
       total: 10,
       paidTotal: 9.999,
-      dueDate: null,
     }),
     "PARTIALLY_PAID",
   );
