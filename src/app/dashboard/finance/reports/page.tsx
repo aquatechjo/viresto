@@ -212,7 +212,7 @@ interface ReportPayment {
 
 interface ReportInvoice {
   id: string
-  invoiceNumber: string
+  invoiceNumber: string | null
   total: number
   status: string
   issueDate: string
@@ -536,7 +536,7 @@ export default function ReportsPage() {
     if (!source) return []
 
     return source.periodInvoices.map((invoice) => ({
-      رقم_الفاتورة: invoice.invoiceNumber || '-',
+      رقم_الفاتورة: invoice.invoiceNumber || 'مسودة',
       الموكل: invoice.client?.name || '-',
       القضية: invoice.case?.title || '-',
       المبلغ: Number(invoice.total || 0),
@@ -762,7 +762,7 @@ export default function ReportsPage() {
           'تاريخ الاستحقاق',
         ],
         ...completeData.periodInvoices.map((invoice) => [
-          invoice.invoiceNumber || '-',
+          invoice.invoiceNumber || 'مسودة',
           invoice.client?.name || '-',
           invoice.case?.title || '-',
           Number(invoice.total || 0),
@@ -1248,7 +1248,7 @@ if (loading) {
               emptyMessage={copy.sections.periodInvoices.empty}
               tableClassName="data-table [&_td]:align-middle [&_td]:text-start [&_th]:text-start"
               columns={[
-                { id: 'invoiceNumber', header: copy.table.invoiceNumber, cell: (invoice) => invoice.invoiceNumber },
+                { id: 'invoiceNumber', header: copy.table.invoiceNumber, cell: (invoice) => invoice.invoiceNumber || (locale === 'en' ? 'Draft' : 'مسودة') },
                 { id: 'client', header: copy.table.client, cell: (invoice) => invoice.client?.name || '-' },
                 { id: 'amount', header: copy.table.amount, cell: (invoice) => <bdi>{formatJOD(invoice.total)}</bdi> },
                 { id: 'collected', header: copy.table.collected, cell: (invoice) => <bdi>{formatJOD(invoice.paidAmount)}</bdi> },

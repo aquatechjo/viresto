@@ -17,6 +17,12 @@ import {
 import { roundMoney, withInvoiceState } from "@/lib/finance";
 import { calculateInvoiceTotals } from "@/lib/invoice-totals";
 import {
+  INVOICE_MESSAGES,
+  invoiceDeleteBlock,
+  invoiceStatusChangeBlock,
+} from "@/lib/invoice-lifecycle";
+import { allocateInvoiceNumber } from "@/lib/server/invoice-number";
+import {
   assertCaseCanAcceptAmount,
   isCaseFinancialLimitError,
 } from "@/lib/server/case-finance-integrity";
@@ -95,6 +101,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         payments: {
           orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
         },
+        cancelledBy: { select: { id: true, name: true } },
       },
     });
 
@@ -158,6 +165,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return notFound("الفاتورة غير موجودة");
     }
 
+    // Cancelling is final: nothing on a cancelled invoice changes again.
+    if (invoice.status === "CANCELLED") {
+      return err(INVOICE_MESSAGES.cancelledLocked, 409);
+    }
+
     const body = await req.json().catch(() => ({}));
     const statusRaw =
       typeof body.status === "string"
@@ -197,6 +209,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         "لا يمكن تعيين الفاتورة كمدفوعة يدويًا. سجّل دفعة على الفاتورة وسيحسب النظام حالتها تلقائيًا.",
         400,
       );
+    }
+
+    // An edit may only issue a draft (DRAFT -> UNPAID). Cancelling has its
+    // own route (cancel/route.ts), with the admin permission and a reason.
+    if (statusRaw !== undefined) {
+      const statusBlock = invoiceStatusChangeBlock(invoice.status, statusRaw);
+      if (statusBlock) return err(statusBlock, 409);
+    }
+
+    const isIssuingDraft = invoice.status === "DRAFT" && statusRaw === "UNPAID";
+
+    if (
+      isIssuingDraft &&
+      (invoice.client?.archivedAt || invoice.case?.client?.archivedAt)
+    ) {
+      return err(INVOICE_MESSAGES.archivedClientIssue, 400);
     }
 
     const paidTotal = roundMoney(
@@ -351,6 +379,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         where: { id: invoice.id },
         select: {
           status: true,
+          invoiceNumber: true,
           updatedAt: true,
           payments: {
             where: { status: "PAID" },
@@ -369,6 +398,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
        */
       if (currentInvoice.updatedAt.getTime() !== invoice.updatedAt.getTime()) {
         throw new Error("INVOICE_CHANGED");
+      }
+
+      if (currentInvoice.status === "CANCELLED") {
+        throw new Error("INVOICE_CANCELLED_LOCKED");
       }
 
       const currentPaidTotal = roundMoney(
@@ -404,8 +437,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         });
       }
 
+      // Issuing a draft: it takes the next number now, in this transaction,
+      // and its issue date is the day it is issued. A draft saved before
+      // 2026-11-07 may already have a number; it keeps it.
+      const issueData: Prisma.InvoiceUpdateInput = isIssuingDraft
+        ? {
+            issueDate: new Date(),
+            ...(currentInvoice.invoiceNumber
+              ? {}
+              : {
+                  invoiceNumber: await allocateInvoiceNumber(
+                    auth.user!.tenantId,
+                    tx,
+                  ),
+                }),
+          }
+        : {};
+
       const updateData: Prisma.InvoiceUpdateInput = {
         ...(statusRaw !== undefined ? { status: nextStatus as any } : {}),
+        ...issueData,
         ...(shouldUpdateClientRelation
           ? {
               client: {
@@ -484,9 +535,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ipAddress: meta.ipAddress,
           userAgent: meta.userAgent,
           tenantId: auth.user!.tenantId,
-          type: "INVOICE_UPDATED",
-          title: "تم تعديل فاتورة",
-          message: updatedInvoice.invoiceNumber,
+          type: isIssuingDraft ? "INVOICE_ISSUED" : "INVOICE_UPDATED",
+          title: isIssuingDraft ? "تم إصدار فاتورة" : "تم تعديل فاتورة",
+          message: updatedInvoice.invoiceNumber ?? "مسودة",
           entityType: updatedInvoice.caseId ? "CASE" : "INVOICE",
           entityId: updatedInvoice.caseId || updatedInvoice.id,
         },
@@ -503,6 +554,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     } catch (error) {
       if (error instanceof Error && error.message === "INVOICE_NOT_FOUND") {
         return notFound("الفاتورة غير موجودة");
+      }
+
+      if (
+        error instanceof Error &&
+        error.message === "INVOICE_CANCELLED_LOCKED"
+      ) {
+        return err(INVOICE_MESSAGES.cancelledLocked, 409);
       }
 
       if (error instanceof Error && error.message === "INVOICE_CHANGED") {
@@ -604,6 +662,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       invoice.client?.archivedAt || invoice.case?.client?.archivedAt,
     );
 
+    // Only a draft is deleted; an issued invoice is cancelled instead.
+    const deleteBlock = invoiceDeleteBlock(invoice);
+    if (deleteBlock) {
+      return err(deleteBlock, 409);
+    }
+
     if (isArchivedClient) {
       return err("لا يمكن حذف فاتورة مرتبطة بموكل مؤرشف", 400);
     }
@@ -632,6 +696,15 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           throw new Error("INVOICE_NOT_FOUND");
         }
 
+        const current = await tx.invoice.findUnique({
+          where: { id: invoice.id },
+          select: { status: true },
+        });
+
+        if (!current || invoiceDeleteBlock(current)) {
+          throw new Error("INVOICE_NOT_DRAFT");
+        }
+
         const paymentsCount = await tx.payment.count({
           where: { invoiceId: invoice.id },
         });
@@ -652,7 +725,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
             tenantId: auth.user!.tenantId,
             type: "INVOICE_DELETED",
             title: "تم حذف فاتورة",
-            message: invoice.invoiceNumber,
+            message: invoice.invoiceNumber ?? "مسودة",
             entityType: invoice.caseId ? "CASE" : "INVOICE",
             entityId: invoice.caseId || invoice.id,
           },
@@ -662,6 +735,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     } catch (error) {
       if (error instanceof Error && error.message === "INVOICE_NOT_FOUND") {
         return notFound("الفاتورة غير موجودة");
+      }
+
+      if (error instanceof Error && error.message === "INVOICE_NOT_DRAFT") {
+        return err(INVOICE_MESSAGES.deleteDraftOnly, 409);
       }
 
       if (error instanceof Error && error.message === "INVOICE_HAS_PAYMENTS") {

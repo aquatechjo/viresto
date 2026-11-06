@@ -315,6 +315,8 @@ export const invoiceCreateSchema = z.object({
   items: z
     .array(invoiceItemSchema)
     .min(1, "يجب إضافة بند واحد على الأقل للفاتورة"),
+  // "Save as draft" on creation; otherwise the invoice is issued (UNPAID).
+  asDraft: z.boolean().optional(),
 });
 
 export const invoiceUpdateSchema = z.object({

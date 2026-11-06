@@ -16,7 +16,8 @@ export type PrintableInvoiceStatus =
 
 export type PrintableInvoice = {
   id: string;
-  invoiceNumber: string;
+  /** Empty on a draft: the number is given when it is issued. */
+  invoiceNumber: string | null;
   status: PrintableInvoiceStatus;
   /** Computed from the due date by the API (finance.ts); never stored. */
   isOverdue?: boolean;
@@ -27,6 +28,9 @@ export type PrintableInvoice = {
   discount: number;
   total: number;
   notes?: string | null;
+  /** Set only on a cancelled invoice (invoice-lifecycle.ts). */
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
   client: {
     id?: string;
     name?: string | null;
@@ -89,6 +93,9 @@ const COPY = {
     lineTotal: "الإجمالي",
     notes: "ملاحظات",
     noNotes: "لا توجد ملاحظات إضافية.",
+    cancelledStamp: "ملغاة",
+    cancellationReason: "سبب الإلغاء",
+    cancelledOn: "تاريخ الإلغاء",
     subtotal: "المجموع الفرعي",
     tax: "الضريبة",
     discount: "الخصم",
@@ -139,6 +146,9 @@ const COPY = {
     lineTotal: "Total",
     notes: "Notes",
     noNotes: "No additional notes.",
+    cancelledStamp: "Cancelled",
+    cancellationReason: "Cancellation reason",
+    cancelledOn: "Cancelled on",
     subtotal: "Subtotal",
     tax: "Tax",
     discount: "Discount",
@@ -191,13 +201,20 @@ export function getInvoiceStatusLabel(
 export const invoiceStatusLabels: Record<PrintableInvoiceStatus, string> =
   COPY.ar.statuses;
 
-export function formatInvoiceNumber(invoiceNumber?: string | null) {
-  if (!invoiceNumber) return "#INV";
+/**
+ * The number as shown. A draft has none until it is issued (no gaps in
+ * issued numbers), so it shows "Draft" in the given language.
+ */
+export function formatInvoiceNumber(
+  invoiceNumber?: string | null,
+  locale?: InvoiceLocale,
+) {
+  if (!invoiceNumber) return detectLocale(locale) === "en" ? "Draft" : "مسودة";
   return invoiceNumber.startsWith("#") ? invoiceNumber : `#${invoiceNumber}`;
 }
 
 export function safeInvoiceFilename(invoiceNumber?: string | null) {
-  const clean = (invoiceNumber || "invoice")
+  const clean = (invoiceNumber || "draft-invoice")
     .replace(/^#/, "")
     .replace(/[^a-zA-Z0-9\-_\u0600-\u06FF]/g, "-")
     .replace(/-+/g, "-")
@@ -350,7 +367,7 @@ export function buildInvoiceWhatsAppMessage(
 
 ${copy.whatsappIntro}
 
-${copy.invoiceNumber}: ${formatInvoiceNumber(invoice.invoiceNumber)}
+${copy.invoiceNumber}: ${formatInvoiceNumber(invoice.invoiceNumber, locale)}
 ${copy.status}: ${invoiceStatusText(invoice.status, invoice.isOverdue, copy.statuses)}
 ${copy.caseDetails}: ${caseText}
 ${copy.issueDate}: ${date(invoice.issueDate, locale)}
@@ -377,6 +394,7 @@ export function buildInvoicePrintHtml(
   );
 
   const remainingTotal = Math.max(0, Number(invoice.total || 0) - paidTotal);
+  const isCancelled = invoice.status === "CANCELLED";
 
   const locale = detectLocale(requestedLocale);
   const copy = COPY[locale];
@@ -389,7 +407,7 @@ export function buildInvoicePrintHtml(
   const useVirestoLockup =
     !tenant?.logoUrl && tenantName.trim().toLowerCase() === "viresto";
   const tenantEmail = tenant?.email || copy.legalPlatform;
-  const invoiceNo = formatInvoiceNumber(invoice.invoiceNumber);
+  const invoiceNo = formatInvoiceNumber(invoice.invoiceNumber, locale);
   const caseText = invoice.case
     ? `${invoice.case.title || "-"}${
         invoice.case.caseNumber ? ` - ${invoice.case.caseNumber}` : ""
@@ -467,6 +485,53 @@ export function buildInvoicePrintHtml(
       border-radius: 28px;
       overflow: hidden;
       box-shadow: 0 22px 70px rgba(16, 35, 29, 0.14);
+    }
+
+    .paper { position: relative; }
+
+    .cancelled-stamp {
+      position: absolute;
+      top: 300px;
+      left: 50%;
+      z-index: 5;
+      transform: translateX(-50%) rotate(-14deg);
+      padding: 10px 34px;
+      border: 5px solid #b91c1c;
+      border-radius: 14px;
+      color: #b91c1c !important;
+      -webkit-text-fill-color: #b91c1c;
+      font-size: 56px;
+      font-weight: 950;
+      letter-spacing: 2px;
+      opacity: 0.78;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .cancellation-box {
+      margin: 0 0 18px;
+      border: 1.5px solid #fca5a5;
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: #fef2f2;
+    }
+
+    .cancellation-box h3 {
+      margin: 0 0 6px;
+      color: #b91c1c !important;
+      -webkit-text-fill-color: #b91c1c;
+      font-size: 14px;
+      font-weight: 950;
+    }
+
+    .cancellation-box p {
+      margin: 0;
+      color: #7f1d1d !important;
+      -webkit-text-fill-color: #7f1d1d;
+      font-size: 12px;
+      line-height: 1.9;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     .hero {
@@ -918,6 +983,7 @@ export function buildInvoicePrintHtml(
 </head>
 <body>
   <main class="paper">
+    ${isCancelled ? `<div class="cancelled-stamp" aria-hidden="true">${escapeHtml(copy.cancelledStamp)}</div>` : ""}
     <section class="hero">
       <div class="brand">
         ${logoMarkup(invoice, tenantName, useVirestoLockup)}
@@ -956,6 +1022,20 @@ export function buildInvoicePrintHtml(
           <div class="value numeric"><bdi>${escapeHtml(formatJOD(invoice.total))}</bdi></div>
         </div>
       </div>
+
+      ${
+        isCancelled
+          ? `<div class="cancellation-box">
+        <h3>${escapeHtml(copy.cancellationReason)}</h3>
+        <p>${escapeHtml(invoice.cancellationReason || "-")}</p>
+        ${
+          invoice.cancelledAt
+            ? `<p>${escapeHtml(copy.cancelledOn)}: ${escapeHtml(date(invoice.cancelledAt, locale))}</p>`
+            : ""
+        }
+      </div>`
+          : ""
+      }
 
       <div class="details-grid">
         <div class="box">

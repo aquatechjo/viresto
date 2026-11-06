@@ -72,7 +72,7 @@ interface InvoiceItem {
 interface Invoice {
   id: string;
   publicId?: number;
-  invoiceNumber: string;
+  invoiceNumber: string | null;
   status: InvoiceStatus;
   issueDate: string;
   dueDate?: string | null;
@@ -139,6 +139,8 @@ const COPY = {
       delete: "حذف",
       addItem: "+ إضافة بند",
       saveInvoice: "حفظ الفاتورة",
+      saveDraft: "حفظ كمسودة",
+      saveDraftHint: "المسودة لا تدخل في الأرقام ولا تُحصَّل حتى تُصدرها",
       saving: "جارٍ الحفظ...",
       close: "إغلاق",
     },
@@ -202,7 +204,7 @@ const COPY = {
       case: "القضية",
       noCase: "بدون قضية",
       archivedWarning:
-        "سيتم إنشاء الفاتورة لموكل مؤرشف. يمكن التحصيل والتعديل، لكن لا يمكن حذف الفاتورة لاحقًا لحماية السجل المالي.",
+        "لا يمكن إنشاء فاتورة جديدة لموكل مؤرشف. استرجع الموكل من الأرشيف أولًا. فواتيره القديمة تبقى وتُحصَّل.",
       dueDate: "تاريخ الاستحقاق",
       notes: "ملاحظات",
       notesPlaceholder: "مثال: الدفعة الأولى من الأتعاب",
@@ -265,6 +267,8 @@ const COPY = {
       delete: "Delete",
       addItem: "+ Add item",
       saveInvoice: "Save invoice",
+      saveDraft: "Save as draft",
+      saveDraftHint: "A draft is left out of the figures and takes no payments until it is issued",
       saving: "Saving...",
       close: "Close",
     },
@@ -330,7 +334,7 @@ const COPY = {
       case: "Case",
       noCase: "No case",
       archivedWarning:
-        "This invoice will be created for an archived client. Collection and editing are allowed, but deletion is blocked to protect the financial record.",
+        "A new invoice cannot be created for an archived client. Restore the client first; their existing invoices stay and can be collected.",
       dueDate: "Due date",
       notes: "Notes",
       notesPlaceholder: "Example: first legal-fee installment",
@@ -1327,8 +1331,16 @@ export default function InvoicesPage() {
     );
   }
 
-  async function createInvoice(event: FormEvent) {
+  async function createInvoice(
+    event: Pick<FormEvent, "preventDefault">,
+    asDraft = false,
+  ) {
     event.preventDefault();
+
+    if (selectedArchivedContext) {
+      toast.error(copy.modal.archivedWarning);
+      return;
+    }
 
     if (!writeAccess.canWrite) {
       toast.error(writeAccess.message || getBlockFallback(locale));
@@ -1383,6 +1395,7 @@ export default function InvoicesPage() {
           discount: discountAmount,
           notes,
           items: cleanItems,
+          asDraft,
         }),
       });
 
@@ -1632,7 +1645,7 @@ export default function InvoicesPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-black" style={{ color: "var(--text)" }}>
-                        <span dir="ltr">{formatInvoiceNumber(invoice.invoiceNumber)}</span>
+                        <span dir="ltr">{formatInvoiceNumber(invoice.invoiceNumber, locale)}</span>
                       </p>
                       <p dir="auto" className="mt-1 truncate text-xs font-bold" style={{ color: "var(--text-3)" }}>
                         {invoice.client?.name || "-"}
@@ -1717,7 +1730,7 @@ export default function InvoicesPage() {
                           style={{ color: "var(--text)" }}
                         >
                           <span dir="ltr">
-                            {formatInvoiceNumber(invoice.invoiceNumber)}
+                            {formatInvoiceNumber(invoice.invoiceNumber, locale)}
                           </span>
                         </p>
 
@@ -2256,8 +2269,18 @@ export default function InvoicesPage() {
               </button>
 
               <button
+                type="button"
+                onClick={(event) => createInvoice(event, true)}
+                disabled={saving || !writeAccess.canWrite || selectedArchivedContext}
+                title={copy.actions.saveDraftHint}
+                className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {copy.actions.saveDraft}
+              </button>
+
+              <button
                 type="submit"
-                disabled={saving || !writeAccess.canWrite}
+                disabled={saving || !writeAccess.canWrite || selectedArchivedContext}
                 title={
                   !writeAccess.canWrite
                     ? writeAccess.message || getBlockFallback(locale)
@@ -2277,7 +2300,7 @@ export default function InvoicesPage() {
         title={locale === "ar" ? "تم إنشاء الفاتورة بنجاح" : "Invoice created successfully"}
         subtitle={
           successInvoice?.number
-            ? `${locale === "ar" ? "رقم الفاتورة" : "Invoice"}: ${formatInvoiceNumber(successInvoice.number)}`
+            ? `${locale === "ar" ? "رقم الفاتورة" : "Invoice"}: ${formatInvoiceNumber(successInvoice.number, locale)}`
             : locale === "ar"
               ? "تم حفظ الفاتورة وتجهيزها للعرض"
               : "The invoice was saved and prepared for viewing"

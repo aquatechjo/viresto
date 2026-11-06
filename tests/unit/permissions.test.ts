@@ -52,6 +52,7 @@ const EXPECTED: Record<AppPermission, UserRole[]> = {
   "invoice.create": [A, L],
   "invoice.update": [A, L],
   "invoice.delete": [A],
+  "invoice.cancel": [A],
   "payment.create": [A, L],
   "payment.update": [A, L],
   "payment.cancel.paid": [A],

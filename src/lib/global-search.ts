@@ -254,7 +254,7 @@ async function searchInvoices(user: AccessControlUser, q: PreparedQuery) {
 
   return invoices.map<SearchResultItem>((invoice) => ({
     id: invoice.id,
-    title: invoice.invoiceNumber,
+    title: invoice.invoiceNumber ?? "مسودة",
     meta: compact([
       invoice.client.name,
       invoice.case?.title,

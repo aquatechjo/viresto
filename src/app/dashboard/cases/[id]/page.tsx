@@ -110,7 +110,7 @@ interface InvoiceItem {
 interface Invoice {
   id: string;
   publicId?: number;
-  invoiceNumber: string;
+  invoiceNumber: string | null;
   status: string;
   /** Computed from the due date by the API, never stored. */
   isOverdue?: boolean;
@@ -1168,7 +1168,7 @@ export default function CaseDetailPage() {
     }
 
     const confirmed = await confirmToast(
-      `هل تريد حذف الفاتورة ${invoice.invoiceNumber}؟`,
+      `هل تريد حذف الفاتورة ${invoice.invoiceNumber || "المسودة"}؟`,
     );
     if (!confirmed) return;
 
@@ -2027,7 +2027,7 @@ export default function CaseDetailPage() {
                     id: "invoiceNumber",
                     header: pageText.invoiceNumber,
                     cell: (invoice) => (
-                      <span className="font-mono font-bold">{invoice.invoiceNumber}</span>
+                      <span className="font-mono font-bold">{invoice.invoiceNumber || (isArabic ? "مسودة" : "Draft")}</span>
                     ),
                   },
                   {
@@ -2076,25 +2076,28 @@ export default function CaseDetailPage() {
                           {pageText.open}
                         </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => deleteInvoice(invoice)}
-                          disabled={invoice.payments.length > 0 || caseArchived}
-                          title={
-                            caseArchived
-                              ? pageText.archivedInvoiceBlocked
-                              : invoice.payments.length > 0
-                                ? isArabic
-                                  ? "لا يمكن حذف فاتورة مرتبطة بدفعة"
-                                  : "Cannot delete an invoice linked to a payment"
-                                : isArabic
-                                  ? "حذف الفاتورة"
-                                  : "Delete invoice"
-                          }
-                          className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          {pageText.delete}
-                        </button>
+                        {/* Only a draft is deleted; an issued invoice is cancelled. */}
+                        {invoice.status === "DRAFT" && (
+                          <button
+                            type="button"
+                            onClick={() => deleteInvoice(invoice)}
+                            disabled={invoice.payments.length > 0 || caseArchived}
+                            title={
+                              caseArchived
+                                ? pageText.archivedInvoiceBlocked
+                                : invoice.payments.length > 0
+                                  ? isArabic
+                                    ? "لا يمكن حذف فاتورة مرتبطة بدفعة"
+                                    : "Cannot delete an invoice linked to a payment"
+                                  : isArabic
+                                    ? "حذف الفاتورة"
+                                    : "Delete invoice"
+                            }
+                            className="rounded-xl px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {pageText.delete}
+                          </button>
+                          )}
                       </div>
                     ),
                   },

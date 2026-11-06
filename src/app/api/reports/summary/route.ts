@@ -424,7 +424,10 @@ export async function GET(req: NextRequest) {
       }),
       prisma.invoice.groupBy({
         by: ["clientId"],
-        where: periodInvoiceWhere,
+        // Billed money only: drafts and cancelled invoices are not billed.
+        where: {
+          AND: [periodInvoiceWhere, { status: { notIn: ["DRAFT", "CANCELLED"] } }],
+        },
         _sum: { total: true },
         _count: { _all: true },
       }),

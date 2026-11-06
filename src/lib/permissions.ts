@@ -54,6 +54,7 @@ export type AppPermission =
   | "invoice.create"
   | "invoice.update"
   | "invoice.delete"
+  | "invoice.cancel" // cancel an issued invoice (final, with a reason)
   | "payment.create"
   | "payment.update"
   | "payment.cancel.paid" // cancel a payment already collected
@@ -105,6 +106,7 @@ const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<AppPermission>> = {
     "invoice.create",
     "invoice.update",
     "invoice.delete",
+    "invoice.cancel",
     "payment.create",
     "payment.update",
     "payment.cancel.paid",

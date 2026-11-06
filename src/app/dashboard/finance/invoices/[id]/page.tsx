@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
+  Ban,
   CircleDollarSign,
   FileDown,
   HandCoins,
@@ -15,6 +16,7 @@ import {
   Pencil,
   Printer,
   ReceiptText,
+  Send,
   Trash2,
   WalletCards,
 } from "lucide-react";
@@ -32,7 +34,15 @@ import {
   safeInvoiceFilename,
 } from "@/lib/invoice-print";
 import { invoiceStatusText, invoiceStatusTone } from "@/lib/invoice-status-display";
-import { formatInZone, toDateOnlyInputValue } from "@/lib/datetime";
+import { formatDateTime, formatInZone, toDateOnlyInputValue } from "@/lib/datetime";
+import { useSession } from "@/hooks/useSession";
+import { usePrompt } from "@/components/ui/DialogProvider";
+import {
+  INVOICE_CANCEL_REASON_MAX,
+  INVOICE_CANCEL_REASON_MIN,
+  invoiceCancelBlock,
+  invoicePageActions,
+} from "@/lib/invoice-lifecycle";
 
 type InvoiceStatus =
   | "DRAFT"
@@ -62,10 +72,13 @@ interface InvoicePayment {
 interface Invoice {
   id: string;
   publicId?: number;
-  invoiceNumber: string;
+  invoiceNumber: string | null;
   status: InvoiceStatus;
   /** Computed from the due date by the API, never stored. */
   isOverdue?: boolean;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
+  cancelledBy?: { id: string; name: string } | null;
   issueDate: string;
   dueDate?: string | null;
   subtotal: number;
@@ -275,7 +288,29 @@ const INVOICE_DETAILS_COPY = {
       statusUpdated: "تم تحديث حالة الفاتورة",
       deleted: "تم حذف الفاتورة",
     },
-    confirmDelete: "هل أنت متأكد من حذف هذه الفاتورة؟",
+    confirmDelete: "هل أنت متأكد من حذف هذه المسودة؟",
+    issueInvoice: "إصدار الفاتورة",
+    draftNotice:
+      "هذه مسودة: لا تدخل في الأرقام ولا تُحصَّل عليها دفعات ولا تُرسل عنها تنبيهات. أصدرها لتصبح غير مدفوعة، ولا رجوع بعدها إلى مسودة.",
+    confirmIssue: "إصدار هذه الفاتورة؟ ستصبح غير مدفوعة، ولا يمكن إرجاعها إلى مسودة.",
+    issued: "تم إصدار الفاتورة",
+    issueFailed: "تعذر إصدار الفاتورة",
+    cancelInvoice: "إلغاء الفاتورة",
+    cancelInvoiceTitle: "إلغاء الفاتورة نهائيًا",
+    cancelInvoiceMessage:
+      "الإلغاء نهائي: لا يمكن بعده تعديل الفاتورة ولا إرجاعها ولا تسجيل دفعات عليها. اذكر السبب، فهو يُحفظ ويُطبع على الفاتورة.",
+    cancelInvoiceAction: "إلغاء الفاتورة",
+    keepInvoice: "تراجع",
+    cancelReasonLabel: "سبب الإلغاء",
+    cancelled: "تم إلغاء الفاتورة",
+    cancelFailed: "تعذر إلغاء الفاتورة",
+    cancelledTitle: "الفاتورة ملغاة",
+    cancelledBy: "ألغاها",
+    cancelledOn: "تاريخ الإلغاء",
+    cancelledNotice: "الإلغاء نهائي: لا تعديل ولا إرجاع ولا دفعات.",
+    editCancelledTitle: "الفاتورة ملغاة ولا تُعدّل",
+    statusRulesHint:
+      "الحالة تُحسب من الدفعات وتاريخ الاستحقاق. الفاتورة الصادرة لا تُحذف، بل يلغيها مدير المكتب مع ذكر السبب.",
   },
   en: {
     confirm: "Confirm",
@@ -377,7 +412,29 @@ const INVOICE_DETAILS_COPY = {
       statusUpdated: "Invoice status updated",
       deleted: "Invoice deleted",
     },
-    confirmDelete: "Are you sure you want to delete this invoice?",
+    confirmDelete: "Are you sure you want to delete this draft?",
+    issueInvoice: "Issue invoice",
+    draftNotice:
+      "This is a draft: it is left out of the figures, takes no payments and sends no reminders. Issue it to make it unpaid; it cannot go back to draft.",
+    confirmIssue: "Issue this invoice? It becomes unpaid and cannot go back to draft.",
+    issued: "Invoice issued",
+    issueFailed: "Could not issue the invoice",
+    cancelInvoice: "Cancel invoice",
+    cancelInvoiceTitle: "Cancel the invoice for good",
+    cancelInvoiceMessage:
+      "Cancelling is final: the invoice can no longer be edited, restored or paid. Give the reason; it is saved and printed on the invoice.",
+    cancelInvoiceAction: "Cancel invoice",
+    keepInvoice: "Keep it",
+    cancelReasonLabel: "Cancellation reason",
+    cancelled: "Invoice cancelled",
+    cancelFailed: "Could not cancel the invoice",
+    cancelledTitle: "Invoice cancelled",
+    cancelledBy: "Cancelled by",
+    cancelledOn: "Cancelled on",
+    cancelledNotice: "Cancelling is final: no edits, no restore, no payments.",
+    editCancelledTitle: "A cancelled invoice cannot be edited",
+    statusRulesHint:
+      "The status comes from payments and the due date. An issued invoice is not deleted: the office admin cancels it with a reason.",
   },
 } as const;
 
@@ -712,6 +769,8 @@ export default function InvoiceDetailsPage() {
   }
 
   const invoiceRef = useRef<HTMLDivElement | null>(null);
+  const { user: sessionUser } = useSession();
+  const prompt = usePrompt();
   function confirmToast(message: string) {
     return new Promise<boolean>((resolve) => {
       let settled = false;
@@ -946,37 +1005,66 @@ export default function InvoiceDetailsPage() {
     }
   }
 
-  async function updateStatus(nextStatus: InvoiceStatus) {
-    if (!invoice || invoice.status === nextStatus) return;
+  async function issueInvoice() {
+    if (!invoice || invoice.status !== "DRAFT") return;
 
-    if (nextStatus === "PAID" || nextStatus === "PARTIALLY_PAID") {
-      toast.error(ui.errors.automaticPaidStatus);
-      return;
-    }
-
-    if (invoice.payments.some((payment) => payment.status === "PAID")) {
-      toast.error(ui.errors.statusLocked);
-      return;
-    }
+    const confirmed = await confirmToast(ui.confirmIssue);
+    if (!confirmed) return;
 
     const res = await fetch(`/api/invoices/${invoice.id}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        status: nextStatus,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "UNPAID" }),
     });
-
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      toast.error(apiErrorMessage(data, ui.errors.statusFailed));
+      toast.error(apiErrorMessage(data, ui.issueFailed));
       return;
     }
 
-    setSuccessMotion({ kind: "update", title: ui.success.statusUpdated, status: statusLabels[nextStatus] });
+    setSuccessMotion({ kind: "update", title: ui.issued, status: statusLabels.UNPAID });
+    await load();
+  }
+
+  async function cancelInvoice() {
+    if (!invoice) return;
+
+    const block = invoiceCancelBlock(invoice);
+    if (block) {
+      toast.error(appLocale === "ar" ? block : ui.cancelFailed);
+      return;
+    }
+
+    const reason = await prompt({
+      title: ui.cancelInvoiceTitle,
+      message: ui.cancelInvoiceMessage,
+      variant: "danger",
+      confirmLabel: ui.cancelInvoiceAction,
+      cancelLabel: ui.keepInvoice,
+      input: {
+        label: ui.cancelReasonLabel,
+        minLength: INVOICE_CANCEL_REASON_MIN,
+        maxLength: INVOICE_CANCEL_REASON_MAX,
+        multiline: true,
+      },
+    });
+
+    if (reason === null) return;
+
+    const res = await fetch(`/api/invoices/${invoice.id}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      toast.error(apiErrorMessage(data, ui.cancelFailed));
+      return;
+    }
+
+    setSuccessMotion({ kind: "update", title: ui.cancelled, status: statusLabels.CANCELLED });
     await load();
   }
 
@@ -1232,10 +1320,14 @@ export default function InvoiceDetailsPage() {
   const useVirestoLockup =
     !invoice.tenant?.logoUrl && tenantName.trim().toLowerCase() === "viresto";
   const archivedInvoice = isArchivedInvoice(invoice);
+  const isCancelled = invoice.status === "CANCELLED";
+  const isDraft = invoice.status === "DRAFT";
   const canEditFinancials =
+    !isCancelled &&
     !hasPaidPayments &&
     invoice.status !== "PAID" &&
     invoice.status !== "PARTIALLY_PAID";
+  const actions = invoicePageActions(sessionUser?.role, invoice.status);
   const invoiceCopy = INVOICE_DOCUMENT_COPY[invoiceLocale];
   const invoiceIsRtl = invoiceLocale === "ar";
 
@@ -1266,7 +1358,7 @@ export default function InvoiceDetailsPage() {
             )}
           </span>
         }
-        title={ui.invoiceTitle(formatInvoiceNumber(invoice.invoiceNumber))}
+        title={ui.invoiceTitle(formatInvoiceNumber(invoice.invoiceNumber, appLocale))}
         description={ui.detailsSubtitle}
         actions={
           <>
@@ -1276,7 +1368,13 @@ export default function InvoiceDetailsPage() {
               label={ui.edit}
               onClick={openEditModal}
               disabled={!canEditFinancials}
-              title={canEditFinancials ? ui.editTitle : ui.editBlockedTitle}
+              title={
+                isCancelled
+                  ? ui.editCancelledTitle
+                  : canEditFinancials
+                    ? ui.editTitle
+                    : ui.editBlockedTitle
+              }
             />
             <PageHeaderAction icon={Printer} label={ui.print} onClick={printInvoice} />
             <PageHeaderAction
@@ -1286,19 +1384,22 @@ export default function InvoiceDetailsPage() {
               disabled={pdfLoading}
             />
             <PageHeaderAction icon={MessageCircle} label={ui.whatsapp} onClick={sendInvoiceWhatsApp} />
-            <PageHeaderAction
-              icon={Trash2}
-              label={ui.delete}
-              onClick={deleteInvoice}
-              disabled={archivedInvoice || hasPayments}
-              title={
-                archivedInvoice
-                  ? ui.deleteArchivedTitle
-                  : hasPayments
-                    ? ui.deletePaymentsTitle
-                    : ui.deleteTitle
-              }
-            />
+            {/* Only a draft is deleted; an issued invoice is cancelled. */}
+            {actions.delete && (
+              <PageHeaderAction
+                icon={Trash2}
+                label={ui.delete}
+                onClick={deleteInvoice}
+                disabled={archivedInvoice || hasPayments}
+                title={
+                  archivedInvoice
+                    ? ui.deleteArchivedTitle
+                    : hasPayments
+                      ? ui.deletePaymentsTitle
+                      : ui.deleteTitle
+                }
+              />
+            )}
 
             {/* Language of the printed invoice, not of the app. */}
             <div
@@ -1391,58 +1492,64 @@ export default function InvoiceDetailsPage() {
               </span>
             </div>
 
-            <select
-              value={invoice.status}
-              onChange={(e) => updateStatus(e.target.value as InvoiceStatus)}
-              dir={appIsRtl ? "rtl" : "ltr"}
-              className="input text-start"
-              style={{
-                direction: appIsRtl ? "rtl" : "ltr",
-                textAlign: appIsRtl ? "right" : "left",
-                backgroundPosition: appIsRtl
-                  ? "left 16px center"
-                  : "right 16px center",
-                paddingInlineStart: "16px",
-                paddingInlineEnd: "44px",
-              }}
-              aria-label={ui.changeStatus}
-            >
-              <option
-                value="DRAFT"
-                style={{ textAlign: appIsRtl ? "right" : "left" }}
+            {isDraft ? (
+              <div className="space-y-3">
+                <p className="text-sm font-bold" style={{ color: "var(--text-2)" }}>
+                  {ui.draftNotice}
+                </p>
+                {actions.issue && (
+                  <button
+                    type="button"
+                    onClick={issueInvoice}
+                    className="btn btn-primary w-full justify-center"
+                  >
+                    <Send className="h-4 w-4" />
+                    {ui.issueInvoice}
+                  </button>
+                )}
+              </div>
+            ) : isCancelled ? (
+              <div
+                className="rounded-2xl border p-4 text-sm"
+                style={{ borderColor: "#fca5a5", background: "#fef2f2", color: "#7f1d1d" }}
               >
-                {statusLabels.DRAFT}
-              </option>
-              <option
-                value="UNPAID"
-                style={{ textAlign: appIsRtl ? "right" : "left" }}
-              >
-                {statusLabels.UNPAID}
-              </option>
-
-              <option
-                value="PARTIALLY_PAID"
-                disabled
-                style={{ textAlign: appIsRtl ? "right" : "left" }}
-              >
-                {statusLabels.PARTIALLY_PAID} — {ui.automatic}
-              </option>
-
-              <option
-                value="PAID"
-                disabled
-                style={{ textAlign: appIsRtl ? "right" : "left" }}
-              >
-                {statusLabels.PAID} — {ui.automatic}
-              </option>
-
-              <option
-                value="CANCELLED"
-                style={{ textAlign: appIsRtl ? "right" : "left" }}
-              >
-                {statusLabels.CANCELLED}
-              </option>
-            </select>
+                <div className="font-black" style={{ color: "#b91c1c" }}>
+                  {ui.cancelledTitle}
+                </div>
+                {invoice.cancellationReason && (
+                  <p className="mt-2 whitespace-pre-wrap break-words font-bold">
+                    {ui.cancelReasonLabel}: {invoice.cancellationReason}
+                  </p>
+                )}
+                {invoice.cancelledAt && (
+                  <p className="mt-1">
+                    {ui.cancelledOn}: {formatDateTime(invoice.cancelledAt, appLocale)}
+                  </p>
+                )}
+                {invoice.cancelledBy?.name && (
+                  <p className="mt-1">
+                    {ui.cancelledBy}: {invoice.cancelledBy.name}
+                  </p>
+                )}
+                <p className="mt-2 text-xs font-bold">{ui.cancelledNotice}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs" style={{ color: "var(--text-3)" }}>
+                  {ui.statusRulesHint}
+                </p>
+                {actions.cancel && (
+                  <button
+                    type="button"
+                    onClick={cancelInvoice}
+                    className="btn btn-danger w-full justify-center"
+                  >
+                    <Ban className="h-4 w-4" />
+                    {ui.cancelInvoice}
+                  </button>
+                )}
+              </div>
+            )}
 
             {hasPayments && (
               <div
@@ -1624,7 +1731,7 @@ export default function InvoiceDetailsPage() {
                       dir="ltr"
                       className="inline-flex rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-black leading-5"
                     >
-                      {formatInvoiceNumber(invoice.invoiceNumber)}
+                      {formatInvoiceNumber(invoice.invoiceNumber, invoiceLocale)}
                     </span>
                   </div>
 
@@ -1645,7 +1752,7 @@ export default function InvoiceDetailsPage() {
                 {[
                   {
                     label: invoiceCopy.invoiceNumber,
-                    value: formatInvoiceNumber(invoice.invoiceNumber),
+                    value: formatInvoiceNumber(invoice.invoiceNumber, invoiceLocale),
                     ltr: true,
                   },
                   {
@@ -2008,7 +2115,7 @@ export default function InvoiceDetailsPage() {
                 >
                   <span>{invoiceCopy.generatedBy}</span>
                   <span dir="ltr">
-                    {formatInvoiceNumber(invoice.invoiceNumber)}
+                    {formatInvoiceNumber(invoice.invoiceNumber, invoiceLocale)}
                   </span>
                 </div>
               </div>

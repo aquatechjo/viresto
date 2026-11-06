@@ -1,6 +1,4 @@
 import { NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
-import { DateTime } from "luxon";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { ok, err } from "@/lib/api-response";
@@ -25,7 +23,8 @@ import {
   OUTSTANDING_INVOICE_STATUSES,
   summarizeInvoiceStats,
 } from "@/lib/invoice-stats";
-import { formatSequentialInvoiceNumber } from "@/lib/financial-audit";
+import { allocateInvoiceNumber } from "@/lib/server/invoice-number";
+import { INVOICE_MESSAGES } from "@/lib/invoice-lifecycle";
 import {
   assertCaseCanAcceptAmount,
   isCaseFinancialLimitError,
@@ -44,36 +43,6 @@ const allowedStatuses = [
 // statuses as the "unpaid" figure below.
 const OUTSTANDING = "OUTSTANDING";
 const outstandingStatuses = OUTSTANDING_INVOICE_STATUSES;
-
-async function allocateInvoiceNumber(
-  tenantId: string,
-  tx: Prisma.TransactionClient,
-) {
-  const year = DateTime.now().setZone("Asia/Amman").year;
-  const allocated = await tx.$queryRaw<Array<{ sequenceNumber: number }>>`
-    INSERT INTO "InvoiceSequence" (
-      "tenantId",
-      "year",
-      "nextNumber",
-      "createdAt",
-      "updatedAt"
-    )
-    VALUES (${tenantId}, ${year}, 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    ON CONFLICT ("tenantId", "year")
-    DO UPDATE SET
-      "nextNumber" = "InvoiceSequence"."nextNumber" + 1,
-      "updatedAt" = CURRENT_TIMESTAMP
-    RETURNING "nextNumber" - 1 AS "sequenceNumber"
-  `;
-
-  const sequenceNumber = allocated[0]?.sequenceNumber;
-
-  if (!sequenceNumber) {
-    throw new Error("INVOICE_SEQUENCE_ALLOCATION_FAILED");
-  }
-
-  return formatSequentialInvoiceNumber(year, sequenceNumber);
-}
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -104,8 +73,11 @@ export async function GET(req: NextRequest) {
     }
 
     if (options === "client") {
+      // Options of the "new invoice" form: an archived client takes no new
+      // invoice (POST refuses it too).
       const clients = await prisma.client.findMany({
         where: buildClientAccessWhere(auth.user, {
+          archivedAt: null,
           ...(q
             ? {
                 name: {
@@ -370,6 +342,12 @@ export async function POST(req: NextRequest) {
       return err("الموكل غير موجود داخل هذا المكتب", 404);
     }
 
+    // Archiving hides the client: no new invoice for it. Its existing
+    // invoices stay, are collected and count (CLAUDE.md, archiving rule).
+    if (client.archivedAt) {
+      return err(INVOICE_MESSAGES.archivedClientCreate, 400);
+    }
+
     if (caseId) {
       const selectedCase = await prisma.case.findFirst({
         where: buildCaseAccessWhere(auth.user, {
@@ -418,10 +396,10 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        const invoiceNumber = await allocateInvoiceNumber(
-          auth.user!.tenantId,
-          tx,
-        );
+        // A draft takes its number when it is issued (no gaps).
+        const invoiceNumber = data.asDraft
+          ? null
+          : await allocateInvoiceNumber(auth.user!.tenantId, tx);
 
         const created = await tx.invoice.create({
           data: {
@@ -429,7 +407,7 @@ export async function POST(req: NextRequest) {
             clientId: data.clientId,
             caseId,
             invoiceNumber,
-            status: "UNPAID",
+            status: data.asDraft ? "DRAFT" : "UNPAID",
             dueDate,
             subtotal: totals.subtotal,
             tax: totals.tax,
@@ -479,8 +457,8 @@ export async function POST(req: NextRequest) {
             userAgent: meta.userAgent,
             tenantId: auth.user!.tenantId,
             type: "INVOICE_CREATED",
-            title: "تم إنشاء فاتورة جديدة",
-            message: `${created.invoiceNumber} - ${client.name}`,
+            title: data.asDraft ? "تم حفظ فاتورة كمسودة" : "تم إنشاء فاتورة جديدة",
+            message: `${created.invoiceNumber ?? "مسودة"} - ${client.name}`,
             entityType: caseId ? "CASE" : "INVOICE",
             entityId: caseId || created.id,
           },

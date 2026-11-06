@@ -584,7 +584,9 @@ model Invoice {
   tenantId           String
   clientId           String
   caseId             String?
-  invoiceNumber      String
+  // Empty on a draft: the number is taken from InvoiceSequence when the
+  // invoice is issued, so issued numbers have no gaps (CHECK in the DB).
+  invoiceNumber      String?
   status             InvoiceStatus @default(UNPAID)
   issueDate          DateTime      @default(now())
   dueDate            DateTime?
