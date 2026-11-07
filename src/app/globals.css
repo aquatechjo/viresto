@@ -195,8 +195,20 @@
   --gray-soft: #f0f3f5;
 }
 
+/* Dark theme: the values above in :root, with these on top. Merged here
+   from a second .dark block that sat near the end of this file; same
+   values, so nothing changes on screen (tests/unit/theme-tokens.test.ts).
+   src/lib/theme/tokens.ts holds the resulting palette for both themes. */
 .dark {
   color-scheme: dark;
+
+  --text: #f0fdf4;
+  --text-2: rgba(220, 252, 231, 0.88);
+  --text-3: rgba(187, 247, 208, 0.76);
+
+  --border: #286061;
+  --input-bg: #061b1c;
+  --card-bg: #0b292a;
 }
 
 /* ============================================================
@@ -2890,16 +2902,6 @@ select.input {
     text-align: center;
   }
 }
-.dark {
-  --text: #f0fdf4;
-  --text-2: rgba(220, 252, 231, 0.88);
-  --text-3: rgba(187, 247, 208, 0.76);
-
-  --border: #286061;
-  --input-bg: #061b1c;
-  --card-bg: #0b292a;
-}
-
 /* Cards */
 .dark .card {
   background: #0b292a;
