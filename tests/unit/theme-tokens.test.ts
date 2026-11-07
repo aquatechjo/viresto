@@ -123,3 +123,51 @@ test("VDS tones are the app's color families, with no colors of their own", asyn
     }
   }
 });
+
+test("charts: every chart color is 3:1 on a card in its theme", () => {
+  for (const mode of ["light", "dark"] as const) {
+    const t = themeTokens[mode];
+    for (const name of ["green", "amber", "orange", "red", "blue", "gray", "gray-light", "copper"] as const) {
+      const color = t[`chart-${name}`];
+      assert.ok(contrast(color, t.card) >= 3, `${mode} chart-${name} ${color} on ${t.card}: ${contrast(color, t.card).toFixed(2)}`);
+    }
+  }
+});
+
+test("charts: a status in a chart takes its badge tone", async () => {
+  const { CASE_STATUS_COLORS } = await import("@/components/dashboard/dashboard-text");
+  // Each slice is in its badge tone family (archived: a lighter gray).
+  for (const [status, color] of Object.entries(CASE_STATUS_COLORS)) {
+    assert.ok(color.startsWith(`var(--chart-${statusTone("case", status)}`), `${status}: ${color}`);
+  }
+  assert.equal(CASE_STATUS_COLORS.CLOSED, "var(--chart-gray)");
+});
+
+test("charts: no two slices of one chart share a color", async () => {
+  const { CASE_STATUS_COLORS } = await import("@/components/dashboard/dashboard-text");
+  const donut = Object.values(CASE_STATUS_COLORS);
+  assert.equal(new Set(donut).size, donut.length, `case donut: ${donut.join(", ")}`);
+  // Two shades of one family must also look apart: 1.5:1 between them.
+  for (const mode of ["light", "dark"] as const) {
+    const t = themeTokens[mode];
+    const ratio = contrast(t["chart-gray"], t["chart-gray-light"]);
+    assert.ok(ratio >= 1.5, `${mode} closed vs archived: ${ratio.toFixed(2)}`);
+  }
+  const sources = ["src/components/dashboard/FinanceCard.tsx", "src/components/dashboard/TasksCard.tsx"];
+  for (const file of sources) {
+    const source = fs.readFileSync(path.join(process.cwd(), file), "utf8");
+    for (const block of source.match(/const [A-Z_]+(?:: Record<[^>]+>)? = {[^}]+}/g) ?? []) {
+      const colors = block.match(/(var(--chart-[a-z-]+)|statusChartColor("[a-z]+", "[A-Z_]+"))/g) ?? [];
+      const resolved = colors.map((c) => c.startsWith("var") ? c : `priority:${c}`);
+      assert.equal(new Set(resolved).size, resolved.length, `${file}: ${block.slice(0, 60)}`);
+    }
+  }
+});
+
+test("printout and exports: no colors of their own, the light palette", () => {
+  const print = fs.readFileSync(path.join(process.cwd(), "src/lib/invoice-print.ts"), "utf8");
+  // Only white (the paper) may stay literal.
+  assert.deepEqual([...new Set(print.match(/#[0-9a-fA-F]{6}\b/g) ?? [])], ["#ffffff"]);
+  const exportSource = fs.readFileSync(path.join(process.cwd(), "src/lib/export.ts"), "utf8");
+  assert.doesNotMatch(exportSource, /45, 74, 62/);
+});

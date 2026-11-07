@@ -35,6 +35,22 @@ import {
 } from "@/lib/invoice-print";
 import { invoiceStatusText, invoiceStatusTone } from "@/lib/invoice-status-display";
 import { statusBadgeClass } from "@/lib/theme/status";
+import { themeTokens } from "@/lib/theme/tokens";
+
+// The invoice paper on this page (and its PDF) is always light: the app's
+// light palette, as --paper-* custom properties (color plan, batch 3).
+const PAPER = themeTokens.light;
+const PAPER_VARS = {
+  "--paper-brand": PAPER.sidebar,
+  "--paper-brand-2": PAPER["sidebar-hover"],
+  "--paper-ink": PAPER.text,
+  "--paper-text-2": PAPER["text-2"],
+  "--paper-muted": PAPER["text-3"],
+  "--paper-line": PAPER.border,
+  "--paper-line-strong": PAPER["border-dark"],
+  "--paper-soft": PAPER["card-2"],
+  "--paper-tint": PAPER["green-soft"],
+} as React.CSSProperties;
 import { formatDateTime, formatInZone, toDateOnlyInputValue } from "@/lib/datetime";
 import { useSession } from "@/hooks/useSession";
 import { usePrompt } from "@/components/ui/DialogProvider";
@@ -506,7 +522,7 @@ const VIRESTO_FALLBACK_LOGO =
       <rect width="512" height="512" rx="128" fill="#ffffff"/>
       <path
         d="M116 128h82l58 166 58-166h82L294 384h-76L116 128Z"
-        fill="#0f3d3e"
+        fill="${PAPER.sidebar}"
       />
     </svg>
   `);
@@ -625,7 +641,7 @@ function FinanceSuccessOverlay({
           className="finance-success-topline absolute inset-x-0 top-0 h-1"
           style={{
             background:
-              "linear-gradient(90deg, transparent, #b87333, #f1c27d, transparent)",
+              "linear-gradient(90deg, transparent, var(--gold), var(--gold-hover), transparent)",
           }}
         />
 
@@ -675,7 +691,7 @@ function FinanceSuccessOverlay({
           <div
             className="finance-success-progress h-full rounded-full"
             style={{
-              background: "linear-gradient(90deg,#0f5253,#b87333)",
+              background: "linear-gradient(90deg, var(--accent-fill), var(--gold))",
             }}
           />
         </div>
@@ -1602,7 +1618,7 @@ export default function InvoiceDetailsPage() {
             ref={invoiceRef}
             dir={invoiceIsRtl ? "rtl" : "ltr"}
             className="overflow-hidden rounded-[30px] border bg-white text-start text-slate-950 shadow-sm print:rounded-none print:border-0 print:shadow-none"
-            style={{ borderColor: "#dce9e7" }}
+            style={{ ...PAPER_VARS, borderColor: "var(--paper-line)" }}
           >
             {/* Branded Header */}
             <div
@@ -1610,7 +1626,7 @@ export default function InvoiceDetailsPage() {
               className="relative overflow-hidden px-7 py-7 text-white sm:px-9"
               style={{
                 background:
-                  "radial-gradient(circle at 12% 0%, rgba(255,255,255,0.14), transparent 34%), linear-gradient(135deg, #0f3d3e, #1a5556)",
+                  "radial-gradient(circle at 12% 0%, rgba(255,255,255,0.14), transparent 34%), linear-gradient(135deg, var(--paper-brand), var(--paper-brand-2))",
               }}
             >
               <div
@@ -1732,15 +1748,15 @@ export default function InvoiceDetailsPage() {
                       invoiceIsRtl ? "text-right" : "text-left"
                     }`}
                     style={{
-                      borderColor: item.total ? "#bdd8d3" : "#dce9e7",
-                      background: item.total ? "#e8f3f1" : "#fbfdfc",
+                      borderColor: item.total ? "var(--paper-line-strong)" : "var(--paper-line)",
+                      background: item.total ? "var(--paper-tint)" : "var(--paper-soft)",
                     }}
                   >
                     <p
                       className="text-[11px] font-black"
                       style={{
-                        color: item.total ? "#0f3d3e" : "#456463",
-                        WebkitTextFillColor: item.total ? "#0f3d3e" : "#456463",
+                        color: item.total ? "var(--paper-brand)" : "var(--paper-muted)",
+                        WebkitTextFillColor: item.total ? "var(--paper-brand)" : "var(--paper-muted)",
                         opacity: 1,
                       }}
                     >
@@ -1750,7 +1766,7 @@ export default function InvoiceDetailsPage() {
                       dir={item.ltr ? "ltr" : undefined}
                       className="mt-2 break-words text-sm font-black"
                       style={{
-                        color: item.total ? "#0f3d3e" : "#102d2e",
+                        color: item.total ? "var(--paper-brand)" : "var(--paper-ink)",
                         textAlign: invoiceIsRtl ? "right" : "left",
                       }}
                     >
@@ -1771,11 +1787,11 @@ export default function InvoiceDetailsPage() {
                     invoiceIsRtl ? "text-right" : "text-left"
                   }`}
                   style={{
-                    borderColor: "#dce9e7",
-                    background: "#fbfdfc",
+                    borderColor: "var(--paper-line)",
+                    background: "var(--paper-soft)",
                   }}
                 >
-                  <h3 className="text-base font-black text-[#0f3d3e]">
+                  <h3 className="text-base font-black text-[color:var(--paper-brand)]">
                     {invoiceCopy.clientDetails}
                   </h3>
                   <p className="mt-3 text-base font-black">
@@ -1783,7 +1799,7 @@ export default function InvoiceDetailsPage() {
                   </p>
                   <p
                     dir="ltr"
-                    className="mt-1 text-xs font-semibold text-[#4d6767]"
+                    className="mt-1 text-xs font-semibold text-[color:var(--paper-muted)]"
                     style={{
                       textAlign: invoiceIsRtl ? "right" : "left",
                     }}
@@ -1791,7 +1807,7 @@ export default function InvoiceDetailsPage() {
                     {formatPhoneForDisplay(invoice.client?.phone, { isolate: true }) || "-"}
                   </p>
                   <p
-                    className="mt-1 break-all text-xs font-semibold text-[#4d6767]"
+                    className="mt-1 break-all text-xs font-semibold text-[color:var(--paper-muted)]"
                     style={{
                       textAlign: invoiceIsRtl ? "right" : "left",
                     }}
@@ -1806,20 +1822,20 @@ export default function InvoiceDetailsPage() {
                     invoiceIsRtl ? "text-right" : "text-left"
                   }`}
                   style={{
-                    borderColor: "#dce9e7",
-                    background: "#fbfdfc",
+                    borderColor: "var(--paper-line)",
+                    background: "var(--paper-soft)",
                   }}
                 >
-                  <h3 className="text-base font-black text-[#0f3d3e]">
+                  <h3 className="text-base font-black text-[color:var(--paper-brand)]">
                     {invoiceCopy.caseDetails}
                   </h3>
                   <p className="mt-3 text-base font-black">
                     {invoice.case?.title || invoiceCopy.noCase}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-[#4d6767]">
+                  <p className="mt-1 text-xs font-semibold text-[color:var(--paper-muted)]">
                     {invoice.case?.caseNumber || "-"}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-[#4d6767]">
+                  <p className="mt-1 text-xs font-semibold text-[color:var(--paper-muted)]">
                     {hasPayments
                       ? `${invoiceCopy.linkedPayment} (${payments.length})`
                       : invoiceCopy.noPayment}
@@ -1828,31 +1844,31 @@ export default function InvoiceDetailsPage() {
               </div>
 
               {/* Items */}
-              <h3 className="mb-3 text-lg font-black text-[#0f3d3e]">
+              <h3 className="mb-3 text-lg font-black text-[color:var(--paper-brand)]">
                 {invoiceCopy.items}
               </h3>
 
               <div
                 className="overflow-hidden rounded-3xl border"
-                style={{ borderColor: "#dce9e7" }}
+                style={{ borderColor: "var(--paper-line)" }}
               >
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
-                    <thead style={{ background: "#e8f3f1" }}>
+                    <thead style={{ background: "var(--paper-tint)" }}>
                       <tr>
-                        <th className="w-14 px-4 py-3 text-center text-xs font-black text-[#0f3d3e]">
+                        <th className="w-14 px-4 py-3 text-center text-xs font-black text-[color:var(--paper-brand)]">
                           #
                         </th>
-                        <th className="px-4 py-3 text-start text-xs font-black text-[#0f3d3e]">
+                        <th className="px-4 py-3 text-start text-xs font-black text-[color:var(--paper-brand)]">
                           {invoiceCopy.description}
                         </th>
-                        <th className="w-24 px-4 py-3 text-center text-xs font-black text-[#0f3d3e]">
+                        <th className="w-24 px-4 py-3 text-center text-xs font-black text-[color:var(--paper-brand)]">
                           {invoiceCopy.quantity}
                         </th>
-                        <th className="w-40 px-4 py-3 text-start text-xs font-black text-[#0f3d3e]">
+                        <th className="w-40 px-4 py-3 text-start text-xs font-black text-[color:var(--paper-brand)]">
                           {invoiceCopy.unitPrice}
                         </th>
-                        <th className="w-40 px-4 py-3 text-start text-xs font-black text-[#0f3d3e]">
+                        <th className="w-40 px-4 py-3 text-start text-xs font-black text-[color:var(--paper-brand)]">
                           {invoiceCopy.total}
                         </th>
                       </tr>
@@ -1863,7 +1879,7 @@ export default function InvoiceDetailsPage() {
                         <tr
                           key={item.id}
                           className="border-t"
-                          style={{ borderColor: "#edf4f3" }}
+                          style={{ borderColor: "var(--paper-line)" }}
                         >
                           <td className="px-4 py-3 text-center text-xs font-bold">
                             {index + 1}
@@ -1904,14 +1920,14 @@ export default function InvoiceDetailsPage() {
                 <div
                   className="min-h-40 rounded-3xl border border-dashed p-5"
                   style={{
-                    borderColor: "#bfd5d2",
-                    background: "#fbfdfc",
+                    borderColor: "var(--paper-line-strong)",
+                    background: "var(--paper-soft)",
                   }}
                 >
-                  <h3 className="text-base font-black text-[#0f3d3e]">
+                  <h3 className="text-base font-black text-[color:var(--paper-brand)]">
                     {invoiceCopy.notes}
                   </h3>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-8 text-[#3d5a5a]">
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-8 text-[color:var(--paper-text-2)]">
                     {invoice.notes || invoiceCopy.noNotes}
                   </p>
                 </div>
@@ -1919,8 +1935,8 @@ export default function InvoiceDetailsPage() {
                 <div
                   className="rounded-3xl border p-5"
                   style={{
-                    borderColor: "#dce9e7",
-                    background: "#fbfdfc",
+                    borderColor: "var(--paper-line)",
+                    background: "var(--paper-soft)",
                   }}
                 >
                   {[
@@ -1937,9 +1953,9 @@ export default function InvoiceDetailsPage() {
                     <div
                       key={line.label}
                       className="flex items-center justify-between gap-4 border-b py-3 text-sm"
-                      style={{ borderColor: "#e7f0ef" }}
+                      style={{ borderColor: "var(--paper-line)" }}
                     >
-                      <span className="font-semibold text-[#3d5a5a]">
+                      <span className="font-semibold text-[color:var(--paper-text-2)]">
                         {line.label}
                       </span>
                       <strong dir="ltr">
@@ -1948,7 +1964,7 @@ export default function InvoiceDetailsPage() {
                     </div>
                   ))}
 
-                  <div className="flex items-center justify-between gap-4 pt-5 text-lg font-black text-[#0f3d3e]">
+                  <div className="flex items-center justify-between gap-4 pt-5 text-lg font-black text-[color:var(--paper-brand)]">
                     <span>{invoiceCopy.finalTotal}</span>
                     <span dir="ltr">
                       <bdi>{formatJOD(invoice.total)}</bdi>
@@ -1961,16 +1977,16 @@ export default function InvoiceDetailsPage() {
                 <div
                   className="mt-5 rounded-2xl border px-5 py-4"
                   style={{
-                    borderColor: "#bdd8d3",
-                    background: "#e8f3f1",
+                    borderColor: "var(--paper-line-strong)",
+                    background: "var(--paper-tint)",
                   }}
                 >
                   <div className="mb-4 flex items-center justify-between gap-3">
-                    <h3 className="font-black text-[#0f3d3e]">
+                    <h3 className="font-black text-[color:var(--paper-brand)]">
                       {invoiceCopy.payments}
                     </h3>
 
-                    <span className="text-xs font-bold text-[#4d6767]">
+                    <span className="text-xs font-bold text-[color:var(--paper-muted)]">
                       {payments.length} {invoiceCopy.paymentCount}
                     </span>
                   </div>
@@ -1981,10 +1997,10 @@ export default function InvoiceDetailsPage() {
                         key={payment.id}
                         data-pdf-keep
                         className="grid gap-3 rounded-xl border bg-white p-4 text-sm md:grid-cols-2 xl:grid-cols-5"
-                        style={{ borderColor: "#dce9e7" }}
+                        style={{ borderColor: "var(--paper-line)" }}
                       >
                         <div>
-                          <p className="text-xs font-bold text-[#4d6767]">
+                          <p className="text-xs font-bold text-[color:var(--paper-muted)]">
                             {invoiceCopy.amount}
                           </p>
                           <p dir="ltr" className="mt-1 font-black">
@@ -1993,7 +2009,7 @@ export default function InvoiceDetailsPage() {
                         </div>
 
                         <div>
-                          <p className="text-xs font-bold text-[#4d6767]">
+                          <p className="text-xs font-bold text-[color:var(--paper-muted)]">
                             {invoiceCopy.status}
                           </p>
                           <p className="mt-1 font-black">
@@ -2003,7 +2019,7 @@ export default function InvoiceDetailsPage() {
                         </div>
 
                         <div>
-                          <p className="text-xs font-bold text-[#4d6767]">
+                          <p className="text-xs font-bold text-[color:var(--paper-muted)]">
                             {invoiceCopy.paymentMethod}
                           </p>
                           <p className="mt-1 font-black">
@@ -2012,7 +2028,7 @@ export default function InvoiceDetailsPage() {
                         </div>
 
                         <div>
-                          <p className="text-xs font-bold text-[#4d6767]">
+                          <p className="text-xs font-bold text-[color:var(--paper-muted)]">
                             {invoiceCopy.paymentDate}
                           </p>
                           <p className="mt-1 font-black">
@@ -2021,7 +2037,7 @@ export default function InvoiceDetailsPage() {
                         </div>
 
                         <div>
-                          <p className="text-xs font-bold text-[#4d6767]">
+                          <p className="text-xs font-bold text-[color:var(--paper-muted)]">
                             {invoiceCopy.paymentReference}
                           </p>
                           <p dir="ltr" className="mt-1 break-all font-black">
@@ -2034,7 +2050,7 @@ export default function InvoiceDetailsPage() {
 
                   <div className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-bold text-[#4d6767]">
+                      <span className="text-sm font-bold text-[color:var(--paper-muted)]">
                         {invoiceCopy.paidTotal}
                       </span>
                       <strong dir="ltr">
@@ -2043,7 +2059,7 @@ export default function InvoiceDetailsPage() {
                     </div>
 
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-bold text-[#4d6767]">
+                      <span className="text-sm font-bold text-[color:var(--paper-muted)]">
                         {invoiceCopy.remaining}
                       </span>
                       <strong dir="ltr">
@@ -2056,17 +2072,17 @@ export default function InvoiceDetailsPage() {
 
               <div data-pdf-keep className="mt-12">
                 <div className="grid grid-cols-2 gap-10">
-                  <div className="border-t pt-3 text-center text-xs font-semibold text-[#4d6767]">
+                  <div className="border-t pt-3 text-center text-xs font-semibold text-[color:var(--paper-muted)]">
                     {invoiceCopy.officeSignature}
                   </div>
-                  <div className="border-t pt-3 text-center text-xs font-semibold text-[#4d6767]">
+                  <div className="border-t pt-3 text-center text-xs font-semibold text-[color:var(--paper-muted)]">
                     {invoiceCopy.clientSignature}
                   </div>
                 </div>
 
                 <div
-                  className="mt-8 flex flex-col gap-3 border-t pt-4 text-[11px] text-[#4d6767] sm:flex-row sm:items-center sm:justify-between"
-                  style={{ borderColor: "#edf4f3" }}
+                  className="mt-8 flex flex-col gap-3 border-t pt-4 text-[11px] text-[color:var(--paper-muted)] sm:flex-row sm:items-center sm:justify-between"
+                  style={{ borderColor: "var(--paper-line)" }}
                 >
                   <span>{invoiceCopy.generatedBy}</span>
                   <span dir="ltr">

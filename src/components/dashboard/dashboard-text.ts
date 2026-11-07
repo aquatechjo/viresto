@@ -1,6 +1,7 @@
 import type { Locale } from "@/lib/i18n";
 import type { PluralForms } from "@/lib/plural";
 import type { AgendaKind, CaseStatusKey, CourtLevel, TaskPriority } from "@/lib/dashboard/types";
+import { statusChartColor } from "@/lib/theme/status";
 
 // Every count sentence on the dashboard, in both languages. "{n}" becomes
 // the count in Latin digits (src/lib/plural.ts).
@@ -288,12 +289,15 @@ export const CASE_STATUS_LABELS: Record<Locale, Record<CaseStatusKey, string>> =
   en: { OPEN: "Active", IN_PROGRESS: "In progress", CLOSED: "Closed", ARCHIVED: "Archived" },
 };
 
-// Chart colours that read on both the light and the dark theme.
+// Chart colours: each status in its badge tone (src/lib/theme/status.ts),
+// as the per-theme --chart-<tone> custom properties.
 export const CASE_STATUS_COLORS: Record<CaseStatusKey, string> = {
-  OPEN: "#14b8a6",
-  IN_PROGRESS: "#3b82f6",
-  CLOSED: "#b87333",
-  ARCHIVED: "#94a3b8",
+  OPEN: statusChartColor("case", "OPEN"),
+  IN_PROGRESS: statusChartColor("case", "IN_PROGRESS"),
+  CLOSED: statusChartColor("case", "CLOSED"),
+  // Same gray family as closed, a lighter shade, so the two slices of
+  // the donut stay apart (badges keep the one gray).
+  ARCHIVED: "var(--chart-gray-light)",
 };
 
 export const PRIORITY_LABELS: Record<Locale, Record<TaskPriority, string>> = {

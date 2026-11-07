@@ -19,14 +19,15 @@ import DashboardCard, { CompactEmpty } from "./DashboardCard";
 import type { DashboardText } from "./dashboard-text";
 import { formatCompact, formatMonth } from "./format";
 
-const INVOICED_COLOR = "#14b8a6";
-const COLLECTED_COLOR = "#b87333";
+// Per-theme chart colors (--chart-*, src/lib/theme/tokens.ts).
+const INVOICED_COLOR = "var(--chart-green)";
+const COLLECTED_COLOR = "var(--chart-copper)";
 const AGING_KEYS: Array<keyof AgingBuckets> = ["d0_30", "d31_60", "d61_90", "d90_plus"];
 const AGING_COLORS: Record<keyof AgingBuckets, string> = {
-  d0_30: "#14b8a6",
-  d31_60: "#f59e0b",
-  d61_90: "#f97316",
-  d90_plus: "#ef4444",
+  d0_30: "var(--chart-green)",
+  d31_60: "var(--chart-amber)",
+  d61_90: "var(--chart-orange)",
+  d90_plus: "var(--chart-red)",
 };
 
 interface FinanceCardProps {

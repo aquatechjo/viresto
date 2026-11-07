@@ -58,6 +58,11 @@ export function statusBadgeClass(kind: StatusKind, status: string | null | undef
   return `badge badge-${statusTone(kind, status)}`;
 }
 
+/** A chart mark (bar, arc, dot) in a status's tone: --chart-<tone>, per theme. */
+export function statusChartColor(kind: StatusKind, status: string | null | undefined) {
+  return `var(--chart-${statusTone(kind, status)})`;
+}
+
 /**
  * Inline style for a status chip that is not a .badge (custom padding or
  * shape): the same tone colors, from the CSS custom properties.

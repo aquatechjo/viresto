@@ -1,5 +1,10 @@
 import { toast } from "sonner";
-import { invoiceStatusText } from "@/lib/invoice-status-display";
+import { invoiceStatusText, invoiceStatusTone } from "@/lib/invoice-status-display";
+import { themeTokens } from "@/lib/theme/tokens";
+import { statusTone } from "@/lib/theme/status";
+
+// Printouts are always light: the app's light palette (color plan, batch 3).
+const P = themeTokens.light;
 import { formatJOD } from "@/lib/money";
 import { formatInZone } from "@/lib/datetime";
 import { formatPhoneForDisplay, normalizePhone } from "@/lib/phone";
@@ -270,7 +275,7 @@ const VIRESTO_FALLBACK_LOGO =
       <rect width="512" height="512" rx="128" fill="#ffffff"/>
       <path
         d="M116 128h82l58 166 58-166h82L294 384h-76L116 128Z"
-        fill="#0f3d3e"
+        fill="${P.sidebar}"
       />
     </svg>
   `);
@@ -395,6 +400,7 @@ export function buildInvoicePrintHtml(
 
   const remainingTotal = Math.max(0, Number(invoice.total || 0) - paidTotal);
   const isCancelled = invoice.status === "CANCELLED";
+  const chipTone = statusTone("invoice", invoiceStatusTone(invoice.status, invoice.isOverdue));
 
   const locale = detectLocale(requestedLocale);
   const copy = COPY[locale];
@@ -439,15 +445,21 @@ export function buildInvoicePrintHtml(
   <title>${escapeHtml(copy.invoice)} ${escapeHtml(invoiceNo)}</title>
   <style>
     :root {
-      --brand: #0f3d3e;
-      --brand-2: #b87333;
-      --brand-soft: #f7e9dc;
-      --ink: #102d2e;
-      --muted: #647c7c;
-      --line: #dce9e7;
+      --brand: ${P.sidebar};
+      --brand-2: ${P.gold};
+      --brand-soft: ${P["gold-soft"]};
+      --ink: ${P.text};
+      --muted: ${P["text-3"]};
+      --line: ${P.border};
+      --line-strong: ${P["border-dark"]};
+      --soft: ${P["card-2"]};
+      --text-2: ${P["text-2"]};
       --paper: #ffffff;
-      --page: #eef5f4;
-      --warning: #b45309;
+      --page: ${P.bg};
+      --warning: ${P["tone-amber-solid"]};
+      --red-fg: ${P["tone-red-fg"]};
+      --red-bg: ${P["tone-red-bg"]};
+      --red-border: ${P["tone-red-border"]};
     }
 
     * { box-sizing: border-box; }
@@ -455,7 +467,7 @@ export function buildInvoicePrintHtml(
     html {
       min-height: 100%;
       color-scheme: light only;
-      background: #eef5f4;
+      background: var(--page);
     }
 
     body { min-height: 100%; }
@@ -496,10 +508,10 @@ export function buildInvoicePrintHtml(
       z-index: 5;
       transform: translateX(-50%) rotate(-14deg);
       padding: 10px 34px;
-      border: 5px solid #b91c1c;
+      border: 5px solid var(--red-fg);
       border-radius: 14px;
-      color: #b91c1c !important;
-      -webkit-text-fill-color: #b91c1c;
+      color: var(--red-fg) !important;
+      -webkit-text-fill-color: var(--red-fg);
       font-size: 56px;
       font-weight: 950;
       letter-spacing: 2px;
@@ -510,24 +522,24 @@ export function buildInvoicePrintHtml(
 
     .cancellation-box {
       margin: 0 0 18px;
-      border: 1.5px solid #fca5a5;
+      border: 1.5px solid var(--red-border);
       border-radius: 18px;
       padding: 14px 16px;
-      background: #fef2f2;
+      background: var(--red-bg);
     }
 
     .cancellation-box h3 {
       margin: 0 0 6px;
-      color: #b91c1c !important;
-      -webkit-text-fill-color: #b91c1c;
+      color: var(--red-fg) !important;
+      -webkit-text-fill-color: var(--red-fg);
       font-size: 14px;
       font-weight: 950;
     }
 
     .cancellation-box p {
       margin: 0;
-      color: #7f1d1d !important;
-      -webkit-text-fill-color: #7f1d1d;
+      color: var(--red-fg) !important;
+      -webkit-text-fill-color: var(--red-fg);
       font-size: 12px;
       line-height: 1.9;
       white-space: pre-wrap;
@@ -705,17 +717,17 @@ export function buildInvoicePrintHtml(
       border: 1px solid var(--line);
       border-radius: 18px;
       padding: 14px;
-      background: #fbfdfc;
+      background: var(--soft);
     }
 
     .summary-card.total {
       background: var(--brand-soft);
-      border-color: #bfd8d4;
+      border-color: var(--line-strong);
     }
 
     .label {
-      color: #456463 !important;
-      -webkit-text-fill-color: #456463;
+      color: var(--muted) !important;
+      -webkit-text-fill-color: var(--muted);
       opacity: 1 !important;
       font-size: 10.5px;
       font-weight: 850;
@@ -723,8 +735,8 @@ export function buildInvoicePrintHtml(
     }
 
     .summary-card.total .label {
-      color: #0f3d3e !important;
-      -webkit-text-fill-color: #0f3d3e;
+      color: var(--brand) !important;
+      -webkit-text-fill-color: var(--brand);
     }
 
     .value {
@@ -754,7 +766,7 @@ export function buildInvoicePrintHtml(
       text-align: ${textAlign};
       border-radius: 20px;
       padding: 18px;
-      background: #fbfdfc;
+      background: var(--soft);
       min-height: 132px;
     }
 
@@ -774,8 +786,8 @@ export function buildInvoicePrintHtml(
 
     .muted {
       margin-top: 4px;
-      color: #4d6767 !important;
-      -webkit-text-fill-color: #4d6767;
+      color: var(--muted) !important;
+      -webkit-text-fill-color: var(--muted);
       opacity: 1 !important;
       font-size: 11.5px;
       line-height: 1.8;
@@ -818,7 +830,7 @@ export function buildInvoicePrintHtml(
     td {
       padding: 12px 11px;
       font-size: 12px;
-      border-bottom: 1px solid #edf4f3;
+      border-bottom: 1px solid var(--line);
       vertical-align: top;
     }
 
@@ -836,10 +848,10 @@ export function buildInvoicePrintHtml(
     }
 
     .notes {
-      border: 1px dashed #bad2cf;
+      border: 1px dashed var(--line-strong);
       border-radius: 18px;
       padding: 16px;
-      background: #fbfdfc;
+      background: var(--soft);
       min-height: 148px;
     }
 
@@ -852,8 +864,8 @@ export function buildInvoicePrintHtml(
 
     .notes p {
       margin: 0;
-      color: #3d5a5a !important;
-      -webkit-text-fill-color: #3d5a5a;
+      color: var(--text-2) !important;
+      -webkit-text-fill-color: var(--text-2);
       font-size: 11.8px;
       line-height: 2;
       white-space: pre-wrap;
@@ -864,7 +876,7 @@ export function buildInvoicePrintHtml(
       border: 1px solid var(--line);
       border-radius: 20px;
       padding: 15px 16px;
-      background: #fbfdfc;
+      background: var(--soft);
     }
 
     .total-row {
@@ -873,10 +885,10 @@ export function buildInvoicePrintHtml(
       align-items: center;
       gap: 14px;
       padding: 9px 0;
-      color: #3d5a5a !important;
-      -webkit-text-fill-color: #3d5a5a;
+      color: var(--text-2) !important;
+      -webkit-text-fill-color: var(--text-2);
       font-size: 12.5px;
-      border-bottom: 1px solid #e7f0ef;
+      border-bottom: 1px solid var(--line);
     }
 
     .total-row:last-child { border-bottom: none; }
@@ -898,7 +910,7 @@ export function buildInvoicePrintHtml(
       border-radius: 16px;
       background: var(--brand-soft);
       color: var(--brand);
-      border: 1px solid #bfd8d4;
+      border: 1px solid var(--line-strong);
       font-size: 11.5px;
       font-weight: 850;
     }
@@ -911,10 +923,10 @@ export function buildInvoicePrintHtml(
     }
 
     .signature {
-      border-top: 1px solid #b6cdca;
+      border-top: 1px solid var(--line-strong);
       padding-top: 9px;
-      color: #587271 !important;
-      -webkit-text-fill-color: #587271;
+      color: var(--muted) !important;
+      -webkit-text-fill-color: var(--muted);
       font-size: 11px;
       text-align: center;
     }
@@ -922,13 +934,13 @@ export function buildInvoicePrintHtml(
     .footer {
       margin-top: 28px;
       padding-top: 15px;
-      border-top: 1px solid #edf4f3;
+      border-top: 1px solid var(--line);
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 14px;
-      color: #587271 !important;
-      -webkit-text-fill-color: #587271;
+      color: var(--muted) !important;
+      -webkit-text-fill-color: var(--muted);
       font-size: 10.5px;
     }
 
@@ -998,7 +1010,7 @@ export function buildInvoicePrintHtml(
         <h2>${escapeHtml(copy.invoice)}</h2>
         <div class="invoice-number">${escapeHtml(invoiceNo)}</div>
         <div class="status-row">
-          <div class="status-chip">${escapeHtml(invoiceStatusText(invoice.status, invoice.isOverdue, copy.statuses))}</div>
+          <div class="status-chip" style="background:${P[`tone-${chipTone}-bg`]};color:${P[`tone-${chipTone}-fg`]};-webkit-text-fill-color:${P[`tone-${chipTone}-fg`]}">${escapeHtml(invoiceStatusText(invoice.status, invoice.isOverdue, copy.statuses))}</div>
         </div>
       </div>
     </section>

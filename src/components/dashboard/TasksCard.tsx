@@ -8,12 +8,14 @@ import type { DashboardTask, TaskPriority } from "@/lib/dashboard/types";
 import DashboardCard, { CompactEmpty } from "./DashboardCard";
 import { PRIORITY_LABELS, type DashboardText } from "./dashboard-text";
 import { dayDiff, formatShortDate } from "./format";
+import { statusChartColor } from "@/lib/theme/status";
 
+// Priority dots in the priority badge tones (src/lib/theme/status.ts).
 const PRIORITY_COLOR: Record<TaskPriority, string> = {
-  URGENT: "#ef4444",
-  HIGH: "#f59e0b",
-  MEDIUM: "#3b82f6",
-  LOW: "#94a3b8",
+  URGENT: statusChartColor("priority", "URGENT"),
+  HIGH: statusChartColor("priority", "HIGH"),
+  MEDIUM: statusChartColor("priority", "MEDIUM"),
+  LOW: statusChartColor("priority", "LOW"),
 };
 
 interface TasksCardProps {

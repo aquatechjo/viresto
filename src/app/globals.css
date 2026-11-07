@@ -140,6 +140,18 @@
   /* Text on a copper (--gold) fill: primary buttons. */
   --on-gold: var(--brand-canvas);
 
+  /* Chart marks (bars, donut arcs, dots): 3:1 on a card in each theme.
+     Status charts take the status tone (src/lib/theme/status.ts). */
+  --chart-green: #14b8a6;
+  --chart-amber: #f59e0b;
+  --chart-orange: #f97316;
+  --chart-red: #ef4444;
+  --chart-blue: #3b82f6;
+  --chart-gray: #94a3b8;
+  /* A second gray for a chart that needs two (archived next to closed). */
+  --chart-gray-light: #cbd5e1;
+  --chart-copper: #b87333;
+
   /* --- Radii --- */
   --radius-xs: 6px;
   --radius-sm: 10px;
@@ -241,6 +253,15 @@
   --tone-gray-border: rgba(107, 114, 128, 0.2);
 
   --on-gold: #ffffff;
+
+  --chart-green: #0f766e;
+  --chart-amber: #b45309;
+  --chart-orange: #c2410c;
+  --chart-red: #dc2626;
+  --chart-blue: #2563eb;
+  --chart-gray: #64748b;
+  --chart-gray-light: #8794a6;
+  --chart-copper: #a9652f;
 }
 
 /* Dark theme: the values above in :root, with these on top. Merged here
