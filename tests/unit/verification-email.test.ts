@@ -17,13 +17,13 @@ test("the expiry comes from the backend's constant", () => {
   assert.ok(text.includes(`ينتهي خلال ${minutes}`), "text");
 });
 
-test("the code stays on one line, left to right, inside the dark email", () => {
+test("the code stays on one line, left to right, inside the light email", () => {
   const { html } = renderVerificationEmail({ code: "642332" });
   const codeCell = html.indexOf('class="code"');
   const cell = html.slice(html.lastIndexOf("<td", codeCell), html.indexOf("642332", codeCell) + 6);
 
   assert.match(html, /<html lang="ar" dir="rtl"/);
-  assert.match(html, /<meta name="color-scheme" content="dark">/);
+  assert.match(html, /<meta name="color-scheme" content="light">/);
   assert.match(cell, /dir="ltr"/);
   assert.match(cell, /white-space:nowrap/);
 });
@@ -45,7 +45,7 @@ test("the logo is an absolute URL on the site, with alt text and fixed size", ()
 
   // Versioned, so a new logo is not served from Gmail's image cache.
   assert.ok(
-    img.includes(`src="https://www.virestojo.com/email/viresto-logo.png?v=${EMAIL_LOGO_VERSION}"`),
+    img.includes(`src="https://www.virestojo.com/email/viresto-logo-light.png?v=${EMAIL_LOGO_VERSION}"`),
     img,
   );
   assert.match(img, /alt="Viresto"/);
@@ -57,7 +57,7 @@ test("the logo is an absolute URL on the site, with alt text and fixed size", ()
 });
 
 test("the logo file is the declared size at 2x, with a transparent background", () => {
-  const png = readFileSync("public/email/viresto-logo.png");
+  const png = readFileSync(`public${EMAIL_LOGO.path}`);
   // PNG IHDR: width and height at bytes 16-23, colour type at 25 (6 = RGBA).
   assert.equal(png.readUInt32BE(16), EMAIL_LOGO.width * 2);
   assert.equal(png.readUInt32BE(20), EMAIL_LOGO.height * 2);

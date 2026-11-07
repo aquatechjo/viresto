@@ -46,13 +46,16 @@ const all: Array<[string, RenderedEmail]> = [
 ];
 
 for (const [name, email] of all) {
-  test(`${name}: the shared dark layout, logo and a text part`, () => {
+  // Light since the color plan (2026-11-07): the app's light palette.
+  test(`${name}: the shared light layout, logo and a text part`, () => {
     assert.match(email.html, /<html lang="ar" dir="rtl"/);
-    assert.match(email.html, /<meta name="color-scheme" content="dark">/);
-    assert.match(email.html, /border-top:3px solid #b87333/);
-    assert.match(email.html, /<img src="https:\/\/www\.virestojo\.com\/email\/viresto-logo\.png\?v=\d+"[^>]*alt="Viresto"/);
+    assert.match(email.html, /<meta name="color-scheme" content="light">/);
+    assert.match(email.html, /border-top:3px solid #a9652f/);
+    assert.match(email.html, /<body style="margin:0;padding:0;background:#f3f7f6;">/);
+    assert.match(email.html, /<img src="https:\/\/www\.virestojo\.com\/email\/viresto-logo-light\.png\?v=\d+"[^>]*alt="Viresto"/);
+    // No color of the old dark layout is left.
+    assert.doesNotMatch(email.html, /#041819|#0b292a|#020e0f|#86aaa6|#b87333/);
     assert.match(email.html, /mso-hide:all/, "preheader");
-    assert.doesNotMatch(email.html, /#f3f7f6|#ffffff|background:#fff\b/i, "no old light style");
     assert.ok(email.text.trim().length > 20, "text part");
   });
 }
@@ -110,7 +113,7 @@ test("team invitation: a bulletproof button, the link as text, expiry from its c
 
   assert.equal(subject, "دعوة للانضمام إلى مكتب العبادي - Viresto");
   // Table-based button: a coloured cell (bgcolor + background) around the link.
-  assert.match(html, /<td align="center" bgcolor="#b87333" style="background:#b87333;[^"]*">\s*<a href="https:\/\/www\.virestojo\.com\/join-team\?token=tok%2F1%202"/);
+  assert.match(html, /<td align="center" bgcolor="#a9652f" style="background:#a9652f;[^"]*">\s*<a href="https:\/\/www\.virestojo\.com\/join-team\?token=tok%2F1%202"/);
   assert.ok(html.includes(`>${url}</a>`), "the link as text to copy");
   assert.ok(html.includes(`خلال ${TEAM_INVITATION_TTL_HOURS} ساعة`));
   assert.ok(text.includes(url));
@@ -153,5 +156,27 @@ test("values from users are escaped in every email", () => {
   for (const html of htmls) {
     assert.ok(!html.includes("<img src=x"), "no injected tag");
     assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;"), "shown as text");
+  }
+});
+
+test("light emails: AA contrast of the layout's text and button", async () => {
+  const { C } = await import("../../src/lib/email/layout");
+  const lum = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a: string, b: string) => {
+    const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  };
+  for (const [label, fg, bg] of [
+    ["text on card", C.text, C.card],
+    ["muted on card", C.muted, C.card],
+    ["muted on page (footer)", C.muted, C.page],
+    ["muted on code box", C.muted, C.codeBg],
+    ["button text on copper", C.onAccent, C.accent],
+  ] as const) {
+    assert.ok(ratio(fg, bg) >= 4.5, `${label}: ${fg} on ${bg} = ${ratio(fg, bg).toFixed(2)}`);
   }
 });

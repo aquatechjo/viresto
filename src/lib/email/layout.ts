@@ -1,32 +1,39 @@
-// القالب المشترك لكل إيميلات Viresto: داكن من الأساس (عشان Gmail، خصوصاً
-// Android، ما يقلب الألوان)، RTL، جداول وinline styles (email-safe)، والـ media
+// القالب المشترك لكل إيميلات Viresto: فاتح دائمًا بألوان الوضع الفاتح للتطبيق
+// (خطة توحيد الألوان، 2026-11-07؛ كان داكنًا قبلها)، RTL، جداول وinline styles (email-safe)، والـ media
 // query للموبايل بس. كل إيميل بيمرّر المحتوى تبعه فقط (renderEmailLayout)،
 // ومنه قطع جاهزة: العنوان، صندوق الرمز، الزر، جدول البيانات.
 // للمعاينة محليًا: `npm run email:preview` (scripts/preview-emails.ts).
 
 import { formatInZone } from "@/lib/datetime";
+import { themeTokens } from "@/lib/theme/tokens";
 
-// ألوان هوية Viresto (src/app/globals.css، نفس ألوان اللاندنج الداكنة).
-// التباين (WCAG): text على card 14.8:1، muted على card 6.1:1 وعلى page 7.2:1،
-// وحدود accent 4.1:1 على card و5.2:1 على codeBg، ونص الزر (page) على accent 4.8:1.
+// ألوان الإيميل: قيم الوضع الفاتح في src/lib/theme/tokens.ts، لا ألوان خاصة.
+// التباين (WCAG، يتحقق منه tests/unit/emails.test.ts): text على card 14:1،
+// muted على card 4.98:1 وعلى page 4.61:1، ونص الزر (أبيض) على accent 4.58:1.
+const L = themeTokens.light;
 export const C = {
-  page: "#041819",    // --landing-canvas: خلفية الإيميل
-  card: "#0b292a",    // --landing-surface: البطاقة
-  line: "#1c494a",    // --landing-border: الحدود
-  text: "#f8fbfa",    // --brand-text: نص أساسي
-  muted: "#86aaa6",   // --brand-text-muted: نص ثانوي
-  accent: "#b87333",  // --landing-copper: اللون المميز (نحاس)
-  codeBg: "#020e0f",  // --brand-canvas-deep: خلفية الرمز
+  page: L.bg,               // خلفية الإيميل
+  card: L.card,             // البطاقة
+  line: L.border,           // الحدود
+  text: L.text,             // نص أساسي
+  muted: L["text-3"],       // نص ثانوي
+  accent: L.gold,           // اللون المميز (نحاس)
+  onAccent: L["on-gold"],   // نص الزر على النحاس
+  codeBg: L["card-2"],      // خلفية الرمز وجدول البيانات
 };
 
 // اللوجو (scripts/build-email-logo.mjs): PNG بضعف المقاس للشاشات retina،
 // خلفيته شفافة. لو غيّرت المقاس، أعد توليده وحدّث هون.
-export const EMAIL_LOGO = { path: "/email/viresto-logo.png", width: 131, height: 40 };
+// النسخة الفاتحة: الاسم بلون الهوية الداكن على مربع أبيض مصمت بزوايا مدوّرة. النسخة الداكنة
+// (viresto-logo.png) باقية للإيميلات المرسلة قبل 2026-11-07.
+export const EMAIL_LOGO = { path: "/email/viresto-logo-light.png", width: 131, height: 40 };
 
 // Gmail بيكيّش الصور حسب الرابط: كل ما يتغيّر ملف اللوجو، زيد هالرقم
 // عشان الإيميلات الجديدة تجيب النسخة الجديدة (?v=N).
 // 2: إطار نحاسي حول مربع الأيقونة (2026-10-21).
-export const EMAIL_LOGO_VERSION = 2;
+// 3: النسخة الفاتحة للإيميل الفاتح (2026-11-07).
+// 4: الفاتحة على مربع أبيض مصمت، مقروءة إذا قلب Gmail الخلفية للداكن.
+export const EMAIL_LOGO_VERSION = 4;
 
 export const FONT = `'Segoe UI', Tahoma, 'Noto Sans Arabic', Arial, sans-serif`;
 
@@ -77,11 +84,11 @@ export function renderEmailLayout({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="supported-color-schemes" content="dark">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(title)}</title>
 <style>
-  :root { color-scheme: dark; supported-color-schemes: dark; }
+  :root { color-scheme: light; supported-color-schemes: light; }
   body { margin:0; padding:0; }
   @media (max-width: 520px) {
     .wrap { padding: 20px 12px !important; }
@@ -198,7 +205,7 @@ export function button(href: string, label: string) {
                 <tr>
                   <td align="center" bgcolor="${C.accent}" style="background:${C.accent};border-radius:10px;">
                     <a href="${url}" target="_blank" rel="noopener"
-                       style="display:inline-block;padding:14px 32px;border:1px solid ${C.accent};border-radius:10px;font-family:${FONT};font-size:16px;font-weight:700;line-height:1.2;color:${C.page};text-decoration:none;">${escapeHtml(label)}</a>
+                       style="display:inline-block;padding:14px 32px;border:1px solid ${C.accent};border-radius:10px;font-family:${FONT};font-size:16px;font-weight:700;line-height:1.2;color:${C.onAccent};text-decoration:none;">${escapeHtml(label)}</a>
                   </td>
                 </tr>
               </table>
