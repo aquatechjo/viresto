@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { statusTone, statusToneStyle } from "@/lib/theme/status";
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -444,36 +445,14 @@ function methodLabel(method: string | null | undefined, locale: Locale) {
   return labels[method]?.[locale] || method
 }
 
+// Payment status colors: the shared tones (src/lib/theme/status.ts).
 function statusStyle(status: PaymentStatus) {
-  if (status === 'PAID') {
-    return {
-      background: 'var(--green-soft)',
-      color: 'var(--success)',
-      border: '1px solid rgba(53, 138, 136, 0.24)',
-    }
-  }
-
-  if (status === 'PENDING') {
-    return {
-      background: 'var(--amber-soft)',
-      color: '#92400e',
-      border: '1px solid rgba(245, 158, 11, 0.24)',
-    }
-  }
-
-  if (status === 'OVERDUE') {
-    return {
-      background: 'var(--red-soft)',
-      color: '#dc2626',
-      border: '1px solid rgba(220, 38, 38, 0.24)',
-    }
-  }
-
+  const tone = statusToneStyle(statusTone("payment", status));
   return {
-    background: 'var(--card)',
-    color: 'var(--text-3)',
-    border: '1px solid var(--border)',
-  }
+    background: tone.background,
+    color: tone.color,
+    border: `1px solid ${tone.borderColor}`,
+  };
 }
 
 
@@ -557,9 +536,9 @@ function FinanceSuccessOverlay({
             <div
               className="mx-auto mt-4 w-fit -rotate-3 rounded-xl border-2 px-4 py-2 text-sm font-black uppercase tracking-[0.18em]"
               style={{
-                borderColor: "#15803d",
-                color: "#15803d",
-                background: "rgba(34,197,94,.08)",
+                borderColor: "var(--tone-green-fg)",
+                color: "var(--tone-green-fg)",
+                background: "var(--tone-green-bg)",
               }}
             >
               {status}
@@ -1105,7 +1084,7 @@ export default function PaymentsPage() {
 
       {error ? (
         <div className="card p-6 text-start">
-          <p className="font-bold" style={{ color: '#dc2626' }}>
+          <p className="font-bold" style={{ color: 'var(--tone-red-fg)' }}>
             {error}
           </p>
           <button type="button" onClick={() => load()} className="btn btn-primary mt-4">
@@ -1346,9 +1325,9 @@ export default function PaymentsPage() {
                           <span
                             className="mt-1 inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-black"
                             style={{
-                              background: '#fff7ed',
-                              color: '#b45309',
-                              border: '1px solid rgba(180, 83, 9, 0.18)',
+                              background: "var(--tone-amber-bg)",
+                              color: "var(--tone-amber-fg)",
+                              border: "1px solid var(--tone-amber-border)",
                             }}
                           >
                             {copy.labels.archived}
@@ -1375,7 +1354,7 @@ export default function PaymentsPage() {
                           </div>
                         ) : (
                           <div className="min-w-0 text-start">
-                            <p className="truncate font-black" style={{ color: '#92400e' }}>
+                            <p className="truncate font-black" style={{ color: "var(--tone-amber-fg)" }}>
                               {copy.labels.directCase}
                             </p>
                             <p

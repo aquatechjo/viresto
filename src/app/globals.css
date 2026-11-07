@@ -108,6 +108,31 @@
   --purple-soft: #1e1640;
   --gray-soft: #102d2e;
 
+  /* --- Status tones (badges, status chips, notices) ---
+     One family per meaning; which status takes which tone is in
+     src/lib/theme/status.ts. Text on its own soft background passes AA. */
+  --tone-green-fg: #a7f3d0;
+  --tone-green-bg: var(--green-soft);
+  --tone-green-border: rgba(110, 231, 183, 0.35);
+  --tone-amber-fg: #fdba74;
+  --tone-amber-bg: var(--amber-soft);
+  --tone-amber-border: rgba(251, 146, 60, 0.35);
+  --tone-red-fg: #fca5a5;
+  --tone-red-bg: var(--red-soft);
+  --tone-red-border: rgba(248, 113, 113, 0.35);
+  --tone-blue-fg: #93c5fd;
+  --tone-blue-bg: var(--blue-soft);
+  --tone-blue-border: rgba(96, 165, 250, 0.35);
+  --tone-purple-fg: #c4b5fd;
+  --tone-purple-bg: var(--purple-soft);
+  --tone-purple-border: rgba(167, 139, 250, 0.35);
+  --tone-gray-fg: #cbd5e1;
+  --tone-gray-bg: var(--gray-soft);
+  --tone-gray-border: rgba(148, 163, 184, 0.35);
+
+  /* Text on a copper (--gold) fill: primary buttons. */
+  --on-gold: var(--brand-canvas);
+
   /* --- Radii --- */
   --radius-xs: 6px;
   --radius-sm: 10px;
@@ -172,8 +197,9 @@
 
   --text: #17302e;
   --text-2: #36534f;
-  --text-3: #718581;
-  --muted: #718581;
+  /* Darker than before (#718581) for AA on --bg and --card-2. */
+  --text-3: #5f7470;
+  --muted: #5f7470;
 
   --gold: #a9652f;
   --gold-hover: #8e5121;
@@ -193,6 +219,21 @@
   --red-soft: #fef0ef;
   --purple-soft: #f2ecfb;
   --gray-soft: #f0f3f5;
+
+  --tone-green-fg: #082c2d;
+  --tone-green-border: rgba(15, 61, 62, 0.18);
+  --tone-amber-fg: #92400e;
+  --tone-amber-border: rgba(217, 119, 6, 0.2);
+  --tone-red-fg: #b91c1c;
+  --tone-red-border: rgba(220, 38, 38, 0.2);
+  --tone-blue-fg: #1d4ed8;
+  --tone-blue-border: rgba(37, 99, 235, 0.2);
+  --tone-purple-fg: #6d28d9;
+  --tone-purple-border: rgba(109, 40, 217, 0.2);
+  --tone-gray-fg: #4b5563;
+  --tone-gray-border: rgba(107, 114, 128, 0.2);
+
+  --on-gold: #ffffff;
 }
 
 /* Dark theme: the values above in :root, with these on top. Merged here
@@ -834,7 +875,7 @@ select.input {
 /* Primary */
 .btn-primary {
   background: var(--gold);
-  color: var(--brand-canvas);
+  color: var(--on-gold);
   border-color: var(--gold);
   box-shadow: 0 8px 24px rgba(184, 115, 51, 0.24);
 }
@@ -866,7 +907,7 @@ select.input {
 }
 .btn-outline:hover {
   background: var(--gold);
-  color: var(--brand-canvas);
+  color: var(--on-gold);
 }
 
 /* Danger */
@@ -999,144 +1040,94 @@ select.input {
 }
 
 /* Color variants */
+/* Tone badges: one family per meaning, colors from the --tone-* custom
+   properties (both themes, AA contrast). Every status has one tone, the
+   same everywhere (src/lib/theme/status.ts): color plan, batch 2. */
 .badge-green {
-  background: var(--green-soft);
-  color: var(--success);
-  border-color: rgba(15, 61, 62, 0.18);
+  background: var(--tone-green-bg);
+  color: var(--tone-green-fg);
+  border-color: var(--tone-green-border);
 }
 .badge-amber {
-  background: var(--amber-soft);
-  color: #92400e;
-  border-color: rgba(217, 119, 6, 0.2);
+  background: var(--tone-amber-bg);
+  color: var(--tone-amber-fg);
+  border-color: var(--tone-amber-border);
 }
 .badge-red {
-  background: var(--red-soft);
-  color: var(--danger);
-  border-color: rgba(220, 38, 38, 0.2);
+  background: var(--tone-red-bg);
+  color: var(--tone-red-fg);
+  border-color: var(--tone-red-border);
 }
 .badge-blue {
-  background: var(--blue-soft);
-  color: var(--info);
-  border-color: rgba(37, 99, 235, 0.2);
+  background: var(--tone-blue-bg);
+  color: var(--tone-blue-fg);
+  border-color: var(--tone-blue-border);
 }
 .badge-purple {
-  background: var(--purple-soft);
-  color: #6d28d9;
-  border-color: rgba(109, 40, 217, 0.2);
+  background: var(--tone-purple-bg);
+  color: var(--tone-purple-fg);
+  border-color: var(--tone-purple-border);
 }
 .badge-gray {
-  background: var(--gray-soft);
-  color: #6b7280;
-  border-color: rgba(107, 114, 128, 0.2);
+  background: var(--tone-gray-bg);
+  color: var(--tone-gray-fg);
+  border-color: var(--tone-gray-border);
 }
 .badge-gold {
   background: var(--gold-soft);
-  color: #92400e;
+  color: var(--tone-amber-fg);
   border-color: var(--gold-border);
 }
-
-/* Keep semantic badges readable against their dark-mode soft backgrounds. */
-.dark .badge-green {
-  border-color: rgba(110, 231, 183, 0.35);
-}
-.dark .badge-amber,
 .dark .badge-gold {
-  color: #fdba74;
-  border-color: rgba(251, 146, 60, 0.35);
-}
-.dark .badge-red {
-  color: #fca5a5;
-  border-color: rgba(248, 113, 113, 0.35);
-}
-.dark .badge-blue {
-  color: #93c5fd;
-  border-color: rgba(96, 165, 250, 0.35);
-}
-.dark .badge-purple {
-  color: #c4b5fd;
-  border-color: rgba(167, 139, 250, 0.35);
-}
-.dark .badge-gray {
-  color: #cbd5e1;
-  border-color: rgba(148, 163, 184, 0.35);
+  border-color: var(--tone-amber-border);
 }
 
-/* Case Status */
-.badge-OPEN {
-  background: var(--green-soft);
-  color: var(--success);
-  border-color: rgba(15, 61, 62, 0.18);
+/* Status badges (badge-<STATUS>), by tone. */
+/* green: done, paid, open, active */
+.badge-OPEN,
+.badge-PAID,
+.badge-ACTIVE,
+.badge-COMPLETED {
+  background: var(--tone-green-bg);
+  color: var(--tone-green-fg);
+  border-color: var(--tone-green-border);
 }
-.badge-IN_PROGRESS {
-  background: var(--blue-soft);
-  color: var(--info);
-  border-color: rgba(37, 99, 235, 0.2);
-}
-.badge-CLOSED {
-  background: var(--gray-soft);
-  color: #6b7280;
-  border-color: rgba(107, 114, 128, 0.2);
-}
-.badge-ARCHIVED {
-  background: var(--gray-soft);
-  color: #9ca3af;
-  border-color: rgba(156, 163, 175, 0.2);
-}
-
-/* Payment Status */
-.badge-PAID {
-  background: var(--green-soft);
-  color: var(--success);
-  border-color: rgba(15, 61, 62, 0.18);
-}
-.badge-PENDING {
-  background: var(--amber-soft);
-  color: #92400e;
-  border-color: rgba(217, 119, 6, 0.2);
-}
-.badge-OVERDUE {
-  background: var(--red-soft);
-  color: var(--danger);
-  border-color: rgba(220, 38, 38, 0.2);
-}
-.badge-CANCELLED {
-  background: var(--gray-soft);
-  color: #6b7280;
-  border-color: rgba(107, 114, 128, 0.2);
-}
-
-/* User Status */
-.badge-ACTIVE {
-  background: var(--green-soft);
-  color: var(--success);
-  border-color: rgba(15, 61, 62, 0.18);
-}
-.badge-INACTIVE {
-  background: var(--gray-soft);
-  color: #6b7280;
-  border-color: rgba(107, 114, 128, 0.2);
-}
-.badge-SUSPENDED {
-  background: var(--red-soft);
-  color: var(--danger);
-  border-color: rgba(220, 38, 38, 0.2);
-}
-
-/* Priority */
+/* amber: waiting on someone; high priority */
+.badge-UNPAID,
+.badge-PENDING,
+.badge-BLOCKED,
 .badge-HIGH {
-  background: var(--red-soft);
-  color: var(--danger);
-  border-color: rgba(220, 38, 38, 0.2);
+  background: var(--tone-amber-bg);
+  color: var(--tone-amber-fg);
+  border-color: var(--tone-amber-border);
 }
+/* blue: under way; medium priority */
+.badge-IN_PROGRESS,
+.badge-PARTIALLY_PAID,
 .badge-MEDIUM {
-  background: var(--amber-soft);
-  color: #92400e;
-  border-color: rgba(217, 119, 6, 0.2);
+  background: var(--tone-blue-bg);
+  color: var(--tone-blue-fg);
+  border-color: var(--tone-blue-border);
 }
+/* red: late, stopped; urgent */
+.badge-OVERDUE,
+.badge-SUSPENDED,
+.badge-URGENT {
+  background: var(--tone-red-bg);
+  color: var(--tone-red-fg);
+  border-color: var(--tone-red-border);
+}
+/* gray: not started, finished without money, set aside; low priority */
+.badge-DRAFT,
+.badge-TODO,
+.badge-CLOSED,
+.badge-ARCHIVED,
+.badge-CANCELLED,
+.badge-INACTIVE,
 .badge-LOW {
-  background: var(--green-soft);
-  color: var(--success);
-  border-color: rgba(15, 61, 62, 0.18);
+  background: var(--tone-gray-bg);
+  color: var(--tone-gray-fg);
+  border-color: var(--tone-gray-border);
 }
 
 /* Dot indicator */

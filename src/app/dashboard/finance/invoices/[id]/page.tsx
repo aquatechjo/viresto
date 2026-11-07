@@ -34,6 +34,7 @@ import {
   safeInvoiceFilename,
 } from "@/lib/invoice-print";
 import { invoiceStatusText, invoiceStatusTone } from "@/lib/invoice-status-display";
+import { statusBadgeClass } from "@/lib/theme/status";
 import { formatDateTime, formatInZone, toDateOnlyInputValue } from "@/lib/datetime";
 import { useSession } from "@/hooks/useSession";
 import { usePrompt } from "@/components/ui/DialogProvider";
@@ -144,51 +145,6 @@ const STATUS_LABELS: Record<Locale, Record<InvoiceStatus, string>> = {
     OVERDUE: "Overdue",
     CANCELLED: "Cancelled",
     PARTIALLY_PAID: "Partially paid",
-  },
-};
-
-const statusClasses: Record<InvoiceStatus, string> = {
-  DRAFT: "badge badge-gray",
-  UNPAID: "badge badge-amber",
-  PAID: "badge badge-green",
-  OVERDUE: "badge badge-red",
-  CANCELLED: "badge badge-gray",
-  PARTIALLY_PAID: "badge badge-blue",
-};
-
-const statusStyles: Record<
-  InvoiceStatus,
-  { background: string; color: string; border: string }
-> = {
-  DRAFT: {
-    background: "#e2e8f0",
-    color: "#334155",
-    border: "1px solid #cbd5e1",
-  },
-  UNPAID: {
-    background: "#fef3c7",
-    color: "#92400e",
-    border: "1px solid #fde68a",
-  },
-  PAID: {
-    background: "#d1fae5",
-    color: "#065f46",
-    border: "1px solid #a7f3d0",
-  },
-  OVERDUE: {
-    background: "#fee2e2",
-    color: "#b91c1c",
-    border: "1px solid #fecaca",
-  },
-  CANCELLED: {
-    background: "#e5e7eb",
-    color: "#374151",
-    border: "1px solid #d1d5db",
-  },
-  PARTIALLY_PAID: {
-    background: "#dbeafe",
-    color: "#1d4ed8",
-    border: "1px solid #bfdbfe",
   },
 };
 
@@ -702,9 +658,9 @@ function FinanceSuccessOverlay({
             <div
               className="mx-auto mt-4 w-fit -rotate-3 rounded-xl border-2 px-4 py-2 text-sm font-black uppercase tracking-[0.18em]"
               style={{
-                borderColor: "#15803d",
-                color: "#15803d",
-                background: "rgba(34,197,94,.08)",
+                borderColor: "var(--tone-green-fg)",
+                color: "var(--tone-green-fg)",
+                background: "var(--tone-green-bg)",
               }}
             >
               {status}
@@ -1351,7 +1307,7 @@ export default function InvoiceDetailsPage() {
             {archivedInvoice && (
               <span
                 className="rounded-full px-2 py-0.5 text-[11px] font-black"
-                style={{ background: "#fff7ed", color: "#b45309" }}
+                style={{ background: "var(--tone-amber-bg)", color: "var(--tone-amber-fg)" }}
               >
                 {ui.archivedClient}
               </span>
@@ -1485,8 +1441,7 @@ export default function InvoiceDetailsPage() {
               </div>
 
               <span
-                className={`${statusClasses[invoiceStatusTone(invoice.status, invoice.isOverdue) as InvoiceStatus]} shrink-0`}
-                style={statusStyles[invoiceStatusTone(invoice.status, invoice.isOverdue) as InvoiceStatus]}
+                className={`${statusBadgeClass("invoice", invoiceStatusTone(invoice.status, invoice.isOverdue))} shrink-0`}
               >
                 {invoiceStatusText(invoice.status, invoice.isOverdue, statusLabels)}
               </span>
@@ -1511,9 +1466,9 @@ export default function InvoiceDetailsPage() {
             ) : isCancelled ? (
               <div
                 className="rounded-2xl border p-4 text-sm"
-                style={{ borderColor: "#fca5a5", background: "#fef2f2", color: "#7f1d1d" }}
+                style={{ borderColor: "var(--tone-red-border)", background: "var(--tone-red-bg)", color: "var(--tone-red-fg)" }}
               >
-                <div className="font-black" style={{ color: "#b91c1c" }}>
+                <div className="font-black" style={{ color: "var(--tone-red-fg)" }}>
                   {ui.cancelledTitle}
                 </div>
                 {invoice.cancellationReason && (
@@ -1555,9 +1510,9 @@ export default function InvoiceDetailsPage() {
               <div
                 className="mt-4 rounded-2xl border p-4 text-sm font-bold"
                 style={{
-                  borderColor: "#a7f3d0",
-                  background: "#ecfdf5",
-                  color: "#065f46",
+                  background: "var(--tone-green-bg)",
+                  color: "var(--tone-green-fg)",
+                  borderColor: "var(--tone-green-border)",
                 }}
               >
                 {ui.linkedPaymentsNotice(payments.length)}
@@ -1568,9 +1523,9 @@ export default function InvoiceDetailsPage() {
               <div
                 className="mt-4 rounded-2xl border p-4 text-sm font-bold"
                 style={{
-                  borderColor: "rgba(180, 83, 9, 0.22)",
-                  background: "#fff7ed",
-                  color: "#b45309",
+                  background: "var(--tone-amber-bg)",
+                  color: "var(--tone-amber-fg)",
+                  borderColor: "var(--tone-amber-border)",
                 }}
               >
                 {ui.archivedInvoiceNotice}
@@ -1595,9 +1550,9 @@ export default function InvoiceDetailsPage() {
                 <div
                   className="rounded-2xl border p-3 text-xs font-black"
                   style={{
-                    background: "#fff7ed",
-                    color: "#b45309",
-                    borderColor: "rgba(180, 83, 9, 0.18)",
+                    background: "var(--tone-amber-bg)",
+                    color: "var(--tone-amber-fg)",
+                    borderColor: "var(--tone-amber-border)",
                   }}
                 >
                   {ui.archivedClient}
@@ -2162,9 +2117,9 @@ export default function InvoiceDetailsPage() {
               <div
                 className="mb-4 rounded-2xl border p-4 text-sm font-bold"
                 style={{
-                  borderColor: "#fbbf24",
-                  background: "var(--amber-soft)",
-                  color: "#92400e",
+                  background: "var(--tone-amber-bg)",
+                  color: "var(--tone-amber-fg)",
+                  borderColor: "var(--tone-amber-border)",
                 }}
               >
                 {ui.editLockedNotice}

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatPhoneForDisplay } from "@/lib/phone";
+import { statusTone, statusToneStyle } from "@/lib/theme/status";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
@@ -913,9 +914,9 @@ export default function CasesPage() {
             <span
               className="mt-1 inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-black"
               style={{
-                background: "#fff7ed",
-                borderColor: "rgba(180, 83, 9, 0.22)",
-                color: "var(--warning)",
+                background: "var(--tone-amber-bg)",
+                borderColor: "var(--tone-amber-border)",
+                color: "var(--tone-amber-fg)",
               }}
             >
               {text.archivedClientBadge}
@@ -1289,9 +1290,9 @@ export default function CasesPage() {
             <div
               className="rounded-2xl border p-3 text-xs font-bold"
               style={{
-                background: "#fff7ed",
-                color: "var(--warning)",
-                borderColor: "rgba(180, 83, 9, 0.22)",
+                background: "var(--tone-amber-bg)",
+                color: "var(--tone-amber-fg)",
+                borderColor: "var(--tone-amber-border)",
               }}
             >
               {text.archivedClientCreateError}
@@ -1799,41 +1800,7 @@ function CaseTeamFields({
   );
 }
 
+// Case status colors: the shared tones (src/lib/theme/status.ts).
 function getCaseStatusBadgeStyle(status: string) {
-  switch (status) {
-    case "OPEN":
-      return {
-        background: "var(--green-soft)",
-        borderColor: "rgba(53, 138, 136, 0.28)",
-        color: "var(--text)",
-      };
-
-    case "IN_PROGRESS":
-      return {
-        background: "var(--amber-soft)",
-        borderColor: "rgba(245, 158, 11, 0.28)",
-        color: "var(--warning-text)",
-      };
-
-    case "CLOSED":
-      return {
-        background: "var(--card-2)",
-        borderColor: "var(--border)",
-        color: "var(--text)",
-      };
-
-    case "ARCHIVED":
-      return {
-        background: "var(--card)",
-        borderColor: "var(--border)",
-        color: "var(--text)",
-      };
-
-    default:
-      return {
-        background: "var(--card-2)",
-        borderColor: "var(--border)",
-        color: "var(--text)",
-      };
-  }
+  return statusToneStyle(statusTone("case", status));
 }

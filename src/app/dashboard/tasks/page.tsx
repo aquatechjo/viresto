@@ -6,7 +6,8 @@ import Modal from "@/components/ui/Modal";
 import DateTimePicker from "@/components/ui/DateTimePicker";
 import FormField from "@/components/ui/FormField";
 import EmptyState from "@/components/ui/EmptyState";
-import { VDSBadge, VDSCard, VDSGrid, type VDSTone } from "@/components/ui/vds";
+import { VDSBadge, VDSCard, VDSGrid } from "@/components/ui/vds";
+import { statusTone, statusToneStyle } from "@/lib/theme/status";
 import { AlarmClock, CheckCircle2, Clock3, ListPlus, ListTodo } from "lucide-react";
 import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from "@/components/page";
 import PageLoader from "@/components/ui/PageLoader";
@@ -146,69 +147,13 @@ function toDateTimeLocalValue(value?: string | null) {
   return local.toISOString().slice(0, 16);
 }
 
-function priorityTone(priority: string): VDSTone {
-  switch (priority) {
-    case "URGENT":
-    case "HIGH":
-      return "red";
-    case "MEDIUM":
-      return "gold";
-    case "LOW":
-      return "slate";
-    default:
-      return "slate";
-  }
-}
-
-function taskStatusTone(status: TaskStatus): VDSTone {
-  switch (status) {
-    case "COMPLETED":
-      return "emerald";
-    case "IN_PROGRESS":
-      return "blue";
-    case "BLOCKED":
-      return "gold";
-    case "CANCELLED":
-      return "red";
-    default:
-      return "slate";
-  }
-}
-
+// Status and priority colors: the shared tones (src/lib/theme/status.ts).
 function statusBadgeStyle(status: TaskStatus) {
-  switch (status) {
-    case "COMPLETED":
-      return {
-        background: "var(--green-soft)",
-        color: "var(--text)",
-        borderColor: "var(--border)",
-      };
-    case "IN_PROGRESS":
-      return {
-        background: "rgba(59, 130, 246, 0.14)",
-        color: "var(--text)",
-        borderColor: "rgba(29, 78, 216, 0.2)",
-      };
-    case "BLOCKED":
-      return {
-        background: "var(--amber-soft, rgba(245, 158, 11, 0.14))",
-        color: "var(--text)",
-        borderColor: "rgba(194, 65, 12, 0.2)",
-      };
-    case "CANCELLED":
-      return {
-        background: "var(--red-soft)",
-        color: "var(--text)",
-        borderColor: "rgba(220, 38, 38, 0.2)",
-      };
-    default:
-      return {
-        background: "var(--card-2)",
-        color: "var(--text)",
-        borderColor: "var(--border)",
-      };
-  }
+  return statusToneStyle(statusTone("task", status));
 }
+
+const CHIP_CLASS =
+  "inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-black";
 
 const TASK_TRANSLATIONS = {
   ar: {
@@ -1026,19 +971,16 @@ export default function TasksPage() {
                           {task.title}
                         </h2>
 
-                        <VDSBadge
-                          tone={priorityTone(task.priority)}
-                          className="shrink-0"
+                        <span
+                          className={CHIP_CLASS}
+                          style={statusToneStyle(statusTone("priority", task.priority))}
                         >
                           {priorityLabels[task.priority] ?? task.priority}
-                        </VDSBadge>
+                        </span>
 
-                        <VDSBadge
-                          tone={taskStatusTone(taskStatus)}
-                          className="shrink-0"
-                        >
+                        <span className={CHIP_CLASS} style={statusBadgeStyle(taskStatus)}>
                           {statusLabels[taskStatus]}
-                        </VDSBadge>
+                        </span>
                       </div>
 
                       {task.description && (
@@ -1717,14 +1659,14 @@ function TaskMeta({
       className="min-w-0 rounded-2xl border px-3 py-2.5"
       style={{
         background: danger
-          ? "var(--red-soft)"
+          ? "var(--tone-red-bg)"
           : warning
-            ? "var(--amber-soft, rgba(245, 158, 11, 0.14))"
+            ? "var(--tone-amber-bg)"
             : "var(--card-2)",
         borderColor: danger
-          ? "rgba(220, 38, 38, 0.18)"
+          ? "var(--tone-red-border)"
           : warning
-            ? "rgba(217, 119, 6, 0.18)"
+            ? "var(--tone-amber-border)"
             : "var(--border)",
       }}
     >

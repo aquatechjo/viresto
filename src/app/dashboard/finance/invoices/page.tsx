@@ -956,9 +956,9 @@ function FinanceSuccessOverlay({
             <div
               className="mx-auto mt-4 w-fit -rotate-3 rounded-xl border-2 px-4 py-2 text-sm font-black uppercase tracking-[0.18em]"
               style={{
-                borderColor: "#15803d",
-                color: "#15803d",
-                background: "rgba(34,197,94,.08)",
+                borderColor: "var(--tone-green-fg)",
+                color: "var(--tone-green-fg)",
+                background: "var(--tone-green-bg)",
               }}
             >
               {status}
@@ -1615,9 +1615,9 @@ export default function InvoicesPage() {
               <span
                 className="rounded-full px-3 py-1 text-xs font-black"
                 style={{
-                  background: "#fff7ed",
-                  color: "#b45309",
-                  border: "1px solid rgba(180, 83, 9, 0.18)",
+                  background: "var(--tone-amber-bg)",
+                  color: "var(--tone-amber-fg)",
+                  border: "1px solid var(--tone-amber-border)",
                 }}
               >
                 {copy.list.archivedOnly}
@@ -1666,9 +1666,9 @@ export default function InvoicesPage() {
                       <span
                         className="rounded-full px-2 py-0.5 text-[10px] font-black"
                         style={{
-                          background: "#fff7ed",
-                          color: "#b45309",
-                          border: "1px solid rgba(180, 83, 9, 0.18)",
+                          background: "var(--tone-amber-bg)",
+                          color: "var(--tone-amber-fg)",
+                          border: "1px solid var(--tone-amber-border)",
                         }}
                       >
                         {copy.list.archivedRecord}
@@ -1741,7 +1741,7 @@ export default function InvoicesPage() {
                               style={{
                                 color: hasPaidPayment
                                   ? "var(--success)"
-                                  : "#92400e",
+                                  : "var(--tone-amber-fg)",
                               }}
                             >
                               {hasPaidPayment
@@ -1756,9 +1756,9 @@ export default function InvoicesPage() {
                             <span
                               className="rounded-full px-2 py-0.5 text-[10px] font-black"
                               style={{
-                                background: "#fff7ed",
-                                color: "#b45309",
-                                border: "1px solid rgba(180, 83, 9, 0.18)",
+                                background: "var(--tone-amber-bg)",
+                                color: "var(--tone-amber-fg)",
+                                border: "1px solid var(--tone-amber-border)",
                               }}
                             >
                               {copy.list.archivedRecord}
@@ -1789,9 +1789,9 @@ export default function InvoicesPage() {
                             <span
                               className="inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-black"
                               style={{
-                                background: "#fff7ed",
-                                color: "#b45309",
-                                border: "1px solid rgba(180, 83, 9, 0.18)",
+                                background: "var(--tone-amber-bg)",
+                                color: "var(--tone-amber-fg)",
+                                border: "1px solid var(--tone-amber-border)",
                               }}
                             >
                               {copy.list.archivedClient}
@@ -1987,9 +1987,9 @@ export default function InvoicesPage() {
                 <div
                   className="md:col-span-2 rounded-2xl border p-3 text-xs font-bold"
                   style={{
-                    background: "#fff7ed",
-                    color: "#b45309",
-                    borderColor: "rgba(180, 83, 9, 0.22)",
+                    background: "var(--tone-amber-bg)",
+                    color: "var(--tone-amber-fg)",
+                    borderColor: "var(--tone-amber-border)",
                   }}
                 >
                   {copy.modal.archivedWarning}
