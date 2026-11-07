@@ -63,6 +63,8 @@ test("AA: every tone's text on its own background, in both themes", () => {
       const fg = t[`tone-${tone}-fg`];
       const bg = t[`tone-${tone}-bg`];
       assert.ok(contrast(fg, bg) >= 4.5, `${mode} ${tone}: ${fg} on ${bg} = ${contrast(fg, bg).toFixed(2)}`);
+      // A solid fill carries white text in both themes (VDS solid buttons).
+      assert.ok(contrast("#ffffff", t[`tone-${tone}-solid`]) >= 4.5, `${mode} white on ${tone} solid`);
       // On a plain card too (chips placed without their soft background).
       assert.ok(contrast(fg, t.card) >= 4.5, `${mode} ${tone} on card`);
     }
@@ -100,6 +102,24 @@ test("status badge classes in globals.css use the tone of status.ts", () => {
       // The rule that lists .badge-<STATUS> must use --tone-<tone>-fg.
       const rule = css.match(new RegExp(`\\.badge-${status}\\b[^{]*\\{[^}]*\\}`))?.[0] ?? "";
       assert.match(rule, new RegExp(`--tone-${tone}-fg`), `.badge-${status} -> ${tone}`);
+    }
+  }
+});
+
+test("VDS tones are the app's color families, with no colors of their own", async () => {
+  const { vds, VDS_TONE_FAMILY } = await import("@/components/ui/vds/tokens");
+  const source = fs.readFileSync(path.join(process.cwd(), "src/components/ui/vds/tokens.ts"), "utf8");
+  // Shadows keep their rgba; no hex color may come back.
+  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b/);
+  for (const [tone, family] of Object.entries(VDS_TONE_FAMILY)) {
+    const colors = vds.tone[tone as keyof typeof vds.tone];
+    assert.equal(colors.fg, `var(--tone-${family}-fg)`);
+    assert.equal(colors.soft, `var(--tone-${family}-bg)`);
+    assert.equal(colors.border, `var(--tone-${family}-border)`);
+    assert.equal(colors.solid, `var(--tone-${family}-solid)`);
+    // Every family it points to exists in globals.css, in both themes.
+    for (const mode of ["light", "dark"] as const) {
+      assert.ok(themeTokens[mode][`tone-${family}-solid` as keyof (typeof themeTokens)["light"]], `${mode} ${family}`);
     }
   }
 });

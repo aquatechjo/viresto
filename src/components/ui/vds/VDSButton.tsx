@@ -44,9 +44,9 @@ export default function VDSButton({
 
   const variantStyle =
     variant === "primary"
-      ? { background: palette.fg, color: "#fff", borderColor: palette.fg }
+      ? { background: palette.solid, color: "#fff", borderColor: palette.solid }
       : variant === "danger"
-        ? { background: vds.tone.red.fg, color: "#fff", borderColor: vds.tone.red.fg }
+        ? { background: vds.tone.red.solid, color: "#fff", borderColor: vds.tone.red.solid }
         : variant === "secondary"
           ? { background: palette.soft, color: palette.fg, borderColor: palette.border }
           : { background: "transparent", color: "var(--text)", borderColor: "transparent" };

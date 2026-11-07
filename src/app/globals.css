@@ -129,6 +129,13 @@
   --tone-gray-fg: #cbd5e1;
   --tone-gray-bg: var(--gray-soft);
   --tone-gray-border: rgba(148, 163, 184, 0.35);
+  /* Solid fills that carry white text (VDS solid buttons), both themes. */
+  --tone-green-solid: #0f766e;
+  --tone-amber-solid: #b45309;
+  --tone-red-solid: #b91c1c;
+  --tone-blue-solid: #1d4ed8;
+  --tone-purple-solid: #6d28d9;
+  --tone-gray-solid: #4b5563;
 
   /* Text on a copper (--gold) fill: primary buttons. */
   --on-gold: var(--brand-canvas);

@@ -1,4 +1,5 @@
 "use client";
+import { statusTone } from "@/lib/theme/status";
 import AppLoader from "@/components/ui/AppLoader";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -478,7 +479,8 @@ export default function TeamPage() {
       align: "center",
       cell: (user) => (
         <div className="flex flex-wrap items-center justify-center gap-1.5">
-          <VDSBadge tone={user.isActive ? "teal" : "red"}>
+          {/* Active green, inactive gray: the user map in src/lib/theme/status.ts. */}
+          <VDSBadge tone={statusTone("user", user.isActive ? "ACTIVE" : "INACTIVE") === "green" ? "emerald" : "slate"}>
             {user.isActive ? copy.status.active : copy.status.inactive}
           </VDSBadge>
           {user.isOwner && <VDSBadge tone="purple">{copy.list.owner}</VDSBadge>}

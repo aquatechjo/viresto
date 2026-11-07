@@ -1,3 +1,36 @@
+import type { StatusTone } from "@/lib/theme/status";
+
+// The VDS components' design values. Colors are not defined here any more:
+// each VDS tone is one of the app's color families (src/lib/theme/tokens.ts,
+// the --tone-* custom properties of globals.css), so VDS badges, icons and
+// buttons follow the light and dark themes like the rest of the app
+// (color plan, batch 2b, 2026-11-07).
+
+export type VDSTone = "teal" | "blue" | "cyan" | "gold" | "purple" | "emerald" | "red" | "slate";
+
+/** The color family behind each VDS tone name (the names stay for callers). */
+export const VDS_TONE_FAMILY: Record<VDSTone, StatusTone | "purple"> = {
+  teal: "green",
+  emerald: "green",
+  blue: "blue",
+  cyan: "blue",
+  gold: "amber",
+  purple: "purple",
+  red: "red",
+  slate: "gray",
+};
+
+function family(name: StatusTone | "purple") {
+  return {
+    /** Text and icons on the soft background or on a card. */
+    fg: `var(--tone-${name}-fg)`,
+    soft: `var(--tone-${name}-bg)`,
+    border: `var(--tone-${name}-border)`,
+    /** A fill that carries white text (solid buttons): the same in both themes. */
+    solid: `var(--tone-${name}-solid)`,
+  };
+}
+
 export const vds = {
   radius: {
     card: "24px",
@@ -22,16 +55,7 @@ export const vds = {
     card: "20px",
     compact: "12px",
   },
-  tone: {
-    teal: { fg: "#0f766e", soft: "rgba(20,184,166,.12)", border: "rgba(20,184,166,.24)" },
-    blue: { fg: "#2563eb", soft: "rgba(59,130,246,.12)", border: "rgba(59,130,246,.24)" },
-    cyan: { fg: "#0284c7", soft: "rgba(14,165,233,.12)", border: "rgba(14,165,233,.24)" },
-    gold: { fg: "#b45309", soft: "rgba(245,158,11,.13)", border: "rgba(245,158,11,.26)" },
-    purple: { fg: "#7c3aed", soft: "rgba(139,92,246,.12)", border: "rgba(139,92,246,.24)" },
-    emerald: { fg: "#047857", soft: "rgba(16,185,129,.12)", border: "rgba(16,185,129,.24)" },
-    red: { fg: "#dc2626", soft: "rgba(239,68,68,.11)", border: "rgba(239,68,68,.24)" },
-    slate: { fg: "#475569", soft: "rgba(100,116,139,.10)", border: "rgba(100,116,139,.20)" },
-  },
+  tone: Object.fromEntries(
+    (Object.keys(VDS_TONE_FAMILY) as VDSTone[]).map((tone) => [tone, family(VDS_TONE_FAMILY[tone])]),
+  ) as Record<VDSTone, ReturnType<typeof family>>,
 } as const;
-
-export type VDSTone = keyof typeof vds.tone;
