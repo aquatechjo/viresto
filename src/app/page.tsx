@@ -591,7 +591,7 @@ function VirestoLogo() {
         />
       </span>
 
-      <span className="text-lg font-black tracking-tight text-white sm:text-2xl">
+      <span className="text-lg font-black tracking-tight text-[color:var(--text)] sm:text-2xl">
         Viresto
       </span>
     </span>
@@ -657,24 +657,24 @@ export default function HomePage({
   return (
     <main
       dir={isArabic ? "rtl" : "ltr"}
-      className="min-h-screen overflow-x-hidden bg-[var(--brand-canvas)] text-white"
+      className="min-h-screen overflow-x-hidden bg-[var(--brand-canvas)] text-[color:var(--text)]"
     >
-      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-[#041819]/85 backdrop-blur-xl">
+      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-[color:var(--border)] bg-[color:var(--bg)]/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3.5 sm:h-20 sm:gap-4 sm:px-6">
           <Link href="/" className="flex shrink-0 items-center">
             <VirestoLogo />
           </Link>
 
-          <div className="hidden items-center gap-8 text-sm font-semibold text-slate-300 md:flex">
-            <a href="#features" className="transition hover:text-white">
+          <div className="hidden items-center gap-8 text-sm font-semibold text-[color:var(--text-2)] md:flex">
+            <a href="#features" className="transition hover:text-[color:var(--text)]">
               {copy.nav.features}
             </a>
 
-            <a href="#pricing" className="transition hover:text-white">
+            <a href="#pricing" className="transition hover:text-[color:var(--text)]">
               {copy.nav.pricing}
             </a>
 
-            <a href="#cta" className="transition hover:text-white">
+            <a href="#cta" className="transition hover:text-[color:var(--text)]">
               {copy.nav.getStarted}
             </a>
           </div>
@@ -683,7 +683,7 @@ export default function HomePage({
             <button
               type="button"
               onClick={changeLanguage}
-              className="flex h-9 w-10 items-center justify-center rounded-xl border border-copper-400/35 bg-white/[0.03] text-[11px] font-black uppercase tracking-wide text-copper-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-copper-300/60 hover:bg-copper-500/10 hover:text-white sm:h-12 sm:w-16 sm:rounded-2xl sm:text-sm"
+              className="flex h-9 w-10 items-center justify-center rounded-xl border border-copper-400/35 bg-white/[0.03] text-[11px] font-black uppercase tracking-wide text-copper-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-copper-300/60 hover:bg-copper-500/10 hover:text-[color:var(--text)] sm:h-12 sm:w-16 sm:rounded-2xl sm:text-sm"
               aria-label={copy.nav.language}
               title={copy.nav.language}
             >
@@ -692,7 +692,7 @@ export default function HomePage({
 
             <Link
               href="/login"
-              className="flex h-9 items-center justify-center whitespace-nowrap rounded-xl border border-white/10 bg-white/5 px-2.5 text-[11px] font-semibold transition hover:bg-white/10 sm:h-12 sm:rounded-2xl sm:px-5 sm:text-base"
+              className="flex h-9 items-center justify-center whitespace-nowrap rounded-xl border border-[color:var(--border)] bg-[color:var(--card)] px-2.5 text-[11px] font-semibold transition hover:bg-[color:var(--card-2)] sm:h-12 sm:rounded-2xl sm:px-5 sm:text-base"
             >
               {copy.nav.login}
             </Link>
@@ -700,7 +700,7 @@ export default function HomePage({
             <button
               type="button"
               onClick={() => setMobileNavOpen((open) => !open)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition hover:bg-white/10 md:hidden"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--card)] transition hover:bg-[color:var(--card-2)] md:hidden"
               aria-label={
                 mobileNavOpen
                   ? isArabic
@@ -743,13 +743,13 @@ export default function HomePage({
         {mobileNavOpen ? (
           <div
             id="mobile-nav-panel"
-            className="border-t border-white/10 bg-[#041819]/95 px-3.5 pb-4 pt-2 backdrop-blur-xl sm:px-6 md:hidden"
+            className="border-t border-[color:var(--border)] bg-[color:var(--bg)]/95 px-3.5 pb-4 pt-2 backdrop-blur-xl sm:px-6 md:hidden"
           >
-            <div className="flex flex-col gap-1 text-sm font-semibold text-slate-300">
+            <div className="flex flex-col gap-1 text-sm font-semibold text-[color:var(--text-2)]">
               <a
                 href="#features"
                 onClick={() => setMobileNavOpen(false)}
-                className="rounded-lg px-3 py-2.5 transition hover:bg-white/5 hover:text-white"
+                className="rounded-lg px-3 py-2.5 transition hover:bg-[color:var(--card)] hover:text-[color:var(--text)]"
               >
                 {copy.nav.features}
               </a>
@@ -757,7 +757,7 @@ export default function HomePage({
               <a
                 href="#pricing"
                 onClick={() => setMobileNavOpen(false)}
-                className="rounded-lg px-3 py-2.5 transition hover:bg-white/5 hover:text-white"
+                className="rounded-lg px-3 py-2.5 transition hover:bg-[color:var(--card)] hover:text-[color:var(--text)]"
               >
                 {copy.nav.pricing}
               </a>
@@ -765,7 +765,7 @@ export default function HomePage({
               <a
                 href="#cta"
                 onClick={() => setMobileNavOpen(false)}
-                className="rounded-lg px-3 py-2.5 transition hover:bg-white/5 hover:text-white"
+                className="rounded-lg px-3 py-2.5 transition hover:bg-[color:var(--card)] hover:text-[color:var(--text)]"
               >
                 {copy.nav.getStarted}
               </a>
@@ -787,12 +787,12 @@ export default function HomePage({
                 : "mx-auto max-w-2xl text-center lg:mx-0 lg:text-left lg:[direction:ltr]"
             }
           >
-            <div className="mx-auto mb-5 inline-flex max-w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-center text-[11px] font-semibold leading-5 text-white/90 shadow-lg shadow-black/10 sm:mb-6 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm lg:mx-0">
+            <div className="mx-auto mb-5 inline-flex max-w-full items-center justify-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[color:var(--card)] px-3 py-1.5 text-center text-[11px] font-semibold leading-5 text-white/90 shadow-lg shadow-black/10 sm:mb-6 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm lg:mx-0">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-copper-400 sm:h-2 sm:w-2" />
               {copy.hero.badge}
             </div>
 
-            <h1 className="mx-auto max-w-2xl text-[1.8rem] font-black leading-[1.13] tracking-tight text-balance text-white sm:text-4xl sm:leading-[1.08] lg:mx-0 lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
+            <h1 className="mx-auto max-w-2xl text-[1.8rem] font-black leading-[1.13] tracking-tight text-balance text-[color:var(--text)] sm:text-4xl sm:leading-[1.08] lg:mx-0 lg:text-5xl lg:leading-[1.06] xl:text-[3.35rem] xl:leading-[1.04]">
               <span className="block">{copy.hero.titleTop}</span>
               <span className="block text-copper-400">
                 {copy.hero.titleAccent}
@@ -809,24 +809,24 @@ export default function HomePage({
             <div className="mx-auto mt-6 flex max-w-sm flex-col items-stretch justify-center gap-2.5 sm:mt-8 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 lg:mx-0 lg:justify-start">
               <Link
                 href="/dashboard"
-                className="flex h-12 w-full items-center justify-center rounded-xl bg-copper-500 px-6 text-sm font-bold text-black transition-all hover:bg-copper-400 sm:h-14 sm:w-auto sm:min-w-44 sm:rounded-2xl sm:px-7 sm:text-base"
+                className="flex h-12 w-full items-center justify-center rounded-xl bg-copper-500 px-6 text-sm font-bold text-[color:var(--on-gold)] transition-all hover:bg-copper-400 sm:h-14 sm:w-auto sm:min-w-44 sm:rounded-2xl sm:px-7 sm:text-base"
               >
                 {copy.hero.primary}
               </Link>
 
               <a
                 href="#features"
-                className="flex h-12 w-full items-center justify-center rounded-xl border border-white/10 bg-white/5 px-6 text-sm font-semibold transition-all hover:bg-white/10 sm:h-14 sm:w-auto sm:min-w-44 sm:rounded-2xl sm:px-7 sm:text-base"
+                className="flex h-12 w-full items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--card)] px-6 text-sm font-semibold transition-all hover:bg-[color:var(--card-2)] sm:h-14 sm:w-auto sm:min-w-44 sm:rounded-2xl sm:px-7 sm:text-base"
               >
                 {copy.hero.secondary}
               </a>
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs font-semibold text-slate-300 sm:mt-8 sm:gap-4 sm:text-sm lg:justify-start">
+            <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs font-semibold text-[color:var(--text-2)] sm:mt-8 sm:gap-4 sm:text-sm lg:justify-start">
               {copy.hero.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 sm:px-4 sm:py-2"
+                  className="rounded-full border border-[color:var(--border)] bg-white/[0.04] px-3 py-1.5 sm:px-4 sm:py-2"
                 >
                   {tag}
                 </span>
@@ -837,7 +837,7 @@ export default function HomePage({
           <div className="relative w-full">
             <div className="absolute -inset-6 rounded-[2.5rem] bg-copper-500/10 blur-3xl" />
 
-            <div className="relative rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <div className="relative rounded-[2rem] border border-[color:var(--border)] bg-[color:var(--card)] p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
               <div className="mb-5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
@@ -845,7 +845,7 @@ export default function HomePage({
                   <div className="h-3 w-3 rounded-full bg-copper-400" />
                 </div>
 
-                <span className="text-xs font-semibold text-slate-400">
+                <span className="text-xs font-semibold text-[color:var(--text-3)]">
                   {copy.preview.dashboard}
                 </span>
               </div>
@@ -853,30 +853,30 @@ export default function HomePage({
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="rounded-2xl border border-copper-500/20 bg-copper-500/10 p-4">
-                    <p className="text-xs text-slate-300">
+                    <p className="text-xs text-[color:var(--text-2)]">
                       {copy.preview.revenue}
                     </p>
                     <p className="mt-2 text-2xl font-black">$24.5K</p>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-300">
+                  <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--card)] p-4">
+                    <p className="text-xs text-[color:var(--text-2)]">
                       {copy.preview.cases}
                     </p>
                     <p className="mt-2 text-2xl font-black">128</p>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-300">
+                  <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--card)] p-4">
+                    <p className="text-xs text-[color:var(--text-2)]">
                       {copy.preview.clients}
                     </p>
                     <p className="mt-2 text-2xl font-black">54</p>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                <div className="rounded-2xl border border-[color:var(--border)] bg-black/30 p-5">
                   <div className="mb-3 flex items-center justify-between gap-4">
-                    <p className="text-sm font-semibold text-slate-300">
+                    <p className="text-sm font-semibold text-[color:var(--text-2)]">
                       {copy.preview.assistant}
                     </p>
 
@@ -885,14 +885,14 @@ export default function HomePage({
                     </span>
                   </div>
 
-                  <div className="rounded-xl bg-white/5 p-4 text-sm leading-7 text-white/80">
+                  <div className="rounded-xl bg-[color:var(--card)] p-4 text-sm leading-7 text-white/80">
                     {copy.preview.message}
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">
+                  <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--card)] p-4">
+                    <p className="text-xs text-[color:var(--text-3)]">
                       {copy.preview.today}
                     </p>
                     <p className="mt-2 font-bold">
@@ -900,8 +900,8 @@ export default function HomePage({
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">
+                  <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--card)] p-4">
+                    <p className="text-xs text-[color:var(--text-3)]">
                       {copy.preview.documents}
                     </p>
                     <p className="mt-2 font-bold">
@@ -924,11 +924,11 @@ export default function HomePage({
             {copy.features.eyebrow}
           </p>
 
-          <h2 className="mt-4 text-4xl font-black text-white">
+          <h2 className="mt-4 text-4xl font-black text-[color:var(--text)]">
             {copy.features.title}
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
+          <p className="mx-auto mt-5 max-w-2xl leading-8 text-[color:var(--text-2)]">
             {copy.features.description}
           </p>
         </div>
@@ -937,13 +937,13 @@ export default function HomePage({
           {copy.features.items.map((feature) => (
             <div
               key={feature.title}
-              className="rounded-[2rem] border border-white/10 bg-white/5 p-7 transition-all hover:bg-white/[0.07]"
+              className="rounded-[2rem] border border-[color:var(--border)] bg-[color:var(--card)] p-7 transition-all hover:bg-white/[0.07]"
             >
               <div className="mb-5 text-4xl">{feature.icon}</div>
               <h3 className="text-xl font-bold text-copper-50">
                 {feature.title}
               </h3>
-              <p className="mt-3 text-sm leading-7 text-slate-300">
+              <p className="mt-3 text-sm leading-7 text-[color:var(--text-2)]">
                 {feature.description}
               </p>
             </div>
@@ -957,11 +957,11 @@ export default function HomePage({
             {copy.pricing.eyebrow}
           </p>
 
-          <h2 className="mt-4 text-4xl font-black text-white">
+          <h2 className="mt-4 text-4xl font-black text-[color:var(--text)]">
             {copy.pricing.title}
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
+          <p className="mx-auto mt-5 max-w-2xl leading-8 text-[color:var(--text-2)]">
             {copy.pricing.description}
           </p>
         </div>
@@ -975,7 +975,7 @@ export default function HomePage({
                   "relative flex h-full min-h-[690px] flex-col overflow-hidden rounded-[2rem] border p-6 transition-all sm:p-7",
                   plan.highlighted
                     ? "border-copper-400/45 bg-copper-500/10 shadow-2xl shadow-copper-950/35"
-                    : "border-white/10 bg-white/5 hover:bg-white/[0.07]",
+                    : "border-[color:var(--border)] bg-[color:var(--card)] hover:bg-white/[0.07]",
                 ].join(" ")}
               >
                 {plan.highlighted ? (
@@ -989,39 +989,39 @@ export default function HomePage({
                     </h3>
 
                     {plan.badge ? (
-                      <span className="shrink-0 rounded-full bg-copper-500 px-3 py-1 text-xs font-black text-black shadow-lg shadow-copper-950/30">
+                      <span className="shrink-0 rounded-full bg-copper-500 px-3 py-1 text-xs font-black text-[color:var(--on-gold)] shadow-lg shadow-copper-950/30">
                         {plan.badge}
                       </span>
                     ) : null}
                   </div>
 
-                  <p className="text-sm font-bold text-slate-200">
+                  <p className="text-sm font-bold text-[color:var(--text)]">
                     {plan.subtitle}
                   </p>
 
-                  <p className="mt-3 text-sm leading-7 text-slate-300">
+                  <p className="mt-3 text-sm leading-7 text-[color:var(--text-2)]">
                     {plan.description}
                   </p>
                 </div>
 
-                <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                <div className="rounded-3xl border border-[color:var(--border)] bg-black/20 p-5">
                   {plan.originalPriceLabel ? (
-                    <p className="mb-1 text-sm font-semibold text-slate-500 line-through">
+                    <p className="mb-1 text-sm font-semibold text-[color:var(--muted)] line-through">
                       <span dir="ltr">{plan.originalPriceLabel}</span>
                     </p>
                   ) : null}
 
                   <div className="flex items-end gap-2">
-                    <p className="text-5xl font-black leading-none text-white">
+                    <p className="text-5xl font-black leading-none text-[color:var(--text)]">
                       <span dir="ltr">{plan.priceLabel}</span>
                     </p>
 
-                    <span className="pb-1 text-sm font-bold text-slate-400">
+                    <span className="pb-1 text-sm font-bold text-[color:var(--text-3)]">
                       {copy.pricing.perMonth}
                     </span>
                   </div>
 
-                  <p className="mt-3 text-sm font-bold text-slate-400">
+                  <p className="mt-3 text-sm font-bold text-[color:var(--text-3)]">
                     <span dir="ltr">{plan.yearlyPriceLabel}</span>{" "}
                     {isArabic ? "/ سنويًا" : "/ yearly"} —{" "}
                     {plan.yearlySavingsLabel}
@@ -1039,8 +1039,8 @@ export default function HomePage({
                         key={`${plan.code}-detail-${feature.label}`}
                         className={
                           feature.included
-                            ? "flex items-start gap-2 text-slate-200"
-                            : "flex items-start gap-2 text-slate-500"
+                            ? "flex items-start gap-2 text-[color:var(--text)]"
+                            : "flex items-start gap-2 text-[color:var(--muted)]"
                         }
                       >
                         <span
@@ -1048,7 +1048,7 @@ export default function HomePage({
                             "mt-0.5 shrink-0 font-black",
                             feature.included
                               ? "text-copper-300"
-                              : "text-slate-600",
+                              : "text-[color:var(--muted)]",
                           ].join(" ")}
                         >
                           {feature.included ? "✓" : "×"}
@@ -1057,7 +1057,7 @@ export default function HomePage({
                         <span className="leading-6">
                           {feature.label}
                           {feature.value ? (
-                            <span className="text-slate-400">
+                            <span className="text-[color:var(--text-3)]">
                               {" "}
                               · <span dir="ltr">{feature.value}</span>
                             </span>
@@ -1070,7 +1070,7 @@ export default function HomePage({
 
                 <Link
                   href={`/register?lang=${locale}&plan=${plan.code}`}
-                  className="mt-8 flex h-12 items-center justify-center rounded-2xl bg-copper-500 font-bold text-black transition hover:bg-copper-400"
+                  className="mt-8 flex h-12 items-center justify-center rounded-2xl bg-copper-500 font-bold text-[color:var(--on-gold)] transition hover:bg-copper-400"
                 >
                   {copy.pricing.action}
                 </Link>
@@ -1086,7 +1086,7 @@ export default function HomePage({
             {copy.faq.eyebrow}
           </p>
 
-          <h2 className="mt-4 text-4xl font-black text-white">
+          <h2 className="mt-4 text-4xl font-black text-[color:var(--text)]">
             {copy.faq.title}
           </h2>
         </div>
@@ -1095,12 +1095,12 @@ export default function HomePage({
           {copy.faq.items.map((item) => (
             <div
               key={item.question}
-              className="rounded-3xl border border-white/10 bg-white/5 p-6"
+              className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] p-6"
             >
               <h3 className="text-lg font-black text-copper-100">
                 {item.question}
               </h3>
-              <p className="mt-3 leading-7 text-slate-300">{item.answer}</p>
+              <p className="mt-3 leading-7 text-[color:var(--text-2)]">{item.answer}</p>
             </div>
           ))}
         </div>
@@ -1110,43 +1110,43 @@ export default function HomePage({
         <div className="rounded-[2.5rem] border border-copper-400/20 bg-copper-500/10 p-10 text-center md:p-16">
           <p className="font-bold text-copper-400">{copy.cta.eyebrow}</p>
 
-          <h2 className="mt-5 text-4xl font-black text-white md:text-5xl">
+          <h2 className="mt-5 text-4xl font-black text-[color:var(--text)] md:text-5xl">
             {copy.cta.title}
           </h2>
 
-          <p className="mx-auto mt-6 max-w-2xl leading-8 text-slate-300">
+          <p className="mx-auto mt-6 max-w-2xl leading-8 text-[color:var(--text-2)]">
             {copy.cta.description}
           </p>
 
           <Link
             href="/dashboard"
-            className="mt-8 inline-flex h-14 items-center justify-center rounded-2xl bg-copper-500 px-8 font-bold text-black transition hover:bg-copper-400"
+            className="mt-8 inline-flex h-14 items-center justify-center rounded-2xl bg-copper-500 px-8 font-bold text-[color:var(--on-gold)] transition hover:bg-copper-400"
           >
             {copy.cta.action}
           </Link>
         </div>
       </section>
 
-      <footer className="border-t border-white/10">
+      <footer className="border-t border-[color:var(--border)]">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 px-5 py-8 sm:px-6">
           <div className="flex w-full flex-col items-center justify-between gap-4 md:flex-row">
           <p className="text-xl font-black">Viresto</p>
 
-          <p className="text-sm text-slate-400">{copy.footer}</p>
+          <p className="text-sm text-[color:var(--text-3)]">{copy.footer}</p>
           </div>
 
           <a
             href={COMPANY_CONTACT.websiteUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-bold text-slate-400 transition hover:text-copper-300"
+            className="text-sm font-bold text-[color:var(--text-3)] transition hover:text-copper-300"
           >
             {isArabic
               ? `Viresto — أحد منتجات ${COMPANY_CONTACT.operatorName}`
               : `Viresto — a product by ${COMPANY_CONTACT.operatorName}`}
           </a>
 
-          <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold text-slate-400">
+          <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold text-[color:var(--text-3)]">
             <Link
               href={`/privacy?lang=${locale}`}
               className="transition hover:text-copper-300"

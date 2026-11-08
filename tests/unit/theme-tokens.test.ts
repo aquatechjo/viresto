@@ -171,3 +171,22 @@ test("printout and exports: no colors of their own, the light palette", () => {
   const exportSource = fs.readFileSync(path.join(process.cwd(), "src/lib/export.ts"), "utf8");
   assert.doesNotMatch(exportSource, /45, 74, 62/);
 });
+
+test("site.webmanifest: the landing page's dark canvas from tokens.ts", () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), "public/site.webmanifest"), "utf8"));
+  assert.equal(manifest.theme_color, brandDark["landing-canvas"]);
+  assert.equal(manifest.background_color, brandDark["landing-canvas"]);
+});
+
+test("landing page: no Tailwind slate grays or fixed hex background, the app's dark colors", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "src/app/page.tsx"), "utf8");
+  assert.doesNotMatch(source, /\btext-slate-\d{3}\b/);
+  assert.doesNotMatch(source, /bg-\[#[0-9a-fA-F]{6}\]/);
+  // "/" renders in the dark theme, so these variables are the app's dark values.
+  assert.ok((source.match(/var\(--text(-[23])?\)/g) ?? []).length > 20);
+});
+
+test("landing page is forced dark, so its variables are the dark theme's", async () => {
+  const { FORCED_DARK_PATHS } = await import("@/lib/theme");
+  assert.ok(FORCED_DARK_PATHS.includes("/"));
+});
