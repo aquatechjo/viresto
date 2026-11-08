@@ -23,6 +23,7 @@ import {
   assertCaseCanAcceptAmount,
   isCaseFinancialLimitError,
 } from "@/lib/server/case-finance-integrity";
+import { allocateReceiptNumber } from "@/lib/server/receipt-number";
 
 type Params = {
   params: Promise<{
@@ -102,6 +103,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           cancelledAt: true,
           cancelledById: true,
           cancellationReason: true,
+          receiptNumber: true,
           client: {
             select: {
               id: true,
@@ -424,6 +426,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           paidAt: nextPaidAt,
           reference: nextReference,
           notes: nextNotes,
+          // Collected now: the receipt number is taken in this transaction.
+          ...(nextStatus === "PAID" && existing.status !== "PAID" && !existing.receiptNumber
+            ? {
+                receiptNumber: await allocateReceiptNumber(tenantId, tx),
+                collectedById: auth.user!.userId,
+              }
+            : {}),
           ...(nextStatus === "CANCELLED"
             ? {
                 cancelledAt: new Date(),

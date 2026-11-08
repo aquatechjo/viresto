@@ -221,6 +221,7 @@ model User {
   leadCases            Case[]               @relation("CaseLeadLawyer")
   caseMemberships      CaseMember[]
   cancelledPayments    Payment[]            @relation("PaymentCancelledBy")
+  collectedPayments    Payment[]            @relation("PaymentCollectedBy")
   cancelledInvoices    Invoice[]            @relation("InvoiceCancelledBy")
   assignedAppointments Appointment[]        @relation("AppointmentAssignee")
   createdAppointments  Appointment[]        @relation("AppointmentCreator")
@@ -352,6 +353,10 @@ model Payment {
   // محصّلة قديمة بلا رقم. فريد داخل المكتب.
   receiptNumber String?
 
+  // من سجّل التحصيل (حين صارت الدفعة PAID). فارغ للدفعات المحصّلة قبل
+  // 2026-11-08، فلا يُعرف من سجّلها.
+  collectedById String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -360,6 +365,7 @@ model Payment {
   case        Case?    @relation(fields: [caseId, tenantId], references: [id, tenantId], onDelete: Restrict)
   invoice     Invoice? @relation(fields: [invoiceId, tenantId], references: [id, tenantId], onDelete: Restrict)
   cancelledBy User?    @relation("PaymentCancelledBy", fields: [cancelledById, tenantId], references: [id, tenantId], onDelete: Restrict)
+  collectedBy User?    @relation("PaymentCollectedBy", fields: [collectedById, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   @@unique([tenantId, receiptNumber])
   @@index([tenantId])
@@ -371,6 +377,7 @@ model Payment {
   @@index([caseId])
   @@index([invoiceId])
   @@index([cancelledById])
+  @@index([collectedById])
 }
 
 model Appointment {

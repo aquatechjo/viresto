@@ -18,6 +18,7 @@ import {
   assertCaseCanAcceptAmount,
   isCaseFinancialLimitError,
 } from "@/lib/server/case-finance-integrity";
+import { allocateReceiptNumber } from "@/lib/server/receipt-number";
 
 const allowedStatuses = [
   "PENDING",
@@ -589,6 +590,14 @@ export async function POST(req: NextRequest) {
           paidAt,
           reference: parsed.data.reference?.trim() || null,
           notes: parsed.data.notes?.trim() || null,
+          // A collected payment takes its receipt number now, in this
+          // transaction (finance plan, batch 6).
+          ...(paymentStatus === "PAID"
+            ? {
+                receiptNumber: await allocateReceiptNumber(tenantId, tx),
+                collectedById: auth.user!.userId,
+              }
+            : {}),
         },
         include: {
           client: {

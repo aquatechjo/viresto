@@ -7,13 +7,14 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnlyBanner'
-import { AlarmClock, CircleDollarSign, CirclePlus, HandCoins, Hourglass, RefreshCw, Wallet } from 'lucide-react'
+import { AlarmClock, CircleDollarSign, CirclePlus, HandCoins, Hourglass, Printer, RefreshCw, Wallet } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 import AppLoader from '@/components/ui/AppLoader'
 import { FilterBar, FilterSelect, PageHeader, PageHeaderAction, PageStats } from '@/components/page'
 import { useTenantWriteAccess } from '@/hooks/useTenantWriteAccess'
 import type { Locale } from '@/lib/i18n'
 import { formatInvoiceNumber } from '@/lib/invoice-print'
+import { printPaymentReceipt } from '@/lib/receipt-print'
 import { useLocale } from '@/lib/useLocale'
 import { useConfirm, usePrompt } from '@/components/ui/DialogProvider'
 import { formatJOD, parseAmount, roundJod } from "@/lib/money"
@@ -49,6 +50,8 @@ interface Payment {
   paidAt?: string | null
   createdAt?: string | null
   reference?: string | null
+  /** R-YYYY-NNNN; given at collection, or at the first print of an older one. */
+  receiptNumber?: string | null
   notes?: string | null
   client?: {
     id: string
@@ -130,6 +133,7 @@ const COPY = {
       paymentCreated: 'تم تسجيل الدفعة بنجاح',
       paymentCreateError: 'تعذر تسجيل الدفعة',
       viewInvoice: 'عرض الفاتورة',
+      printReceipt: 'سند القبض',
       viewCase: 'عرض القضية',
       retry: 'إعادة المحاولة',
       updating: 'جارٍ حفظ الحالة...',
@@ -232,6 +236,7 @@ const COPY = {
       paymentCreated: 'Payment was recorded successfully',
       paymentCreateError: 'Unable to record the payment',
       viewInvoice: 'View invoice',
+      printReceipt: 'Receipt',
       viewCase: 'View case',
       retry: 'Retry',
       updating: 'Saving status...',
@@ -860,6 +865,23 @@ export default function PaymentsPage() {
     }
   }
 
+  // A receipt exists for a collected payment, and for a cancelled one (with
+  // a 'cancelled' stamp); a pending one has none.
+  function hasReceipt(payment: Payment) {
+    return payment.status === 'PAID' || payment.status === 'CANCELLED'
+  }
+
+  async function printReceipt(payment: Payment) {
+    const receipt = await printPaymentReceipt(payment.id, locale)
+    if (receipt && receipt.receiptNumber !== (payment.receiptNumber ?? null)) {
+      setPayments((current) =>
+        current.map((item) =>
+          item.id === payment.id ? { ...item, receiptNumber: receipt.receiptNumber } : item,
+        ),
+      )
+    }
+  }
+
   function openRelated(payment: Payment) {
     if (payment.invoice?.id) {
       router.push(`/dashboard/finance/invoices/${payment.invoice.id}`)
@@ -1169,6 +1191,9 @@ export default function PaymentsPage() {
                     {payment.reference ? (
                       <bdi dir="ltr" className="font-mono">{payment.reference}</bdi>
                     ) : null}
+                    {payment.receiptNumber ? (
+                      <bdi dir="ltr" className="font-mono">{payment.receiptNumber}</bdi>
+                    ) : null}
                     <bdi dir={isRtl ? 'rtl' : 'ltr'}>
                       {formatPaymentDate(payment.paidAt || payment.createdAt, locale)}
                     </bdi>
@@ -1256,6 +1281,21 @@ export default function PaymentsPage() {
                       {payment.invoice ? copy.actions.viewInvoice : copy.actions.viewCase}
                     </button>
                   ) : null}
+
+                  {hasReceipt(payment) ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        printReceipt(payment)
+                      }}
+                      className="btn btn-ghost h-9 w-full whitespace-nowrap px-3 text-xs"
+                      style={{ color: 'var(--text)' }}
+                    >
+                      <Printer className="h-4 w-4" aria-hidden />
+                      {copy.actions.printReceipt}
+                    </button>
+                  ) : null}
                 </div>
               )
             })}
@@ -1311,6 +1351,13 @@ export default function PaymentsPage() {
                             {copy.labels.noReference}
                           </span>
                         )}
+                        {payment.receiptNumber ? (
+                          <div className="mt-1">
+                            <bdi dir="ltr" className="font-mono text-[11px] font-bold" style={{ color: 'var(--text-3)' }}>
+                              {payment.receiptNumber}
+                            </bdi>
+                          </div>
+                        ) : null}
                       </td>
 
                       <td className="align-middle text-start">
@@ -1464,6 +1511,7 @@ export default function PaymentsPage() {
                         className="align-middle text-start"
                         onClick={(event) => event.stopPropagation()}
                       >
+                        <div className="flex flex-col gap-1.5">
                         {canOpen ? (
                           <button
                             type="button"
@@ -1475,9 +1523,20 @@ export default function PaymentsPage() {
                               ? copy.actions.viewInvoice
                               : copy.actions.viewCase}
                           </button>
-                        ) : (
-                          '-'
-                        )}
+                        ) : null}
+                        {hasReceipt(payment) ? (
+                          <button
+                            type="button"
+                            onClick={() => printReceipt(payment)}
+                            className="btn btn-ghost h-10 w-full whitespace-nowrap px-3 text-xs"
+                            style={{ color: 'var(--text)' }}
+                          >
+                            <Printer className="h-4 w-4" aria-hidden />
+                            {copy.actions.printReceipt}
+                          </button>
+                        ) : null}
+                        {!canOpen && !hasReceipt(payment) ? '-' : null}
+                        </div>
                       </td>
                     </tr>
                   )
