@@ -47,7 +47,7 @@ export function ReportLayout({ meta, children }: { meta: ReportMeta; children: R
       <body>
         <ReportHeader meta={meta} />
         <main>{children}</main>
-        <ReportFooter office={meta.office} />
+        <ReportFooter />
       </body>
     </html>
   );
@@ -60,6 +60,7 @@ export function ReportLayout({ meta, children }: { meta: ReportMeta; children: R
 export function ReportHeader({ meta }: { meta: ReportMeta }) {
   const { office } = meta;
   const initial = office.name.trim().slice(0, 1) || "V";
+  const contact = officeContactLine(office);
 
   return (
     <header className="report-header">
@@ -73,6 +74,7 @@ export function ReportHeader({ meta }: { meta: ReportMeta }) {
         </div>
         <div>
           <div className="report-office-name">{office.name}</div>
+          {contact ? <div className="report-office-contact">{contact}</div> : null}
           <div className="report-powered">Powered by Viresto</div>
         </div>
       </div>
@@ -86,29 +88,30 @@ export function ReportHeader({ meta }: { meta: ReportMeta }) {
   );
 }
 
-/** "Name · phone · email · address": the office line of the footer. */
+/** "phone · email · address": the office's contact line, in the header. */
 export function officeContactLine(office: ReportOffice): string {
-  return [
-    office.name,
-    office.phone ? formatPhoneForDisplay(office.phone) : null,
-    office.email,
-    office.address,
-  ]
+  return [office.phone ? formatPhoneForDisplay(office.phone) : null, office.email, office.address]
     .map((part) => part?.trim())
     .filter(Boolean)
     .join("  ·  ");
 }
 
 /**
- * Footer on every page, in the page margins: the office's contact line on
- * the right and "صفحة X من Y" on the left. Page margin boxes are drawn by
- * Chrome and Edge (131+); other browsers print without them.
+ * "صفحة X من Y" at the bottom of every page, in the page margin. Margin
+ * boxes are drawn by Chrome and Edge (131+); other browsers print without
+ * page numbers, and lose nothing else (the office's contact details are in
+ * the header).
  */
-export function ReportFooter({ office }: { office: ReportOffice }) {
-  const box = `font-family: ${REPORT_FONT_STACK}; font-size: 7.5pt; color: var(--muted); direction: rtl;`;
+export function ReportFooter() {
   const css = `@page {
-  @bottom-right { content: ${cssString(officeContactLine(office))}; ${box} text-align: right; vertical-align: middle; }
-  @bottom-left { content: "صفحة " counter(page) " من " counter(pages); ${box} text-align: left; vertical-align: middle; }
+  @bottom-center {
+    content: ${cssString("صفحة ")} counter(page) ${cssString(" من ")} counter(pages);
+    font-family: ${REPORT_FONT_STACK};
+    font-size: 7.5pt;
+    color: var(--muted);
+    direction: rtl;
+    vertical-align: middle;
+  }
 }`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }

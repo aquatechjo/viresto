@@ -147,6 +147,7 @@ body {
 .report-logo img { width: 100%; height: 100%; object-fit: contain; padding: 5px; }
 .report-logo-initial { color: var(--brand); font-size: 22pt; font-weight: 700; line-height: 1; }
 .report-office-name { font-size: 14pt; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.report-office-contact { font-size: 8pt; color: var(--brand-muted); overflow-wrap: anywhere; }
 .report-powered { font-size: 7.5pt; color: var(--brand-muted); direction: ltr; unicode-bidi: isolate; }
 .report-meta { flex: 0 0 auto; display: grid; grid-template-columns: auto auto; gap: 2px 10px; font-size: 8.5pt; }
 .report-meta dt { color: var(--brand-muted); }

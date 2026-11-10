@@ -99,7 +99,9 @@ test("layout: RTL A4 document with header, fonts, footer and escaped office data
   assert.match(html, /CF-7-20261110/);
   assert.match(html, /رقم التقرير/);
   assert.match(html, /counter\(page\) " من " counter\(pages\)/);
-  assert.match(html, /079 123 4567/);
+  // Contact details in the header (every browser), not in a page margin box.
+  assert.match(html, /report-office-contact">079 123 4567  ·  office@example\.com  ·  عمّان</);
+  assert.doesNotMatch(html, /@bottom-(right|left)/);
   assert.match(html, new RegExp(themeTokens.light.sidebar));
   // Data never becomes markup, in the body or in the footer's CSS.
   assert.doesNotMatch(html, /<script>/);
