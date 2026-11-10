@@ -74,9 +74,12 @@ const appointments = Array.from({ length: 34 }, (_, i) => {
   };
 });
 
+// Amounts stay within each case's agreed fee: the API refuses a payment
+// above what is left of the fee (at most 3 payments of <= 120 per case,
+// and the smallest fee is 300.25).
 const payments = Array.from({ length: 26 }, (_, i) => ({
   caseIndex: i % cases.length,
-  amount: [150, 250.5, 75, 400, 1000, 62.75][i % 6],
+  amount: [100, 75.5, 60, 120, 45.25, 80][i % 6],
   method: METHODS[i % METHODS.length],
   status: i % 7 === 3 ? "PENDING" : "PAID",
   paidAt: new Date(now - (26 - i) * 9 * DAY).toISOString(),
@@ -116,22 +119,40 @@ async function post(path, body) {
   return json.data;
 }
 
-const created = await post("/api/clients", client);
-console.log(`client ${created.id} (#${created.publicId})`);
+// --client=<id>: finish a run that stopped part-way. Keeps the client, its
+// cases and appointments, and adds only the payments it does not have yet.
+const resumeId = process.argv.find((arg) => arg.startsWith("--client="))?.slice("--client=".length);
 
-const caseIds = [];
-for (const item of cases) {
-  caseIds.push((await post("/api/cases", { ...item, clientId: created.id })).id);
+let created;
+let caseIds = [];
+let skipPayments = 0;
+
+if (resumeId) {
+  const response = await fetch(`${BASE_URL}/api/clients/${encodeURIComponent(resumeId)}/full`, { headers: { cookie } });
+  const json = await response.json();
+  if (!response.ok || !json.data) throw new Error(`client ${resumeId}: ${response.status}`);
+  created = json.data;
+  // The API lists cases newest first; the seed created them in order.
+  caseIds = [...json.data.cases].reverse().map((item) => item.id);
+  skipPayments = json.data.payments.length;
+  console.log(`resuming client ${created.id} (#${created.publicId}): ${caseIds.length} cases, ${skipPayments} payments already there`);
+} else {
+  created = await post("/api/clients", client);
+  console.log(`client ${created.id} (#${created.publicId})`);
+
+  for (const item of cases) {
+    caseIds.push((await post("/api/cases", { ...item, clientId: created.id })).id);
+  }
+  console.log(`cases: ${caseIds.length}`);
+
+  for (const { caseIndex, ...item } of appointments) {
+    await post("/api/appointments", { ...item, clientId: created.id, caseId: caseIds[caseIndex] });
+  }
+  console.log(`appointments: ${appointments.length}`);
 }
-console.log(`cases: ${caseIds.length}`);
 
-for (const { caseIndex, ...item } of appointments) {
-  await post("/api/appointments", { ...item, clientId: created.id, caseId: caseIds[caseIndex] });
-}
-console.log(`appointments: ${appointments.length}`);
-
-for (const { caseIndex, ...item } of payments) {
+for (const { caseIndex, ...item } of payments.slice(skipPayments)) {
   await post("/api/payments", { ...item, caseId: caseIds[caseIndex] });
 }
-console.log(`payments: ${payments.length}`);
+console.log(`payments added: ${payments.length - skipPayments}`);
 console.log(`Open: ${BASE_URL}/dashboard/clients/${created.id}`);
