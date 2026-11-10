@@ -43,21 +43,33 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const { id } = await params;
 
-    const client = await prisma.client.findFirst({
-      where: buildClientIdentifierAccessWhere(id, auth.user),
-      include: {
-        cases: {
-          where: buildCaseAccessWhere(auth.user),
+    const [client, office] = await Promise.all([
+      prisma.client.findFirst({
+        where: buildClientIdentifierAccessWhere(id, auth.user),
+        include: {
+          cases: {
+            where: buildCaseAccessWhere(auth.user),
+            orderBy: { createdAt: "desc" },
+          },
+          appointments: {
+            where: buildAppointmentAccessWhere(auth.user),
+            orderBy: { startTime: "asc" },
+            include: {
+              case: { select: { title: true, caseNumber: true, court: true } },
+            },
+          },
+          payments: {
+            where: buildPaymentAccessWhere(auth.user),
+            orderBy: { createdAt: "desc" },
+          },
         },
-        appointments: {
-          where: buildAppointmentAccessWhere(auth.user),
-        },
-        payments: {
-          where: buildPaymentAccessWhere(auth.user),
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    });
+      }),
+      // The printed report's header and footer.
+      prisma.tenant.findUnique({
+        where: { id: auth.user.tenantId },
+        select: { name: true, logoUrl: true, phone: true, email: true, address: true },
+      }),
+    ]);
 
     if (!client) {
       return notFound("الموكل غير موجود");
@@ -78,6 +90,12 @@ export async function GET(req: NextRequest, { params }: Params) {
       nationalId: revealSensitive ? decryptText(client.nationalId) : null,
       address: revealSensitive ? decryptText(client.address) : null,
       notes: revealSensitive ? decryptText(client.notes) : null,
+      office,
+      // What the user may see, so a report can tell "hidden" from "empty".
+      access: {
+        contact: revealSensitive,
+        finance: hasPermission(auth.user.role, "finance.read"),
+      },
     });
   });
 }

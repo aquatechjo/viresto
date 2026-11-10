@@ -43,6 +43,8 @@ import {
   NATIONAL_ID_DIGITS_MESSAGE,
   TEN_DIGITS,
 } from "@/lib/digits";
+import { openReportWindow, printReportInWindow, usableLogoUrl } from "@/lib/reports/print";
+import type { ClientFileData } from "@/lib/reports/client-file";
 interface ClientCase {
   id: string;
   publicId?: number;
@@ -120,6 +122,7 @@ const COPY = {
     saveError: "تعذر حفظ بيانات الموكل",
     saveUnexpected: "حدث خطأ أثناء حفظ البيانات",
     exportError: "تعذر تصدير ملف الموكل",
+    popupBlocked: "المتصفح منع نافذة التقرير. اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.",
     exporting: "جاري التصدير...",
     pdf: "PDF",
     back: "رجوع",
@@ -211,6 +214,7 @@ const COPY = {
     saveError: "Could not save client details",
     saveUnexpected: "Something went wrong while saving",
     exportError: "Could not export client file",
+    popupBlocked: "The browser blocked the report window. Allow pop-ups for this site and try again.",
     exporting: "Exporting...",
     pdf: "PDF",
     back: "Back",
@@ -515,6 +519,13 @@ export default function ClientDetailPage() {
       return;
     }
 
+    // Opened from the click, before any await: otherwise it is a blocked pop-up.
+    const reportWindow = openReportWindow();
+    if (!reportWindow) {
+      toast.error(text.popupBlocked);
+      return;
+    }
+
     try {
       setExporting(true);
 
@@ -527,9 +538,19 @@ export default function ClientDetailPage() {
         throw new Error(getApiMessage(data, text.exportError));
       }
 
-      const { exportClientFullPDF } = await import("@/lib/export");
-      exportClientFullPDF(data.data);
+      const report = data.data as ClientFileData;
+      const [{ buildClientFileHtml }, logoUrl] = await Promise.all([
+        import("@/lib/reports/client-file"),
+        usableLogoUrl(report.office?.logoUrl),
+      ]);
+      const html = buildClientFileHtml(report, {
+        issuedAt: new Date(),
+        assetBaseUrl: window.location.origin,
+        logoUrl,
+      });
+      await printReportInWindow(reportWindow, html);
     } catch (error) {
+      reportWindow.close();
       toast.error(error instanceof Error ? error.message : text.exportError);
     } finally {
       setExporting(false);

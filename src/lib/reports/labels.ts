@@ -62,9 +62,22 @@ const LABELS = {
   payment: PAYMENT_STATUS_LABELS,
   appointment: APPOINTMENT_STATUS_LABELS,
   invoice: INVOICE_STATUS_LABELS,
-} satisfies Partial<Record<StatusKind, Record<string, string>>>;
+};
 
 export type ReportStatusKind = keyof typeof LABELS;
+
+// theme/status.ts has no appointment kind (the app shows no appointment
+// status badges); the same tone families, for reports only.
+const APPOINTMENT_STATUS_TONES: Record<AppointmentStatus, StatusTone> = {
+  SCHEDULED: "blue",
+  COMPLETED: "green",
+  CANCELLED: "gray",
+};
+
+function toneOf(kind: ReportStatusKind, value: string | null | undefined): StatusTone {
+  if (kind !== "appointment") return statusTone(kind satisfies StatusKind, value);
+  return (value && (APPOINTMENT_STATUS_TONES as Record<string, StatusTone>)[value]) || "gray";
+}
 
 /** Label of an unknown or missing value: never the raw value. */
 export const UNKNOWN_LABEL = "غير محدد";
@@ -78,7 +91,7 @@ export function reportStatus(
   kind: ReportStatusKind,
   value: string | null | undefined,
 ): { label: string; tone: StatusTone } {
-  return { label: lookup(LABELS[kind], value), tone: statusTone(kind, value) };
+  return { label: lookup(LABELS[kind], value), tone: toneOf(kind, value) };
 }
 
 export function paymentMethodLabel(value: string | null | undefined): string {

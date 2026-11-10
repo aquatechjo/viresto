@@ -26,11 +26,6 @@ export const STATUS_TONES = {
     CLOSED: "gray",
     ARCHIVED: "gray",
   },
-  appointment: {
-    SCHEDULED: "blue",
-    COMPLETED: "green",
-    CANCELLED: "gray",
-  },
   task: {
     TODO: "gray",
     IN_PROGRESS: "blue",
