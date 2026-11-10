@@ -27,6 +27,11 @@ import { formatJOD } from "@/lib/money";
 import { formatInZone, NUMERIC_DATE } from '@/lib/datetime'
 import { invoiceStatusText } from '@/lib/invoice-status-display'
 
+// The jsPDF report prints Arabic and numbers reversed (27,230 as "032,72"):
+// hidden until it is rebuilt on src/lib/reports. Excel, CSV and printing
+// the page are unaffected.
+const FULL_PDF_ENABLED = false
+
 const REPORT_COPY = {
   ar: {
     months: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
@@ -850,13 +855,15 @@ if (loading) {
                 disabled={exportDisabled}
                 title={exportDisabled ? exportDisabledTitle : copy.actions.print}
               />
-              <PageHeaderAction
-                icon={FileDown}
-                label={exporting ? copy.actions.exporting : copy.actions.fullPdf}
-                onClick={exportFullPdf}
-                disabled={exportDisabled || exporting}
-                title={exportDisabled ? exportDisabledTitle : copy.actions.fullPdf}
-              />
+              {FULL_PDF_ENABLED ? (
+                <PageHeaderAction
+                  icon={FileDown}
+                  label={exporting ? copy.actions.exporting : copy.actions.fullPdf}
+                  onClick={exportFullPdf}
+                  disabled={exportDisabled || exporting}
+                  title={exportDisabled ? exportDisabledTitle : copy.actions.fullPdf}
+                />
+              ) : null}
               <PageHeaderAction
                 icon={FileSpreadsheet}
                 label={exporting ? copy.actions.exporting : copy.actions.fullExcel}
