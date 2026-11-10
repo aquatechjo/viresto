@@ -9,6 +9,7 @@ import {
   buildAppointmentAccessWhere,
   buildCaseAccessWhere,
   buildClientIdentifierAccessWhere,
+  buildPaymentAccessWhere,
 } from "@/lib/access-control";
 import {
   assertTenantCanWrite,
@@ -50,6 +51,10 @@ export async function GET(req: NextRequest, { params }: Params) {
         },
         appointments: {
           where: buildAppointmentAccessWhere(auth.user),
+        },
+        payments: {
+          where: buildPaymentAccessWhere(auth.user),
+          orderBy: { createdAt: "desc" },
         },
       },
     });

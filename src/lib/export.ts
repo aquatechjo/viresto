@@ -365,7 +365,7 @@ doc.setFont('Amiri', 'normal')
           c.title || '-',
           c.status || '-',
           c.court || '-',
-          c.feeAmount || 0,
+          formatJOD(c.feeAgreed),
         ])
       : [['لا توجد قضايا', '-', '-', '-']],
     theme: 'grid',
