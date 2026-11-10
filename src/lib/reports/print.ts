@@ -1,5 +1,5 @@
 // Printing a report from the browser: a new window gets the report's HTML,
-// waits for the Cairo font and the logo, then opens the print dialog
+// waits for the Tajawal font and the logo, then opens the print dialog
 // ("Save as PDF"). Browser only.
 //
 // The window inherits the app's Content-Security-Policy (no inline scripts
@@ -66,10 +66,10 @@ async function waitForAssets(win: Window) {
   // first paint; then wait for everything pending.
   await withTimeout(
     Promise.all([
-      fonts.load('400 12px "Cairo Report"', "عربي"),
-      fonts.load('700 12px "Cairo Report"', "عربي"),
-      fonts.load('400 12px "Cairo Report"', "Viresto 0123456789"),
-      fonts.load('700 12px "Cairo Report"', "Viresto 0123456789"),
+      fonts.load('500 12px "Tajawal Report"', "عربي"),
+      fonts.load('700 12px "Tajawal Report"', "عربي"),
+      fonts.load('500 12px "Tajawal Report"', "Viresto 0123456789"),
+      fonts.load('700 12px "Tajawal Report"', "Viresto 0123456789"),
     ]).then(() => fonts.ready),
     FONT_TIMEOUT_MS,
   ).catch(() => undefined);

@@ -94,7 +94,13 @@ test("layout: RTL A4 document with header, fonts, footer and escaped office data
 
   assert.ok(html.startsWith("<!DOCTYPE html><html lang=\"ar\" dir=\"rtl\">"));
   assert.match(html, /size: A4/);
-  assert.match(html, /https:\/\/app\.example\.com\/fonts\/cairo\/cairo-arabic-700-normal\.woff2/);
+  for (const file of ["arabic-500", "arabic-700", "latin-500", "latin-700"]) {
+    assert.match(html, new RegExp(`https://app\\.example\\.com/fonts/tajawal/tajawal-${file}-normal\\.woff2`));
+  }
+  assert.doesNotMatch(html, /cairo/i);
+  // Backgrounds print even with Chrome's "Background graphics" off.
+  assert.match(html, /\.report-header,[\s\S]*?print-color-adjust: exact/);
+  assert.match(html, /\.report-table th \{[^}]*background: var\(--head\)/);
   assert.match(html, /Powered by Viresto/);
   assert.match(html, /CF-7-20261110/);
   assert.match(html, /رقم التقرير/);
