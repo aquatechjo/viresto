@@ -168,8 +168,8 @@ body {
   align-items: center;
   gap: 8px;
   margin: 0 0 8px;
-  padding-inline-start: 9px;
-  border-inline-start: 3px solid var(--accent);
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--accent-border);
   font-size: 11.5pt;
   font-weight: 700;
   line-height: 1.5;
