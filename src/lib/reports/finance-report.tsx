@@ -339,12 +339,13 @@ export function FinanceReport({
               tone: "accent",
             },
             { label: "دفعات الفترة", value: count(data.detailCounts.payments), hint: "بكل حالاتها ضمن الفلاتر" },
-            { label: "فواتير الفترة", value: count(data.detailCounts.invoices), hint: "حسب تاريخ الإصدار" },
+            { label: "المواعيد القادمة", value: count(summary.upcomingAppointmentsCount), hint: "حتى نهاية الفترة" },
+            { label: "مهام متأخرة", value: count(summary.overdueTasksCount), hint: "مستحقة ضمن الفترة" },
           ]}
         />
       </ReportSection>
 
-      <ReportSection title="الوضع المالي الحالي" note="كل الفترات حتى تاريخ الإصدار، ضمن فلتري الموكل وحالة القضية">
+      <ReportSection title="الوضع الحالي (كل الفترات)" note="حتى تاريخ الإصدار، ضمن فلتري الموكل وحالة القضية">
         <SummaryCards
           cards={[
             { label: "إجمالي الفواتير", value: reportMoney(summary.totalInvoicesAmount), hint: "دون المسودات والملغاة" },

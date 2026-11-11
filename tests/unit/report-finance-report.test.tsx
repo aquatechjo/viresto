@@ -111,11 +111,15 @@ test("the full report: sections, Arabic labels, never a raw enum or the activity
   assert.match(text, /FR-2026-20261111/);
   assert.match(text, /الفترة: 2026  ·  جميع الموكلين والحالات/);
 
-  for (const title of ["أرقام الفترة", "الوضع المالي الحالي", "القضايا", "الإيرادات الشهرية 2026", "أعلى الموكلين بالمبلغ المدفوع", "دفعات الفترة", "فواتير الفترة", "المواعيد القادمة", "المهام المتأخرة"]) {
+  for (const title of ["أرقام الفترة", "الوضع الحالي (كل الفترات)", "القضايا", "الإيرادات الشهرية 2026", "أعلى الموكلين بالمبلغ المدفوع", "دفعات الفترة", "فواتير الفترة", "المواعيد القادمة", "المهام المتأخرة"]) {
     assert.ok(text.includes(title), title);
   }
   // Numbers say what they cover.
-  assert.match(text, /كل الفترات حتى تاريخ الإصدار/);
+  assert.match(text, /حتى تاريخ الإصدار، ضمن فلتري الموكل وحالة القضية/);
+  // The same period cards as the page.
+  for (const card of ["إيرادات الفترة", "دفعات الفترة", "المواعيد القادمة", "مهام متأخرة"]) {
+    assert.ok(text.includes(card), card);
+  }
   assert.match(text, /1,550 د\.أ/);
   assert.match(text, /27,230 د\.أ/);
   assert.match(text, /70%/);

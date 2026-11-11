@@ -5,7 +5,6 @@ import SubscriptionReadOnlyBanner from '@/components/billing/SubscriptionReadOnl
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlarmClock,
-  BriefcaseBusiness,
   CalendarDays,
   CircleDollarSign,
   FileSpreadsheet,
@@ -72,7 +71,10 @@ const REPORT_COPY = {
     stats: {
       periodRevenue: 'إيرادات الفترة',
       monthlyRevenue: (monthName: string) => `إيرادات ${monthName}`,
-      pendingPayments: 'دفعات معلقة/متأخرة',
+      pendingPayments: 'دفعات معلقة أو متأخرة',
+      periodPayments: 'دفعات الفترة',
+      revenueHidden: 'لا تُحسب مع فلتر الدفعات الحالي',
+      openCasesOf: (total: number) => `من ${total} قضية`,
       unpaidInvoices: 'فواتير غير مدفوعة',
       collectionRate: 'نسبة التحصيل',
       totalCases: 'عدد القضايا',
@@ -84,6 +86,12 @@ const REPORT_COPY = {
       paidInvoices: 'المحصّل من الفواتير',
       overdueInvoices: 'فواتير متأخرة',
       closedCases: 'القضايا المغلقة/المؤرشفة',
+    },
+    // The same wording as the printed report: period figures apart from
+    // the current position (all periods), so screen and paper agree.
+    groups: {
+      period: { title: 'أرقام الفترة', subtitle: (period: string) => `من ${period} فقط، ضمن الفلاتر أعلاه` },
+      current: { title: 'الوضع الحالي (كل الفترات)', subtitle: 'حتى اليوم، ضمن فلتري الموكل وحالة القضية' },
     },
     sections: {
       caseStatus: { title: 'حالة القضايا', subtitle: 'توزيع القضايا حسب الحالة' },
@@ -100,6 +108,7 @@ const REPORT_COPY = {
       invoices: { DRAFT: 'مسودة', UNPAID: 'غير مدفوعة', PARTIALLY_PAID: 'مدفوعة جزئيًا', PAID: 'مدفوعة', OVERDUE: 'متأخرة', CANCELLED: 'ملغاة' },
       cases: { OPEN: 'نشطة', IN_PROGRESS: 'قيد المتابعة', CLOSED: 'مغلقة', ARCHIVED: 'مؤرشفة' },
       priorities: { URGENT: 'عاجلة', HIGH: 'عالية', MEDIUM: 'متوسطة', LOW: 'منخفضة' },
+      methods: { CASH: 'نقدي', BANK_TRANSFER: 'تحويل بنكي', CHECK: 'شيك', ONLINE: 'إلكتروني' },
     },
     misc: { cases: 'قضايا', payments: 'دفعات', invoices: 'فواتير' },
   },
@@ -147,7 +156,10 @@ const REPORT_COPY = {
     stats: {
       periodRevenue: 'Period revenue',
       monthlyRevenue: (monthName: string) => `${monthName} revenue`,
-      pendingPayments: 'Pending/overdue payments',
+      pendingPayments: 'Pending or overdue payments',
+      periodPayments: 'Payments in the period',
+      revenueHidden: 'Not counted with the current payment filter',
+      openCasesOf: (total: number) => `of ${total} cases`,
       unpaidInvoices: 'Unpaid invoices',
       collectionRate: 'Collection rate',
       totalCases: 'Total cases',
@@ -159,6 +171,10 @@ const REPORT_COPY = {
       paidInvoices: 'Collected on invoices',
       overdueInvoices: 'Overdue invoices',
       closedCases: 'Closed/archived cases',
+    },
+    groups: {
+      period: { title: 'Period figures', subtitle: (period: string) => `${period} only, within the filters above` },
+      current: { title: 'Current position (all periods)', subtitle: 'To date, within the client and case filters' },
     },
     sections: {
       caseStatus: { title: 'Case status', subtitle: 'Cases distributed by status' },
@@ -175,6 +191,7 @@ const REPORT_COPY = {
       invoices: { DRAFT: 'Draft', UNPAID: 'Unpaid', PARTIALLY_PAID: 'Partially paid', PAID: 'Paid', OVERDUE: 'Overdue', CANCELLED: 'Cancelled' },
       cases: { OPEN: 'Active', IN_PROGRESS: 'In progress', CLOSED: 'Closed', ARCHIVED: 'Archived' },
       priorities: { URGENT: 'Urgent', HIGH: 'High', MEDIUM: 'Medium', LOW: 'Low' },
+      methods: { CASH: 'Cash', BANK_TRANSFER: 'Bank transfer', CHECK: 'Check', ONLINE: 'Online' },
     },
     misc: { cases: 'cases', payments: 'Payments', invoices: 'Invoices' },
   },
@@ -317,12 +334,18 @@ function formatDate(value: string | Date | null | undefined, locale: Locale) {
   return formatInZone(date, locale, NUMERIC_DATE)
 }
 
+// Labels for exports and the page: never a raw enum value; an unknown
+// value reads "-".
 function paymentStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
-  return copy.statuses.payments[status as keyof typeof copy.statuses.payments] || status || '-'
+  return copy.statuses.payments[status as keyof typeof copy.statuses.payments] || '-'
+}
+
+function paymentMethodLabel(method: string | null | undefined, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
+  return (method && copy.statuses.methods[method as keyof typeof copy.statuses.methods]) || '-'
 }
 
 function invoiceStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
-  return copy.statuses.invoices[status as keyof typeof copy.statuses.invoices] || status || '-'
+  return copy.statuses.invoices[status as keyof typeof copy.statuses.invoices] || '-'
 }
 
 function invoiceDisplayStatus(
@@ -336,11 +359,11 @@ function invoiceDisplayStatus(
 }
 
 function caseStatusLabel(status: string, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
-  return copy.statuses.cases[status as keyof typeof copy.statuses.cases] || status || '-'
+  return copy.statuses.cases[status as keyof typeof copy.statuses.cases] || '-'
 }
 
 function taskPriorityLabel(priority: string | null | undefined, copy: typeof REPORT_COPY.ar | typeof REPORT_COPY.en) {
-  return priority ? copy.statuses.priorities[priority as keyof typeof copy.statuses.priorities] || priority : '-'
+  return (priority && copy.statuses.priorities[priority as keyof typeof copy.statuses.priorities]) || '-'
 }
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {
@@ -364,6 +387,16 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
   anchor.click()
 
   URL.revokeObjectURL(url)
+}
+
+// The title of a row of cards: what the figures below it cover.
+function StatsGroupHeading({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 pt-1">
+      <h2 className="text-sm font-black" style={{ color: 'var(--text)' }}>{title}</h2>
+      <p className="text-xs" style={{ color: 'var(--text-3)' }}>{subtitle}</p>
+    </div>
+  )
 }
 
 export default function ReportsPage() {
@@ -533,7 +566,7 @@ export default function ReportsPage() {
       الموكل: payment.client?.name || '-',
       المبلغ: Number(payment.amount || 0),
       الحالة: paymentStatusLabel(payment.status, copy),
-      طريقة_الدفع: payment.method || '-',
+      طريقة_الدفع: paymentMethodLabel(payment.method, copy),
       التاريخ: formatDate(payment.reportDate, locale),
       ملاحظات: payment.notes || '-',
     }))
@@ -695,7 +728,7 @@ export default function ReportsPage() {
           payment.client?.name || '-',
           Number(payment.amount || 0),
           paymentStatusLabel(payment.status, copy),
-          payment.method || '-',
+          paymentMethodLabel(payment.method, copy),
           formatDate(payment.reportDate, locale),
         ]),
       ]
@@ -760,6 +793,7 @@ if (loading) {
   if (!data || !summary) return null
 
   const filtersActive = Boolean(caseStatus || paymentStatusFilter || invoiceStatusFilter || clientId)
+  const revenueHidden = Boolean(paymentStatusFilter) && paymentStatusFilter !== 'PAID'
 
   return (
     <>
@@ -930,7 +964,14 @@ if (loading) {
           </FilterSelect>
         </FilterBar>
 
-        {/* Money first, then the caseload. */}
+        {/* The selected period, then the position across all periods: the
+            same split and wording as the printed report. */}
+        <StatsGroupHeading
+          title={copy.groups.period.title}
+          subtitle={copy.groups.period.subtitle(
+            reportType === 'monthly' ? `${months[month]} ${year}` : String(year)
+          )}
+        />
         <PageStats
           dir={dir}
           items={[
@@ -939,10 +980,38 @@ if (loading) {
                 reportType === 'monthly'
                   ? copy.stats.monthlyRevenue(months[month])
                   : copy.stats.periodRevenue,
-              value: formatJOD(summary.periodRevenue),
+              // The period revenue counts collected payments only: with a
+              // payment filter that excludes them it is not computed, not 0.
+              value: revenueHidden ? '—' : formatJOD(summary.periodRevenue),
+              hint: revenueHidden ? copy.stats.revenueHidden : undefined,
               icon: <CircleDollarSign className="h-4 w-4" />,
-              tone: 'emerald',
+              tone: revenueHidden ? 'slate' : 'emerald',
             },
+            {
+              label: copy.stats.periodPayments,
+              value: data.detailCounts.payments,
+              icon: <ReceiptText className="h-4 w-4" />,
+              tone: 'teal',
+            },
+            {
+              label: copy.stats.upcomingAppointments,
+              value: summary.upcomingAppointmentsCount,
+              icon: <CalendarDays className="h-4 w-4" />,
+              tone: 'blue',
+            },
+            {
+              label: copy.stats.overdueTasks,
+              value: summary.overdueTasksCount,
+              icon: <AlarmClock className="h-4 w-4" />,
+              tone: summary.overdueTasksCount > 0 ? 'red' : 'slate',
+            },
+          ]}
+        />
+
+        <StatsGroupHeading title={copy.groups.current.title} subtitle={copy.groups.current.subtitle} />
+        <PageStats
+          dir={dir}
+          items={[
             {
               label: copy.stats.pendingPayments,
               value: formatJOD(summary.pendingPaymentsAmount),
@@ -961,25 +1030,12 @@ if (loading) {
               icon: <Percent className="h-4 w-4" />,
               tone: summary.collectionRate >= 80 ? 'emerald' : 'gold',
             },
-          ]}
-        />
-
-        <PageStats
-          dir={dir}
-          items={[
-            { label: copy.stats.totalCases, value: summary.totalCases, icon: <BriefcaseBusiness className="h-4 w-4" />, tone: 'teal' },
-            { label: copy.stats.openCases, value: summary.openCases, icon: <FolderOpen className="h-4 w-4" />, tone: 'emerald' },
             {
-              label: copy.stats.upcomingAppointments,
-              value: summary.upcomingAppointmentsCount,
-              icon: <CalendarDays className="h-4 w-4" />,
-              tone: 'blue',
-            },
-            {
-              label: copy.stats.overdueTasks,
-              value: summary.overdueTasksCount,
-              icon: <AlarmClock className="h-4 w-4" />,
-              tone: summary.overdueTasksCount > 0 ? 'red' : 'slate',
+              label: copy.stats.openCases,
+              value: summary.openCases,
+              hint: copy.stats.openCasesOf(summary.totalCases),
+              icon: <FolderOpen className="h-4 w-4" />,
+              tone: 'emerald',
             },
           ]}
         />
