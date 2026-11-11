@@ -192,6 +192,8 @@ body {
   font-size: 8pt;
   font-weight: 700;
 }
+.report-section-note { margin: -4px 0 8px; color: var(--muted); font-size: 8.5pt; }
+.summary-cards + .summary-cards { margin-top: 10px; }
 .report-subsection-title {
   margin: 12px 0 6px;
   font-size: 9.5pt;

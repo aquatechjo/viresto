@@ -21,6 +21,8 @@ import {
   getReportPeriod,
   isInvoiceOverdue,
   normalizeReportTimeZone,
+  rankTopClients,
+  type TopClientRow,
 } from "@/lib/report-finance";
 import {
   effectiveInvoiceState,
@@ -207,11 +209,18 @@ export async function GET(req: NextRequest) {
     }
 
     const now = new Date();
-    const clients = await prisma.client.findMany({
-      where: buildClientAccessWhere(auth.user),
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    });
+    const [clients, office] = await Promise.all([
+      prisma.client.findMany({
+        where: buildClientAccessWhere(auth.user),
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      // The printed report's header.
+      prisma.tenant.findUnique({
+        where: { id: auth.user.tenantId },
+        select: { name: true, logoUrl: true, phone: true, email: true, address: true },
+      }),
+    ]);
 
     if (params.clientId && !clients.some((client) => client.id === params.clientId)) {
       return err("الموكل غير موجود داخل هذا المكتب", 404);
@@ -323,6 +332,8 @@ export async function GET(req: NextRequest) {
           paidAt: true,
           createdAt: true,
           notes: true,
+          reference: true,
+          receiptNumber: true,
           client: { select: { id: true, name: true } },
           case: { select: { id: true, title: true } },
         },
@@ -387,6 +398,7 @@ export async function GET(req: NextRequest) {
           id: true,
           title: true,
           startTime: true,
+          endTime: true,
           location: true,
           case: { select: { id: true, title: true } },
         },
@@ -416,9 +428,12 @@ export async function GET(req: NextRequest) {
         select: { amount: true, paidAt: true },
         take: REPORT_SUMMARY_SCAN_LIMIT + 1,
       }),
+      // Top clients rank by money actually paid in the period: collected
+      // payments only (never pending, overdue or cancelled ones), within
+      // the same filters as the period's payments.
       prisma.payment.groupBy({
         by: ["clientId"],
-        where: periodPaymentWhere,
+        where: { AND: [periodPaymentWhere, { status: "PAID" }] },
         _sum: { amount: true },
         _count: { _all: true },
       }),
@@ -492,17 +507,7 @@ export async function GET(req: NextRequest) {
     };
 
     const clientMap = new Map(clients.map((client) => [client.id, client]));
-    const topClientMap = new Map<
-      string,
-      {
-        id: string;
-        name: string;
-        casesCount: number;
-        paymentsTotal: number;
-        invoicesTotal: number;
-        activityScore: number;
-      }
-    >();
+    const topClientMap = new Map<string, TopClientRow>();
 
     const ensureTopClient = (clientId: string) => {
       const client = clientMap.get(clientId);
@@ -515,7 +520,6 @@ export async function GET(req: NextRequest) {
           casesCount: 0,
           paymentsTotal: 0,
           invoicesTotal: 0,
-          activityScore: 0,
         });
       }
 
@@ -525,10 +529,7 @@ export async function GET(req: NextRequest) {
     for (const item of cases) {
       caseStatus[item.status as keyof typeof caseStatus] += 1;
       const client = ensureTopClient(item.client.id);
-      if (client) {
-        client.casesCount += 1;
-        client.activityScore += 3;
-      }
+      if (client) client.casesCount += 1;
     }
 
     for (const group of paymentClientGroups) {
@@ -536,7 +537,6 @@ export async function GET(req: NextRequest) {
       if (!client) continue;
 
       client.paymentsTotal = roundMoney(Number(group._sum.amount || 0));
-      client.activityScore += group._count._all * 2;
     }
 
     for (const group of invoiceClientGroups) {
@@ -544,20 +544,9 @@ export async function GET(req: NextRequest) {
       if (!client) continue;
 
       client.invoicesTotal = roundMoney(Number(group._sum.total || 0));
-      client.activityScore += group._count._all;
     }
 
-    const topClients = Array.from(topClientMap.values())
-      .map((client) => ({
-        ...client,
-        activityScore: roundMoney(
-          client.activityScore +
-            client.paymentsTotal / 1000 +
-            client.invoicesTotal / 2000,
-        ),
-      }))
-      .sort((a, b) => b.activityScore - a.activityScore)
-      .slice(0, 5);
+    const topClients = rankTopClients(Array.from(topClientMap.values()));
 
     const totalCases = cases.length;
     const openCases = caseStatus.OPEN + caseStatus.IN_PROGRESS;
@@ -574,6 +563,7 @@ export async function GET(req: NextRequest) {
         invoiceStatus: params.invoiceStatus,
         clientId: params.clientId,
       },
+      office,
       clients,
       summary: {
         periodRevenue: roundMoney(Number(periodRevenueAggregate._sum.amount || 0)),

@@ -8,7 +8,6 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CircleDollarSign,
-  FileDown,
   FileSpreadsheet,
   FolderOpen,
   Hourglass,
@@ -26,11 +25,7 @@ import type { Locale } from '@/lib/i18n'
 import { formatJOD } from "@/lib/money";
 import { formatInZone, NUMERIC_DATE } from '@/lib/datetime'
 import { invoiceStatusText } from '@/lib/invoice-status-display'
-
-// The jsPDF report prints Arabic and numbers reversed (27,230 as "032,72"):
-// hidden until it is rebuilt on src/lib/reports. Excel, CSV and printing
-// the page are unaffected.
-const FULL_PDF_ENABLED = false
+import { openReportWindow, printReportInWindow, usableLogoUrl } from '@/lib/reports/print'
 
 const REPORT_COPY = {
   ar: {
@@ -42,8 +37,8 @@ const REPORT_COPY = {
       printSummary: 'ملخص مالي وإداري شامل',
     },
     actions: {
-      print: 'طباعة',
-      fullPdf: 'PDF شامل',
+      printReport: 'طباعة التقرير',
+      popupBlocked: 'المتصفح منع نافذة التقرير. اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.',
       fullExcel: 'Excel شامل',
       refresh: 'تحديث البيانات',
       clearFilters: 'مسح الفلاتر',
@@ -93,13 +88,13 @@ const REPORT_COPY = {
     sections: {
       caseStatus: { title: 'حالة القضايا', subtitle: 'توزيع القضايا حسب الحالة' },
       monthlyRevenue: { title: 'الإيرادات الشهرية', subtitle: 'مقارنة الإيرادات على مدار السنة' },
-      topClients: { title: 'الموكلون الأكثر نشاطًا', subtitle: 'حسب القضايا والدفعات والفواتير', empty: 'لا توجد بيانات كافية.' },
+      topClients: { title: 'أعلى الموكلين بالمبلغ المدفوع', subtitle: 'الدفعات المحصّلة في الفترة', empty: 'لا توجد دفعات محصّلة ضمن الفلاتر الحالية.' },
       periodPayments: { title: 'دفعات الفترة', subtitle: 'الدفعات المطابقة للفلاتر الحالية', empty: 'لا توجد دفعات ضمن الفلاتر الحالية' },
       periodInvoices: { title: 'فواتير الفترة', subtitle: 'الفواتير المطابقة للفلاتر الحالية', empty: 'لا توجد فواتير ضمن الفلاتر الحالية' },
       appointments: { title: 'المواعيد القادمة', subtitle: 'أقرب المواعيد ضمن نطاق التقرير', empty: 'لا توجد مواعيد قادمة.' },
       tasks: { title: 'المهام المتأخرة', subtitle: 'المهام التي تحتاج متابعة فورية', empty: 'لا توجد مهام متأخرة.' },
     },
-    table: { case: 'القضية', client: 'الموكل', amount: 'المبلغ', collected: 'المحصل', remaining: 'المتبقي', status: 'الحالة', date: 'التاريخ', invoiceNumber: 'رقم الفاتورة', dueDate: 'الاستحقاق', paymentMethod: 'طريقة الدفع', notes: 'ملاحظات', issueDate: 'تاريخ الإصدار', dueDateFull: 'تاريخ الاستحقاق', appointment: 'الموعد', location: 'المكان', task: 'المهمة', priority: 'الأولوية', activityScore: 'مؤشر النشاط', invoicesTotal: 'إجمالي الفواتير', paymentsTotal: 'إجمالي الدفعات', casesCount: 'عدد القضايا', item: 'البند', value: 'القيمة' },
+    table: { case: 'القضية', client: 'الموكل', amount: 'المبلغ', collected: 'المحصل', remaining: 'المتبقي', status: 'الحالة', date: 'التاريخ', invoiceNumber: 'رقم الفاتورة', dueDate: 'الاستحقاق', paymentMethod: 'طريقة الدفع', notes: 'ملاحظات', issueDate: 'تاريخ الإصدار', dueDateFull: 'تاريخ الاستحقاق', appointment: 'الموعد', location: 'المكان', task: 'المهمة', priority: 'الأولوية', invoicesTotal: 'إجمالي الفواتير', paymentsTotal: 'المدفوع', casesCount: 'عدد القضايا', item: 'البند', value: 'القيمة' },
     statuses: {
       payments: { PAID: 'مدفوع', PENDING: 'معلق', OVERDUE: 'متأخر', CANCELLED: 'ملغي' },
       invoices: { DRAFT: 'مسودة', UNPAID: 'غير مدفوعة', PARTIALLY_PAID: 'مدفوعة جزئيًا', PAID: 'مدفوعة', OVERDUE: 'متأخرة', CANCELLED: 'ملغاة' },
@@ -117,8 +112,8 @@ const REPORT_COPY = {
       printSummary: 'Comprehensive financial and operational summary',
     },
     actions: {
-      print: 'Print',
-      fullPdf: 'Full PDF',
+      printReport: 'Print report',
+      popupBlocked: 'The browser blocked the report window. Allow pop-ups for this site and try again.',
       fullExcel: 'Full Excel',
       refresh: 'Refresh data',
       clearFilters: 'Clear filters',
@@ -168,13 +163,13 @@ const REPORT_COPY = {
     sections: {
       caseStatus: { title: 'Case status', subtitle: 'Cases distributed by status' },
       monthlyRevenue: { title: 'Monthly revenue', subtitle: 'Revenue comparison across the year' },
-      topClients: { title: 'Most active clients', subtitle: 'Based on cases, payments, and invoices', empty: 'Not enough data.' },
+      topClients: { title: 'Top clients by amount paid', subtitle: 'Collected payments in the period', empty: 'No collected payments in the current filters.' },
       periodPayments: { title: 'Period payments', subtitle: 'Payments matching the current filters', empty: 'No payments match the current filters' },
       periodInvoices: { title: 'Period invoices', subtitle: 'Invoices matching the current filters', empty: 'No invoices match the current filters' },
       appointments: { title: 'Upcoming appointments', subtitle: 'Nearest appointments within the report range', empty: 'No upcoming appointments.' },
       tasks: { title: 'Overdue tasks', subtitle: 'Tasks that need immediate follow-up', empty: 'No overdue tasks.' },
     },
-    table: { case: 'Case', client: 'Client', amount: 'Amount', collected: 'Collected', remaining: 'Remaining', status: 'Status', date: 'Date', invoiceNumber: 'Invoice number', dueDate: 'Due date', paymentMethod: 'Payment method', notes: 'Notes', issueDate: 'Issue date', dueDateFull: 'Due date', appointment: 'Appointment', location: 'Location', task: 'Task', priority: 'Priority', activityScore: 'Activity score', invoicesTotal: 'Invoices total', paymentsTotal: 'Payments total', casesCount: 'Cases count', item: 'Item', value: 'Value' },
+    table: { case: 'Case', client: 'Client', amount: 'Amount', collected: 'Collected', remaining: 'Remaining', status: 'Status', date: 'Date', invoiceNumber: 'Invoice number', dueDate: 'Due date', paymentMethod: 'Payment method', notes: 'Notes', issueDate: 'Issue date', dueDateFull: 'Due date', appointment: 'Appointment', location: 'Location', task: 'Task', priority: 'Priority', invoicesTotal: 'Invoices total', paymentsTotal: 'Paid', casesCount: 'Cases count', item: 'Item', value: 'Value' },
     statuses: {
       payments: { PAID: 'Paid', PENDING: 'Pending', OVERDUE: 'Overdue', CANCELLED: 'Cancelled' },
       invoices: { DRAFT: 'Draft', UNPAID: 'Unpaid', PARTIALLY_PAID: 'Partially paid', PAID: 'Paid', OVERDUE: 'Overdue', CANCELLED: 'Cancelled' },
@@ -263,10 +258,17 @@ interface TopClient {
   casesCount: number
   paymentsTotal: number
   invoicesTotal: number
-  activityScore: number
 }
 
 interface ReportData {
+  /** The office, for the printed report's header. */
+  office?: {
+    name: string
+    logoUrl?: string | null
+    phone?: string | null
+    email?: string | null
+    address?: string | null
+  } | null
   clients: ReportClient[]
   summary: {
     periodRevenue: number
@@ -581,9 +583,8 @@ export default function ReportsPage() {
     return source.topClients.map((client) => ({
       الموكل: client.name,
       عدد_القضايا: client.casesCount,
-      إجمالي_الدفعات: client.paymentsTotal,
+      المدفوع: client.paymentsTotal,
       إجمالي_الفواتير: client.invoicesTotal,
-      مؤشر_النشاط: client.activityScore,
     }))
   }
 
@@ -642,96 +643,47 @@ export default function ReportsPage() {
     })
   }
 
-  async function exportFullPdf() {
-    await withCompleteReport(async (completeData) => {
-      const { exportReportPDF } = await import('@/lib/export')
+  // One button for printing and PDF: the finance report on the shared
+  // report system, with every filter of the page; the browser's print
+  // dialog prints it or saves it as a PDF.
+  async function printFinanceReport() {
+    if (exportDisabled || exporting) return
 
-      exportReportPDF(reportFilename(), reportTitle(), summaryRows(completeData), [
-      {
-        title: copy.sections.periodPayments.title,
-        columns: [
-          'ملاحظات',
-          'التاريخ',
-          'طريقة الدفع',
-          'الحالة',
-          'المبلغ',
-          'الموكل',
-          'القضية',
-        ],
-        rows: paymentRowsForExport(completeData).map((payment) => [
-          payment.ملاحظات,
-          payment.التاريخ,
-          payment.طريقة_الدفع,
-          payment.الحالة,
-          formatJOD(payment.المبلغ),
-          payment.الموكل,
-          payment.القضية,
-        ]),
-      },
-      {
-        title: copy.sections.periodInvoices.title,
-        columns: [
-          'الاستحقاق',
-          'الإصدار',
-          'الحالة',
-          'المتبقي',
-          'المحصل',
-          'المبلغ',
-          'القضية',
-          'الموكل',
-          'رقم الفاتورة',
-        ],
-        rows: invoiceRowsForExport(completeData).map((invoice) => [
-          invoice.تاريخ_الاستحقاق,
-          invoice.تاريخ_الإصدار,
-          invoice.الحالة,
-          formatJOD(invoice.المتبقي),
-          formatJOD(invoice.المحصل),
-          formatJOD(invoice.المبلغ),
-          invoice.القضية,
-          invoice.الموكل,
-          invoice.رقم_الفاتورة,
-        ]),
-      },
-      {
-        title: copy.sections.topClients.title,
-        columns: [
-          'مؤشر النشاط',
-          'إجمالي الفواتير',
-          'إجمالي الدفعات',
-          'عدد القضايا',
-          'الموكل',
-        ],
-        rows: topClientRowsForExport(completeData).map((client) => [
-          client.مؤشر_النشاط,
-          formatJOD(client.إجمالي_الفواتير),
-          formatJOD(client.إجمالي_الدفعات),
-          client.عدد_القضايا,
-          client.الموكل,
-        ]),
-      },
-      {
-        title: copy.sections.appointments.title,
-        columns: ['المكان', 'التاريخ', 'القضية', 'الموعد'],
-        rows: appointmentRowsForExport(completeData).map((appointment) => [
-          appointment.المكان,
-          appointment.التاريخ,
-          appointment.القضية,
-          appointment.الموعد,
-        ]),
-      },
-      {
-        title: copy.sections.tasks.title,
-        columns: ['الاستحقاق', 'الأولوية', 'القضية', 'المهمة'],
-        rows: taskRowsForExport(completeData).map((task) => [
-          task.الاستحقاق,
-          task.الأولوية,
-          task.القضية,
-          task.المهمة,
-        ]),
-      },
+    // Opened from the click, before any await: otherwise it is a blocked pop-up.
+    const reportWindow = openReportWindow()
+    if (!reportWindow) {
+      toast.error(copy.actions.popupBlocked)
+      return
+    }
+
+    setExporting(true)
+
+    try {
+      const completeData = await fetchReportData('all')
+      const [{ buildFinanceReportHtml }, logoUrl] = await Promise.all([
+        import('@/lib/reports/finance-report'),
+        usableLogoUrl(completeData.office?.logoUrl),
       ])
-    })
+      const html = buildFinanceReportHtml(
+        completeData,
+        {
+          type: reportType,
+          year,
+          month,
+          clientId,
+          caseStatus,
+          paymentStatus: paymentStatusFilter,
+          invoiceStatus: invoiceStatusFilter,
+        },
+        { issuedAt: new Date(), assetBaseUrl: window.location.origin, logoUrl },
+      )
+      await printReportInWindow(reportWindow, html)
+    } catch (printError) {
+      reportWindow.close()
+      toast.error(printError instanceof Error ? printError.message : copy.error.export)
+    } finally {
+      setExporting(false)
+    }
   }
 
   async function exportPayments() {
@@ -811,26 +763,6 @@ if (loading) {
 
   return (
     <>
-      <style>{`
-        @media print {
-          aside,
-          header,
-          nav,
-          .print\\:hidden {
-            display: none !important;
-          }
-
-          body {
-            background: white !important;
-          }
-
-          .card {
-            break-inside: avoid;
-            box-shadow: none !important;
-          }
-        }
-      `}</style>
-
       <div dir={dir} className="min-w-0 space-y-4 stagger text-start">
         <SubscriptionReadOnlyBanner
           visible={exportDisabled}
@@ -848,22 +780,11 @@ if (loading) {
               <PageHeaderAction
                 primary
                 icon={Printer}
-                label={copy.actions.print}
-                onClick={() => {
-                  if (!exportDisabled) window.print()
-                }}
-                disabled={exportDisabled}
-                title={exportDisabled ? exportDisabledTitle : copy.actions.print}
+                label={exporting ? copy.actions.exporting : copy.actions.printReport}
+                onClick={printFinanceReport}
+                disabled={exportDisabled || exporting}
+                title={exportDisabled ? exportDisabledTitle : copy.actions.printReport}
               />
-              {FULL_PDF_ENABLED ? (
-                <PageHeaderAction
-                  icon={FileDown}
-                  label={exporting ? copy.actions.exporting : copy.actions.fullPdf}
-                  onClick={exportFullPdf}
-                  disabled={exportDisabled || exporting}
-                  title={exportDisabled ? exportDisabledTitle : copy.actions.fullPdf}
-                />
-              ) : null}
               <PageHeaderAction
                 icon={FileSpreadsheet}
                 label={exporting ? copy.actions.exporting : copy.actions.fullExcel}

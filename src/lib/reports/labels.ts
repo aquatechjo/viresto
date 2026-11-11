@@ -10,6 +10,7 @@ import type {
   InvoiceStatus,
   PaymentMethod,
   PaymentStatus,
+  TaskPriority,
 } from "@prisma/client";
 import { statusTone, type StatusKind, type StatusTone } from "@/lib/theme/status";
 
@@ -57,11 +58,19 @@ export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   CANCELLED: "ملغاة",
 };
 
+export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
+  URGENT: "عاجلة",
+  HIGH: "عالية",
+  MEDIUM: "متوسطة",
+  LOW: "منخفضة",
+};
+
 const LABELS = {
   case: CASE_STATUS_LABELS,
   payment: PAYMENT_STATUS_LABELS,
   appointment: APPOINTMENT_STATUS_LABELS,
   invoice: INVOICE_STATUS_LABELS,
+  priority: TASK_PRIORITY_LABELS,
 };
 
 export type ReportStatusKind = keyof typeof LABELS;

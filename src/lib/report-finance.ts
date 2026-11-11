@@ -200,3 +200,30 @@ export function calculateInvoiceFinancialSummary(
     collectionRate,
   };
 }
+
+export type TopClientRow = {
+  id: string;
+  name: string;
+  casesCount: number;
+  /** Collected (PAID) payments of the period, within the report's filters. */
+  paymentsTotal: number;
+  /** Billed invoices of the period (not drafts, not cancelled). */
+  invoicesTotal: number;
+};
+
+/**
+ * The report's top clients: by amount paid in the period, highest first.
+ * A client with nothing paid is left out, so the ranking never rests on
+ * zeros. Ties: billed amount, then name.
+ */
+export function rankTopClients(rows: TopClientRow[], limit = 5): TopClientRow[] {
+  return rows
+    .filter((row) => row.paymentsTotal > 0)
+    .sort(
+      (a, b) =>
+        b.paymentsTotal - a.paymentsTotal ||
+        b.invoicesTotal - a.invoicesTotal ||
+        a.name.localeCompare(b.name, "ar"),
+    )
+    .slice(0, limit);
+}

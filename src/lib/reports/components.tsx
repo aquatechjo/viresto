@@ -133,6 +133,8 @@ export type ReportSectionProps = {
   title: string;
   /** Shown beside the title, e.g. the number of rows. */
   count?: number;
+  /** A short line under the title: what the numbers cover, "10 of 23". */
+  note?: string;
   /** No data: show the title and `emptyMessage` instead of the content. */
   isEmpty?: boolean;
   emptyMessage?: string;
@@ -144,6 +146,7 @@ export type ReportSectionProps = {
 export function ReportSection({
   title,
   count,
+  note,
   isEmpty = false,
   emptyMessage = "لا توجد بيانات",
   hideWhenEmpty = false,
@@ -157,6 +160,7 @@ export function ReportSection({
         <span>{title}</span>
         {count !== undefined && !isEmpty ? <span className="report-section-count num">{count}</span> : null}
       </h2>
+      {note && !isEmpty ? <p className="report-section-note">{note}</p> : null}
       {isEmpty ? <p className="report-empty">{emptyMessage}</p> : children}
     </section>
   );
