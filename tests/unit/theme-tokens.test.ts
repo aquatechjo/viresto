@@ -165,9 +165,17 @@ test("charts: no two slices of one chart share a color", async () => {
 });
 
 test("printout and exports: no colors of their own, the light palette", () => {
-  const print = fs.readFileSync(path.join(process.cwd(), "src/lib/invoice-print.ts"), "utf8");
-  // Only white (the paper) may stay literal.
-  assert.deepEqual([...new Set(print.match(/#[0-9a-fA-F]{6}\b/g) ?? [])], ["#ffffff"]);
+  // Every printed document (reports, invoice, receipt) is styled by
+  // src/lib/reports from tokens.ts. Only white (the paper) may stay literal.
+  const reportsDir = path.join(process.cwd(), "src/lib/reports");
+  const printSources = [
+    ...fs.readdirSync(reportsDir).map((file) => path.join(reportsDir, file)),
+    path.join(process.cwd(), "src/lib/invoice-print.ts"),
+    path.join(process.cwd(), "src/lib/receipt-print.ts"),
+  ].map((file) => fs.readFileSync(file, "utf8"));
+  const literal = new Set(printSources.flatMap((source) => source.match(/#[0-9a-fA-F]{6}\b/g) ?? []));
+  assert.deepEqual([...literal].filter((hex) => hex.toLowerCase() !== "#ffffff"), []);
+  assert.ok(literal.size > 0, "the paper is white");
   const exportSource = fs.readFileSync(path.join(process.cwd(), "src/lib/export.ts"), "utf8");
   assert.doesNotMatch(exportSource, /45, 74, 62/);
 });

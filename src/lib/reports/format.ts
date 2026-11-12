@@ -8,6 +8,9 @@ import { filsToJod, formatJOD, jodToFils } from "@/lib/money";
 import { formatPhoneForDisplay } from "@/lib/phone";
 
 type DateInput = string | Date;
+
+/** Reports are Arabic; invoices and receipts can also print in English. */
+export type ReportLocale = "ar" | "en";
 type MoneyInput = number | string | { toString(): string } | null | undefined;
 
 /** What an empty value shows on paper. */
@@ -36,18 +39,18 @@ export function sumMoney(values: MoneyInput[]): number {
   return filsToJod(fils);
 }
 
-/** "10 تشرين الثاني 2026", in Amman. */
-export function reportDate(value: DateInput | null | undefined): string {
-  return value ? formatDate(value, "ar") : REPORT_EMPTY;
+/** "10 تشرين الثاني 2026" / "Nov 10, 2026", in Amman. */
+export function reportDate(value: DateInput | null | undefined, locale: ReportLocale = "ar"): string {
+  return value ? formatDate(value, locale) : REPORT_EMPTY;
 }
 
-/** "10:00 ص", in Amman. */
-export function reportTime(value: DateInput | null | undefined): string {
-  return value ? formatTime(value, "ar") : REPORT_EMPTY;
+/** "10:00 ص" / "10:00 AM", in Amman. */
+export function reportTime(value: DateInput | null | undefined, locale: ReportLocale = "ar"): string {
+  return value ? formatTime(value, locale) : REPORT_EMPTY;
 }
 
-export function reportDateTime(value: DateInput | null | undefined): string {
-  return value ? formatDateTime(value, "ar") : REPORT_EMPTY;
+export function reportDateTime(value: DateInput | null | undefined, locale: ReportLocale = "ar"): string {
+  return value ? formatDateTime(value, locale) : REPORT_EMPTY;
 }
 
 /** "079 123 4567" for a Jordanian number, as in the app. */

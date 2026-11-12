@@ -86,7 +86,7 @@ test("a cancelled invoice is not edited", () => {
 });
 
 test("print: a cancelled invoice carries the stamp and the reason, escaped", async () => {
-  const { buildInvoicePrintHtml } = await import("@/lib/invoice-print");
+  const { buildInvoicePrintHtml } = await import("@/lib/reports/invoice-document");
   const base = {
     id: "inv-1",
     invoiceNumber: "INV-2026-0001",
@@ -107,14 +107,14 @@ test("print: a cancelled invoice carries the stamp and the reason, escaped", asy
     },
     "ar",
   );
-  assert.match(cancelled, /class="cancelled-stamp"[^>]*>ملغاة</);
+  assert.match(cancelled, /class="report-stamp"[^>]*>ملغاة</);
   assert.match(cancelled, /سبب الإلغاء/);
   assert.match(cancelled, /أُصدرت &lt;بالخطأ&gt;/);
   assert.doesNotMatch(cancelled, /<بالخطأ>/);
 
   const issued = buildInvoicePrintHtml({ ...base, status: "UNPAID" }, "ar");
-  assert.doesNotMatch(issued, /class="cancelled-stamp"/);
-  assert.doesNotMatch(issued, /class="cancellation-box"/);
+  assert.doesNotMatch(issued, /class="report-stamp"/);
+  assert.doesNotMatch(issued, /class="report-notice"/);
 });
 
 test("invoice page buttons match the server rules", async () => {

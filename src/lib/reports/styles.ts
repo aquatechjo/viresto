@@ -90,6 +90,7 @@ html {
 }
 
 body {
+  position: relative;
   margin: 0;
   background: var(--paper);
   color: var(--ink);
@@ -97,12 +98,13 @@ body {
   font-size: 10pt;
   font-weight: 500;
   line-height: 1.65;
-  direction: rtl;
-  text-align: right;
+  /* Direction comes from <html dir>: Arabic reports are RTL, an English
+     invoice or receipt LTR; alignment is logical (start/end) throughout. */
+  text-align: start;
 }
 
 @media screen {
-  html { background: #e9eeed; }
+  html { background: ${P.bg}; }
   body {
     width: 210mm;
     min-height: 297mm;
@@ -153,7 +155,8 @@ body {
 .report-office-name { font-size: 16pt; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
 .report-office-contact { font-size: 8pt; color: var(--brand-muted); overflow-wrap: anywhere; }
 .report-powered { font-size: 7.5pt; color: var(--brand-muted); direction: ltr; unicode-bidi: isolate; }
-.report-meta { flex: 0 0 auto; display: grid; grid-template-columns: auto auto; gap: 2px 10px; font-size: 8.5pt; }
+.report-meta { flex: 0 0 auto; display: grid; gap: 2px; margin: 0; font-size: 8.5pt; }
+.report-meta-row { display: flex; justify-content: space-between; gap: 10px; }
 .report-meta dt { color: var(--brand-muted); }
 .report-meta dd { margin: 0; font-weight: 700; }
 
@@ -234,7 +237,7 @@ body {
 .info-item:nth-child(4n+1), .info-item:nth-child(4n+2) { background: var(--soft); }
 .info-item.wide { grid-column: 1 / -1; border-inline-end: none; }
 .info-item:last-child { border-bottom: none; }
-.info-item dt { flex: 0 0 92px; color: var(--brand); font-weight: 700; }
+.info-item dt { flex: 0 0 112px; color: var(--brand); font-weight: 700; }
 .info-item dd { margin: 0; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .info-item.is-empty dd { color: var(--muted); }
 
@@ -289,7 +292,7 @@ body {
 .report-table tbody tr:first-child td { border-top: none; }
 .report-table tbody tr:nth-child(even) td { background: var(--soft); }
 .report-table .align-center { text-align: center; }
-.report-table .align-end { text-align: left; }
+.report-table .align-end { text-align: end; }
 .report-table .cell-strong { font-weight: 700; }
 .cell-note { color: var(--muted); font-size: 8pt; white-space: pre-wrap; }
 
@@ -306,6 +309,75 @@ body {
 }
 ${toneClasses}
 
+/* Documents: invoice and receipt */
+.report-title-badge { display: inline-block; margin-inline-start: 10px; vertical-align: middle; font-size: 9pt; }
+.report-stamp {
+  position: absolute;
+  top: 120mm;
+  left: 50%;
+  z-index: 5;
+  transform: translateX(-50%) rotate(-14deg);
+  padding: 6px 28px;
+  border: 4px solid var(--tone-red-fg);
+  border-radius: 14px;
+  color: var(--tone-red-fg);
+  font-size: 44pt;
+  font-weight: 700;
+  letter-spacing: 2px;
+  opacity: 0.72;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.report-notice {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--tone-red-border);
+  border-radius: 14px;
+  background: var(--tone-red-bg);
+  color: var(--tone-red-fg);
+  break-inside: avoid;
+}
+.report-notice h3 { margin: 0 0 2px; font-size: 10pt; font-weight: 700; }
+.report-notice p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-totals {
+  margin: 0;
+  margin-inline-start: auto;
+  width: 46%;
+  min-width: 230px;
+  border: 1px solid var(--brand);
+  border-radius: 16px;
+  overflow: hidden;
+  break-inside: avoid;
+}
+.report-totals-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line); }
+.report-totals-row:last-child { border-bottom: none; }
+.report-totals-row dt { color: var(--ink-2); }
+.report-totals-row dd { margin: 0; font-weight: 700; }
+.report-totals-row.grand { background: var(--accent-soft); }
+.report-totals-row.grand dt, .report-totals-row.grand dd { color: var(--brand); font-weight: 700; font-size: 11.5pt; }
+.report-two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.report-text-box {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  break-inside: avoid;
+}
+.report-words {
+  padding: 10px 14px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 14px;
+  color: var(--brand);
+  font-weight: 700;
+  font-size: 11pt;
+  break-inside: avoid;
+}
+.report-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; margin-top: 40px; break-inside: avoid; }
+.report-signature { border-top: 1px solid var(--line-strong); padding-top: 8px; color: var(--muted); font-size: 9pt; text-align: center; }
+.report-closing { margin-top: 18px; color: var(--muted); font-size: 8pt; text-align: center; }
+
 /* Chrome prints with "Background graphics" off by default, which drops
    background colors and would leave the header's white text on white.
    Every element that carries a background asks for its colors exactly
@@ -317,6 +389,8 @@ ${toneClasses}
 .info-item,
 .summary-card,
 .report-section-count,
+.report-notice,
+.report-totals-row,
 .badge {
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;

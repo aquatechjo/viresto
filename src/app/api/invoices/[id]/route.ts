@@ -102,6 +102,9 @@ export async function GET(req: NextRequest, { params }: Params) {
           orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
         },
         cancelledBy: { select: { id: true, name: true } },
+        // The office, for the invoice's header on screen and on paper
+        // (before, the page fell back to "Viresto" with no logo).
+        tenant: { select: { name: true, logoUrl: true, phone: true, email: true, address: true } },
       },
     });
 

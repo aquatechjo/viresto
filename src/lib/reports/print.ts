@@ -6,11 +6,15 @@
 // or event handlers), so everything is driven from this side: no <script>
 // or onerror= in the report.
 
+import { themeTokens } from "@/lib/theme/tokens";
+
 const FONT_TIMEOUT_MS = 5000;
 const LOGO_TIMEOUT_MS = 4000;
 
+const P = themeTokens.light;
+
 const LOADING_HTML = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>جارٍ تجهيز التقرير…</title></head>
-<body style="margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center;font-family:Tahoma,Arial,sans-serif;color:#5f7470;background:#f3f7f6">جارٍ تجهيز التقرير…</body></html>`;
+<body style="margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center;font-family:Tahoma,Arial,sans-serif;color:${P["text-3"]};background:${P.bg}">جارٍ تجهيز التقرير…</body></html>`;
 
 /**
  * Opens the report window. Call it straight from the click, before any

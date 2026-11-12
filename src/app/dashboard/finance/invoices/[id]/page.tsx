@@ -2,7 +2,7 @@
 
 import { formatPhoneForDisplay } from "@/lib/phone";
 import type { FormEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -10,7 +10,6 @@ import {
   ArrowRight,
   Ban,
   CircleDollarSign,
-  FileDown,
   HandCoins,
   MessageCircle,
   Pencil,
@@ -31,7 +30,6 @@ import {
   formatInvoiceNumber,
   normalizeWhatsAppPhone,
   printInvoiceDocument,
-  safeInvoiceFilename,
 } from "@/lib/invoice-print";
 import { invoiceStatusText, invoiceStatusTone } from "@/lib/invoice-status-display";
 import { statusBadgeClass } from "@/lib/theme/status";
@@ -184,8 +182,7 @@ const INVOICE_DETAILS_COPY = {
     editTitle: "تعديل الفاتورة",
     editBlockedTitle:
       "لا يمكن تعديل البيانات المالية لفاتورة لديها دفعات محصلة",
-    print: "طباعة",
-    creatingPdf: "جاري إنشاء PDF...",
+    print: "طباعة / PDF",
     whatsapp: "واتساب",
     delete: "حذف",
     deleteTitle: "حذف الفاتورة",
@@ -253,7 +250,6 @@ const INVOICE_DETAILS_COPY = {
         "لا يمكن حذف هذه الفاتورة لأنها مرتبطة بدفعات. عالج الدفعات المرتبطة أولًا.",
       deleteFailed: "تعذر حذف الفاتورة",
       noWhatsapp: "لا يوجد رقم واتساب أو هاتف محفوظ لهذا الموكل",
-      pdfFailed: "تعذر إنشاء ملف PDF",
     },
     success: {
       edited: "تم تعديل الفاتورة",
@@ -303,8 +299,7 @@ const INVOICE_DETAILS_COPY = {
     editTitle: "Edit invoice",
     editBlockedTitle:
       "Financial details cannot be edited after payments are collected",
-    print: "Print",
-    creatingPdf: "Creating PDF...",
+    print: "Print / PDF",
     whatsapp: "WhatsApp",
     delete: "Delete",
     deleteTitle: "Delete invoice",
@@ -377,7 +372,6 @@ const INVOICE_DETAILS_COPY = {
         "This invoice cannot be deleted because it has linked payments. Handle those payments first.",
       deleteFailed: "Could not delete the invoice",
       noWhatsapp: "No WhatsApp or phone number is saved for this client",
-      pdfFailed: "Could not create the PDF file",
     },
     success: {
       edited: "Invoice updated",
@@ -715,7 +709,6 @@ export default function InvoiceDetailsPage() {
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pdfLoading, setPdfLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -740,7 +733,6 @@ export default function InvoiceDetailsPage() {
     });
   }
 
-  const invoiceRef = useRef<HTMLDivElement | null>(null);
   const { user: sessionUser } = useSession();
   const prompt = usePrompt();
   function confirmToast(message: string) {
@@ -1110,136 +1102,6 @@ export default function InvoiceDetailsPage() {
     );
   }
 
-  async function downloadInvoicePDF() {
-    if (!invoiceRef.current || !invoice) return;
-
-    try {
-      setPdfLoading(true);
-
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
-
-      const canvas = await html2canvas(invoiceRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-
-      const pdf = new jsPDF({
-        orientation: "p",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const usableWidth = pageWidth - margin * 2;
-      const usableHeight = pageHeight - margin * 2;
-      const mmPerPixel = usableWidth / canvas.width;
-      const pageHeightInPixels = Math.max(
-        1,
-        Math.floor(usableHeight / mmPerPixel),
-      );
-
-      const invoiceRect = invoiceRef.current.getBoundingClientRect();
-      const canvasScale =
-        invoiceRect.width > 0 ? canvas.width / invoiceRect.width : 1;
-      const keepRanges = Array.from(
-        invoiceRef.current.querySelectorAll<HTMLElement>("[data-pdf-keep]"),
-      )
-        .map((element) => {
-          const rect = element.getBoundingClientRect();
-          return {
-            top: Math.max(
-              0,
-              Math.floor((rect.top - invoiceRect.top) * canvasScale),
-            ),
-            bottom: Math.min(
-              canvas.height,
-              Math.ceil((rect.bottom - invoiceRect.top) * canvasScale),
-            ),
-          };
-        })
-        .filter((range) => range.bottom > range.top)
-        .sort((first, second) => first.top - second.top);
-
-      let sliceStart = 0;
-      let pageIndex = 0;
-
-      while (sliceStart < canvas.height) {
-        let sliceEnd = Math.min(
-          sliceStart + pageHeightInPixels,
-          canvas.height,
-        );
-
-        if (sliceEnd < canvas.height) {
-          const protectedRange = keepRanges.find(
-            (range) =>
-              range.top > sliceStart &&
-              range.top < sliceEnd &&
-              range.bottom > sliceEnd &&
-              range.bottom - range.top <= pageHeightInPixels,
-          );
-
-          if (
-            protectedRange &&
-            protectedRange.top - sliceStart >= pageHeightInPixels * 0.2
-          ) {
-            sliceEnd = protectedRange.top;
-          }
-        }
-
-        const sliceHeight = Math.max(1, sliceEnd - sliceStart);
-        const pageCanvas = document.createElement("canvas");
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = sliceHeight;
-
-        const context = pageCanvas.getContext("2d");
-        if (!context) {
-          throw new Error("Could not prepare the invoice PDF page.");
-        }
-
-        context.fillStyle = "#ffffff";
-        context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        context.drawImage(
-          canvas,
-          0,
-          sliceStart,
-          canvas.width,
-          sliceHeight,
-          0,
-          0,
-          canvas.width,
-          sliceHeight,
-        );
-
-        if (pageIndex > 0) {
-          pdf.addPage();
-        }
-
-        pdf.addImage(
-          pageCanvas.toDataURL("image/png"),
-          "PNG",
-          margin,
-          margin,
-          usableWidth,
-          sliceHeight * mmPerPixel,
-        );
-
-        sliceStart = sliceEnd;
-        pageIndex += 1;
-      }
-
-      pdf.save(`${safeInvoiceFilename(invoice.invoiceNumber)}.pdf`);
-    } catch (error) {
-      console.error(error);
-      toast.error(ui.errors.pdfFailed);
-    } finally {
-      setPdfLoading(false);
-    }
-  }
-
   function printInvoice() {
     if (!invoice) return;
     printInvoiceDocument(invoice, invoiceLocale);
@@ -1348,13 +1210,9 @@ export default function InvoiceDetailsPage() {
                     : ui.editBlockedTitle
               }
             />
+            {/* One button: the browser's print dialog prints the invoice or
+                saves it as a PDF (the old "PDF" was a screenshot). */}
             <PageHeaderAction icon={Printer} label={ui.print} onClick={printInvoice} />
-            <PageHeaderAction
-              icon={FileDown}
-              label={pdfLoading ? ui.creatingPdf : "PDF"}
-              onClick={downloadInvoicePDF}
-              disabled={pdfLoading}
-            />
             <PageHeaderAction icon={MessageCircle} label={ui.whatsapp} onClick={sendInvoiceWhatsApp} />
             {/* Only a draft is deleted; an issued invoice is cancelled. */}
             {actions.delete && (
@@ -1615,14 +1473,12 @@ export default function InvoiceDetailsPage() {
         {/* Invoice Printable Area */}
         <div className="space-y-5 xl:col-span-8 print:block">
           <div
-            ref={invoiceRef}
             dir={invoiceIsRtl ? "rtl" : "ltr"}
             className="overflow-hidden rounded-[30px] border bg-white text-start text-slate-950 shadow-sm print:rounded-none print:border-0 print:shadow-none"
             style={{ ...PAPER_VARS, borderColor: "var(--paper-line)" }}
           >
             {/* Branded Header */}
             <div
-              data-pdf-keep
               className="relative overflow-hidden px-7 py-7 text-white sm:px-9"
               style={{
                 background:
@@ -1717,7 +1573,6 @@ export default function InvoiceDetailsPage() {
             <div className="p-6 sm:p-8">
               {/* Summary */}
               <div
-                data-pdf-keep
                 className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4"
               >
                 {[
@@ -1778,7 +1633,6 @@ export default function InvoiceDetailsPage() {
 
               {/* Client and case */}
               <div
-                data-pdf-keep
                 className="mb-6 grid gap-4 md:grid-cols-2"
               >
                 <div
@@ -1914,7 +1768,6 @@ export default function InvoiceDetailsPage() {
 
               {/* Notes and totals */}
               <div
-                data-pdf-keep
                 className="mt-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_340px]"
               >
                 <div
@@ -1995,7 +1848,6 @@ export default function InvoiceDetailsPage() {
                     {payments.map((payment) => (
                       <div
                         key={payment.id}
-                        data-pdf-keep
                         className="grid gap-3 rounded-xl border bg-white p-4 text-sm md:grid-cols-2 xl:grid-cols-5"
                         style={{ borderColor: "var(--paper-line)" }}
                       >
@@ -2070,7 +1922,7 @@ export default function InvoiceDetailsPage() {
                 </div>
               )}
 
-              <div data-pdf-keep className="mt-12">
+              <div className="mt-12">
                 <div className="grid grid-cols-2 gap-10">
                   <div className="border-t pt-3 text-center text-xs font-semibold text-[color:var(--paper-muted)]">
                     {invoiceCopy.officeSignature}

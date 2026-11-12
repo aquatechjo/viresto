@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildReceiptPrintHtml, type PrintableReceipt } from "../../src/lib/receipt-print";
+import type { PrintableReceipt } from "../../src/lib/receipt-print";
+import { buildReceiptPrintHtml } from "../../src/lib/reports/receipt-document";
 import { themeTokens } from "../../src/lib/theme/tokens";
 
 // The receipt printout (finance plan, batch 6): always light, colors from
@@ -34,7 +35,7 @@ test("an issued receipt: number, date, amount in figures and Arabic words, detai
   assert.match(html, /TRX-991/);
   assert.match(html, /سارة/);
   assert.match(html, /توقيع المستلم/);
-  assert.doesNotMatch(html, /class="stamp"/);
+  assert.doesNotMatch(html, /class="report-stamp"/);
   // Escaped, never raw markup from the data.
   assert.doesNotMatch(html, /<b>العبادي<\/b>/);
   assert.match(html, /&lt;b&gt;العبادي&lt;\/b&gt;/);
@@ -49,14 +50,14 @@ test("English print: words in English", () => {
 
 test("a cancelled receipt with its number: the number and the stamp", () => {
   const html = buildReceiptPrintHtml({ ...base, status: "CANCELLED", cancellationReason: "سُجّلت مرتين", cancelledAt: "2026-11-08T09:00:00Z" }, "ar");
-  assert.match(html, /class="stamp"[^>]*>ملغى</);
+  assert.match(html, /class="report-stamp"[^>]*>ملغى</);
   assert.match(html, /R-2026-0007/);
   assert.match(html, /سُجّلت مرتين/);
 });
 
 test("a cancelled receipt without a number: the stamp, and no number", () => {
   const html = buildReceiptPrintHtml({ ...base, receiptNumber: null, status: "CANCELLED", paidAt: null }, "ar");
-  assert.match(html, /class="stamp"/);
+  assert.match(html, /class="report-stamp"/);
   assert.match(html, /بدون رقم/);
   assert.doesNotMatch(html, /R-\d{4}-\d{4}/);
   const en = buildReceiptPrintHtml({ ...base, receiptNumber: null, status: "CANCELLED" }, "en");
@@ -66,7 +67,7 @@ test("a cancelled receipt without a number: the stamp, and no number", () => {
 test("no recorded collector (older payments) and no link print a dash and the client account", () => {
   const html = buildReceiptPrintHtml({ ...base, collectedBy: null, case: null, invoice: null }, "ar");
   assert.match(html, /دفعة على حساب الموكل/);
-  assert.match(html, /سجّل التحصيل<\/span>\s*<span class="row-value">-</);
+  assert.match(html, /<dt>سجّل التحصيل<\/dt><dd>-<\/dd>/);
 });
 
 test("colors come from the light tokens: no hex of its own but white", () => {
