@@ -37,6 +37,7 @@ import { startNavigationFeedback } from "@/lib/navigation-feedback";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { formatJOD, parseOptionalAmount } from "@/lib/money";
 import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput";
+import { searchDebounceMs } from "@/lib/search-debounce";
 
 interface Case {
   id: string;
@@ -557,7 +558,7 @@ export default function CasesPage() {
           setClientSearchLoading(false);
         }
       }
-    }, 250);
+    }, searchDebounceMs(clientSearch));
 
     return () => {
       window.clearTimeout(timer);

@@ -25,6 +25,7 @@ import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { uploadDocumentDirect } from "@/lib/client-document-upload";
+import { searchDebounceMs } from "@/lib/search-debounce";
 import {
   DOCUMENT_MAX_IMAGE_INPUT_BYTES,
   DOCUMENT_MAX_STORED_BYTES,
@@ -531,7 +532,7 @@ export default function DocumentsPage() {
       } finally {
         if (!controller.signal.aborted) setCaseOptionsLoading(false);
       }
-    }, 300);
+    }, searchDebounceMs(caseOptionSearch));
     return () => {
       window.clearTimeout(timeout);
       controller.abort();

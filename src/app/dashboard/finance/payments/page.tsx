@@ -20,6 +20,7 @@ import { useConfirm, usePrompt } from '@/components/ui/DialogProvider'
 import { formatJOD, parseAmount, roundJod } from "@/lib/money"
 import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput"
 import { formatInZone } from '@/lib/datetime'
+import { searchDebounceMs } from '@/lib/search-debounce'
 
 const DateTimePicker = dynamic(
   () => import('@/components/ui/DateTimePicker'),
@@ -668,12 +669,11 @@ export default function PaymentsPage() {
   }, [status, page, copy.labels.loadError])
 
   useEffect(() => {
+    // No search box here (status and page only), so the list loads as soon
+    // as the page opens or a filter changes.
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => load(controller.signal), 300)
-    return () => {
-      window.clearTimeout(timeout)
-      controller.abort()
-    }
+    load(controller.signal)
+    return () => controller.abort()
   }, [load])
 
   const loadPaymentTargets = useCallback(
@@ -755,7 +755,7 @@ export default function PaymentsPage() {
 
     const timeout = window.setTimeout(() => {
       loadPaymentTargets(paymentForm.linkType, targetSearch)
-    }, 250)
+    }, searchDebounceMs(targetSearch))
 
     return () => window.clearTimeout(timeout)
   }, [

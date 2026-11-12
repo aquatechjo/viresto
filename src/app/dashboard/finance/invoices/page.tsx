@@ -6,6 +6,7 @@ import type { CSSProperties, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { searchDebounceMs } from "@/lib/search-debounce";
 
 import {
   AlarmClock,
@@ -1190,12 +1191,11 @@ export default function InvoicesPage() {
   }, []);
 
   useEffect(() => {
+    // No search box here (status, page and archived filters only), so the
+    // list loads as soon as the page opens or a filter changes.
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => load(controller.signal), 300);
-    return () => {
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
+    load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   useEffect(() => {
@@ -1224,7 +1224,7 @@ export default function InvoicesPage() {
       } finally {
         if (!controller.signal.aborted) setOptionsLoading(false);
       }
-    }, 300);
+    }, searchDebounceMs(clientSearch));
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
@@ -1259,7 +1259,7 @@ export default function InvoicesPage() {
       } finally {
         if (!controller.signal.aborted) setOptionsLoading(false);
       }
-    }, 300);
+    }, searchDebounceMs(caseSearch));
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
