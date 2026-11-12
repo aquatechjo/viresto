@@ -227,3 +227,17 @@ export function rankTopClients(rows: TopClientRow[], limit = 5): TopClientRow[] 
     )
     .slice(0, limit);
 }
+
+/** Smallest bar, so an empty month still shows on the chart. */
+export const MIN_REVENUE_BAR_PERCENT = 4;
+
+/**
+ * A month's bar on the monthly revenue chart, as a percentage of the
+ * chart's height: the busiest month is 100, an empty month the minimum.
+ */
+export function revenueBarHeightPercent(revenue: number, maxRevenue: number): number {
+  if (!Number.isFinite(revenue) || !Number.isFinite(maxRevenue) || maxRevenue <= 0 || revenue <= 0) {
+    return MIN_REVENUE_BAR_PERCENT;
+  }
+  return Math.min(100, Math.max(MIN_REVENUE_BAR_PERCENT, Math.round((revenue / maxRevenue) * 100)));
+}

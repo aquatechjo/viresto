@@ -25,6 +25,7 @@ import { formatJOD } from "@/lib/money";
 import { formatInZone, NUMERIC_DATE } from '@/lib/datetime'
 import { invoiceStatusText } from '@/lib/invoice-status-display'
 import { openReportWindow, printReportInWindow, usableLogoUrl } from '@/lib/reports/print'
+import MonthlyRevenueBars from '@/components/reports/MonthlyRevenueBars'
 
 const REPORT_COPY = {
   ar: {
@@ -511,11 +512,6 @@ export default function ReportsPage() {
   useEffect(() => {
     load()
   }, [load])
-
-  const maxRevenue = Math.max(
-    ...(data?.monthlyRevenue || []).map((item) => item.revenue),
-    1
-  )
 
   function resetFilters() {
     setCaseStatus('')
@@ -1101,35 +1097,7 @@ if (loading) {
               </p>
             </div>
 
-            <div className="flex h-44 items-end gap-2">
-              {data.monthlyRevenue.map((item) => {
-                const height = Math.max(
-                  4,
-                  Math.round((item.revenue / maxRevenue) * 100)
-                )
-
-                return (
-                  <div
-                    key={item.month}
-                    className="flex flex-1 flex-col items-center justify-end gap-2"
-                  >
-                    <div
-                      title={`${months[item.month]}: ${formatJOD(item.revenue)}`}
-                      className="w-full rounded-t-xl"
-                      style={{
-                        height: `${height}%`,
-                        background: 'var(--accent-fill)',
-                        opacity: item.month === month ? 1 : 0.55,
-                      }}
-                    />
-
-                    <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>
-                      {months[item.month].slice(0, 3)}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
+            <MonthlyRevenueBars items={data.monthlyRevenue} monthNames={months} highlightMonth={month} />
           </div>
 
           <div className="card p-5">
