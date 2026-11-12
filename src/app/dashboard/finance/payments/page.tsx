@@ -21,6 +21,7 @@ import { formatJOD, parseAmount, roundJod } from "@/lib/money"
 import AmountInput, { AMOUNT_ERROR } from "@/components/ui/AmountInput"
 import { formatInZone } from '@/lib/datetime'
 import { searchDebounceMs } from '@/lib/search-debounce'
+import { fetchJsonWithStale } from '@/lib/client-query-cache'
 
 const DateTimePicker = dynamic(
   () => import('@/components/ui/DateTimePicker'),
@@ -615,7 +616,7 @@ export default function PaymentsPage() {
   const [invoiceOptions, setInvoiceOptions] = useState<PaymentInvoiceOption[]>([])
   const [caseOptions, setCaseOptions] = useState<PaymentCaseOption[]>([])
 
-  const load = useCallback(async (signal?: AbortSignal, forceStats = false) => {
+  const load = useCallback(async (signal?: AbortSignal, forceStats = false, showStale = false) => {
     setLoading(true)
     setError('')
 
@@ -626,17 +627,35 @@ export default function PaymentsPage() {
         params.set('includeStats', 'false')
       }
 
-      const response = await fetch(`/api/payments?${params.toString()}`, {
-        cache: 'no-store',
-        signal,
-      })
+      const apply = (body: unknown) => {
+        setPayments(unwrapPayments(body))
+        const result = (body as { data?: unknown })?.data as {
+          pagination?: { page: number; total: number; totalPages: number }
+          stats?: { collected: number; pending: number; overdue: number; count: number; direct: number }
+        } | null
+        if (result?.pagination) setPagination(result.pagination)
+        if (result?.stats) {
+          setServerStats(result.stats)
+          hasLoadedStatsRef.current = true
+        }
+      }
+
+      const { response, body: payload } = await fetchJsonWithStale<unknown>(
+        `/api/payments?${params.toString()}`,
+        { cache: 'no-store', signal },
+        showStale
+          ? (stale) => {
+              apply(stale)
+              setLoading(false)
+              setLoadedOnce(true)
+            }
+          : undefined,
+      )
 
       if (response.status === 401) {
         window.location.href = '/login'
         return
       }
-
-      const payload = await response.json().catch(() => ({}))
 
       if (!response.ok) {
         setPayments([])
@@ -648,16 +667,7 @@ export default function PaymentsPage() {
         return
       }
 
-      setPayments(unwrapPayments(payload))
-      const result = (payload as { data?: unknown })?.data as {
-        pagination?: { page: number; total: number; totalPages: number }
-        stats?: { collected: number; pending: number; overdue: number; count: number; direct: number }
-      } | null
-      if (result?.pagination) setPagination(result.pagination)
-      if (result?.stats) {
-        setServerStats(result.stats)
-        hasLoadedStatsRef.current = true
-      }
+      apply(payload)
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') return
       setPayments([])
@@ -672,7 +682,7 @@ export default function PaymentsPage() {
     // No search box here (status and page only), so the list loads as soon
     // as the page opens or a filter changes.
     const controller = new AbortController()
-    load(controller.signal)
+    load(controller.signal, false, true)
     return () => controller.abort()
   }, [load])
 

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { searchDebounceMs } from "@/lib/search-debounce";
+import { fetchJsonWithStale } from "@/lib/client-query-cache";
 
 import {
   AlarmClock,
@@ -1136,7 +1137,7 @@ export default function InvoicesPage() {
   const visibleInvoices = invoices;
   const stats = serverStats;
 
-  const load = useCallback(async (signal?: AbortSignal, forceStats = false) => {
+  const load = useCallback(async (signal?: AbortSignal, forceStats = false, showStale = false) => {
     setLoading(true);
     setLoadError("");
 
@@ -1153,28 +1154,36 @@ export default function InvoicesPage() {
         params.set("includeStats", "false");
       }
 
-      const invoiceRes = await fetch(`/api/invoices?${params.toString()}`, {
-        cache: "no-store",
-        signal,
-      });
+      const apply = (invoiceData: any) => {
+        setInvoices(safeList(invoiceData));
+        const invoicePayload = invoiceData?.data?.data ?? invoiceData?.data ?? invoiceData;
+        if (invoicePayload?.pagination) setPagination(invoicePayload.pagination);
+        if (invoicePayload?.stats) {
+          setServerStats(invoicePayload.stats);
+          hasLoadedStatsRef.current = true;
+        }
+      };
+
+      const { response: invoiceRes, body: invoiceData } = await fetchJsonWithStale<any>(
+        `/api/invoices?${params.toString()}`,
+        { cache: "no-store", signal },
+        showStale
+          ? (stale) => {
+              apply(stale);
+              setLoading(false);
+              setLoadedOnce(true);
+            }
+          : undefined,
+      );
 
       if (invoiceRes.status === 401) {
         window.location.href = "/login";
         return;
       }
 
-      const invoiceData = invoiceRes.ok
-        ? await invoiceRes.json().catch(() => ({}))
-        : {};
       if (!invoiceRes.ok) throw new Error(copy.empty.filtered);
 
-      setInvoices(safeList(invoiceData));
-      const invoicePayload = invoiceData?.data?.data ?? invoiceData?.data ?? invoiceData;
-      if (invoicePayload?.pagination) setPagination(invoicePayload.pagination);
-      if (invoicePayload?.stats) {
-        setServerStats(invoicePayload.stats);
-        hasLoadedStatsRef.current = true;
-      }
+      apply(invoiceData);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Invoices load failed:", error);
@@ -1194,7 +1203,7 @@ export default function InvoicesPage() {
     // No search box here (status, page and archived filters only), so the
     // list loads as soon as the page opens or a filter changes.
     const controller = new AbortController();
-    load(controller.signal);
+    load(controller.signal, false, true);
     return () => controller.abort();
   }, [load]);
 

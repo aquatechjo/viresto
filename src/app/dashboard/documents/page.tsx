@@ -26,6 +26,7 @@ import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnl
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { uploadDocumentDirect } from "@/lib/client-document-upload";
 import { searchDebounceMs } from "@/lib/search-debounce";
+import { fetchJsonWithStale } from "@/lib/client-query-cache";
 import {
   DOCUMENT_MAX_IMAGE_INPUT_BYTES,
   DOCUMENT_MAX_STORED_BYTES,
@@ -469,6 +470,7 @@ export default function DocumentsPage() {
   const load = useCallback(async (
     signal?: AbortSignal,
     refreshSummary = false,
+    showStale = false,
   ) => {
     try {
       setLoading(true);
@@ -482,19 +484,33 @@ export default function DocumentsPage() {
         String(refreshSummary || !summaryLoadedRef.current),
       );
 
-      const documentsRes = await fetch(`/api/documents?${params}`, { signal });
-      const documentsData = await documentsRes.json().catch(() => ({}));
+      const apply = (documentsData: any) => {
+        setDocs(
+          Array.isArray(documentsData.data?.data) ? documentsData.data.data : [],
+        );
+        const meta = documentsData.data?.meta;
+        setPages(Math.max(1, Number(meta?.pages) || 1));
+        if (meta?.summary) {
+          setSummary(meta.summary);
+          summaryLoadedRef.current = true;
+        }
+      };
+
+      const { response: documentsRes, body: documentsData } =
+        await fetchJsonWithStale<any>(
+          `/api/documents?${params}`,
+          { signal },
+          showStale
+            ? (stale) => {
+                apply(stale);
+                setLoading(false);
+                setLoadedOnce(true);
+              }
+            : undefined,
+        );
 
       if (!documentsRes.ok) throw new Error("documents-load-failed");
-      setDocs(
-        Array.isArray(documentsData.data?.data) ? documentsData.data.data : [],
-      );
-      const meta = documentsData.data?.meta;
-      setPages(Math.max(1, Number(meta?.pages) || 1));
-      if (meta?.summary) {
-        setSummary(meta.summary);
-        summaryLoadedRef.current = true;
-      }
+      apply(documentsData);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       toast.error(d.messages.loadError);
@@ -507,7 +523,7 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    load(controller.signal);
+    load(controller.signal, false, true);
     return () => controller.abort();
   }, [load]);
 

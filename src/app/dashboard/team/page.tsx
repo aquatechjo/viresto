@@ -22,6 +22,7 @@ import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { formatInZone, NUMERIC_DATE } from "@/lib/datetime";
+import { fetchJsonWithStale } from "@/lib/client-query-cache";
 
 type Role = "ADMIN" | "LAWYER" | "STAFF";
 type StatusFilter = "all" | "active" | "inactive";
@@ -365,14 +366,11 @@ export default function TeamPage() {
 
   const [form, setForm] = useState(INIT_FORM);
 
-  const loadUsers = useCallback(async (options: { silent?: boolean } = {}) => {
+  const loadUsers = useCallback(async (options: { silent?: boolean; showStale?: boolean } = {}) => {
     try {
       if (!options.silent) setLoading(true);
 
-      const response = await fetch("/api/team");
-      const data = await response.json().catch(() => ({}));
-
-      if (data.success) {
+      const apply = (data: any) => {
         setUsers(Array.isArray(data.data?.users) ? data.data.users : []);
         setPendingInvitations(
           Array.isArray(data.data?.pendingInvitations)
@@ -381,6 +379,22 @@ export default function TeamPage() {
         );
         if (data.data?.seats) setSeats(data.data.seats);
         setCurrentRole(data.data?.currentRole || "");
+      };
+
+      const { body: data } = await fetchJsonWithStale<any>(
+        "/api/team",
+        {},
+        options.showStale
+          ? (stale) => {
+              if (!stale?.success) return;
+              apply(stale);
+              setLoading(false);
+            }
+          : undefined,
+      );
+
+      if (data.success) {
+        apply(data);
       } else {
         toast.error(getApiMessage(data, copy.messages.loadError));
       }
@@ -392,7 +406,7 @@ export default function TeamPage() {
   }, [copy.messages.loadError, copy.messages.loadUnexpected]);
 
   useEffect(() => {
-    loadUsers();
+    loadUsers({ showStale: true });
   }, [loadUsers]);
 
   const adminsCount = users.filter((user) => user.role === "ADMIN").length;

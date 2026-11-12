@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/lib/useLocale";
 import { getCurrentUser } from "@/lib/client-session";
+import { fetchJsonWithStale } from "@/lib/client-query-cache";
 import type { DashboardData } from "@/lib/dashboard/types";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 import DashboardView from "@/components/dashboard/DashboardView";
@@ -74,7 +75,7 @@ export default function DashboardPage() {
     };
   }, [router]);
 
-  const loadDashboard = useCallback(async (manualRefresh = false) => {
+  const loadDashboard = useCallback(async (manualRefresh = false, showStale = false) => {
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
@@ -85,12 +86,19 @@ export default function DashboardPage() {
     }
 
     try {
-      const response = await fetch(
+      const { response, body } = await fetchJsonWithStale<any>(
         `/api/dashboard-stats?tz=${encodeURIComponent(TENANT_TIME_ZONE)}`,
         { cache: "no-store", credentials: "include", signal: controller.signal },
+        showStale
+          ? (stale) => {
+              if (!stale?.data || Array.isArray(stale.data)) return;
+              setData(stale.data as DashboardData);
+              setHasLoadError(false);
+              setLoading(false);
+            }
+          : undefined,
       );
 
-      const body = await response.json().catch(() => null);
       const next =
         response.ok && body?.data && !Array.isArray(body.data) ? (body.data as DashboardData) : null;
 
@@ -118,7 +126,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    void loadDashboard();
+    void loadDashboard(false, true);
 
     return () => {
       loadAbortRef.current?.abort();

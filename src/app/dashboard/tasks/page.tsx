@@ -18,6 +18,7 @@ import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
 import { useFormDraft } from "@/lib/useFormDraft";
+import { fetchJsonWithStale } from "@/lib/client-query-cache";
 
 interface Task {
   id: string;
@@ -374,6 +375,7 @@ export default function TasksPage() {
   const load = useCallback(async (
     refreshStats = false,
     signal?: AbortSignal,
+    showStale = false,
   ) => {
     try {
       setLoading(true);
@@ -386,46 +388,59 @@ export default function TasksPage() {
       if (assigneeFilter !== "all") params.set("assignedToId", assigneeFilter);
       params.set("includeOptions", String(shouldLoadOptions));
       params.set("includeStats", String(shouldLoadStats));
-      const response = await fetch(`/api/tasks?${params}`, { signal });
-      const payload = await response.json().catch(() => ({}));
+      const apply = (payload: any) => {
+        setTasks(Array.isArray(payload.data?.data) ? payload.data.data : []);
+        setPagination(payload.data?.pagination ?? { page, total: 0, totalPages: 1 });
+
+        if (payload.data?.stats) {
+          setStats(payload.data.stats);
+          statsLoadedRef.current = true;
+        }
+
+        if (payload.data?.options) {
+          const loadedOptions = payload.data.options;
+          const loadedMembers = Array.isArray(loadedOptions.members)
+            ? loadedOptions.members
+            : [];
+          const loadedCurrentUserId = String(
+            loadedOptions.currentUserId ?? "",
+          );
+          const loadedCurrentRole = loadedOptions.currentRole;
+
+          setClients(
+            Array.isArray(loadedOptions.clients) ? loadedOptions.clients : [],
+          );
+          setCases(
+            Array.isArray(loadedOptions.cases) ? loadedOptions.cases : [],
+          );
+          setMembers(loadedMembers);
+          setCurrentUserId(loadedCurrentUserId);
+          setCurrentRole(
+            loadedCurrentRole === "ADMIN" || loadedCurrentRole === "LAWYER"
+              ? loadedCurrentRole
+              : "STAFF",
+          );
+          setForm((previous) => ({
+            ...previous,
+            assignedToId: previous.assignedToId || loadedCurrentUserId,
+          }));
+          optionsLoadedRef.current = true;
+        }
+      };
+
+      const { response, body: payload } = await fetchJsonWithStale<any>(
+        `/api/tasks?${params}`,
+        { signal },
+        showStale
+          ? (stale) => {
+              if (!stale?.success) return;
+              apply(stale);
+              setLoading(false);
+            }
+          : undefined,
+      );
       if (!response.ok || !payload.success) throw new Error();
-      setTasks(Array.isArray(payload.data?.data) ? payload.data.data : []);
-      setPagination(payload.data?.pagination ?? { page, total: 0, totalPages: 1 });
-
-      if (payload.data?.stats) {
-        setStats(payload.data.stats);
-        statsLoadedRef.current = true;
-      }
-
-      if (payload.data?.options) {
-        const loadedOptions = payload.data.options;
-        const loadedMembers = Array.isArray(loadedOptions.members)
-          ? loadedOptions.members
-          : [];
-        const loadedCurrentUserId = String(
-          loadedOptions.currentUserId ?? "",
-        );
-        const loadedCurrentRole = loadedOptions.currentRole;
-
-        setClients(
-          Array.isArray(loadedOptions.clients) ? loadedOptions.clients : [],
-        );
-        setCases(
-          Array.isArray(loadedOptions.cases) ? loadedOptions.cases : [],
-        );
-        setMembers(loadedMembers);
-        setCurrentUserId(loadedCurrentUserId);
-        setCurrentRole(
-          loadedCurrentRole === "ADMIN" || loadedCurrentRole === "LAWYER"
-            ? loadedCurrentRole
-            : "STAFF",
-        );
-        setForm((previous) => ({
-          ...previous,
-          assignedToId: previous.assignedToId || loadedCurrentUserId,
-        }));
-        optionsLoadedRef.current = true;
-      }
+      apply(payload);
     } catch (error) {
       if ((error as Error).name !== "AbortError") {
         toast.error(taskCopy.messages.loadError);
@@ -438,7 +453,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(false, controller.signal);
+    void load(false, controller.signal, true);
     return () => controller.abort();
   }, [load]);
 

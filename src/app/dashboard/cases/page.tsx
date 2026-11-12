@@ -32,7 +32,7 @@ import {
 import { useLocale } from "@/lib/useLocale";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
-import { fetchJsonCached } from "@/lib/client-query-cache";
+import { fetchJsonCached, fetchJsonWithStale } from "@/lib/client-query-cache";
 import { startNavigationFeedback } from "@/lib/navigation-feedback";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { formatJOD, parseOptionalAmount } from "@/lib/money";
@@ -445,7 +445,7 @@ export default function CasesPage() {
 
   useEffect(() => setPage(1), [filter]);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, showStale = false) => {
     try {
       setLoading(true);
       setLoadError(false);
@@ -465,18 +465,29 @@ export default function CasesPage() {
         params.set("status", filter);
       }
 
-      const casesRes = await fetch(`/api/cases?${params.toString()}`, { signal });
+      const apply = (casesData: any) => {
+        setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : []);
+        const meta = casesData.data?.meta;
+        setTotalPages(Math.max(1, Number(meta?.pages) || 1));
+        if (meta?.summary) setSummary(meta.summary);
+      };
+
+      const { response: casesRes, body: casesData } = await fetchJsonWithStale<any>(
+        `/api/cases?${params.toString()}`,
+        { signal },
+        showStale
+          ? (stale) => {
+              apply(stale);
+              setLoading(false);
+            }
+          : undefined,
+      );
 
       if (!casesRes.ok) {
         throw new Error("CASES_LOAD_FAILED");
       }
 
-      const casesData = await casesRes.json().catch(() => ({ data: [] }));
-
-      setCases(Array.isArray(casesData.data?.data) ? casesData.data.data : []);
-      const meta = casesData.data?.meta;
-      setTotalPages(Math.max(1, Number(meta?.pages) || 1));
-      if (meta?.summary) setSummary(meta.summary);
+      apply(casesData);
     } catch (error) {
       if ((error as Error).name !== "AbortError") {
         toast.error(text.loadError);
@@ -489,7 +500,7 @@ export default function CasesPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    load(controller.signal);
+    load(controller.signal, true);
     return () => controller.abort();
   }, [load]);
 

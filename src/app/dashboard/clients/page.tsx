@@ -29,6 +29,7 @@ import {
   TEN_DIGITS,
 } from "@/lib/digits";
 import { formatInZone, NUMERIC_DATE } from "@/lib/datetime";
+import { fetchJsonWithStale } from "@/lib/client-query-cache";
 
 interface Client {
   id: string;
@@ -616,7 +617,7 @@ export default function ClientsPage() {
     setPage(1);
   }, [archiveFilter]);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, showStale = false) => {
     try {
       setLoading(true);
       setLoadError(false);
@@ -626,22 +627,32 @@ export default function ClientsPage() {
       params.set("limit", "20");
       params.set("archive", archiveFilter);
 
-      const response = await fetch(`/api/clients?${params.toString()}`, {
-        signal,
-      });
-      if (!response.ok) throw new Error("CLIENTS_LOAD_FAILED");
-      const data = await response.json().catch(() => ({}));
+      const apply = (data: any) => {
+        setClients(
+          Array.isArray(data.data?.data)
+            ? data.data.data
+            : Array.isArray(data.data)
+              ? data.data
+              : [],
+        );
+        const meta = data.data?.meta;
+        setTotalPages(Math.max(1, Number(meta?.pages) || 1));
+        if (meta?.summary) setSummary(meta.summary);
+      };
 
-      setClients(
-        Array.isArray(data.data?.data)
-          ? data.data.data
-          : Array.isArray(data.data)
-            ? data.data
-            : [],
+      const { response, body: data } = await fetchJsonWithStale<any>(
+        `/api/clients?${params.toString()}`,
+        { signal },
+        showStale
+          ? (stale) => {
+              apply(stale);
+              setLoading(false);
+              setLoadedOnce(true);
+            }
+          : undefined,
       );
-      const meta = data.data?.meta;
-      setTotalPages(Math.max(1, Number(meta?.pages) || 1));
-      if (meta?.summary) setSummary(meta.summary);
+      if (!response.ok) throw new Error("CLIENTS_LOAD_FAILED");
+      apply(data);
     } catch (error) {
       if ((error as Error).name !== "AbortError") setLoadError(true);
     } finally {
@@ -654,7 +665,7 @@ export default function ClientsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    load(controller.signal);
+    load(controller.signal, true);
     return () => controller.abort();
   }, [load]);
 

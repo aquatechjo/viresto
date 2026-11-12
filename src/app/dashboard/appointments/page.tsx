@@ -31,7 +31,11 @@ import {
 } from "@/lib/datetime";
 import SubscriptionReadOnlyBanner from "@/components/billing/SubscriptionReadOnlyBanner";
 import { useTenantWriteAccess } from "@/hooks/useTenantWriteAccess";
-import { fetchJsonCached } from "@/lib/client-query-cache";
+import {
+  fetchJsonCached,
+  fetchJsonWithStale,
+  readStaleJson,
+} from "@/lib/client-query-cache";
 
 const AppointmentsCalendar = dynamic(() => import("./AppointmentsCalendar"), {
   ssr: false,
@@ -757,7 +761,7 @@ export default function AppointmentsPage() {
   const writeAccess = useTenantWriteAccess(locale);
 
   const load = useCallback(
-    async (options?: { silent?: boolean }) => {
+    async (options?: { silent?: boolean; showStale?: boolean }) => {
       try {
         if (!options?.silent) setLoading(true);
 
@@ -777,9 +781,32 @@ export default function AppointmentsPage() {
           todayStart.toISOString(),
         )}&to=${encodeURIComponent(tomorrowStart.toISOString())}`;
 
-        const [appointmentsRes, todayRes, clientsData, teamData] = await Promise.all([
-          fetch(appointmentsUrl),
-          fetch(todayUrl),
+        const applyAppointments = (appointmentsData: any, todayData: any) => {
+          setAppts(
+            Array.isArray(appointmentsData.data) ? appointmentsData.data : [],
+          );
+          // The range also returns appointments that only overlap today; the
+          // card and the "today" filter count those that start today.
+          const todayKeyNow = toDateKey(todayStart);
+          setTodayAppts(
+            (Array.isArray(todayData.data) ? (todayData.data as Appt[]) : []).filter(
+              (appt) => toDateKey(appt.startTime) === todayKeyNow,
+            ),
+          );
+        };
+
+        if (options?.showStale) {
+          const staleAppointments = readStaleJson<any>(appointmentsUrl);
+          const staleToday = readStaleJson<any>(todayUrl);
+          if (staleAppointments && staleToday) {
+            applyAppointments(staleAppointments, staleToday);
+            setLoading(false);
+          }
+        }
+
+        const [appointmentsResult, todayResult, clientsData, teamData] = await Promise.all([
+          fetchJsonWithStale<any>(appointmentsUrl),
+          fetchJsonWithStale<any>(todayUrl),
           fetchJsonCached<any>(
             "/api/clients?limit=100&archive=active",
             15_000,
@@ -787,23 +814,9 @@ export default function AppointmentsPage() {
           fetchJsonCached<any>("/api/team?mode=assignees", 15_000),
         ]);
 
-        const appointmentsData = appointmentsRes.ok
-          ? await appointmentsRes.json().catch(() => ({ data: [] }))
-          : { data: [] };
-
-        setAppts(
-          Array.isArray(appointmentsData.data) ? appointmentsData.data : [],
-        );
-        const todayData = todayRes.ok
-          ? await todayRes.json().catch(() => ({ data: [] }))
-          : { data: [] };
-        // The range also returns appointments that only overlap today; the
-        // card and the "today" filter count those that start today.
-        const todayKeyNow = toDateKey(todayStart);
-        setTodayAppts(
-          (Array.isArray(todayData.data) ? (todayData.data as Appt[]) : []).filter(
-            (appt) => toDateKey(appt.startTime) === todayKeyNow,
-          ),
+        applyAppointments(
+          appointmentsResult.response.ok ? appointmentsResult.body : { data: [] },
+          todayResult.response.ok ? todayResult.body : { data: [] },
         );
         setClients(
           Array.isArray(clientsData.data?.data)
@@ -847,7 +860,7 @@ export default function AppointmentsPage() {
   );
 
   useEffect(() => {
-    load();
+    load({ showStale: true });
   }, [load]);
 
   useEffect(() => {
