@@ -1,6 +1,6 @@
 // The figures of the invoice list's stat cards (GET /api/invoices).
 
-import { collectedTotal, effectiveInvoiceState } from "@/lib/finance";
+import { collectedTotal, effectiveInvoiceState, roundMoney } from "@/lib/finance";
 
 /** Still to collect: the "unpaid" card and its OUTSTANDING filter. */
 export const OUTSTANDING_INVOICE_STATUSES = [
@@ -77,4 +77,71 @@ export function summarizeInvoiceStats(
   }
 
   return stats;
+}
+
+/** Invoice statuses stored by current code that are still to collect. */
+export const OPEN_INVOICE_STATUSES = ["UNPAID", "PARTIALLY_PAID"] as const;
+/** Stored statuses that count in the money figures (issued, not void). */
+export const ISSUED_INVOICE_STATUSES = ["PAID", "UNPAID", "PARTIALLY_PAID"] as const;
+
+/**
+ * The stat cards' inputs as the database aggregates them
+ * (src/lib/server/invoice-stats-query.ts). Every figure is over the
+ * invoices the user can see.
+ *
+ * A legacy stored OVERDUE invoice takes its status from its payments, which
+ * an aggregate cannot express, so those rows (few, and never written by
+ * current code) are summarised one by one with summarizeInvoiceStats and
+ * kept out of every other part.
+ */
+export type InvoiceStatParts = {
+  /** Count and summed total per stored status, all statuses. */
+  byStatus: Array<{ status: string; count: number; total: number }>;
+  /** PAID payments on PAID, UNPAID and PARTIALLY_PAID invoices. */
+  paidOnIssued: number;
+  /** PAID payments on UNPAID and PARTIALLY_PAID invoices. */
+  paidOnOpen: number;
+  /** UNPAID or PARTIALLY_PAID invoices past their due date (pastDueBefore). */
+  overdueOpen: number;
+  /** Invoices of an archived client (directly or through the case), all statuses. */
+  archived: number;
+  /** summarizeInvoiceStats over the stored OVERDUE invoices only. */
+  legacyOverdue: InvoiceStats;
+};
+
+/**
+ * Same figures as summarizeInvoiceStats over every row, from aggregates.
+ *
+ * "Still to collect" is total minus collected per open invoice, summed.
+ * Summing the two sides separately is the same because an open invoice
+ * always has collected < total: syncInvoiceStatus makes it PAID once
+ * collected reaches the total, and its amounts cannot be edited after a
+ * collected payment (PATCH /api/invoices/[id]).
+ */
+export function combineInvoiceStats(parts: InvoiceStatParts): InvoiceStats {
+  const issued = ISSUED_INVOICE_STATUSES as readonly string[];
+  const open = OPEN_INVOICE_STATUSES as readonly string[];
+  let totalCount = 0;
+  let issuedTotal = 0;
+  let openTotal = 0;
+  let paidCount = 0;
+
+  for (const row of parts.byStatus) {
+    totalCount += row.count;
+    if (issued.includes(row.status)) issuedTotal += row.total;
+    if (open.includes(row.status)) openTotal += row.total;
+    if (row.status === "PAID") paidCount += row.count;
+  }
+
+  const legacy = parts.legacyOverdue;
+  return {
+    totalAmount: roundMoney(issuedTotal + legacy.totalAmount),
+    paidAmount: roundMoney(parts.paidOnIssued + legacy.paidAmount),
+    unpaidAmount: roundMoney(Math.max(0, openTotal - parts.paidOnOpen) + legacy.unpaidAmount),
+    overdueCount: parts.overdueOpen + legacy.overdueCount,
+    paidCount: paidCount + legacy.paidCount,
+    // Already over every status, legacy rows included.
+    archivedCount: parts.archived,
+    totalCount,
+  };
 }

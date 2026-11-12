@@ -19,10 +19,8 @@ import {
   withInvoiceState,
 } from "@/lib/finance";
 import { calculateInvoiceTotals } from "@/lib/invoice-totals";
-import {
-  OUTSTANDING_INVOICE_STATUSES,
-  summarizeInvoiceStats,
-} from "@/lib/invoice-stats";
+import { OUTSTANDING_INVOICE_STATUSES } from "@/lib/invoice-stats";
+import { loadInvoiceStats } from "@/lib/server/invoice-stats-query";
 import { allocateInvoiceNumber } from "@/lib/server/invoice-number";
 import { INVOICE_MESSAGES } from "@/lib/invoice-lifecycle";
 import {
@@ -211,11 +209,10 @@ export async function GET(req: NextRequest) {
     });
     const totalQuery = prisma.invoice.count({ where });
 
+    // Independent reads, so in parallel (a batch $transaction runs them one
+    // after another).
     if (!includeStats) {
-      const [invoices, total] = await prisma.$transaction([
-        invoicesQuery,
-        totalQuery,
-      ]);
+      const [invoices, total] = await Promise.all([invoicesQuery, totalQuery]);
 
       const decryptedInvoices = invoices.map((invoice) => ({
         ...withInvoiceState(invoice, now),
@@ -240,23 +237,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const [invoices, total, statRows] = await prisma.$transaction([
+    const [invoices, total, stats] = await Promise.all([
       invoicesQuery,
       totalQuery,
-      prisma.invoice.findMany({
-        where: statsWhere,
-        select: {
-          total: true,
-          status: true,
-          dueDate: true,
-          client: { select: { archivedAt: true } },
-          case: { select: { client: { select: { archivedAt: true } } } },
-          payments: {
-            where: { status: "PAID" },
-            select: { amount: true },
-          },
-        },
-      }),
+      loadInvoiceStats(prisma, statsWhere, now),
     ]);
 
     const decryptedInvoices = invoices.map((invoice) => ({
@@ -269,8 +253,6 @@ export async function GET(req: NextRequest) {
           }
         : invoice.client,
     }));
-
-    const stats = summarizeInvoiceStats(statRows, now);
 
     return ok({
       items: decryptedInvoices,
