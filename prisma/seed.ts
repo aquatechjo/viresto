@@ -16,24 +16,23 @@ const prisma = new PrismaClient();
 // 8740fe86fc5b, PRO 8c63d1fa-7f37-4335-a3fa-799a680b6f91, BUSINESS
 // 4258aeba-fd71-488f-a1d7-302979b51ce9.
 //
-// Which new id is which plan is not known here (the user sent them in no
-// particular order): they are filled in from the script's dry-run output,
-// before its --apply. Until then the seed keeps the old ids.
+// The yearly ids below are what the script's --apply wrote on production
+// (endpoint ep-noisy-rain-aqby4u2n, 2026-11-13).
 const POLAR_PRODUCT_IDS: Record<
   string,
   { monthly: string; yearly: string }
 > = {
   BASIC: {
     monthly: "81d737ab-79db-4344-9620-d1597aad8cfc",
-    yearly: "a770f639-4c85-4a63-8959-8740fe86fc5b",
+    yearly: "ed70c555-fe66-468f-86c2-a4e53da22b07",
   },
   PRO: {
     monthly: "58c225c7-94e9-4e2b-a889-cd68e7f75b44",
-    yearly: "8c63d1fa-7f37-4335-a3fa-799a680b6f91",
+    yearly: "0221e665-42e1-4724-8ca0-779eccca4767",
   },
   BUSINESS: {
     monthly: "93951622-9dba-4956-a8fb-4ec89fb69f0c",
-    yearly: "4258aeba-fd71-488f-a1d7-302979b51ce9",
+    yearly: "d125d2e1-3f06-4300-96f5-2e2523af97c2",
   },
 };
 
