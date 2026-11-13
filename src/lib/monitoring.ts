@@ -64,7 +64,7 @@ type IssueLevel = "error" | "warning";
  * can email on all of them; grouped per source and reason.
  */
 export function reportBillingIssue(
-  source: "polar-webhook" | "polar-reconcile",
+  source: "polar-webhook" | "polar-reconcile" | "polar-checkout",
   reason: string,
   level: IssueLevel,
   details: Record<string, unknown> = {},

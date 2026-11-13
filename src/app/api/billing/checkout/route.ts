@@ -8,8 +8,12 @@ import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { getAppUrl, getPolarClient } from "@/lib/polar";
 import { syncSubscriptionFromPolar } from "@/lib/polar-subscription-sync";
-
-type BillingCycle = "monthly" | "yearly";
+import { reportBillingIssue } from "@/lib/monitoring";
+import {
+  polarProductProblems,
+  type BillingCycle,
+  type ProductExpectation,
+} from "@/lib/polar-product-check";
 
 const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
 
@@ -74,6 +78,26 @@ async function findLiveSubscriptionInPolar(
     );
     throw new PolarLookupError();
   }
+}
+
+type PlanProductCheck =
+  | { ok: true }
+  | { ok: false; reason: "mismatch" | "unavailable"; problems: string[] };
+
+async function checkPlanProduct(
+  polar: ReturnType<typeof getPolarClient>,
+  productId: string,
+  expected: ProductExpectation,
+): Promise<PlanProductCheck> {
+  let product;
+  try {
+    product = await polar.products.get({ id: productId });
+  } catch {
+    return { ok: false, reason: "unavailable", problems: [] };
+  }
+
+  const problems = polarProductProblems(product, expected);
+  return problems.length ? { ok: false, reason: "mismatch", problems } : { ok: true };
 }
 
 function isBillingCycle(value: unknown): value is BillingCycle {
@@ -181,6 +205,37 @@ export async function POST(req: NextRequest) {
         "فشل تجديد اشتراكك الحالي. حدّث وسيلة الدفع من بوابة العميل بدل شراء اشتراك جديد.",
         409,
         { code: PAYMENT_METHOD_UPDATE_REQUIRED, action: "portal" },
+      );
+    }
+
+    // The product must be what this plan and cycle promise (interval,
+    // price, no trial) before anyone is charged for it, on a new checkout
+    // or a plan change. Fails closed.
+    const productCheck = await checkPlanProduct(polar, productId, {
+      cycle: billingCycle,
+      amountCents: billingCycle === "yearly" ? plan.priceYearly : plan.priceMonthly,
+      // allowTrial: false below already disables any trial on the product.
+      requireNoTrial: false,
+    });
+
+    if (!productCheck.ok) {
+      console.error(
+        `[polar-checkout] product_${productCheck.reason} tenant=${auth.user.tenantId} plan=${planCode} cycle=${billingCycle} product=${productId}${productCheck.problems.length ? ` problems=${JSON.stringify(productCheck.problems)}` : ""}`,
+      );
+      if (productCheck.reason === "mismatch") {
+        reportBillingIssue("polar-checkout", "product_mismatch", "error", {
+          plan: planCode,
+          cycle: billingCycle,
+          product: productId,
+          problems: productCheck.problems,
+        });
+      }
+      return err(
+        productCheck.reason === "mismatch"
+          ? "هذه الخطة غير متاحة للشراء حاليًا. تواصل مع الدعم أو اختر دورة فوترة أخرى."
+          : "تعذر التحقق من خطة الدفع. حاول مرة أخرى بعد قليل.",
+        503,
+        { code: "PLAN_PRODUCT_UNAVAILABLE" },
       );
     }
 

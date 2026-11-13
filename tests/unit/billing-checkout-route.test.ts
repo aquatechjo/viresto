@@ -44,9 +44,46 @@ const billingPlanFindManyMock = mock.fn<
 const subscriptionsListMock = mock.fn<
   (...args: unknown[]) => Promise<{ result: { items: Record<string, unknown>[] } }>
 >(async () => ({ result: { items: [] } }));
+// USD cents per plan, monthly and yearly (as BillingPlan and the Polar
+// products hold them).
+const PLAN_PRICES: Record<string, [number, number]> = {
+  BASIC: [2900, 29000],
+  PRO: [5900, 59000],
+  BUSINESS: [11900, 119000],
+};
+
+/** A correct Polar product for an id like "pro_yearly". */
+function polarProduct(id: string, overrides: Record<string, unknown> = {}) {
+  const [plan, cycle] = id.split("_");
+  const [monthly, yearly] = PLAN_PRICES[plan.toUpperCase()] ?? [0, 0];
+  return {
+    id,
+    name: `Viresto - ${plan} ${cycle}`,
+    isArchived: false,
+    isRecurring: true,
+    recurringInterval: cycle === "yearly" ? "year" : "month",
+    recurringIntervalCount: 1,
+    trialInterval: null,
+    trialIntervalCount: null,
+    prices: [
+      {
+        amountType: "fixed",
+        priceAmount: cycle === "yearly" ? yearly : monthly,
+        priceCurrency: "usd",
+        isArchived: false,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+const productsGetMock = mock.fn<
+  (args: { id: string }) => Promise<Record<string, unknown>>
+>(async ({ id }) => polarProduct(id));
 const getPolarClientMock = mock.fn(() => ({
   subscriptions: { update: subscriptionsUpdateMock, list: subscriptionsListMock },
   checkouts: { create: checkoutsCreateMock },
+  products: { get: productsGetMock },
 }));
 const getAppUrlMock = mock.fn(() => "https://app.test");
 const syncSubscriptionFromPolarMock = mock.fn<
@@ -97,6 +134,8 @@ function resetMocks() {
   subscriptionsListMock.mock.resetCalls();
 
   subscriptionsListMock.mock.mockImplementation(async () => ({ result: { items: [] } }));
+  productsGetMock.mock.resetCalls();
+  productsGetMock.mock.mockImplementation(async ({ id }) => polarProduct(id));
   syncSubscriptionFromPolarMock.mock.mockImplementation(async () => ({ id: "synced" }));
 
   requirePermissionMock.mock.mockImplementation(async () => ({
@@ -121,10 +160,14 @@ function makeRequest(body: unknown) {
 }
 
 function billingPlanRow(overrides: Record<string, unknown> = {}) {
+  const code = String(overrides.code ?? "BASIC");
+  const [priceMonthly, priceYearly] = PLAN_PRICES[code] ?? [0, 0];
   return {
     id: "plan-row-1",
     code: "BASIC",
     isActive: true,
+    priceMonthly,
+    priceYearly,
     polarMonthlyProductId: "basic_monthly",
     polarYearlyProductId: "basic_yearly",
     ...overrides,
@@ -443,4 +486,91 @@ test("checkout: Polar unreachable while checking fails closed with 503", async (
   } finally {
     warn.mock.restore();
   }
+});
+
+// --- Product guard: the product must match the plan and cycle -------------
+
+test("guard: a yearly product that recurs monthly is refused (503); no checkout, no plan change", async () => {
+  // The sandbox case of 2026-11-13: "Yearly" products at the yearly price,
+  // recurring every month.
+  for (const current of [null, subscriptionRow({ status: "ACTIVE" })]) {
+    resetMocks();
+    billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+    subscriptionFindFirstMock.mock.mockImplementation(async () => current);
+    productsGetMock.mock.mockImplementation(async ({ id }) =>
+      polarProduct(id, { recurringInterval: "month" }),
+    );
+
+    const res = await POST(makeRequest({ planId: "BASIC", billingCycle: "yearly" }));
+    const json = await res.json();
+
+    assert.equal(res.status, 503);
+    assert.equal(json.details.code, "PLAN_PRODUCT_UNAVAILABLE");
+    assert.equal(productsGetMock.mock.calls[0].arguments[0].id, "basic_yearly");
+    assert.equal(checkoutsCreateMock.mock.callCount(), 0);
+    assert.equal(subscriptionsUpdateMock.mock.callCount(), 0);
+  }
+});
+
+test("guard: wrong price, an archived product, an interval count other than 1 or two prices are each refused", async () => {
+  const broken: Record<string, unknown>[] = [
+    { prices: [{ amountType: "fixed", priceAmount: 2500, priceCurrency: "usd", isArchived: false }] },
+    { isArchived: true },
+    { recurringIntervalCount: 3 },
+    {
+      prices: [
+        { amountType: "fixed", priceAmount: 2900, priceCurrency: "usd", isArchived: false },
+        { amountType: "fixed", priceAmount: 2900, priceCurrency: "eur", isArchived: false },
+      ],
+    },
+  ];
+  for (const overrides of broken) {
+    resetMocks();
+    billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+    productsGetMock.mock.mockImplementation(async ({ id }) => polarProduct(id, overrides));
+
+    const res = await POST(makeRequest({ planId: "BASIC", billingCycle: "monthly" }));
+    assert.equal(res.status, 503, JSON.stringify(overrides));
+    assert.equal(checkoutsCreateMock.mock.callCount(), 0);
+  }
+});
+
+test("guard: Polar unreachable while reading the product fails closed (503)", async () => {
+  resetMocks();
+  billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+  productsGetMock.mock.mockImplementation(async () => {
+    throw new Error("network");
+  });
+
+  const res = await POST(makeRequest({ planId: "BASIC", billingCycle: "monthly" }));
+  assert.equal(res.status, 503);
+  assert.equal(checkoutsCreateMock.mock.callCount(), 0);
+});
+
+test("guard: a correct yearly product (interval year, yearly price) opens the checkout", async () => {
+  resetMocks();
+  billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+
+  const res = await POST(makeRequest({ planId: "BASIC", billingCycle: "yearly" }));
+  assert.equal(res.status, 200);
+  assert.equal(checkoutsCreateMock.mock.callCount(), 1);
+  assert.deepEqual(
+    (checkoutsCreateMock.mock.calls[0].arguments[0] as { products: string[] }).products,
+    ["basic_yearly"],
+  );
+});
+
+test("guard: a trial on the product does not block the checkout (allowTrial: false disables it)", async () => {
+  resetMocks();
+  billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+  productsGetMock.mock.mockImplementation(async ({ id }) =>
+    polarProduct(id, { trialInterval: "day", trialIntervalCount: 14 }),
+  );
+
+  const res = await POST(makeRequest({ planId: "BASIC", billingCycle: "monthly" }));
+  assert.equal(res.status, 200);
+  assert.equal(
+    (checkoutsCreateMock.mock.calls[0].arguments[0] as { allowTrial: boolean }).allowTrial,
+    false,
+  );
 });
