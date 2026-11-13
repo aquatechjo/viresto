@@ -2,12 +2,13 @@
 
 // The sections of the subscriptions page (src/app/dashboard/billing).
 // Colours: theme tokens only (globals.css / src/lib/theme/tokens.ts).
-// Motion: entrances within 0.15s in total (the page budget, see
-// tests/unit/entrance-motion.test.ts); interactions 200-400ms, ease-out;
-// nothing moves with prefers-reduced-motion.
+// Motion: this page is the one scoped exception to the app's 0.15s
+// entrance budget; its timings are in ./billing-motion.ts (entrances
+// 0.45s, 80ms apart; transform and opacity only, no overshoot). Nothing
+// moves with prefers-reduced-motion: every state is shown at once.
 
-import { useState, type ReactNode } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, animate, motion, useInView, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle,
   Check,
@@ -20,9 +21,34 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { PLANS, type PlanCode } from "@/config/plans";
+import { PLANS, formatYearlySavings, type PlanCode } from "@/config/plans";
+import {
+  BILLING_ENTRANCE,
+  CONFETTI_PIECES,
+  COUNT_DURATION,
+  EASE_OUT,
+  TOGGLE_SPRING,
+  formatCount,
+  revealOnScroll,
+  splitPrice,
+} from "./billing-motion";
 
-const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+/** Counts from `from` to `to` once `start` is true (instant with reduced motion). */
+function useCount(from: number, to: number, start: boolean, options: { delay?: number; duration?: number } = {}) {
+  const reduce = useReducedMotion();
+  const [value, setValue] = useState(reduce ? to : from);
+  const { delay = 0, duration = COUNT_DURATION } = options;
+  useEffect(() => {
+    if (reduce) {
+      setValue(to);
+      return;
+    }
+    if (!start) return;
+    const controls = animate(from, to, { duration, delay, ease: EASE_OUT, onUpdate: setValue });
+    return () => controls.stop();
+  }, [reduce, start, from, to, delay, duration]);
+  return value;
+}
 
 // ---------------------------------------------------------------------------
 // Copy
@@ -30,6 +56,7 @@ const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 export function subscriptionCopy(isArabic: boolean) {
   return isArabic
     ? {
+        locale: "ar" as const,
         trialTitle: "أنت في الفترة التجريبية",
         trialDaysLeft: (n: number) =>
           n === 0 ? "تنتهي اليوم" : n === 1 ? "يوم واحد متبقٍ" : n === 2 ? "يومان متبقيان" : n <= 10 ? `${n} أيام متبقية` : `${n} يومًا متبقيًا`,
@@ -86,6 +113,7 @@ export function subscriptionCopy(isArabic: boolean) {
         toDashboard: "الذهاب إلى لوحة التحكم",
       }
     : {
+        locale: "en" as const,
         trialTitle: "You are on the free trial",
         trialDaysLeft: (n: number) => (n === 0 ? "Ends today" : n === 1 ? "1 day left" : `${n} days left`),
         trialBody: "Every feature is available on Pro's limits. Pick your plan before the trial ends to keep going without interruption.",
@@ -205,18 +233,21 @@ export function PrimaryButton({
   busy?: boolean;
   testId?: string;
 }) {
+  const reduce = useReducedMotion();
   return (
-    <button
+    <motion.button
       type="button"
       data-testid={testId}
       onClick={onClick}
       disabled={disabled || busy}
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-black transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      whileTap={reduce || disabled || busy ? undefined : { scale: 0.98 }}
+      transition={{ duration: 0.15, ease: EASE_OUT }}
+      className="billing-sheen inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-black transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       style={{ background: "var(--gold)", color: "var(--on-gold)" }}
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
       {children}
-    </button>
+    </motion.button>
   );
 }
 
@@ -254,6 +285,8 @@ export function TrialBanner({
   const reduce = useReducedMotion();
   const urgent = daysLeft <= 3;
   const tone = urgent ? "amber" : "green";
+  // The days badge counts down in, from the whole trial to what is left.
+  const shownDays = Math.round(useCount(totalDays, daysLeft, true, { delay: 0.25 }));
   return (
     <section
       data-testid="trial-banner"
@@ -275,7 +308,8 @@ export function TrialBanner({
                 borderColor: `var(--tone-${tone}-border)`,
               }}
             >
-              {copy.trialDaysLeft(daysLeft)}
+              <span aria-hidden>{copy.trialDaysLeft(shownDays)}</span>
+              <span className="sr-only">{copy.trialDaysLeft(daysLeft)}</span>
             </span>
           </div>
           <p className="mt-2 text-sm leading-7" style={{ color: "var(--text-2)" }}>
@@ -302,7 +336,7 @@ export function TrialBanner({
             style={{ background: `var(--tone-${tone}-solid)`, transformOrigin: rtl ? "right" : "left" }}
             initial={reduce ? false : { scaleX: 0 }}
             animate={{ scaleX: elapsed }}
-            transition={{ duration: reduce ? 0 : 0.4, ease: EASE_OUT }}
+            transition={{ duration: reduce ? 0 : COUNT_DURATION, delay: reduce ? 0 : 0.25, ease: EASE_OUT }}
           />
         </div>
         <p className="mt-1.5 text-xs" style={{ color: "var(--muted)" }}>
@@ -482,9 +516,9 @@ export function CheckoutStatus({
 // ---------------------------------------------------------------------------
 // Success: checkmark + light confetti
 
-const CONFETTI = Array.from({ length: 14 }, (_, i) => ({
-  x: Math.cos((i / 14) * Math.PI * 2) * (70 + (i % 3) * 22),
-  y: Math.sin((i / 14) * Math.PI * 2) * (46 + (i % 4) * 14) - 20,
+const CONFETTI = Array.from({ length: CONFETTI_PIECES }, (_, i) => ({
+  x: Math.cos((i / CONFETTI_PIECES) * Math.PI * 2 + (i % 2) * 0.12) * (64 + (i % 5) * 20),
+  y: Math.sin((i / CONFETTI_PIECES) * Math.PI * 2 + (i % 2) * 0.12) * (42 + (i % 4) * 16) - 22,
   rotate: (i * 47) % 360,
   color: ["var(--gold)", "var(--tone-green-solid)", "var(--tone-blue-solid)", "var(--gold-border)"][i % 4],
 }));
@@ -516,7 +550,7 @@ export function SubscriptionSuccess({
               style={{ background: piece.color }}
               initial={{ x: 0, y: 0, opacity: 0, rotate: 0 }}
               animate={{ x: piece.x, y: piece.y, opacity: [0, 1, 0], rotate: piece.rotate }}
-              transition={{ duration: 1.1, ease: EASE_OUT, delay: 0.25 }}
+              transition={{ duration: 1.25, ease: EASE_OUT, delay: 0.25 + (i % 6) * 0.025 }}
             />
           ))}
         <motion.span
@@ -599,7 +633,7 @@ export function CycleToggle({
               layoutId="cycle-pill"
               className="absolute inset-0 rounded-lg"
               style={{ background: "var(--gold)" }}
-              transition={{ duration: reduce ? 0 : 0.25, ease: EASE_OUT }}
+              transition={reduce ? { duration: 0 } : TOGGLE_SPRING}
             />
           )}
           <span className="relative">{value === "monthly" ? copy.monthly : copy.yearly}</span>
@@ -609,27 +643,111 @@ export function CycleToggle({
   );
 }
 
-function AnimatedPrice({ value, suffix }: { value: string; suffix: string }) {
+/** The first price shown counts up from 0; later prices roll in whole. */
+function CountUpPrice({ value, start, delay }: { value: string; start: boolean; delay: number }) {
+  const parts = splitPrice(value);
+  const counted = useCount(0, parts?.value ?? 0, start, { delay });
+  if (!parts) return <>{value}</>;
+  // The count is visual only; the page's text (screen readers, search,
+  // copy) always carries the real price, even before the card is seen.
+  return (
+    <>
+      <span aria-hidden>
+        {parts.before}
+        {formatCount(parts.decimals ? counted : Math.round(counted), parts.decimals)}
+        {parts.after}
+      </span>
+      <span className="sr-only">{value}</span>
+    </>
+  );
+}
+
+function AnimatedPrice({
+  value,
+  suffix,
+  inView,
+  delay,
+  savings,
+}: {
+  value: string;
+  suffix: string;
+  inView: boolean;
+  delay: number;
+  savings: string | null;
+}) {
+  const reduce = useReducedMotion();
+  const [first] = useState(value);
+  return (
+    <div>
+      <div dir="ltr" className="flex items-baseline justify-center gap-1.5">
+        <span className="relative inline-flex overflow-hidden py-1">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={value}
+              data-testid="plan-price"
+              className="text-4xl font-black tracking-tight tabular-nums"
+              style={{ color: "var(--text)" }}
+              initial={reduce ? false : { y: "100%", opacity: 0 }}
+              animate={{ y: "0%", opacity: 1 }}
+              exit={reduce ? undefined : { y: "-100%", opacity: 0 }}
+              transition={{ duration: 0.38, ease: EASE_OUT }}
+            >
+              {value === first ? <CountUpPrice value={value} start={inView} delay={delay} /> : value}
+            </motion.span>
+          </AnimatePresence>
+        </span>
+        <span className="text-sm font-bold" style={{ color: "var(--muted)" }} dir="auto">
+          {suffix}
+        </span>
+      </div>
+      <div className="flex h-7 items-end justify-center">
+        <AnimatePresence initial={false}>
+          {savings && (
+            <motion.span
+              key="savings"
+              data-testid="yearly-savings"
+              className="rounded-full border px-2.5 py-0.5 text-xs font-black"
+              style={{
+                color: "var(--tone-green-fg)",
+                background: "var(--tone-green-bg)",
+                borderColor: "var(--tone-green-border)",
+              }}
+              initial={reduce ? false : { opacity: 0, x: 18 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={reduce ? undefined : { opacity: 0, x: -18 }}
+              transition={{ duration: 0.32, ease: EASE_OUT }}
+            >
+              {savings}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+/** A checkmark whose stroke draws in once its card is on screen. */
+function DrawnCheck({ start, delay }: { start: boolean; delay: number }) {
   const reduce = useReducedMotion();
   return (
-    <div dir="ltr" className="flex items-baseline justify-center gap-1.5">
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.span
-          key={value}
-          className="text-4xl font-black tracking-tight"
-          style={{ color: "var(--text)" }}
-          initial={reduce ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={reduce ? undefined : { opacity: 0, y: -8 }}
-          transition={{ duration: 0.25, ease: EASE_OUT }}
-        >
-          {value}
-        </motion.span>
-      </AnimatePresence>
-      <span className="text-sm font-bold" style={{ color: "var(--muted)" }} dir="auto">
-        {suffix}
-      </span>
-    </div>
+    <svg
+      viewBox="0 0 24 24"
+      className="mt-0.5 h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.4}
+      style={{ color: "var(--tone-green-fg)" }}
+      aria-hidden
+    >
+      <motion.path
+        d="M5 12.5l4.5 4.5L19 7.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        initial={reduce ? false : { pathLength: 0, opacity: 0 }}
+        animate={start || reduce ? { pathLength: 1, opacity: 1 } : undefined}
+        transition={{ duration: 0.4, delay, ease: EASE_OUT }}
+      />
+    </svg>
   );
 }
 
@@ -647,6 +765,7 @@ export function PlanCards({
   busyKey,
   busyLabel,
   onSelect,
+  baseDelay = 0,
 }: {
   copy: SubscriptionCopy;
   plans: PlanCardData[];
@@ -658,124 +777,194 @@ export function PlanCards({
   /** Shown on the busy button; defaults to "processing". */
   busyLabel?: string | null;
   onSelect: (code: string, cycle: "monthly" | "yearly") => void;
+  /** When the cards' section starts its entrance (s); the cards follow 80ms apart. */
+  baseDelay?: number;
 }) {
-  const reduce = useReducedMotion();
   return (
     <div className="grid items-stretch gap-4 md:grid-cols-3" data-testid="plan-cards">
-      {plans.map((plan, index) => {
-        const isRecommended = plan.code === recommended;
-        const isCurrent = currentCode === plan.code;
-        const isCurrentSelection = isCurrent && currentCycle === cycle;
-        const key = `${plan.code}:${cycle}`;
-        const label = isCurrentSelection
-          ? copy.currentPlan
-          : isCurrent
-            ? copy.switchCycle
-            : currentCode
-              ? copy.switchPlan
-              : copy.subscribe;
-        return (
-          <motion.article
-            key={plan.code}
-            data-testid={`plan-card-${plan.code}`}
-            data-recommended={isRecommended || undefined}
-            // Entrance: 0.09s each, 0.03s apart -> 0.15s for three cards.
-            initial={reduce ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.09, delay: index * 0.03, ease: EASE_OUT }}
-            className={[
-              "relative flex flex-col rounded-2xl border p-5 sm:p-6",
-              isRecommended ? "plan-card-recommended" : "",
-            ].join(" ")}
-            style={{
-              background: "var(--card)",
-              borderColor: isRecommended ? "var(--gold-border)" : "var(--border)",
-            }}
-          >
-            {isRecommended && (
-              <span
-                className="absolute -top-3 start-5 rounded-full px-3 py-1 text-xs font-black"
-                style={{ background: "var(--gold)", color: "var(--on-gold)" }}
-              >
-                {copy.recommended}
-              </span>
-            )}
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="text-xl font-black" style={{ color: "var(--text)" }}>
-                  {plan.name}
-                </h3>
-                {plan.subtitle ? (
-                  <p className="mt-0.5 text-sm font-bold" style={{ color: "var(--muted)" }}>
-                    {plan.subtitle}
-                  </p>
-                ) : null}
-              </div>
-              {isCurrent && (
-                <span
-                  className="rounded-full border px-2.5 py-0.5 text-xs font-black"
-                  style={{ color: "var(--tone-green-fg)", background: "var(--tone-green-bg)", borderColor: "var(--tone-green-border)" }}
-                >
-                  {copy.currentPlan}
-                </span>
-              )}
-            </div>
-
-            <p className="mt-3 min-h-12 text-sm leading-6" style={{ color: "var(--text-2)" }}>
-              {plan.description}
-            </p>
-
-            <div className="my-5 rounded-xl py-4" style={{ background: "var(--card-2)" }}>
-              <AnimatedPrice
-                value={cycle === "yearly" ? plan.yearly : plan.monthly}
-                suffix={cycle === "yearly" ? copy.perYear : copy.perMonth}
-              />
-            </div>
-
-            <ul className="space-y-2.5 text-sm">
-              {planFeatures(plan.code).map((feature) => (
-                <li key={feature.label} className="flex items-start gap-2 leading-6">
-                  {feature.included ? (
-                    <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--tone-green-fg)" }} aria-hidden />
-                  ) : (
-                    <X className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--muted)" }} aria-hidden />
-                  )}
-                  <span style={{ color: feature.included ? "var(--text)" : "var(--muted)" }}>
-                    {feature.label}
-                    {feature.value ? (
-                      <>
-                        {" "}
-                        <bdi dir="ltr" style={{ color: "var(--muted)" }}>
-                          ({feature.value})
-                        </bdi>
-                      </>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-auto pt-6">
-              <button
-                type="button"
-                data-testid={`subscribe-${plan.code}`}
-                disabled={isCurrentSelection || busyKey !== null || !plan.purchasable[cycle]}
-                onClick={() => onSelect(plan.code, cycle)}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60"
-                style={
-                  isRecommended && !isCurrentSelection
-                    ? { background: "var(--gold)", color: "var(--on-gold)" }
-                    : { background: "var(--card-2)", color: "var(--text)", border: "1px solid var(--border)" }
-                }
-              >
-                {busyKey === key ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                {busyKey === key ? busyLabel || copy.processing : label}
-              </button>
-            </div>
-          </motion.article>
-        );
-      })}
+      {plans.map((plan, index) => (
+        <PlanCard
+          key={plan.code}
+          copy={copy}
+          plan={plan}
+          cycle={cycle}
+          isRecommended={plan.code === recommended}
+          isCurrent={currentCode === plan.code}
+          hasCurrent={currentCode !== null}
+          isCurrentSelection={currentCode === plan.code && currentCycle === cycle}
+          busyKey={busyKey}
+          busyLabel={busyLabel}
+          onSelect={onSelect}
+          delay={baseDelay + index * BILLING_ENTRANCE.stagger}
+        />
+      ))}
     </div>
+  );
+}
+
+function PlanCard({
+  copy,
+  plan,
+  cycle,
+  isRecommended,
+  isCurrent,
+  hasCurrent,
+  isCurrentSelection,
+  busyKey,
+  busyLabel,
+  onSelect,
+  delay,
+}: {
+  copy: SubscriptionCopy;
+  plan: PlanCardData;
+  cycle: "monthly" | "yearly";
+  isRecommended: boolean;
+  isCurrent: boolean;
+  hasCurrent: boolean;
+  isCurrentSelection: boolean;
+  busyKey: string | null;
+  busyLabel?: string | null;
+  onSelect: (code: string, cycle: "monthly" | "yearly") => void;
+  delay: number;
+}) {
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLElement | null>(null);
+  const inView = useInView(ref, { once: true, amount: 0.25 });
+  const key = `${plan.code}:${cycle}`;
+  const label = isCurrentSelection
+    ? copy.currentPlan
+    : isCurrent
+      ? copy.switchCycle
+      : hasCurrent
+        ? copy.switchPlan
+        : copy.subscribe;
+  const configured = PLANS.find((item) => item.code === plan.code);
+  const savings = cycle === "yearly" && configured ? formatYearlySavings(configured, copy.locale) : null;
+  const gold = isRecommended && !isCurrentSelection;
+  const busy = busyKey === key;
+  const disabled = isCurrentSelection || busyKey !== null || !plan.purchasable[cycle];
+  // After the card has risen in: the checkmarks draw, the price counts.
+  const settle = reduce ? 0 : delay + BILLING_ENTRANCE.duration * 0.6;
+
+  return (
+    // The entrance lives on the wrapper so the card's own transform stays
+    // free for the CSS hover lift (.billing-plan-card).
+    <motion.div
+      className="h-full"
+      initial={reduce ? false : { opacity: 0, y: BILLING_ENTRANCE.rise }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: BILLING_ENTRANCE.duration, delay, ease: EASE_OUT }}
+    >
+      <article
+        ref={ref}
+        data-testid={`plan-card-${plan.code}`}
+        data-recommended={isRecommended || undefined}
+        className={[
+          "billing-plan-card relative isolate flex h-full flex-col rounded-2xl border p-5 sm:p-6",
+          isRecommended ? "plan-card-recommended" : "",
+        ].join(" ")}
+        style={{
+          background: "var(--card)",
+          borderColor: isRecommended ? "var(--gold-border)" : "var(--border)",
+        }}
+      >
+        {isRecommended && (
+          <>
+            <span className="billing-glow" aria-hidden />
+            <span className="billing-border-light" aria-hidden />
+            <motion.span
+              className="absolute -top-3 start-5 rounded-full px-3 py-1 text-xs font-black"
+              style={{ background: "var(--gold)", color: "var(--on-gold)" }}
+              // One soft pulse once the card has settled, then still.
+              animate={reduce ? undefined : { scale: [1, 1.07, 1] }}
+              transition={{ duration: 0.7, delay: settle + 0.35, ease: "easeInOut" }}
+            >
+              {copy.recommended}
+            </motion.span>
+          </>
+        )}
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-xl font-black" style={{ color: "var(--text)" }}>
+              {plan.name}
+            </h3>
+            {plan.subtitle ? (
+              <p className="mt-0.5 text-sm font-bold" style={{ color: "var(--muted)" }}>
+                {plan.subtitle}
+              </p>
+            ) : null}
+          </div>
+          {isCurrent && (
+            <span
+              className="rounded-full border px-2.5 py-0.5 text-xs font-black"
+              style={{ color: "var(--tone-green-fg)", background: "var(--tone-green-bg)", borderColor: "var(--tone-green-border)" }}
+            >
+              {copy.currentPlan}
+            </span>
+          )}
+        </div>
+
+        <p className="mt-3 min-h-12 text-sm leading-6" style={{ color: "var(--text-2)" }}>
+          {plan.description}
+        </p>
+
+        <div className="my-5 rounded-xl pb-2 pt-4" style={{ background: "var(--card-2)" }}>
+          <AnimatedPrice
+            value={cycle === "yearly" ? plan.yearly : plan.monthly}
+            suffix={cycle === "yearly" ? copy.perYear : copy.perMonth}
+            inView={inView}
+            delay={settle}
+            savings={savings}
+          />
+        </div>
+
+        <ul className="space-y-2.5 text-sm">
+          {planFeatures(plan.code).map((feature, i) => (
+            <li key={feature.label} className="flex items-start gap-2 leading-6">
+              {feature.included ? (
+                <DrawnCheck start={inView} delay={settle + i * 0.05} />
+              ) : (
+                <X className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--muted)" }} aria-hidden />
+              )}
+              <span style={{ color: feature.included ? "var(--text)" : "var(--muted)" }}>
+                {feature.label}
+                {feature.value ? (
+                  <>
+                    {" "}
+                    <bdi dir="ltr" style={{ color: "var(--muted)" }}>
+                      ({feature.value})
+                    </bdi>
+                  </>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-auto pt-6">
+          <motion.button
+            type="button"
+            data-testid={`subscribe-${plan.code}`}
+            disabled={disabled}
+            onClick={() => onSelect(plan.code, cycle)}
+            whileTap={reduce || disabled ? undefined : { scale: 0.98 }}
+            transition={{ duration: 0.15, ease: EASE_OUT }}
+            className={[
+              "billing-sheen inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60",
+              gold ? "" : "billing-sheen-quiet",
+            ].join(" ")}
+            style={
+              gold
+                ? { background: "var(--gold)", color: "var(--on-gold)" }
+                : { background: "var(--card-2)", color: "var(--text)", border: "1px solid var(--border)" }
+            }
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+            {busy ? busyLabel || copy.processing : label}
+          </motion.button>
+        </div>
+      </article>
+    </motion.div>
   );
 }
 
@@ -814,10 +1003,7 @@ export function ComparisonTable({ copy, isArabic, recommended }: { copy: Subscri
   return (
     <motion.section
       data-testid="comparison-table"
-      initial={reduce ? false : { opacity: 0, y: 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.35, ease: EASE_OUT }}
+      {...revealOnScroll(reduce)}
       className="rounded-2xl border"
       style={{ background: "var(--card)", borderColor: "var(--border)" }}
     >
@@ -931,7 +1117,12 @@ export function BillingFaq({ copy, isArabic, trialDays }: { copy: SubscriptionCo
   const reduce = useReducedMotion();
   const items = faqItems(isArabic, trialDays);
   return (
-    <section data-testid="billing-faq" className="rounded-2xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+    <motion.section
+      data-testid="billing-faq"
+      {...revealOnScroll(reduce)}
+      className="rounded-2xl border"
+      style={{ background: "var(--card)", borderColor: "var(--border)" }}
+    >
       <h2 className="px-4 pt-4 text-lg font-black sm:px-5 sm:pt-5" style={{ color: "var(--text)" }}>
         {copy.faqTitle}
       </h2>
@@ -974,6 +1165,6 @@ export function BillingFaq({ copy, isArabic, trialDays }: { copy: SubscriptionCo
           );
         })}
       </div>
-    </section>
+    </motion.section>
   );
 }

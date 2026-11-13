@@ -9,6 +9,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
+import { BILLING_ENTRANCE, entrance, revealOnScroll } from "@/components/billing/billing-motion";
 import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
@@ -148,6 +150,7 @@ export default function BillingPage() {
   const billing = translations[locale].billingPage;
   const copy = useMemo(() => subscriptionCopy(isArabic), [isArabic]);
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
 
   const usageLabels: Record<keyof BillingData["usage"], string> = {
     users: billing.users,
@@ -474,10 +477,17 @@ export default function BillingPage() {
   // The yearly option exists only when every plan has a yearly product.
   const yearlyAvailable = plans.length > 0 && plans.every((plan) => plan.purchasable.yearly);
   const shownCycle: CheckoutCycle = yearlyAvailable ? cycle : "monthly";
+  // Entrance order: header, status card, (usage when it comes first), plans.
+  const usageFirst = view === "active" || view === "past_due";
+  const plansIndex = usageFirst ? 3 : 2;
 
   return (
-    <div className="min-w-0 flex flex-col gap-5 stagger" dir={dir}>
-      <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
+    // Not the shared .stagger (0.15s budget): this page has its own,
+    // longer entrance (src/components/billing/billing-motion.ts).
+    <div className="min-w-0 flex flex-col gap-5" dir={dir}>
+      <motion.div {...entrance(0, reduceMotion)}>
+        <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
+      </motion.div>
 
       {notice && (
         <CheckoutStatus
@@ -491,6 +501,7 @@ export default function BillingPage() {
         />
       )}
 
+      <motion.div {...entrance(1, reduceMotion)} className="empty:hidden">
       {successPlan !== null ? (
         <SubscriptionSuccess copy={copy} planName={successPlan} onDashboard={() => router.push("/dashboard")} />
       ) : view === "trial" && trial ? (
@@ -520,15 +531,17 @@ export default function BillingPage() {
       ) : view === "expired" ? (
         <ExpiredNotice copy={copy} onRenew={scrollToPlans} />
       ) : null}
+      </motion.div>
 
-      <section
+      <motion.section
+        {...(usageFirst ? entrance(2, reduceMotion) : revealOnScroll(reduceMotion))}
         className="rounded-2xl border p-4 sm:p-5"
         // Paying offices see their usage first; on trial or expired, the
         // plans come first and the usage moves to the end of the page.
         style={{
           background: "var(--card)",
           borderColor: "var(--border)",
-          order: view === "active" || view === "past_due" ? 0 : 1,
+          order: usageFirst ? 0 : 1,
         }}
         data-testid="usage"
       >
@@ -560,10 +573,13 @@ export default function BillingPage() {
             );
           })}
         </div>
-      </section>
+      </motion.section>
 
       <section id="billing-plans" className="scroll-mt-28 space-y-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <motion.div
+          {...entrance(plansIndex, reduceMotion)}
+          className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
+        >
           <div>
             <h2 className="text-2xl font-black" style={{ color: "var(--text)" }}>
               {copy.plansTitle}
@@ -573,7 +589,7 @@ export default function BillingPage() {
             </p>
           </div>
           {yearlyAvailable && <CycleToggle copy={copy} cycle={shownCycle} onChange={setCycle} />}
-        </div>
+        </motion.div>
 
         <div className="pt-2">
           <PlanCards
@@ -585,6 +601,7 @@ export default function BillingPage() {
             currentCycle={currentCycle}
             busyKey={busyKey}
             busyLabel={notice?.kind === "opening" ? copy.openingCheckout : null}
+            baseDelay={reduceMotion ? 0 : (plansIndex + 1) * BILLING_ENTRANCE.stagger}
             onSelect={(code, selected) => {
               const plan = plans.find((p) => p.code === code);
               void startPurchase(code, plan?.name ?? code, selected);
@@ -592,7 +609,9 @@ export default function BillingPage() {
           />
         </div>
 
-        <TrustRow copy={copy} />
+        <motion.div {...revealOnScroll(reduceMotion)}>
+          <TrustRow copy={copy} />
+        </motion.div>
       </section>
 
       <ComparisonTable copy={copy} isArabic={isArabic} recommended={recommended} />

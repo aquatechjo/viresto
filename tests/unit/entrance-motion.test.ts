@@ -66,3 +66,47 @@ test("entrance utilities (.animate-fade/-slide/-scale) are within 0.15s", () => 
     assert.ok(duration !== null && duration <= BUDGET_S, `${name}: ${duration}s`);
   }
 });
+
+// The one scoped exception (user decision, 2026-11-13): the subscriptions
+// page has its own, longer entrance in src/components/billing/billing-motion.ts.
+// Nothing outside that page may use it.
+test("billing-motion (0.45s entrances) is used only by the subscriptions page", async () => {
+  const { readdirSync, statSync } = await import("node:fs");
+  const allowed = [
+    path.join("src", "components", "billing"),
+    path.join("src", "app", "dashboard", "billing"),
+  ];
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+      } else if (/\.(ts|tsx)$/.test(name)) {
+        const text = readFileSync(full, "utf8");
+        if (/billing-motion/.test(text) && !allowed.some((dir) => full.startsWith(dir))) {
+          offenders.push(full);
+        }
+      }
+    }
+  };
+  walk("src");
+  assert.deepEqual(offenders, []);
+});
+
+test("billing-motion: entrance 0.45s, 80ms apart, 16px rise; toggle spring without overshoot", async () => {
+  const motion = await import("../../src/components/billing/billing-motion");
+  assert.deepEqual(motion.BILLING_ENTRANCE, { duration: 0.45, rise: 16, stagger: 0.08 });
+  assert.equal(motion.TOGGLE_SPRING.bounce, 0);
+  assert.deepEqual(motion.entrance(2, true), { initial: false });
+  assert.deepEqual(motion.revealOnScroll(true), { initial: false });
+  assert.equal((motion.entrance(2, false) as { transition: { delay: number } }).transition.delay, 0.16);
+});
+
+test("billing-motion: prices split around the number and count back in Latin digits", async () => {
+  const { splitPrice, formatCount } = await import("../../src/components/billing/billing-motion");
+  assert.deepEqual(splitPrice("⁦$1,190⁩"), { before: "⁦$", value: 1190, after: "⁩", decimals: 0 });
+  assert.deepEqual(splitPrice("29.50 JOD"), { before: "", value: 29.5, after: " JOD", decimals: 2 });
+  assert.equal(splitPrice("free"), null);
+  assert.equal(formatCount(1190, 0), "1,190");
+});

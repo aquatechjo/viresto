@@ -2330,6 +2330,146 @@ select.input {
     0 0 0 1px var(--gold-border),
     0 14px 36px -16px color-mix(in srgb, var(--gold) 55%, transparent);
 }
+
+/*
+ * Subscriptions page motion (/dashboard/billing only; the timings live in
+ * src/components/billing/billing-motion.ts). Transform and opacity only:
+ * the shadow growth, the glow and the border light are separate layers
+ * whose opacity or transform changes, never box-shadow itself.
+ */
+.billing-plan-card {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.billing-plan-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 22px 44px -18px color-mix(in srgb, var(--text) 30%, transparent);
+  opacity: 0;
+  transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+  z-index: -1;
+}
+@media (hover: hover) {
+  .billing-plan-card:hover {
+    transform: translateY(-6px);
+  }
+  .billing-plan-card:hover::after {
+    opacity: 1;
+  }
+}
+
+/* Recommended card: a slow gold light travelling around the border. */
+.billing-border-light {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+.billing-border-light::before {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 250deg,
+    color-mix(in srgb, var(--gold) 90%, transparent) 300deg,
+    transparent 345deg 360deg
+  );
+  animation: billingBorderTurn 6s linear infinite;
+}
+@keyframes billingBorderTurn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Recommended card: the gold glow breathes slowly. */
+.billing-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 18px 48px -14px color-mix(in srgb, var(--gold) 60%, transparent);
+  opacity: 0.35;
+  animation: billingGlow 3.6s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes billingGlow {
+  to {
+    opacity: 0.9;
+  }
+}
+
+/* Subscribe buttons: a light sheen sweeps across on hover. */
+.billing-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.billing-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--on-gold) 38%, transparent) 50%,
+    transparent 70%
+  );
+  transform: translateX(-120%);
+  pointer-events: none;
+  z-index: -1;
+}
+.dark .billing-sheen::after {
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--text) 22%, transparent) 50%,
+    transparent 70%
+  );
+}
+.billing-sheen.billing-sheen-quiet::after {
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--gold) 18%, transparent) 50%,
+    transparent 70%
+  );
+}
+@media (hover: hover) {
+  .billing-sheen:not(:disabled):hover::after {
+    transform: translateX(120%);
+    transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .billing-plan-card,
+  .billing-plan-card::after {
+    transition: none;
+  }
+  .billing-plan-card:hover {
+    transform: none;
+  }
+  .billing-border-light::before,
+  .billing-glow {
+    animation: none;
+  }
+  .billing-sheen::after {
+    display: none;
+  }
+}
 .animate-pulse {
   animation: pulse 2s ease-in-out infinite;
 }
