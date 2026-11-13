@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { E2E_DEMO_EMAIL, resetE2eDemoOffice } from "../../prisma/e2e-demo-office";
 import { syncSubscriptionFromPolar } from "@/lib/polar-subscription-sync";
+import { withPolarProductIds } from "@/lib/polar-products";
 
 /**
  * Demo mode ("try with sample data") in the browser, on an office that just
@@ -32,6 +33,8 @@ try {
 const PASSWORD = process.env.E2E_TEST_PASSWORD;
 const UI_TIMEOUT_MS = 30_000;
 const LOGIN_TIMEOUT_MS = 60_000;
+/** Creating the sandbox and reloading into it (slow on the dev database). */
+const DEMO_ENTER_TIMEOUT_MS = 90_000;
 const SHOTS = process.env.E2E_DEMO_SCREENSHOTS;
 
 const prisma = new PrismaClient();
@@ -66,9 +69,31 @@ async function enterDemo(page: Page) {
   await expect(card).toContainText("شوف كيف بيكون شكل مكتبك مع بيانات");
   await shot(page, "1-dashboard-card");
 
+  // Entering creates the sandbox (several seconds on the dev database), then
+  // does a full navigation to its dashboard, which asks GET /api/demo for the
+  // banner. Wait for both before looking for the banner.
+  let entered = false;
+  const enterResponse = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/demo/enter" && r.request().method() === "POST",
+    { timeout: DEMO_ENTER_TIMEOUT_MS },
+  );
+  const sandboxState = page.waitForResponse(
+    async (r) => {
+      if (!entered || new URL(r.url()).pathname !== "/api/demo" || r.request().method() !== "GET") return false;
+      const body = (await r.json().catch(() => null)) as { data?: { inDemo?: boolean } } | null;
+      return body?.data?.inDemo === true;
+    },
+    { timeout: DEMO_ENTER_TIMEOUT_MS },
+  );
+
   await card.getByTestId("demo-enter").click();
   await expect(page.getByTestId("demo-loading")).toBeVisible();
   await shot(page, "2-loading");
+
+  await enterResponse;
+  entered = true;
+  await sandboxState;
+  await page.waitForLoadState("load", { timeout: DEMO_ENTER_TIMEOUT_MS });
 
   const banner = page.getByTestId("demo-mode-banner");
   await expect(banner).toBeVisible({ timeout: UI_TIMEOUT_MS });
@@ -78,10 +103,14 @@ async function enterDemo(page: Page) {
 
 /** What the Polar webhook does for this office's first paid subscription. */
 async function subscribeOffice() {
-  const plan = await prisma.billingPlan.findUniqueOrThrow({
-    where: { code: "PRO" },
-    select: { polarMonthlyProductId: true },
-  });
+  // The product id the app recognizes: the sandbox map (POLAR_PRODUCT_IDS)
+  // when one is set, else the BillingPlan column.
+  const plan = withPolarProductIds(
+    await prisma.billingPlan.findUniqueOrThrow({
+      where: { code: "PRO" },
+      select: { code: true, polarMonthlyProductId: true, polarYearlyProductId: true },
+    }),
+  );
   const now = new Date();
 
   const result = await syncSubscriptionFromPolar({
@@ -147,7 +176,11 @@ test.describe("وضع التجربة ببيانات وهمية", () => {
 
     const caseTitle = `قضية في وضع التجربة ${Date.now()}`;
     await modal.getByTestId("case-title").fill(caseTitle);
-    await modal.locator("select").selectOption({ index: 1 });
+    // The responsible-lawyer list loads after the dialog opens: wait for its
+    // options (a placeholder plus at least one lawyer) before choosing one.
+    const lawyer = modal.locator("select");
+    await expect.poll(() => lawyer.locator("option").count(), { timeout: UI_TIMEOUT_MS }).toBeGreaterThan(1);
+    await lawyer.selectOption({ index: 1 });
     await modal.getByRole("button", { name: /حفظ|Save/ }).click();
     await expect(modal).not.toBeVisible({ timeout: UI_TIMEOUT_MS });
 
