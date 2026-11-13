@@ -10,11 +10,8 @@ import { getAppUrl, getPolarClient } from "@/lib/polar";
 import { syncSubscriptionFromPolar } from "@/lib/polar-subscription-sync";
 import { reportBillingIssue } from "@/lib/monitoring";
 import { withPolarProductIds } from "@/lib/polar-products";
-import {
-  polarProductProblems,
-  type BillingCycle,
-  type ProductExpectation,
-} from "@/lib/polar-product-check";
+import { type BillingCycle } from "@/lib/polar-product-check";
+import { checkPlanProduct } from "@/lib/billing/product-availability";
 
 const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
 
@@ -83,26 +80,6 @@ async function findLiveSubscriptionInPolar(
     );
     throw new PolarLookupError();
   }
-}
-
-type PlanProductCheck =
-  | { ok: true }
-  | { ok: false; reason: "mismatch" | "unavailable"; problems: string[] };
-
-async function checkPlanProduct(
-  polar: ReturnType<typeof getPolarClient>,
-  productId: string,
-  expected: ProductExpectation,
-): Promise<PlanProductCheck> {
-  let product;
-  try {
-    product = await polar.products.get({ id: productId });
-  } catch {
-    return { ok: false, reason: "unavailable", problems: [] };
-  }
-
-  const problems = polarProductProblems(product, expected);
-  return problems.length ? { ok: false, reason: "mismatch", problems } : { ok: true };
 }
 
 /** A Polar 422 whose validation errors point at customer_email. */

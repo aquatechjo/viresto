@@ -18,6 +18,7 @@ import { getAiUsagePeriod } from "@/lib/ai-usage-core";
 import { isTrialEndingSoon } from "@/lib/tenant-access";
 import { getTenantAccess } from "@/lib/tenant-access-server";
 import { withPolarProductIds } from "@/lib/polar-products";
+import { isCycleOfferable } from "@/lib/billing/product-availability";
 
 type DbPlanLike = {
   id: string;
@@ -468,6 +469,28 @@ export async function GET(req: NextRequest) {
       configuredAvailablePlans.length > 0
         ? configuredAvailablePlans
         : plans.map((plan) => buildPlanPayload(plan, plan.id === currentDbPlan.id));
+
+    // Yearly is offered only when the yearly product passes the same check
+    // the checkout runs (cached briefly): production yearly products that
+    // recur monthly or charge the wrong price must not show the toggle.
+    await Promise.all(
+      availablePlans.map(async (plan) => {
+        if (!plan.purchasable.yearly) return;
+        const dbPlan = plansByCode.get(plan.code.toUpperCase());
+        const products = dbPlan
+          ? withPolarProductIds({
+              code: dbPlan.code,
+              polarMonthlyProductId: dbPlan.polarMonthlyProductId ?? null,
+              polarYearlyProductId: dbPlan.polarYearlyProductId ?? null,
+            })
+          : null;
+        plan.purchasable.yearly = await isCycleOfferable(
+          plan.code,
+          "yearly",
+          products?.polarYearlyProductId,
+        );
+      }),
+    );
 
     const access = await getTenantAccess(tenant.id);
 
