@@ -36,6 +36,12 @@ const db: Row = {
       const row = invoices.get(where.id);
       return row ? { ...row } : null;
     },
+    // The routes read the saved invoice back after their transaction.
+    findUniqueOrThrow: async ({ where }: Row) => {
+      const row = invoices.get(where.id);
+      if (!row) throw new Error("No Invoice found");
+      return { ...row };
+    },
     update: async ({ where, data }: Row) => {
       const row = invoices.get(where.id)!;
       Object.assign(row, data, { updatedAt: new Date(row.updatedAt.getTime() + 1) });

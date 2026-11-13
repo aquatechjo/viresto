@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { WRITE_TRANSACTION } from "@/lib/transaction-options";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { ok, err, notFound } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
@@ -69,10 +70,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       return err(block, 409);
     }
 
-    let updated;
+    let cancelledId: string;
 
     try {
-      updated = await prisma.$transaction(async (tx) => {
+      cancelledId = await prisma.$transaction(async (tx) => {
         // Same lock as the payment routes, so a payment recorded at the same
         // moment either lands first (and blocks this) or sees CANCELLED.
         const locked = await tx.$queryRaw<Array<{ id: string }>>`
@@ -110,13 +111,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             cancelledById: auth.user!.userId,
             cancellationReason: parsedReason.reason,
           },
-          include: {
-            client: { select: { id: true, publicId: true, name: true, archivedAt: true } },
-            case: { select: { id: true, publicId: true, title: true, caseNumber: true } },
-            items: true,
-            payments: { orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }] },
-            cancelledBy: { select: { id: true, name: true } },
-          },
+          select: { id: true, invoiceNumber: true, caseId: true },
         });
 
         await logActivity(
@@ -134,14 +129,26 @@ export async function POST(req: NextRequest, { params }: Params) {
           tx,
         );
 
-        return cancelled;
-      });
+        return cancelled.id;
+      }, WRITE_TRANSACTION);
     } catch (error) {
       if (error instanceof CancelRefused) {
         return err(error.message, error.message === "الفاتورة غير موجودة" ? 404 : 409);
       }
       throw error;
     }
+
+    // The response shape, read after the commit (not inside the row lock).
+    const updated = await prisma.invoice.findUniqueOrThrow({
+      where: { id: cancelledId },
+      include: {
+        client: { select: { id: true, publicId: true, name: true, archivedAt: true } },
+        case: { select: { id: true, publicId: true, title: true, caseNumber: true } },
+        items: true,
+        payments: { orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }] },
+        cancelledBy: { select: { id: true, name: true } },
+      },
+    });
 
     return ok(withInvoiceState(updated));
   });

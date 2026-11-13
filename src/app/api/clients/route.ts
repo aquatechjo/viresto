@@ -9,7 +9,7 @@ import { apiHandler } from "@/lib/api-handler";
 import { verifySameOrigin } from "@/lib/csrf";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/permissions";
-import { assertTenantCanCreate } from "@/lib/billing-limits";
+import { assertTenantCanCreate, recheckCapacityUnderLock } from "@/lib/billing-limits";
 import {
   encryptText,
   decryptText,
@@ -25,6 +25,7 @@ import {
   buildClientAccessWhere,
 } from "@/lib/access-control";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import { WRITE_TRANSACTION } from "@/lib/transaction-options";
 
 export async function GET(req: NextRequest) {
   return apiHandler(async () => {
@@ -163,6 +164,19 @@ export async function GET(req: NextRequest) {
   });
 }
 
+/** 400 PLAN_LIMIT_REACHED while the subscription allows creating, else 402. */
+function clientLimitError(check: {
+  message: string;
+  billing?: { canCreate?: boolean } | null;
+}) {
+  const isPlanLimit = check.billing?.canCreate === true;
+  return err(check.message, isPlanLimit ? 400 : 402, {
+    code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
+    resource: "clients",
+    billing: check.billing ?? null,
+  });
+}
+
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
@@ -215,20 +229,24 @@ export async function POST(req: NextRequest) {
       ...(secureData.emailHash ? [{ emailHash: secureData.emailHash }] : []),
     ];
 
+    // Billing state read once, outside the transaction; only the count, which
+    // concurrent creates race on, is redone under the tenant lock.
+    const limitCheck = await assertTenantCanCreate(auth.user.tenantId, "clients");
+    if (!limitCheck.ok) return clientLimitError(limitCheck);
+    const clientLimit = "limit" in limitCheck ? limitCheck.limit ?? null : null;
+
     const createResult = await prisma.$transaction(async (tx) => {
       await lockTenantMutation(tx, auth.user.tenantId);
 
-      const lockedLimitCheck = await assertTenantCanCreate(
+      const capacity = await recheckCapacityUnderLock(
         auth.user.tenantId,
         "clients",
+        clientLimit,
         tx,
       );
 
-      if (!lockedLimitCheck.ok) {
-        return {
-          error: "LIMIT" as const,
-          limitCheck: lockedLimitCheck,
-        };
+      if (!capacity.ok) {
+        return { error: "LIMIT" as const, capacity };
       }
 
       const duplicateClient =
@@ -248,18 +266,7 @@ export async function POST(req: NextRequest) {
           : null;
 
       if (duplicateClient) {
-        const duplicateIsVisible =
-          (await tx.client.count({
-            where: buildClientAccessWhere(auth.user, {
-              id: duplicateClient.id,
-            }),
-          })) > 0;
-
-        return {
-          error: "DUPLICATE" as const,
-          duplicateClient,
-          duplicateIsVisible,
-        };
+        return { error: "DUPLICATE" as const, duplicateClient };
       }
 
       const client = await tx.client.create({
@@ -285,23 +292,23 @@ export async function POST(req: NextRequest) {
       });
 
       return { client };
-    });
+    }, WRITE_TRANSACTION);
 
     if ("error" in createResult) {
       if (createResult.error === "LIMIT") {
-        const lockedLimitCheck = createResult.limitCheck;
-        const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
-
-        return err(lockedLimitCheck.message, isPlanLimit ? 400 : 402, {
-          code: isPlanLimit
-            ? "PLAN_LIMIT_REACHED"
-            : "SUBSCRIPTION_INACTIVE",
-          resource: "clients",
-          billing: lockedLimitCheck.billing ?? null,
+        return clientLimitError({
+          ...createResult.capacity,
+          billing: limitCheck.billing ?? null,
         });
       }
 
-      const { duplicateClient, duplicateIsVisible } = createResult;
+      const { duplicateClient } = createResult;
+      if (!duplicateClient) throw new Error("client create: unexpected transaction result");
+      // Whether this user may see the existing record: a read, after the commit.
+      const duplicateIsVisible =
+        (await prisma.client.count({
+          where: buildClientAccessWhere(auth.user, { id: duplicateClient.id }),
+        })) > 0;
 
       return err(
         duplicateIsVisible

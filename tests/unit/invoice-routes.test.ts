@@ -63,6 +63,14 @@ const db: Row = {
   invoice: {
     findFirst: async () => (state.invoice ? { ...state.invoice } : null),
     findUnique: async () => (state.invoice ? { ...state.invoice } : null),
+    // The routes read the saved invoice back after their transaction.
+    findUniqueOrThrow: async ({ where }: Row) => {
+      if (where.id === "inv-new") {
+        return { ...state.created.at(-1), id: "inv-new", items: [], payments: [], client: null, case: null };
+      }
+      if (!state.invoice) throw new Error("No Invoice found");
+      return { ...state.invoice };
+    },
     update: async ({ data }: Row) => {
       state.updates.push(data);
       Object.assign(state.invoice!, data);

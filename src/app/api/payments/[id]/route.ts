@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { WRITE_TRANSACTION } from "@/lib/transaction-options";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/permissions";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
@@ -510,7 +511,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         updated,
         invoiceSummary,
       };
-    });
+    }, WRITE_TRANSACTION);
 
     let transactionResult: Awaited<ReturnType<typeof updatePayment>>;
 
@@ -701,7 +702,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         ok: true as const,
         invoiceSummary,
       };
-    });
+    }, WRITE_TRANSACTION);
 
     if (!transactionResult.ok) {
       if (transactionResult.status === 404) {

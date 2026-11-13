@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { WRITE_TRANSACTION } from "@/lib/transaction-options";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
 
       return { ok: true as const, receipt };
-    });
+    }, WRITE_TRANSACTION);
 
     if (!result.ok) return err(result.message, result.status);
 

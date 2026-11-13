@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
+import { WRITE_TRANSACTION } from "@/lib/transaction-options";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { ok, err, notFound } from "@/lib/api-response";
@@ -115,6 +116,28 @@ export async function GET(req: NextRequest, { params }: Params) {
     return ok(withInvoiceState(decryptInvoiceClient(invoice)!));
   });
 }
+
+const UPDATED_INVOICE_INCLUDE = {
+  client: true,
+  case: {
+    select: {
+      id: true,
+      title: true,
+      caseNumber: true,
+      client: {
+        select: {
+          id: true,
+          name: true,
+          archivedAt: true,
+        },
+      },
+    },
+  },
+  items: true,
+  payments: {
+    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+  },
+} satisfies Prisma.InvoiceInclude;
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return apiHandler(async () => {
@@ -509,27 +532,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           id: invoice.id,
         },
         data: updateData,
-        include: {
-          client: true,
-          case: {
-            select: {
-              id: true,
-              title: true,
-              caseNumber: true,
-              client: {
-                select: {
-                  id: true,
-                  name: true,
-                  archivedAt: true,
-                },
-              },
-            },
-          },
-          items: true,
-          payments: {
-            orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-          },
-        },
+        select: { id: true, invoiceNumber: true, caseId: true },
       });
 
       await logActivity(
@@ -547,13 +550,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         tx,
       );
 
-      return updatedInvoice;
-    });
+      return updatedInvoice.id;
+    }, WRITE_TRANSACTION);
 
-    let updated: Awaited<ReturnType<typeof updateInvoice>>;
+    let updatedId: string;
 
     try {
-      updated = await updateInvoice();
+      updatedId = await updateInvoice();
     } catch (error) {
       if (error instanceof Error && error.message === "INVOICE_NOT_FOUND") {
         return notFound("الفاتورة غير موجودة");
@@ -599,6 +602,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       throw error;
     }
+
+    // The response shape, read after the commit (not inside the row lock).
+    const updated = await prisma.invoice.findUniqueOrThrow({
+      where: { id: updatedId },
+      include: UPDATED_INVOICE_INCLUDE,
+    });
 
     return ok(withInvoiceState(decryptInvoiceClient(updated)!));
   });
@@ -734,7 +743,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           },
           tx,
         );
-      });
+      }, WRITE_TRANSACTION);
     } catch (error) {
       if (error instanceof Error && error.message === "INVOICE_NOT_FOUND") {
         return notFound("الفاتورة غير موجودة");

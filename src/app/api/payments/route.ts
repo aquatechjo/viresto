@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { WRITE_TRANSACTION } from "@/lib/transaction-options";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { assertTenantCanWrite } from "@/lib/billing-limits";
 import { paymentSchema } from "@/lib/validations";
@@ -662,7 +663,7 @@ export async function POST(req: NextRequest) {
         payment,
         invoiceSummary,
       };
-    });
+    }, WRITE_TRANSACTION);
 
     let transactionResult: Awaited<ReturnType<typeof createPayment>>;
 

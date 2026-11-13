@@ -428,6 +428,29 @@ export async function assertTenantCanCreate(
   };
 }
 
+/**
+ * The part of assertTenantCanCreate that has to run under the tenant lock
+ * (lockTenantMutation): recount the resource against the limit that
+ * assertTenantCanCreate already read outside the transaction. The billing
+ * state itself (tenant, subscriptions) is not serialized by that lock, so
+ * re-reading it inside would only make the transaction longer; the count
+ * is what two concurrent creates race on.
+ */
+export async function recheckCapacityUnderLock(
+  tenantId: string,
+  resource: LimitedBillingResource,
+  limit: number | null,
+  db: BillingReadClient,
+): Promise<
+  | { ok: true }
+  | { ok: false; status: 402; message: string; limit: number; used: number }
+> {
+  if (limit === null) return { ok: true };
+  const used = await getResourceUsage(tenantId, resource, db);
+  if (hasPlanCapacity(used, limit)) return { ok: true };
+  return { ok: false, status: 402, message: getLimitMessage(resource, limit), limit, used };
+}
+
 async function getResourceUsage(
   tenantId: string,
   resource: LimitedBillingResource,

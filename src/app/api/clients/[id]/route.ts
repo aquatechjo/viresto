@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   assertTenantCanCreate,
   assertTenantCanWrite,
+  recheckCapacityUnderLock,
 } from "@/lib/billing-limits";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { clientSchema } from "@/lib/validations";
@@ -27,6 +28,7 @@ import {
 } from "@/lib/access-control";
 import { hasPermission } from "@/lib/permissions";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import { WRITE_TRANSACTION } from "@/lib/transaction-options";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -191,6 +193,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         return err("الموكل غير مؤرشف", 400);
       }
 
+      // Billing state read once, outside; only the count is redone under the lock.
+      const limitCheck = await assertTenantCanCreate(auth.user.tenantId, "clients");
+      if (!limitCheck.ok) {
+        const isPlanLimit = limitCheck.billing?.canCreate === true;
+        return err(limitCheck.message, isPlanLimit ? 400 : 402, {
+          code: isPlanLimit ? "PLAN_LIMIT_REACHED" : "SUBSCRIPTION_INACTIVE",
+          resource: "clients",
+          billing: limitCheck.billing ?? null,
+        });
+      }
+      const clientLimit = "limit" in limitCheck ? limitCheck.limit ?? null : null;
+
       const restoreResult = await prisma.$transaction(async (tx) => {
         await lockTenantMutation(tx, auth.user.tenantId);
 
@@ -207,17 +221,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           return { error: "NOT_ARCHIVED" as const };
         }
 
-        const lockedLimitCheck = await assertTenantCanCreate(
+        const capacity = await recheckCapacityUnderLock(
           auth.user.tenantId,
           "clients",
+          clientLimit,
           tx,
         );
 
-        if (!lockedLimitCheck.ok) {
-          return {
-            error: "LIMIT" as const,
-            limitCheck: lockedLimitCheck,
-          };
+        if (!capacity.ok) {
+          return { error: "LIMIT" as const, capacity };
         }
 
         const updated = await tx.client.update({
@@ -244,7 +256,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         });
 
         return { updated };
-      });
+      }, WRITE_TRANSACTION);
 
       if ("error" in restoreResult) {
         if (restoreResult.error === "NOT_FOUND") {
@@ -254,15 +266,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           return err("الموكل غير مؤرشف", 409);
         }
         if (restoreResult.error === "LIMIT") {
-          const lockedLimitCheck = restoreResult.limitCheck;
-          const isPlanLimit = lockedLimitCheck.billing?.canCreate === true;
-
-          return err(lockedLimitCheck.message, isPlanLimit ? 400 : 402, {
-            code: isPlanLimit
-              ? "PLAN_LIMIT_REACHED"
-              : "SUBSCRIPTION_INACTIVE",
+          // The subscription allowed creating (checked above): the plan limit.
+          return err(restoreResult.capacity.message, 400, {
+            code: "PLAN_LIMIT_REACHED",
             resource: "clients",
-            billing: lockedLimitCheck.billing ?? null,
+            billing: limitCheck.billing ?? null,
           });
         }
       }

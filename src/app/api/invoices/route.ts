@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { WRITE_TRANSACTION } from "@/lib/transaction-options";
 import { requirePermission, getRequestMeta } from "@/lib/api-auth";
 import { ok, err } from "@/lib/api-response";
 import { apiHandler } from "@/lib/api-handler";
@@ -267,6 +269,37 @@ export async function GET(req: NextRequest) {
   });
 }
 
+const CREATED_INVOICE_INCLUDE = {
+    client: {
+      select: {
+        id: true,
+        publicId: true,
+        name: true,
+        phone: true,
+        email: true,
+        archivedAt: true,
+      },
+    },
+    case: {
+      select: {
+        id: true,
+        publicId: true,
+        title: true,
+        caseNumber: true,
+        client: {
+          select: {
+            id: true,
+            publicId: true,
+            name: true,
+            archivedAt: true,
+          },
+        },
+      },
+    },
+    items: true,
+    payments: true,
+  } satisfies Prisma.InvoiceInclude;
+
 export async function POST(req: NextRequest) {
   return apiHandler(async () => {
     const csrf = verifySameOrigin(req);
@@ -365,10 +398,10 @@ export async function POST(req: NextRequest) {
 
     }
 
-    let invoice: Awaited<ReturnType<typeof prisma.invoice.create>>;
+    let createdId: string;
 
     try {
-      invoice = await prisma.$transaction(async (tx) => {
+      createdId = await prisma.$transaction(async (tx) => {
         if (caseId) {
           await assertCaseCanAcceptAmount(tx, {
             tenantId: auth.user!.tenantId,
@@ -400,36 +433,7 @@ export async function POST(req: NextRequest) {
               create: totals.items,
             },
           },
-          include: {
-            client: {
-              select: {
-                id: true,
-                publicId: true,
-                name: true,
-                phone: true,
-                email: true,
-                archivedAt: true,
-              },
-            },
-            case: {
-              select: {
-                id: true,
-                publicId: true,
-                title: true,
-                caseNumber: true,
-                client: {
-                  select: {
-                    id: true,
-                    publicId: true,
-                    name: true,
-                    archivedAt: true,
-                  },
-                },
-              },
-            },
-            items: true,
-            payments: true,
-          },
+          select: { id: true, invoiceNumber: true },
         });
 
         await logActivity(
@@ -447,8 +451,8 @@ export async function POST(req: NextRequest) {
           tx,
         );
 
-        return created;
-      });
+        return created.id;
+      }, WRITE_TRANSACTION);
     } catch (error) {
       if (isCaseFinancialLimitError(error)) {
         return err(error.message, error.status, error.details);
@@ -456,6 +460,12 @@ export async function POST(req: NextRequest) {
 
       throw error;
     }
+
+    // The response shape, read after the commit (not inside the case lock).
+    const invoice = await prisma.invoice.findUniqueOrThrow({
+      where: { id: createdId },
+      include: CREATED_INVOICE_INCLUDE,
+    });
 
     return ok(withInvoiceState(invoice), 201);
   });
