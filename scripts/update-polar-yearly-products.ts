@@ -17,7 +17,9 @@
  *   - POLAR_ENVIRONMENT is not "production" (never pairs sandbox products
  *     with the production database, or the reverse);
  *   - any product cannot be read, or is not: interval year (count 1), one
- *     active fixed USD price equal to the plan's priceYearly, no trial,
+ *     active fixed USD price equal to the plan's configured yearly price
+ *     (planPriceCents in src/config/plans.ts, not the row's priceYearly,
+ *     which in production is still the old JOD price in fils), no trial,
  *     not archived;
  *   - name and price do not agree on one plan per product, one product
  *     per plan (the order of the ids below means nothing);
@@ -32,7 +34,7 @@
 import { PrismaClient } from "@prisma/client";
 import { Polar } from "@polar-sh/sdk";
 import { databaseEndpointOf } from "../src/lib/contact-backfill";
-import { planYearlyProductUpdate } from "../src/lib/yearly-product-update";
+import { expectedYearlyCents, planYearlyProductUpdate } from "../src/lib/yearly-product-update";
 
 // The new production yearly products, as the user sent them (any order).
 const NEW_YEARLY_PRODUCT_IDS = [
@@ -98,11 +100,14 @@ async function main() {
     const plan = planYearlyProductUpdate({ products, plans, yearlySubscriptions });
 
     console.log("\nBillingPlan rows (before -> after):");
-    console.log("  code      priceYearly  polarMonthlyProductId                 polarYearlyProductId");
+    // "expected" is what each product must charge: the configured USD price
+    // (src/config/plans.ts). The row's priceYearly is shown for reference; in
+    // production it still holds the old JOD price in fils and is not used.
+    console.log("  code      row priceYearly  expected (USD cents)  polarMonthlyProductId                 polarYearlyProductId");
     for (const row of plans) {
       const assignment = plan.ok ? plan.assignments.find((a) => a.code === row.code) : undefined;
       console.log(
-        `  ${row.code.padEnd(9)} ${String(row.priceYearly).padEnd(12)} ${String(row.polarMonthlyProductId).padEnd(37)} ${row.polarYearlyProductId} -> ${assignment ? assignment.productId : "(unchanged)"}`,
+        `  ${row.code.padEnd(9)} ${String(row.priceYearly).padEnd(16)} ${String(expectedYearlyCents(row)).padEnd(21)} ${String(row.polarMonthlyProductId).padEnd(37)} ${row.polarYearlyProductId} -> ${assignment ? assignment.productId : "(unchanged)"}`,
       );
     }
 

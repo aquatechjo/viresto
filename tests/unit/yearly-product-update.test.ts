@@ -104,3 +104,25 @@ test("a running YEARLY subscription (may be on an old yearly product) blocks the
   const ended = run(GOOD, [{ id: "s3", tenantId: "t1", status: "EXPIRED", currentPeriodEnd: new Date("2026-10-01Z") }]);
   assert.equal(ended.ok, true);
 });
+
+test("production rows with the old JOD prices (fils) still map: the price matched is the configured USD one", () => {
+  // Old JOD yearly prices in fils (275/440/880 JOD, the pre-USD config);
+  // production rows hold JOD fils (Pro monthly 40000 seen 2026-11-13).
+  const legacy: PlanRow[] = PLANS.map((plan, i) => ({ ...plan, priceYearly: [275000, 440000, 880000][i] }));
+  const result = planYearlyProductUpdate({ products: GOOD, plans: legacy, yearlySubscriptions: [], now: new Date("2026-11-13T12:00:00Z") });
+  assert.equal(result.ok, true, result.ok ? "" : result.problems.join("; "));
+  if (!result.ok) return;
+  assert.deepEqual(
+    Object.fromEntries(result.assignments.map((a) => [a.code, a.productId])),
+    { BASIC: "new-0", PRO: "new-1", BUSINESS: "new-2" },
+  );
+
+  // A product at the row's JOD figure is refused, not matched.
+  const atRowPrice = planYearlyProductUpdate({
+    products: [product("x", "Viresto - Pro Yearly", 440000), BASIC, BIZ],
+    plans: legacy,
+    yearlySubscriptions: [],
+    now: new Date("2026-11-13T12:00:00Z"),
+  });
+  assert.equal(atRowPrice.ok, false);
+});

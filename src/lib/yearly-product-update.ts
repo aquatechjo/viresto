@@ -2,6 +2,7 @@
 // BillingPlan row gets which new Polar yearly product, and every reason
 // not to write at all. Pure (no database, no Polar), so it is unit-tested.
 
+import { planPriceCents } from "@/config/plans";
 import { polarProductProblems, type PolarProductLike } from "@/lib/polar-product-check";
 
 export type PlanRow = {
@@ -36,6 +37,16 @@ const LIVE_STATUSES = new Set(["ACTIVE", "TRIALING", "PAST_DUE"]);
 /** True when `name` names this plan ("Viresto - Pro Yearly" -> Pro), as a whole word. */
 function namesPlan(name: string, planName: string) {
   return new RegExp(`(^|[^a-z])${planName.toLowerCase()}([^a-z]|$)`).test(name.toLowerCase());
+}
+
+/**
+ * The plan's yearly price in USD cents: the configured price (what the
+ * pages show and Polar charges), not the row's priceYearly, which in
+ * production still holds the old JOD price in fils. The row is only a
+ * fallback for a code not configured in src/config/plans.ts.
+ */
+export function expectedYearlyCents(plan: PlanRow) {
+  return planPriceCents(plan.code, "yearly") ?? plan.priceYearly;
 }
 
 function namesYearly(name: string) {
@@ -82,7 +93,7 @@ export function planYearlyProductUpdate(input: {
     const name = product.name ?? "";
     const byName = input.plans.filter((plan) => namesPlan(name, plan.name));
     const price = (product.prices ?? []).find((p) => !p.isArchived)?.priceAmount;
-    const byPrice = input.plans.filter((plan) => plan.priceYearly === price);
+    const byPrice = input.plans.filter((plan) => expectedYearlyCents(plan) === price);
 
     if (!namesYearly(name)) problems.push(`${product.id}: name "${name}" does not say yearly`);
     if (byName.length !== 1) {
@@ -103,7 +114,7 @@ export function planYearlyProductUpdate(input: {
 
     const productProblems = polarProductProblems(product, {
       cycle: "yearly",
-      amountCents: plan.priceYearly,
+      amountCents: expectedYearlyCents(plan),
       requireNoTrial: true,
     });
     for (const problem of productProblems) problems.push(`${product.id} (${plan.code}): ${problem}`);
