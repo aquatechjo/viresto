@@ -68,6 +68,7 @@ export function subscriptionCopy(isArabic: boolean) {
         expiredTitle: "انتهى اشتراكك",
         expiredBody: "حسابك الآن للقراءة فقط. اختر خطة لتستعيد كل الميزات فورًا، وبياناتك كما هي.",
         renew: "جدّد اشتراكك",
+        openingCheckout: "جارٍ فتح صفحة الدفع…",
         confirming: "جارٍ تأكيد الدفع…",
         confirmingBody: "نتحقق من الدفعة مع Polar. لا تغلق الصفحة، يستغرق ذلك ثوانٍ عادةً.",
         slowTitle: "استلمنا طلبك، والتأكيد يأخذ وقتًا أطول من المعتاد",
@@ -122,6 +123,7 @@ export function subscriptionCopy(isArabic: boolean) {
         expiredTitle: "Your subscription has ended",
         expiredBody: "Your account is read-only. Pick a plan to get every feature back at once; your data is untouched.",
         renew: "Renew your subscription",
+        openingCheckout: "Opening the payment page…",
         confirming: "Confirming your payment…",
         confirmingBody: "We are checking the payment with Polar. Keep this page open; it usually takes a few seconds.",
         slowTitle: "We got your order; confirmation is taking longer than usual",
@@ -411,6 +413,7 @@ export function ExpiredNotice({ copy, onRenew }: { copy: SubscriptionCopy; onRen
 }
 
 export type CheckoutNotice =
+  | { kind: "opening" }
   | { kind: "confirming" }
   | { kind: "slow" }
   | { kind: "closed" }
@@ -430,6 +433,10 @@ export function CheckoutStatus({
 }) {
   const close = <SecondaryButton onClick={onDismiss}>{copy.dismiss}</SecondaryButton>;
   switch (notice.kind) {
+    case "opening":
+      return (
+        <Panel tone="blue" testId="checkout-opening" icon={<Loader2 className="h-5 w-5 animate-spin" aria-hidden />} title={copy.openingCheckout} />
+      );
     case "confirming":
       return (
         <Panel tone="blue" testId="checkout-confirming" icon={<Loader2 className="h-5 w-5 animate-spin" aria-hidden />} title={copy.confirming}>
@@ -638,6 +645,7 @@ export function PlanCards({
   currentCode,
   currentCycle,
   busyKey,
+  busyLabel,
   onSelect,
 }: {
   copy: SubscriptionCopy;
@@ -647,6 +655,8 @@ export function PlanCards({
   currentCode: string | null;
   currentCycle: "monthly" | "yearly" | null;
   busyKey: string | null;
+  /** Shown on the busy button; defaults to "processing". */
+  busyLabel?: string | null;
   onSelect: (code: string, cycle: "monthly" | "yearly") => void;
 }) {
   const reduce = useReducedMotion();
@@ -759,7 +769,7 @@ export function PlanCards({
                 }
               >
                 {busyKey === key ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                {busyKey === key ? copy.processing : label}
+                {busyKey === key ? busyLabel || copy.processing : label}
               </button>
             </div>
           </motion.article>

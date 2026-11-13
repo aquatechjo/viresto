@@ -61,25 +61,87 @@ export async function requestCheckout(
 }
 
 /**
- * How long the embedded checkout may take to load before the page gives
- * up on embedding and opens the checkout as a page instead. Polar answers
- * frame-ancestors 'none' for an origin it does not allow to embed (seen on
- * localhost against the sandbox, 2026-11-13); the embed's create() then
- * never resolves and would leave a spinner over the page.
+ * Polar answers frame-ancestors 'none' for an origin it does not allow to
+ * embed (seen on localhost against the sandbox, 2026-11-13). The browser
+ * then shows its own error page in the iframe, fires the iframe's `load`
+ * event, and the checkout never sends its "loaded" message, so the embed's
+ * create() never resolves. A frame that loaded but stays silent for
+ * EMBED_HANDSHAKE_GRACE_MS is taken as refused; EMBED_MAX_WAIT_MS caps the
+ * whole wait (slow network, no load event at all).
  */
-export const EMBED_LOAD_TIMEOUT_MS = 15_000;
+export const EMBED_MAX_WAIT_MS = 6_000;
+export const EMBED_HANDSHAKE_GRACE_MS = 2_000;
 
-/** Resolves with the embed once loaded, or null after `timeoutMs`. */
-export async function loadWithin<T>(load: Promise<T>, timeoutMs: number): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), timeoutMs);
+export type EmbedOpenResult<T> =
+  | { kind: "loaded"; embed: T }
+  | { kind: "refused"; reason: "frame-error" | "no-handshake" | "timeout" };
+
+function embedBase(checkoutUrl: string) {
+  return checkoutUrl.split("?")[0];
+}
+
+/**
+ * Opens the embedded checkout, hidden until Polar says it loaded, so the
+ * page's own "opening" notice shows meanwhile instead of Polar's spinner or
+ * the browser's blocked-frame page. On "refused" everything the embed put
+ * on the page is already removed.
+ */
+export function openEmbedWithin<T>(options: {
+  create: () => Promise<T>;
+  checkoutUrl: string;
+  doc?: Document;
+  maxWaitMs?: number;
+  handshakeGraceMs?: number;
+}): Promise<EmbedOpenResult<T>> {
+  const doc = options.doc ?? document;
+  const maxWaitMs = options.maxWaitMs ?? EMBED_MAX_WAIT_MS;
+  const graceMs = options.handshakeGraceMs ?? EMBED_HANDSHAKE_GRACE_MS;
+  const base = embedBase(options.checkoutUrl);
+
+  // create() appends the iframe and spinner synchronously, before it waits.
+  const load = options.create();
+  const frame = Array.from(doc.querySelectorAll("iframe")).find((f) =>
+    (f.getAttribute("src") ?? "").startsWith(base),
+  ) as HTMLIFrameElement | undefined;
+  const spinners = Array.from(doc.querySelectorAll(".polar-loader-spinner")).map(
+    (s) => (s.parentElement ?? s) as HTMLElement,
+  );
+  if (frame) frame.style.visibility = "hidden";
+  // Hidden, not removed: the embed removes its spinner itself once loaded.
+  spinners.forEach((s) => (s.style.display = "none"));
+
+  return new Promise<EmbedOpenResult<T>>((resolve, reject) => {
+    let settled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const finish = (result: EmbedOpenResult<T> | Error) => {
+      if (settled) return;
+      settled = true;
+      timers.forEach(clearTimeout);
+      frame?.removeEventListener("load", onFrameLoad);
+      frame?.removeEventListener("error", onFrameError);
+      if (result instanceof Error) {
+        removeEmbedLeftovers(options.checkoutUrl, doc);
+        reject(result);
+      } else if (result.kind === "refused") {
+        removeEmbedLeftovers(options.checkoutUrl, doc);
+        resolve(result);
+      } else {
+        if (frame) frame.style.visibility = "";
+        resolve(result);
+      }
+    };
+    const onFrameLoad = () => {
+      timers.push(setTimeout(() => finish({ kind: "refused", reason: "no-handshake" }), graceMs));
+    };
+    const onFrameError = () => finish({ kind: "refused", reason: "frame-error" });
+    frame?.addEventListener("load", onFrameLoad);
+    frame?.addEventListener("error", onFrameError);
+    timers.push(setTimeout(() => finish({ kind: "refused", reason: "timeout" }), maxWaitMs));
+    load.then(
+      (embed) => finish({ kind: "loaded", embed }),
+      (error: unknown) => finish(error instanceof Error ? error : new Error(String(error))),
+    );
   });
-  try {
-    return await Promise.race([load, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 /**
@@ -87,7 +149,7 @@ export async function loadWithin<T>(load: Promise<T>, timeoutMs: number): Promis
  * never loaded: its iframe, the spinner overlay, and the body scroll lock.
  */
 export function removeEmbedLeftovers(checkoutUrl: string, doc: Document = document) {
-  const base = checkoutUrl.split("?")[0];
+  const base = embedBase(checkoutUrl);
   doc.querySelectorAll("iframe").forEach((frame) => {
     if ((frame.getAttribute("src") ?? "").startsWith(base)) frame.remove();
   });

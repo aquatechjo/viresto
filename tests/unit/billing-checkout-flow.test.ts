@@ -160,11 +160,114 @@ test("page state: trial, active, past due (even while still paid), expired", () 
 
 // --- embed that never loads ---------------------------------------------------
 
-import { loadWithin, removeEmbedLeftovers } from "../../src/lib/billing/checkout-flow";
+import {
+  EMBED_HANDSHAKE_GRACE_MS,
+  EMBED_MAX_WAIT_MS,
+  openEmbedWithin,
+  removeEmbedLeftovers,
+} from "../../src/lib/billing/checkout-flow";
 
-test("embed load: resolves with the embed when it loads, null when it never does", async () => {
-  assert.equal(await loadWithin(Promise.resolve("embed"), 1000), "embed");
-  assert.equal(await loadWithin(new Promise(() => {}), 20), null);
+const CHECKOUT = "https://sandbox.polar.sh/checkout/polar_c_1";
+
+/** A page with what @polar-sh/checkout/embed's create() appends: the iframe and the spinner overlay. */
+function embedPage() {
+  const removed: string[] = [];
+  class FakeFrame extends EventTarget {
+    style: Record<string, string> = {};
+    getAttribute(key: string) {
+      return key === "src" ? `${CHECKOUT}?embed=true&embed_origin=http%3A%2F%2Flocalhost%3A3000` : null;
+    }
+    remove() {
+      removed.push("frame");
+    }
+  }
+  const frame = new FakeFrame();
+  const overlay = { style: {} as Record<string, string>, remove: () => removed.push("overlay") };
+  const spinner = { parentElement: overlay };
+  const classes = new Set(["polar-no-scroll"]);
+  const doc = {
+    querySelectorAll: (selector: string) => (selector === "iframe" ? (removed.includes("frame") ? [] : [frame]) : [spinner]),
+    body: { classList: { remove: (c: string) => classes.delete(c) } },
+  } as unknown as Document;
+  return { doc, frame, overlay, removed, classes };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+test("embed open: the wait is capped at 6s, and the handshake grace is shorter than that", () => {
+  assert.ok(EMBED_MAX_WAIT_MS <= 6_000);
+  assert.ok(EMBED_HANDSHAKE_GRACE_MS < EMBED_MAX_WAIT_MS);
+});
+
+test("embed open: hidden while loading (own notice shows instead), shown once Polar says loaded", async () => {
+  const page = embedPage();
+  const load = deferred<string>();
+  const opening = openEmbedWithin({ create: () => load.promise, checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 1000, handshakeGraceMs: 200 });
+  assert.equal(page.frame.style.visibility, "hidden");
+  assert.equal(page.overlay.style.display, "none");
+
+  page.frame.dispatchEvent(new Event("load"));
+  load.resolve("embed");
+  assert.deepEqual(await opening, { kind: "loaded", embed: "embed" });
+  assert.equal(page.frame.style.visibility, "");
+  assert.deepEqual(page.removed, []);
+});
+
+test("embed open: a frame that loads but never says loaded is refused after the grace, not the full wait", async () => {
+  const page = embedPage();
+  const started = Date.now();
+  const opening = openEmbedWithin({ create: () => new Promise(() => {}), checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 5000, handshakeGraceMs: 30 });
+  await tick(10);
+  page.frame.dispatchEvent(new Event("load"));
+  assert.deepEqual(await opening, { kind: "refused", reason: "no-handshake" });
+  assert.ok(Date.now() - started < 1000);
+  assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
+  assert.deepEqual([...page.classes], []);
+});
+
+test("embed open: an iframe error is refused at once", async () => {
+  const page = embedPage();
+  const opening = openEmbedWithin({ create: () => new Promise(() => {}), checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 5000, handshakeGraceMs: 5000 });
+  page.frame.dispatchEvent(new Event("error"));
+  assert.deepEqual(await opening, { kind: "refused", reason: "frame-error" });
+  assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
+});
+
+test("embed open: no signal at all is refused at the cap", async () => {
+  const page = embedPage();
+  const opening = openEmbedWithin({ create: () => new Promise(() => {}), checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 40, handshakeGraceMs: 10 });
+  assert.deepEqual(await opening, { kind: "refused", reason: "timeout" });
+  assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
+});
+
+test("embed open: the loaded message arriving during the grace wins; later timers do nothing", async () => {
+  const page = embedPage();
+  const load = deferred<string>();
+  const opening = openEmbedWithin({ create: () => load.promise, checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 60, handshakeGraceMs: 40 });
+  page.frame.dispatchEvent(new Event("load"));
+  await tick(10);
+  load.resolve("embed");
+  assert.deepEqual(await opening, { kind: "loaded", embed: "embed" });
+  await tick(80);
+  assert.deepEqual(page.removed, []);
+  assert.equal(page.frame.style.visibility, "");
+});
+
+test("embed open: create() failing rejects and cleans up", async () => {
+  const page = embedPage();
+  const opening = openEmbedWithin({ create: () => Promise.reject(new Error("boom")), checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 1000 });
+  await assert.rejects(opening, /boom/);
+  assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
 });
 
 test("embed cleanup: removes this checkout's iframe, the spinner overlay and the scroll lock only", () => {

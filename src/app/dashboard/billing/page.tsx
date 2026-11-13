@@ -26,11 +26,9 @@ import { DEMO_BLOCKED_CODE, DEMO_BLOCKED_MESSAGE } from "@/lib/demo/constants";
 import { leaveDemoSession, refreshDemoMode } from "@/lib/demo/client";
 import { formatInZone } from "@/lib/datetime";
 import {
-  EMBED_LOAD_TIMEOUT_MS,
   billingView,
-  loadWithin,
   onSubscriptionChanged,
-  removeEmbedLeftovers,
+  openEmbedWithin,
   requestCheckout,
   trialProgress,
   waitForActivation,
@@ -365,20 +363,25 @@ export default function BillingPage() {
         break;
     }
 
+    let leavingForCheckout = false;
     try {
+      setNotice({ kind: "opening" });
       const { PolarEmbedCheckout } = await import("@polar-sh/checkout/embed");
-      const embed = await loadWithin(
-        PolarEmbedCheckout.create(result.url, { theme: isDarkTheme() ? "dark" : "light" }),
-        EMBED_LOAD_TIMEOUT_MS,
-      );
-      if (!embed) {
+      const opened = await openEmbedWithin({
+        create: () => PolarEmbedCheckout.create(result.url, { theme: isDarkTheme() ? "dark" : "light" }),
+        checkoutUrl: result.url,
+      });
+      if (opened.kind === "refused") {
         // Polar did not let this origin embed the checkout: open it as a
-        // page. Its success URL brings the admin back here
-        // (?checkout=success&checkout_id=…), to the same confirmation.
-        removeEmbedLeftovers(result.url);
+        // page (the "opening" notice stays up meanwhile). Its success URL
+        // brings the admin back here (?checkout=success&checkout_id=…), to
+        // the same confirmation.
+        leavingForCheckout = true;
         window.location.href = result.url;
         return;
       }
+      setNotice(null);
+      const embed = opened.embed;
       embedRef.current = embed;
       let succeeded = false;
 
@@ -399,7 +402,8 @@ export default function BillingPage() {
     } catch {
       setNotice({ kind: "error", message: copy.networkError });
     } finally {
-      setBusyKey(null);
+      // Leaving for the checkout page: keep the button busy until it unloads.
+      if (!leavingForCheckout) setBusyKey(null);
     }
   }
 
@@ -580,6 +584,7 @@ export default function BillingPage() {
             currentCode={paidPlan?.code ?? null}
             currentCycle={currentCycle}
             busyKey={busyKey}
+            busyLabel={notice?.kind === "opening" ? copy.openingCheckout : null}
             onSelect={(code, selected) => {
               const plan = plans.find((p) => p.code === code);
               void startPurchase(code, plan?.name ?? code, selected);
