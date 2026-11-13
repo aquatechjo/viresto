@@ -12,6 +12,7 @@ import { reportBillingIssue } from "@/lib/monitoring";
 import { withPolarProductIds } from "@/lib/polar-products";
 import { type BillingCycle } from "@/lib/polar-product-check";
 import { checkPlanProduct } from "@/lib/billing/product-availability";
+import { resolveEmbedOrigin } from "@/lib/billing/embed-origin";
 
 const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
 
@@ -259,6 +260,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // The origin the admin is on (apex or www), so Polar lets this page
+    // frame the checkout; see lib/billing/embed-origin.ts.
+    const embed = resolveEmbedOrigin(req.headers.get("origin"), getAppUrl());
+    console.info(
+      `[polar-checkout] embed_origin=${embed.origin} source=${embed.source} tenant=${auth.user.tenantId}`,
+    );
+
     const createCheckout = (customerEmail: string | null) =>
       polar.checkouts.create({
         products: [productId],
@@ -271,11 +279,12 @@ export async function POST(req: NextRequest) {
         customerEmail,
         // The billing page opens this checkout embedded (@polar-sh/checkout);
         // Polar only allows embedding from this origin.
-        embedOrigin: new URL(getAppUrl()).origin,
+        embedOrigin: embed.origin,
         // Polar fills {CHECKOUT_ID}; the billing page posts it to
         // /api/billing/checkout/confirm for an instant, verified unlock. Used
-        // when the checkout is opened as a page instead of embedded.
-        successUrl: `${getAppUrl()}/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}`,
+        // when the checkout is opened as a page instead of embedded; back on
+        // the same origin, where the session cookie is.
+        successUrl: `${embed.origin}/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}`,
         metadata: {
           tenantId: auth.user!.tenantId,
           planCode,
@@ -299,6 +308,12 @@ export async function POST(req: NextRequest) {
 
     // checkoutId: the page posts it to /api/billing/checkout/confirm when the
     // embedded checkout reports success.
-    return ok({ mode: "checkout", url: checkout.url, checkoutId: checkout.id });
+    // embedOrigin: the page compares it with its own origin before embedding.
+    return ok({
+      mode: "checkout",
+      url: checkout.url,
+      checkoutId: checkout.id,
+      embedOrigin: embed.origin,
+    });
   });
 }

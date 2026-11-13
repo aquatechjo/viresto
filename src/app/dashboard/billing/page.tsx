@@ -31,6 +31,7 @@ import {
   billingView,
   onSubscriptionChanged,
   openEmbedWithin,
+  reportEmbedOutcome,
   requestCheckout,
   trialProgress,
   waitForActivation,
@@ -370,15 +371,19 @@ export default function BillingPage() {
     try {
       setNotice({ kind: "opening" });
       const { PolarEmbedCheckout } = await import("@polar-sh/checkout/embed");
+      // The "opening" notice stays up for the whole wait (up to ~12s when
+      // the checkout is slow).
       const opened = await openEmbedWithin({
         create: () => PolarEmbedCheckout.create(result.url, { theme: isDarkTheme() ? "dark" : "light" }),
         checkoutUrl: result.url,
+        embedOrigin: result.embedOrigin,
       });
+      reportEmbedOutcome(opened, opened.elapsedMs);
       if (opened.kind === "refused") {
-        // Polar did not let this origin embed the checkout: open it as a
-        // page (the "opening" notice stays up meanwhile). Its success URL
-        // brings the admin back here (?checkout=success&checkout_id=…), to
-        // the same confirmation.
+        // Polar refused to frame the checkout here, or nothing came at all:
+        // open it as a page (the "opening" notice stays up meanwhile). Its
+        // success URL brings the admin back here
+        // (?checkout=success&checkout_id=…), to the same confirmation.
         leavingForCheckout = true;
         window.location.href = result.url;
         return;

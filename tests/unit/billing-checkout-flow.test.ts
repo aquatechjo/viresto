@@ -93,7 +93,7 @@ test("checkout start: the embedded URL and checkout id", async () => {
     sent.push(init!);
     return new Response(JSON.stringify({ success: true, data: { mode: "checkout", url: "https://sandbox.polar.sh/checkout/x", checkoutId: "co_1" } }), { status: 200 });
   });
-  assert.deepEqual(result, { kind: "checkout", url: "https://sandbox.polar.sh/checkout/x", checkoutId: "co_1" });
+  assert.deepEqual(result, { kind: "checkout", url: "https://sandbox.polar.sh/checkout/x", checkoutId: "co_1", embedOrigin: null });
   assert.deepEqual(JSON.parse(String(sent[0].body)), { planId: "PRO", billingCycle: "monthly" });
 });
 
@@ -158,24 +158,33 @@ test("page state: trial, active, past due (even while still paid), expired", () 
   assert.equal(billingView({ accessState: "LOCKED", subscriptionStatus: "EXPIRED" }), "expired");
 });
 
-// --- embed that never loads ---------------------------------------------------
+// --- embed: loaded / refused / timeout -----------------------------------------
 
 import {
-  EMBED_HANDSHAKE_GRACE_MS,
   EMBED_MAX_WAIT_MS,
   openEmbedWithin,
   removeEmbedLeftovers,
+  reportEmbedOutcome,
 } from "../../src/lib/billing/checkout-flow";
+import {
+  embedOutcomeLogLine,
+  embedOutcomeReport,
+  parseEmbedOutcomeReport,
+} from "../../src/lib/billing/embed-outcome";
 
 const CHECKOUT = "https://sandbox.polar.sh/checkout/polar_c_1";
+const PAGE_ORIGIN = "https://www.virestojo.com";
 
-/** A page with what @polar-sh/checkout/embed's create() appends: the iframe and the spinner overlay. */
-function embedPage() {
+/**
+ * A page with what @polar-sh/checkout/embed's create() appends (the iframe
+ * and the spinner overlay), and a window that receives postMessages.
+ */
+function embedPage(options: { visibility?: "visible" | "hidden" } = {}) {
   const removed: string[] = [];
   class FakeFrame extends EventTarget {
     style: Record<string, string> = {};
     getAttribute(key: string) {
-      return key === "src" ? `${CHECKOUT}?embed=true&embed_origin=http%3A%2F%2Flocalhost%3A3000` : null;
+      return key === "src" ? `${CHECKOUT}?embed=true&embed_origin=https%3A%2F%2Fwww.virestojo.com` : null;
     }
     remove() {
       removed.push("frame");
@@ -185,11 +194,38 @@ function embedPage() {
   const overlay = { style: {} as Record<string, string>, remove: () => removed.push("overlay") };
   const spinner = { parentElement: overlay };
   const classes = new Set(["polar-no-scroll"]);
+  const docEvents = new EventTarget();
+  const docState = { visibilityState: options.visibility ?? "visible" };
   const doc = {
     querySelectorAll: (selector: string) => (selector === "iframe" ? (removed.includes("frame") ? [] : [frame]) : [spinner]),
     body: { classList: { remove: (c: string) => classes.delete(c) } },
+    addEventListener: docEvents.addEventListener.bind(docEvents),
+    removeEventListener: docEvents.removeEventListener.bind(docEvents),
+    get visibilityState() {
+      return docState.visibilityState;
+    },
   } as unknown as Document;
-  return { doc, frame, overlay, removed, classes };
+  const winEvents = new EventTarget();
+  const win = {
+    location: { origin: PAGE_ORIGIN },
+    addEventListener: winEvents.addEventListener.bind(winEvents),
+    removeEventListener: winEvents.removeEventListener.bind(winEvents),
+  };
+  const polarMessage = (event: string, origin = "https://sandbox.polar.sh") => {
+    const message = new Event("message");
+    Object.assign(message, { origin, data: { type: "POLAR_CHECKOUT", event } });
+    winEvents.dispatchEvent(message);
+  };
+  const cspViolation = (blockedURI: string, effectiveDirective = "frame-src") => {
+    const v = new Event("securitypolicyviolation");
+    Object.assign(v, { blockedURI, effectiveDirective, violatedDirective: effectiveDirective });
+    docEvents.dispatchEvent(v);
+  };
+  const setVisibility = (state: "visible" | "hidden") => {
+    docState.visibilityState = state;
+    docEvents.dispatchEvent(new Event("visibilitychange"));
+  };
+  return { doc, win, frame, overlay, removed, classes, polarMessage, cspViolation, setVisibility };
 }
 
 function deferred<T>() {
@@ -203,71 +239,170 @@ function deferred<T>() {
 }
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const never = () => new Promise<never>(() => {});
 
-test("embed open: the wait is capped at 6s, and the handshake grace is shorter than that", () => {
-  assert.ok(EMBED_MAX_WAIT_MS <= 6_000);
-  assert.ok(EMBED_HANDSHAKE_GRACE_MS < EMBED_MAX_WAIT_MS);
+test("embed open: waits ~12s before giving up on silence (a slow load is not a refusal)", () => {
+  assert.equal(EMBED_MAX_WAIT_MS, 12_000);
 });
 
-test("embed open: hidden while loading (own notice shows instead), shown once Polar says loaded", async () => {
+test("embed path 'embedded': hidden while loading, shown once Polar says loaded, even after a slow load", async () => {
   const page = embedPage();
   const load = deferred<string>();
-  const opening = openEmbedWithin({ create: () => load.promise, checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 1000, handshakeGraceMs: 200 });
+  const opening = openEmbedWithin({ create: () => load.promise, checkoutUrl: CHECKOUT, embedOrigin: PAGE_ORIGIN, doc: page.doc, win: page.win, maxWaitMs: 1000 });
   assert.equal(page.frame.style.visibility, "hidden");
   assert.equal(page.overlay.style.display, "none");
 
+  // The frame's own load event (fired for a blocked frame too) proves
+  // nothing: still waiting well after it.
   page.frame.dispatchEvent(new Event("load"));
+  await tick(60);
+  assert.deepEqual(page.removed, []);
+
   load.resolve("embed");
-  assert.deepEqual(await opening, { kind: "loaded", embed: "embed" });
+  const result = await opening;
+  assert.equal(result.kind, "loaded");
+  assert.equal(result.kind === "loaded" && result.embed, "embed");
+  assert.ok(result.elapsedMs >= 50);
   assert.equal(page.frame.style.visibility, "");
   assert.deepEqual(page.removed, []);
 });
 
-test("embed open: a frame that loads but never says loaded is refused after the grace, not the full wait", async () => {
+test("embed path 'embedded': any Polar message before the deadline keeps it waiting past it", async () => {
   const page = embedPage();
-  const started = Date.now();
-  const opening = openEmbedWithin({ create: () => new Promise(() => {}), checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 5000, handshakeGraceMs: 30 });
+  const load = deferred<string>();
+  const opening = openEmbedWithin({ create: () => load.promise, checkoutUrl: CHECKOUT, doc: page.doc, win: page.win, maxWaitMs: 30 });
+  page.polarMessage("confirmed");
+  await tick(80);
+  assert.deepEqual(page.removed, []);
+  load.resolve("embed");
+  assert.equal((await opening).kind, "loaded");
+});
+
+test("embed: a message from another origin is not a sign of life", async () => {
+  const page = embedPage();
+  const opening = openEmbedWithin({ create: never, checkoutUrl: CHECKOUT, doc: page.doc, win: page.win, maxWaitMs: 30 });
+  page.polarMessage("loaded", "https://evil.example");
+  const result = await opening;
+  assert.equal(result.kind === "refused" && result.reason, "timeout");
+});
+
+test("embed path 'fallback-refused': a checkout created for another origin is refused before embedding", async () => {
+  const page = embedPage();
+  let created = false;
+  const result = await openEmbedWithin({
+    create: () => {
+      created = true;
+      return never();
+    },
+    checkoutUrl: CHECKOUT,
+    embedOrigin: "https://virestojo.com",
+    doc: page.doc,
+    win: page.win,
+  });
+  assert.deepEqual(result, { kind: "refused", reason: "origin-mismatch", elapsedMs: 0 });
+  assert.equal(created, false);
+});
+
+test("embed path 'fallback-refused': our CSP blocking the checkout frame is refused at once", async () => {
+  const page = embedPage();
+  const opening = openEmbedWithin({ create: never, checkoutUrl: CHECKOUT, doc: page.doc, win: page.win, maxWaitMs: 5000 });
+  // Other frames, or other directives, are not this checkout being refused.
+  page.cspViolation("https://youtube.com/embed/x");
+  page.cspViolation("https://sandbox.polar.sh/checkout/polar_c_1", "img-src");
   await tick(10);
-  page.frame.dispatchEvent(new Event("load"));
-  assert.deepEqual(await opening, { kind: "refused", reason: "no-handshake" });
-  assert.ok(Date.now() - started < 1000);
+  assert.deepEqual(page.removed, []);
+  page.cspViolation("https://sandbox.polar.sh");
+  const result = await opening;
+  assert.equal(result.kind === "refused" && result.reason, "csp");
   assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
   assert.deepEqual([...page.classes], []);
 });
 
-test("embed open: an iframe error is refused at once", async () => {
+test("embed path 'fallback-refused': an iframe error is refused at once", async () => {
   const page = embedPage();
-  const opening = openEmbedWithin({ create: () => new Promise(() => {}), checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 5000, handshakeGraceMs: 5000 });
+  const opening = openEmbedWithin({ create: never, checkoutUrl: CHECKOUT, doc: page.doc, win: page.win, maxWaitMs: 5000 });
   page.frame.dispatchEvent(new Event("error"));
-  assert.deepEqual(await opening, { kind: "refused", reason: "frame-error" });
+  const result = await opening;
+  assert.equal(result.kind === "refused" && result.reason, "frame-error");
   assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
 });
 
-test("embed open: no signal at all is refused at the cap", async () => {
+test("embed path 'fallback-timeout': nothing at all by the deadline on a visible page", async () => {
   const page = embedPage();
-  const opening = openEmbedWithin({ create: () => new Promise(() => {}), checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 40, handshakeGraceMs: 10 });
-  assert.deepEqual(await opening, { kind: "refused", reason: "timeout" });
-  assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
-});
-
-test("embed open: the loaded message arriving during the grace wins; later timers do nothing", async () => {
-  const page = embedPage();
-  const load = deferred<string>();
-  const opening = openEmbedWithin({ create: () => load.promise, checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 60, handshakeGraceMs: 40 });
+  const opening = openEmbedWithin({ create: never, checkoutUrl: CHECKOUT, doc: page.doc, win: page.win, maxWaitMs: 40 });
   page.frame.dispatchEvent(new Event("load"));
-  await tick(10);
-  load.resolve("embed");
-  assert.deepEqual(await opening, { kind: "loaded", embed: "embed" });
-  await tick(80);
-  assert.deepEqual(page.removed, []);
-  assert.equal(page.frame.style.visibility, "");
+  const result = await opening;
+  assert.equal(result.kind === "refused" && result.reason, "timeout");
+  assert.ok(result.elapsedMs >= 35);
+  assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
 });
 
-test("embed open: create() failing rejects and cleans up", async () => {
+test("embed path 'fallback-timeout': a hidden tab is decided only once it is visible again", async () => {
+  const page = embedPage({ visibility: "hidden" });
+  const opening = openEmbedWithin({ create: never, checkoutUrl: CHECKOUT, doc: page.doc, win: page.win, maxWaitMs: 20 });
+  await tick(60);
+  assert.deepEqual(page.removed, []);
+  page.setVisibility("visible");
+  const result = await opening;
+  assert.equal(result.kind === "refused" && result.reason, "timeout");
+});
+
+test("embed: loaded while the tab was hidden wins over the deferred timeout", async () => {
+  const page = embedPage({ visibility: "hidden" });
+  const load = deferred<string>();
+  const opening = openEmbedWithin({ create: () => load.promise, checkoutUrl: CHECKOUT, doc: page.doc, win: page.win, maxWaitMs: 20 });
+  await tick(40);
+  load.resolve("embed");
+  assert.equal((await opening).kind, "loaded");
+  page.setVisibility("visible");
+  await tick(10);
+  assert.deepEqual(page.removed, []);
+});
+
+test("embed: create() failing rejects and cleans up", async () => {
   const page = embedPage();
-  const opening = openEmbedWithin({ create: () => Promise.reject(new Error("boom")), checkoutUrl: CHECKOUT, doc: page.doc, maxWaitMs: 1000 });
+  const opening = openEmbedWithin({ create: () => Promise.reject(new Error("boom")), checkoutUrl: CHECKOUT, doc: page.doc, win: page.win, maxWaitMs: 1000 });
   await assert.rejects(opening, /boom/);
   assert.deepEqual(page.removed.sort(), ["frame", "overlay"]);
+});
+
+test("embed outcome: each path maps to its log outcome, with the elapsed ms", () => {
+  assert.deepEqual(embedOutcomeReport({ kind: "loaded" }, 3456.4), { outcome: "embedded", reason: "loaded", elapsedMs: 3456 });
+  assert.deepEqual(embedOutcomeReport({ kind: "refused", reason: "csp" }, 12), { outcome: "fallback-refused", reason: "csp", elapsedMs: 12 });
+  assert.deepEqual(embedOutcomeReport({ kind: "refused", reason: "origin-mismatch" }, 0), { outcome: "fallback-refused", reason: "origin-mismatch", elapsedMs: 0 });
+  assert.deepEqual(embedOutcomeReport({ kind: "refused", reason: "frame-error" }, 5), { outcome: "fallback-refused", reason: "frame-error", elapsedMs: 5 });
+  assert.deepEqual(embedOutcomeReport({ kind: "refused", reason: "timeout" }, 12001), { outcome: "fallback-timeout", reason: "timeout", elapsedMs: 12001 });
+  assert.equal(
+    embedOutcomeLogLine({ outcome: "fallback-timeout", reason: "timeout", elapsedMs: 12001 }, "tenant-1"),
+    "[polar-checkout] embed_outcome=fallback-timeout reason=timeout elapsed_ms=12001 tenant=tenant-1",
+  );
+});
+
+test("embed outcome: the server accepts only our own words and a sane number", () => {
+  assert.deepEqual(parseEmbedOutcomeReport({ outcome: "embedded", reason: "loaded", elapsedMs: 900 }), { outcome: "embedded", reason: "loaded", elapsedMs: 900 });
+  assert.equal(parseEmbedOutcomeReport({ outcome: "embedded", reason: "timeout", elapsedMs: 1 }), null);
+  assert.equal(parseEmbedOutcomeReport({ outcome: "hacked\nline", reason: "loaded", elapsedMs: 1 }), null);
+  assert.equal(parseEmbedOutcomeReport({ outcome: "embedded", reason: "loaded", elapsedMs: -1 }), null);
+  assert.equal(parseEmbedOutcomeReport({ outcome: "embedded", reason: "loaded", elapsedMs: "5" }), null);
+  assert.equal(parseEmbedOutcomeReport(null), null);
+  assert.equal(parseEmbedOutcomeReport({ outcome: "embedded", reason: "loaded", elapsedMs: 1e12 })?.elapsedMs, 600_000);
+});
+
+test("embed outcome: reported with keepalive (survives leaving for the checkout page), never throws", async () => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  reportEmbedOutcome({ kind: "refused", reason: "timeout" }, 12000, async (url, init) => {
+    calls.push({ url, init });
+    return new Response("{}");
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "/api/billing/checkout/embed-outcome");
+  assert.equal(calls[0].init?.keepalive, true);
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { outcome: "fallback-timeout", reason: "timeout", elapsedMs: 12000 });
+  reportEmbedOutcome({ kind: "loaded" }, 1, () => Promise.reject(new Error("offline")));
+  reportEmbedOutcome({ kind: "loaded" }, 1, () => {
+    throw new Error("sync");
+  });
+  await tick(5);
 });
 
 test("embed cleanup: removes this checkout's iframe, the spinner overlay and the scroll lock only", () => {

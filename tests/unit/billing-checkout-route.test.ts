@@ -645,3 +645,104 @@ test("email: any other Polar error is not retried", async () => {
   assert.equal(res.status, 500);
   assert.equal(checkoutsCreateMock.mock.callCount(), 1);
 });
+
+// --- embed origin: apex and www -------------------------------------------------
+
+import { allowedEmbedOrigins, resolveEmbedOrigin } from "../../src/lib/billing/embed-origin";
+
+test("embed origin: www and apex of APP_URL both embed; anything else gets APP_URL's origin", () => {
+  const app = "https://www.virestojo.com";
+  assert.deepEqual(allowedEmbedOrigins(app), ["https://www.virestojo.com", "https://virestojo.com"]);
+  assert.deepEqual(allowedEmbedOrigins("https://virestojo.com/"), ["https://virestojo.com", "https://www.virestojo.com"]);
+  assert.deepEqual(allowedEmbedOrigins("http://localhost:3000"), ["http://localhost:3000"]);
+
+  assert.deepEqual(resolveEmbedOrigin("https://www.virestojo.com", app), { origin: "https://www.virestojo.com", source: "request" });
+  assert.deepEqual(resolveEmbedOrigin("https://virestojo.com", app), { origin: "https://virestojo.com", source: "request" });
+  assert.deepEqual(resolveEmbedOrigin("https://evil.example", app), { origin: "https://www.virestojo.com", source: "app_url" });
+  assert.deepEqual(resolveEmbedOrigin("http://virestojo.com", app), { origin: "https://www.virestojo.com", source: "app_url" });
+  assert.deepEqual(resolveEmbedOrigin(null, app), { origin: "https://www.virestojo.com", source: "app_url" });
+  assert.deepEqual(resolveEmbedOrigin("not a url", app), { origin: "https://www.virestojo.com", source: "app_url" });
+});
+
+function makeRequestFrom(origin: string, body: unknown) {
+  return new NextRequest("http://localhost/api/billing/checkout", {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "content-type": "application/json", origin },
+  });
+}
+
+test("checkout: created for the origin the admin is on (www twin of APP_URL), returned to the page", async () => {
+  resetMocks();
+  billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+
+  const res = await POST(makeRequestFrom("https://www.app.test", { planId: "BASIC", billingCycle: "monthly" }));
+  const json = await res.json();
+
+  assert.equal(res.status, 200);
+  assert.equal(json.data.embedOrigin, "https://www.app.test");
+  const args = checkoutsCreateMock.mock.calls[0].arguments[0] as { embedOrigin: string; successUrl: string };
+  assert.equal(args.embedOrigin, "https://www.app.test");
+  assert.equal(args.successUrl, "https://www.app.test/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}");
+});
+
+test("checkout: an origin that is not ours never becomes the embed origin", async () => {
+  resetMocks();
+  billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+
+  const res = await POST(makeRequestFrom("https://evil.example", { planId: "BASIC", billingCycle: "monthly" }));
+  const json = await res.json();
+
+  assert.equal(json.data.embedOrigin, "https://app.test");
+  const args = checkoutsCreateMock.mock.calls[0].arguments[0] as { embedOrigin: string };
+  assert.equal(args.embedOrigin, "https://app.test");
+});
+
+// --- embed outcome log route --------------------------------------------------------
+
+function outcomeRequest(body: unknown) {
+  return new NextRequest("http://localhost/api/billing/checkout/embed-outcome", {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "content-type": "application/json" },
+  });
+}
+
+test("embed outcome route: logs each path with elapsed ms and the office, no email or URL", async () => {
+  resetMocks();
+  const { POST: OUTCOME } = await import("../../src/app/api/billing/checkout/embed-outcome/route");
+  const info = mock.method(console, "info", () => {});
+  const warn = mock.method(console, "warn", () => {});
+  try {
+    for (const body of [
+      { outcome: "embedded", reason: "loaded", elapsedMs: 2400 },
+      { outcome: "fallback-refused", reason: "csp", elapsedMs: 15 },
+      { outcome: "fallback-timeout", reason: "timeout", elapsedMs: 12003 },
+    ]) {
+      const res = await OUTCOME(outcomeRequest(body));
+      assert.equal(res.status, 200);
+    }
+    const bad = await OUTCOME(outcomeRequest({ outcome: "embedded", reason: "loaded", elapsedMs: "x" }));
+    assert.equal(bad.status, 400);
+
+    const lines = [...info.mock.calls, ...warn.mock.calls].map((c) => String(c.arguments[0]));
+    assert.deepEqual(lines, [
+      "[polar-checkout] embed_outcome=embedded reason=loaded elapsed_ms=2400 tenant=tenant-1",
+      "[polar-checkout] embed_outcome=fallback-refused reason=csp elapsed_ms=15 tenant=tenant-1",
+      "[polar-checkout] embed_outcome=fallback-timeout reason=timeout elapsed_ms=12003 tenant=tenant-1",
+    ]);
+    assert.ok(lines.every((l) => !l.includes("@") && !l.includes("http")));
+  } finally {
+    info.mock.restore();
+    warn.mock.restore();
+  }
+});
+
+test("embed outcome route: needs billing.manage and a same-origin request", async () => {
+  resetMocks();
+  const { POST: OUTCOME } = await import("../../src/app/api/billing/checkout/embed-outcome/route");
+  requirePermissionMock.mock.mockImplementation(async () => ({ error: err("forbidden", 403), user: null }));
+  const res = await OUTCOME(outcomeRequest({ outcome: "embedded", reason: "loaded", elapsedMs: 1 }));
+  assert.equal(res.status, 403);
+  assert.equal(verifySameOriginMock.mock.callCount(), 1);
+});

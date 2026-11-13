@@ -7,11 +7,14 @@
 // Polar and syncs it; the webhook does the same on its own).
 
 import { invalidateCurrentScopeCache } from "@/lib/client-query-cache";
+import { embedOutcomeReport, type EmbedRefusalReason } from "@/lib/billing/embed-outcome";
+
+export type { EmbedRefusalReason };
 
 export type CheckoutCycle = "monthly" | "yearly";
 
 export type CheckoutStart =
-  | { kind: "checkout"; url: string; checkoutId: string | null }
+  | { kind: "checkout"; url: string; checkoutId: string | null; embedOrigin: string | null }
   | { kind: "updated"; message: string | null }
   | { kind: "portal"; message: string | null }
   | { kind: "unauthorized" }
@@ -40,7 +43,7 @@ export async function requestCheckout(
     success?: boolean;
     message?: string;
     details?: { action?: string; code?: string };
-    data?: { mode?: string; url?: string; checkoutId?: string; message?: string };
+    data?: { mode?: string; url?: string; checkoutId?: string; embedOrigin?: string; message?: string };
   };
 
   if (res.status === 401) return { kind: "unauthorized" };
@@ -52,7 +55,12 @@ export async function requestCheckout(
     return { kind: "error", message: json.message ?? null, code: json.details?.code ?? null };
   }
   if (json.data?.mode === "checkout" && json.data.url) {
-    return { kind: "checkout", url: json.data.url, checkoutId: json.data.checkoutId ?? null };
+    return {
+      kind: "checkout",
+      url: json.data.url,
+      checkoutId: json.data.checkoutId ?? null,
+      embedOrigin: json.data.embedOrigin ?? null,
+    };
   }
   if (json.data?.mode === "updated") {
     return { kind: "updated", message: json.data.message ?? null };
@@ -61,23 +69,52 @@ export async function requestCheckout(
 }
 
 /**
- * Polar answers frame-ancestors 'none' for an origin it does not allow to
- * embed (seen on localhost against the sandbox, 2026-11-13). The browser
- * then shows its own error page in the iframe, fires the iframe's `load`
- * event, and the checkout never sends its "loaded" message, so the embed's
- * create() never resolves. A frame that loaded but stays silent for
- * EMBED_HANDSHAKE_GRACE_MS is taken as refused; EMBED_MAX_WAIT_MS caps the
- * whole wait (slow network, no load event at all).
+ * How long the embedded checkout may stay silent before it is opened as a
+ * page instead. Proof of success is Polar's own "loaded" message (the
+ * embed's create() resolves on it); a slow checkout is waited for, never
+ * taken as refused. The iframe's `load` event proves nothing: the browser
+ * fires it for its own blocked-frame page too.
+ *
+ * Fallback happens only on:
+ *   - a definite refusal: the checkout was created for another origin than
+ *     this page's (Polar would answer frame-ancestors), our own CSP blocked
+ *     the frame (securitypolicyviolation), or the iframe errored;
+ *   - nothing at all from Polar within EMBED_MAX_WAIT_MS while the tab is
+ *     visible (a hidden tab's timers are throttled: decided once it shows).
+ * Any message from the checkout means it is running: keep waiting.
  */
-export const EMBED_MAX_WAIT_MS = 6_000;
-export const EMBED_HANDSHAKE_GRACE_MS = 2_000;
+export const EMBED_MAX_WAIT_MS = 12_000;
+
+/** The origins @polar-sh/checkout/embed accepts messages from. */
+const POLAR_ORIGINS = ["https://polar.sh", "https://sandbox.polar.sh"];
+const POLAR_MESSAGE_TYPE = "POLAR_CHECKOUT";
 
 export type EmbedOpenResult<T> =
-  | { kind: "loaded"; embed: T }
-  | { kind: "refused"; reason: "frame-error" | "no-handshake" | "timeout" };
+  | { kind: "loaded"; embed: T; elapsedMs: number }
+  | { kind: "refused"; reason: EmbedRefusalReason; elapsedMs: number };
+
+type EventSource = Pick<EventTarget, "addEventListener" | "removeEventListener">;
+type EmbedWindow = EventSource & { location: { origin: string } };
 
 function embedBase(checkoutUrl: string) {
   return checkoutUrl.split("?")[0];
+}
+
+function originOf(url: string) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+/** Our CSP blocked a frame of this checkout's origin. */
+function isCheckoutFrameViolation(event: Event, checkoutOrigin: string | null) {
+  const v = event as SecurityPolicyViolationEvent;
+  const directive = v.effectiveDirective || v.violatedDirective || "";
+  if (!/^(frame-src|child-src|default-src)/.test(directive)) return false;
+  const blocked = v.blockedURI || "";
+  return Boolean(checkoutOrigin) && (blocked === checkoutOrigin || blocked.startsWith(`${checkoutOrigin}/`));
 }
 
 /**
@@ -89,59 +126,133 @@ function embedBase(checkoutUrl: string) {
 export function openEmbedWithin<T>(options: {
   create: () => Promise<T>;
   checkoutUrl: string;
+  /** The origin the server created the checkout for (null: not known). */
+  embedOrigin?: string | null;
   doc?: Document;
+  win?: EmbedWindow;
   maxWaitMs?: number;
-  handshakeGraceMs?: number;
+  now?: () => number;
 }): Promise<EmbedOpenResult<T>> {
   const doc = options.doc ?? document;
+  const win: EmbedWindow = options.win ?? window;
   const maxWaitMs = options.maxWaitMs ?? EMBED_MAX_WAIT_MS;
-  const graceMs = options.handshakeGraceMs ?? EMBED_HANDSHAKE_GRACE_MS;
+  const now = options.now ?? Date.now;
   const base = embedBase(options.checkoutUrl);
+  const checkoutOrigin = originOf(options.checkoutUrl);
+  const started = now();
+  const elapsed = () => now() - started;
 
-  // create() appends the iframe and spinner synchronously, before it waits.
-  const load = options.create();
-  const frame = Array.from(doc.querySelectorAll("iframe")).find((f) =>
-    (f.getAttribute("src") ?? "").startsWith(base),
-  ) as HTMLIFrameElement | undefined;
-  const spinners = Array.from(doc.querySelectorAll(".polar-loader-spinner")).map(
-    (s) => (s.parentElement ?? s) as HTMLElement,
-  );
-  if (frame) frame.style.visibility = "hidden";
-  // Hidden, not removed: the embed removes its spinner itself once loaded.
-  spinners.forEach((s) => (s.style.display = "none"));
+  // The embed sends this page's origin; Polar frames the checkout only for
+  // the one it was created with. Known to fail: do not even try.
+  if (options.embedOrigin && options.embedOrigin !== win.location.origin) {
+    return Promise.resolve({ kind: "refused", reason: "origin-mismatch", elapsedMs: 0 });
+  }
 
   return new Promise<EmbedOpenResult<T>>((resolve, reject) => {
     let settled = false;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const finish = (result: EmbedOpenResult<T> | Error) => {
-      if (settled) return;
-      settled = true;
-      timers.forEach(clearTimeout);
-      frame?.removeEventListener("load", onFrameLoad);
-      frame?.removeEventListener("error", onFrameError);
-      if (result instanceof Error) {
-        removeEmbedLeftovers(options.checkoutUrl, doc);
-        reject(result);
-      } else if (result.kind === "refused") {
-        removeEmbedLeftovers(options.checkoutUrl, doc);
-        resolve(result);
-      } else {
-        if (frame) frame.style.visibility = "";
-        resolve(result);
+    let heardFromCheckout = false;
+    // Set once create() has run; read by cleanup, which can run before.
+    const handles: { frame?: HTMLIFrameElement; deadline?: ReturnType<typeof setTimeout> } = {};
+
+    const onViolation = (event: Event) => {
+      if (isCheckoutFrameViolation(event, checkoutOrigin)) finish("csp");
+    };
+    const onMessage = (event: Event) => {
+      const { origin, data } = event as MessageEvent;
+      if (POLAR_ORIGINS.includes(origin) && data?.type === POLAR_MESSAGE_TYPE) heardFromCheckout = true;
+    };
+    const onFrameError = () => finish("frame-error");
+    const onVisibility = () => {
+      if (doc.visibilityState !== "hidden") {
+        doc.removeEventListener("visibilitychange", onVisibility);
+        onDeadline();
       }
     };
-    const onFrameLoad = () => {
-      timers.push(setTimeout(() => finish({ kind: "refused", reason: "no-handshake" }), graceMs));
-    };
-    const onFrameError = () => finish({ kind: "refused", reason: "frame-error" });
-    frame?.addEventListener("load", onFrameLoad);
+    function onDeadline() {
+      if (settled || heardFromCheckout) return;
+      if (doc.visibilityState === "hidden") {
+        doc.addEventListener("visibilitychange", onVisibility);
+        return;
+      }
+      finish("timeout");
+    }
+
+    function cleanup() {
+      if (handles.deadline) clearTimeout(handles.deadline);
+      doc.removeEventListener("securitypolicyviolation", onViolation);
+      doc.removeEventListener("visibilitychange", onVisibility);
+      win.removeEventListener("message", onMessage);
+      handles.frame?.removeEventListener("error", onFrameError);
+    }
+
+    function finish(outcome: EmbedRefusalReason | { embed: T } | Error) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (outcome instanceof Error) {
+        removeEmbedLeftovers(options.checkoutUrl, doc);
+        reject(outcome);
+      } else if (typeof outcome === "string") {
+        removeEmbedLeftovers(options.checkoutUrl, doc);
+        resolve({ kind: "refused", reason: outcome, elapsedMs: elapsed() });
+      } else {
+        if (handles.frame) handles.frame.style.visibility = "";
+        resolve({ kind: "loaded", embed: outcome.embed, elapsedMs: elapsed() });
+      }
+    }
+
+    // Listening before the frame exists: a violation can be reported early.
+    doc.addEventListener("securitypolicyviolation", onViolation);
+    win.addEventListener("message", onMessage);
+
+    let load: Promise<T>;
+    try {
+      // create() appends the iframe and spinner synchronously, before it waits.
+      load = options.create();
+    } catch (error) {
+      finish(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+    const frame = Array.from(doc.querySelectorAll("iframe")).find((f) =>
+      (f.getAttribute("src") ?? "").startsWith(base),
+    ) as HTMLIFrameElement | undefined;
+    const spinners = Array.from(doc.querySelectorAll(".polar-loader-spinner")).map(
+      (s) => (s.parentElement ?? s) as HTMLElement,
+    );
+    if (frame) frame.style.visibility = "hidden";
+    // Hidden, not removed: the embed removes its spinner itself once loaded.
+    spinners.forEach((s) => (s.style.display = "none"));
+
+    handles.frame = frame;
     frame?.addEventListener("error", onFrameError);
-    timers.push(setTimeout(() => finish({ kind: "refused", reason: "timeout" }), maxWaitMs));
+    handles.deadline = setTimeout(onDeadline, maxWaitMs);
     load.then(
-      (embed) => finish({ kind: "loaded", embed }),
+      (embed) => finish({ embed }),
       (error: unknown) => finish(error instanceof Error ? error : new Error(String(error))),
     );
   });
+}
+
+/**
+ * Tells the server how the checkout opened, for the Vercel logs. Never
+ * throws or delays the purchase; keepalive lets it finish while the page
+ * leaves for the checkout.
+ */
+export function reportEmbedOutcome(
+  result: { kind: "loaded" } | { kind: "refused"; reason: EmbedRefusalReason },
+  elapsedMs: number,
+  fetchImpl: FetchLike = fetch,
+): void {
+  try {
+    void fetchImpl("/api/billing/checkout/embed-outcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(embedOutcomeReport(result, elapsedMs)),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // Logging only.
+  }
 }
 
 /**
