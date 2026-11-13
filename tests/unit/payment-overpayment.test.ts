@@ -197,11 +197,46 @@ test("POST: one fils over the balance is rejected; the exact balance is accepted
   assert.equal(state.payments.length, 2);
 });
 
-test("PATCH: collecting a pending payment above the remaining balance is rejected (409)", async () => {
+test("POST: a PENDING payment above the remaining balance is rejected (409), same message, nothing saved", async () => {
   reset(100);
   assert.equal((await pay(60)).status, 201);
-  assert.equal((await pay(50, "PENDING")).status, 201);
-  const pending = state.payments.find((p) => p.status === "PENDING")!;
+
+  const response = await pay(50, "PENDING");
+  assert.equal(response.status, 409);
+  const result = await body(response);
+  assert.equal(result.message, "قيمة الدفعة أكبر من الرصيد المتبقي على الفاتورة");
+  assert.deepEqual(result.details, {
+    invoiceTotal: 100,
+    paidTotal: 60,
+    remaining: 40,
+    requestedAmount: 50,
+  });
+  assert.equal(state.payments.length, 1);
+  assert.deepEqual(state.locks, ["invoice", "invoice"]); // checked after the lock
+});
+
+test("POST: a PENDING payment within the remaining balance is accepted; none on a fully paid invoice", async () => {
+  reset(100);
+  assert.equal((await pay(60)).status, 201);
+  assert.equal((await pay(40, "PENDING")).status, 201);
+  assert.equal(state.payments.filter((p) => p.status === "PENDING").length, 1);
+
+  reset(100);
+  assert.equal((await pay(100)).status, 201);
+  const after = await pay(1, "PENDING");
+  assert.equal(after.status, 409);
+  assert.equal((await body(after)).message, "الفاتورة مدفوعة بالكامل ولا تقبل دفعة إضافية");
+});
+
+test("PATCH: collecting a pending payment above the remaining balance is rejected (409)", async () => {
+  // Two pending payments that each fit, then the first is collected: the
+  // second no longer fits, and collecting it is refused.
+  reset(100);
+  assert.equal((await pay(60)).status, 201);
+  assert.equal((await pay(30, "PENDING")).status, 201);
+  assert.equal((await pay(40, "PENDING")).status, 201);
+  const [first, pending] = state.payments.filter((p) => p.status === "PENDING");
+  first.status = "PAID"; // collected: 90 of 100, so 10 left for the pending 40
 
   const response = await PATCH(
     new NextRequest(`http://localhost/api/payments/${pending.id}`, {

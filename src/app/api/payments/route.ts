@@ -498,7 +498,10 @@ export async function POST(req: NextRequest) {
           caseTitle = selectedCase.title;
         }
 
-        if (paymentStatus === "PAID") {
+        // Every new payment on an invoice, collected or pending, must fit
+        // in what is still to collect (CANCELLED cannot be created). A
+        // pending one is checked again when it is collected (PATCH).
+        {
           const paidTotal = roundMoney(
             invoice.payments.reduce(
               (sum, payment) => sum + Number(payment.amount),
