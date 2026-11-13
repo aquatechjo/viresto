@@ -11,7 +11,7 @@ import { err } from "@/lib/api-response";
 // upgrade/downgrade branch, and the checkout-vs-update decision — runs
 // unmocked.
 
-type AdminUser = { id: string; tenantId: string; role: "ADMIN" };
+type AdminUser = { id: string; tenantId: string; role: "ADMIN"; email: string };
 type AuthResult = { error: Response | null; user: AdminUser | null };
 type BillingPlanRow = Record<string, unknown>;
 type SubscriptionRow = Record<string, unknown> | null;
@@ -20,6 +20,7 @@ const ADMIN_USER: AdminUser = {
   id: "user-1",
   tenantId: "tenant-1",
   role: "ADMIN",
+  email: "admin@office.test",
 };
 
 const requirePermissionMock = mock.fn<(...args: unknown[]) => Promise<AuthResult>>(
@@ -37,7 +38,7 @@ const subscriptionsUpdateMock = mock.fn<
 >(async () => ({ id: "polar-sub-updated" }));
 const checkoutsCreateMock = mock.fn<
   (...args: unknown[]) => Promise<Record<string, unknown>>
->(async () => ({ url: "https://polar.sh/checkout/session_123" }));
+>(async () => ({ id: "checkout_123", url: "https://polar.sh/checkout/session_123" }));
 const billingPlanFindManyMock = mock.fn<
   (...args: unknown[]) => Promise<BillingPlanRow[]>
 >(async () => [billingPlanRow()]);
@@ -147,6 +148,7 @@ function resetMocks() {
     id: "polar-sub-updated",
   }));
   checkoutsCreateMock.mock.mockImplementation(async () => ({
+    id: "checkout_123",
     url: "https://polar.sh/checkout/session_123",
   }));
 }
@@ -314,12 +316,15 @@ test("checkout: no Polar-linked subscription creates a new checkout session with
   assert.equal(res.status, 200);
   assert.equal(json.data.mode, "checkout");
   assert.equal(json.data.url, "https://polar.sh/checkout/session_123");
+  assert.equal(json.data.checkoutId, "checkout_123");
   assert.equal(subscriptionsUpdateMock.mock.callCount(), 0);
   assert.equal(checkoutsCreateMock.mock.callCount(), 1);
   assert.deepEqual(checkoutsCreateMock.mock.calls[0].arguments[0], {
     products: ["basic_monthly"],
     allowTrial: false,
     externalCustomerId: "tenant-1",
+    customerEmail: "admin@office.test",
+    embedOrigin: "https://app.test",
     successUrl:
       "https://app.test/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}",
     metadata: { tenantId: "tenant-1", planCode: "BASIC", billingCycle: "monthly" },

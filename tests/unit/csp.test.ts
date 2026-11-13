@@ -55,3 +55,14 @@ test("connect-src allows Sentry ingest for browser error reports, nothing broade
   assert.match(connectSrc, /https:\/\/\*\.ingest\.de\.sentry\.io/);
   assert.equal(connectSrc.includes("https://*.sentry.io"), false);
 });
+
+test("Polar's embedded checkout may be framed (iframe only), and nothing else of Polar is allowed", () => {
+  const csp = buildContentSecurityPolicy(createCspNonce(), false);
+  const frameSrc = directive(csp, "frame-src") ?? "";
+  for (const origin of ["https://polar.sh", "https://sandbox.polar.sh", "https://buy.polar.sh"]) {
+    assert.ok(frameSrc.split(" ").includes(origin), origin);
+  }
+  assert.equal(directive(csp, "script-src")?.includes("polar.sh"), false);
+  assert.equal(directive(csp, "connect-src")?.includes("polar.sh"), false);
+  assert.equal(directive(csp, "frame-ancestors"), "frame-ancestors 'none'");
+});

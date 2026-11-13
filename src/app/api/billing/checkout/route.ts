@@ -278,8 +278,14 @@ export async function POST(req: NextRequest) {
       // this is the safety net if one is ever configured there again.
       allowTrial: false,
       externalCustomerId: auth.user.tenantId,
+      // Prefilled; the admin can still change it in the checkout.
+      customerEmail: auth.user.email || null,
+      // The billing page opens this checkout embedded (@polar-sh/checkout);
+      // Polar only allows embedding from this origin.
+      embedOrigin: new URL(getAppUrl()).origin,
       // Polar fills {CHECKOUT_ID}; the billing page posts it to
-      // /api/billing/checkout/confirm for an instant, verified unlock.
+      // /api/billing/checkout/confirm for an instant, verified unlock. Used
+      // when the checkout is opened as a page instead of embedded.
       successUrl: `${getAppUrl()}/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}`,
       metadata: {
         tenantId: auth.user.tenantId,
@@ -288,6 +294,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return ok({ mode: "checkout", url: checkout.url });
+    // checkoutId: the page posts it to /api/billing/checkout/confirm when the
+    // embedded checkout reports success.
+    return ok({ mode: "checkout", url: checkout.url, checkoutId: checkout.id });
   });
 }

@@ -17,6 +17,7 @@ import { getEffectiveSubscriptionStatus } from "@/lib/billing-limits";
 import { getAiUsagePeriod } from "@/lib/ai-usage-core";
 import { isTrialEndingSoon } from "@/lib/tenant-access";
 import { getTenantAccess } from "@/lib/tenant-access-server";
+import { withPolarProductIds } from "@/lib/polar-products";
 
 type DbPlanLike = {
   id: string;
@@ -34,6 +35,8 @@ type DbPlanLike = {
   aiEnabled: boolean;
   sortOrder?: number | null;
   isActive?: boolean | null;
+  polarMonthlyProductId?: string | null;
+  polarYearlyProductId?: string | null;
 };
 
 const VALID_PLAN_CODES = new Set<PlanCode>(["BASIC", "PRO", "BUSINESS"]);
@@ -169,6 +172,14 @@ function buildPlanPayload(dbPlan: DbPlanLike, isCurrent: boolean) {
     ? getYearlyPrice(configuredPlan) * minorUnits
     : dbPlan.priceYearly;
   const limits = getPlanLimits(dbPlan, configuredPlan);
+  // Which cycles have a Polar product set up (sandbox map, else the
+  // columns). The page offers a cycle only when every plan has it; the
+  // checkout still verifies the product itself before charging.
+  const products = withPolarProductIds({
+    code: dbPlan.code,
+    polarMonthlyProductId: dbPlan.polarMonthlyProductId ?? null,
+    polarYearlyProductId: dbPlan.polarYearlyProductId ?? null,
+  });
 
   return {
     id: dbPlan.id,
@@ -187,6 +198,10 @@ function buildPlanPayload(dbPlan: DbPlanLike, isCurrent: boolean) {
       ? PLANS.findIndex((plan) => plan.code === configuredPlan.code) + 1
       : dbPlan.sortOrder ?? 999,
     isCurrent,
+    purchasable: {
+      monthly: Boolean(products.polarMonthlyProductId),
+      yearly: Boolean(products.polarYearlyProductId),
+    },
   };
 }
 
@@ -284,6 +299,8 @@ export async function GET(req: NextRequest) {
           aiEnabled: true,
           sortOrder: true,
           isActive: true,
+          polarMonthlyProductId: true,
+          polarYearlyProductId: true,
         },
       }),
       Promise.all([
