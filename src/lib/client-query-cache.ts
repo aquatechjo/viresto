@@ -103,6 +103,21 @@ export function invalidateClientQueryCache(prefix?: string) {
   }
 }
 
+/**
+ * Clears both caches for the signed-in user and office only (other scopes
+ * in this tab are left alone). Call after anything that changes what the
+ * office pays for: a subscription activated, a plan change, a cancel.
+ */
+export function invalidateCurrentScopeCache(scope: string | null = getCacheScope()) {
+  if (!scope) return;
+  const prefix = `${scope}${SEPARATOR}`;
+  for (const cache of [responseCache, staleCache] as Map<string, unknown>[]) {
+    for (const key of [...cache.keys()]) {
+      if (key.startsWith(prefix)) cache.delete(key);
+    }
+  }
+}
+
 /*
  * Stale-while-revalidate for the pages' own lists. The last OK body of each
  * GET URL is kept in this tab's memory (never in storage), so coming back

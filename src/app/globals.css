@@ -2323,6 +2323,13 @@ select.input {
 .animate-scale {
   animation: scaleIn 0.15s ease;
 }
+
+/* Recommended plan on the subscriptions page: a soft glow from the accent. */
+.plan-card-recommended {
+  box-shadow:
+    0 0 0 1px var(--gold-border),
+    0 14px 36px -16px color-mix(in srgb, var(--gold) 55%, transparent);
+}
 .animate-pulse {
   animation: pulse 2s ease-in-out infinite;
 }

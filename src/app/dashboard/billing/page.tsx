@@ -1,17 +1,21 @@
 "use client";
 
+// The subscriptions page. Checkout opens embedded in the page
+// (@polar-sh/checkout/embed); the subscription is activated only by the
+// server: POST /api/billing/checkout/confirm verifies the checkout with
+// Polar and syncs it, and the Polar webhook does the same on its own.
+// This page polls until the office is paid, then drops every cached plan
+// figure of this user and office.
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { formatLimit } from "@/config/plans";
 import { useLocale } from "@/lib/useLocale";
 import { translations } from "@/lib/i18n";
 import AppLoader from "@/components/ui/AppLoader";
 import { PageHeader } from "@/components/page";
-import { isPlanCode } from "@/lib/trial-copy";
-import TrialStatusCard, {
-  daysPhrase,
-} from "@/components/billing/TrialStatusCard";
+import { TRIAL_DAYS, isPlanCode } from "@/lib/trial-copy";
+import TrialStatusCard from "@/components/billing/TrialStatusCard";
 import { useTenantAccessSummary } from "@/hooks/useTenantAccessSummary";
 import {
   invalidateTenantWriteAccessCache,
@@ -21,18 +25,33 @@ import {
 import { DEMO_BLOCKED_CODE, DEMO_BLOCKED_MESSAGE } from "@/lib/demo/constants";
 import { leaveDemoSession, refreshDemoMode } from "@/lib/demo/client";
 import { formatInZone } from "@/lib/datetime";
+import {
+  billingView,
+  onSubscriptionChanged,
+  requestCheckout,
+  trialProgress,
+  waitForActivation,
+  type ActivationCheck,
+  type CheckoutCycle,
+} from "@/lib/billing/checkout-flow";
+import {
+  ActiveSubscriptionCard,
+  BillingFaq,
+  CheckoutStatus,
+  ComparisonTable,
+  CycleToggle,
+  ExpiredNotice,
+  PastDueNotice,
+  PlanCards,
+  SubscriptionSuccess,
+  TrialBanner,
+  TrustRow,
+  subscriptionCopy,
+  type CheckoutNotice,
+  type PlanCardData,
+} from "@/components/billing/SubscriptionSections";
 
-type SubscriptionStatus =
-  | "TRIALING"
-  | "ACTIVE"
-  | "PAST_DUE"
-  | "CANCELLED"
-  | "EXPIRED"
-  | "UNPAID";
-
-type StatusTone = "success" | "warning" | "danger" | "muted";
-
-type BillingCycle = "MONTHLY" | "YEARLY";
+type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED" | "UNPAID";
 
 interface Money {
   raw: number;
@@ -45,31 +64,18 @@ interface UsageItem {
   used: number;
   limit: number | null;
   percent: number | null;
-  reserved?: number;
-  periodStart?: string;
-  periodEnd?: string;
 }
 
 interface BillingPlan {
   id: string;
   code: string;
   name: string;
+  subtitle?: string | null;
   description?: string | null;
-  currency: string;
   priceMonthly: Money;
   priceYearly: Money;
-  limits: {
-    users: number | null;
-    clients: number | null;
-    cases: number | null;
-    documents: number | null;
-    storageMb?: number | null;
-    aiEnabled?: boolean;
-    aiMonthlyTokens?: number;
-  };
-  aiEnabled: boolean;
-  sortOrder?: number;
   isCurrent?: boolean;
+  purchasable?: { monthly: boolean; yearly: boolean };
 }
 
 interface BillingData {
@@ -77,419 +83,77 @@ interface BillingData {
   tenant: {
     id: string;
     name: string;
-    slug: string;
-    plan?: string;
-    status?: string;
     subscriptionStatus: SubscriptionStatus;
-    statusLabel: string;
-    statusTone: StatusTone;
-    isSuspended: boolean;
-    maxUsers?: number;
     trialEndsAt?: string | null;
-    trialDaysLeft?: number | null;
     signupPlanCode?: string | null;
-    createdAt: string;
   };
   subscription: {
-    id: string;
     status: SubscriptionStatus;
-    statusLabel: string;
-    statusTone: StatusTone;
-    interval: BillingCycle;
+    interval: "MONTHLY" | "YEARLY";
     amount: Money;
-    currency: string;
     trialEndsAt?: string | null;
-    trialDaysLeft?: number | null;
-    currentPeriodStart?: string | null;
     currentPeriodEnd?: string | null;
     cancelAtPeriodEnd: boolean;
-    cancelledAt?: string | null;
-    createdAt: string;
-    updatedAt: string;
     plan: BillingPlan;
   } | null;
   currentPlan: BillingPlan;
-  usage: {
-    users: UsageItem;
-    clients: UsageItem;
-    cases: UsageItem;
-    documents: UsageItem;
-    storage: UsageItem;
-    ai: UsageItem;
-    payments: UsageItem;
-    invoices: UsageItem;
-  };
-  warnings: Array<{ key: string; percent: number | null }>;
+  usage: Record<"users" | "clients" | "cases" | "documents" | "storage" | "ai" | "payments" | "invoices", UsageItem>;
   availablePlans: BillingPlan[];
-  period?: {
-    currentPeriodStart?: string | null;
-    currentPeriodEnd?: string | null;
-    trialEndsAt?: string | null;
-  };
 }
 
-const statusClasses: Record<StatusTone, string> = {
-  success:
-    "border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-400/30 dark:bg-[var(--brand-surface-hover)] dark:text-emerald-50",
-  warning:
-    "border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200",
-  danger:
-    "border border-red-200 bg-red-100 text-red-700 dark:border-red-400/30 dark:bg-red-500/15 dark:text-red-200",
-  muted:
-    "border border-slate-200 bg-slate-100 text-slate-700 dark:border-white/10 dark:bg-white/10 dark:text-white/70",
-};
-
-function formatDate(value: string | null | undefined, locale: string) {
-  if (!value) return locale === "ar" ? "غير محدد" : "Not set";
-
-  return formatInZone(value, locale === "ar" ? "ar" : "en", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function getStatusLabel(status: string | undefined, isArabic: boolean) {
-  if (isArabic) {
-    switch (status) {
-      case "ACTIVE":
-        return "نشط";
-      case "TRIALING":
-        return "تجربة";
-      case "PAST_DUE":
-        return "متأخر الدفع";
-      case "CANCELLED":
-        return "ملغي";
-      case "EXPIRED":
-        return "منتهي";
-      case "UNPAID":
-        return "غير مدفوع";
-      default:
-        return "غير محدد";
-    }
-  }
-
-  switch (status) {
-    case "ACTIVE":
-      return "Active";
-    case "TRIALING":
-      return "Trialing";
-    case "PAST_DUE":
-      return "Past due";
-    case "CANCELLED":
-      return "Cancelled";
-    case "EXPIRED":
-      return "Expired";
-    case "UNPAID":
-      return "Unpaid";
-    default:
-      return "Unknown";
-  }
-}
-
-function getEffectiveBillingStatus(
-  status: SubscriptionStatus | string | undefined,
-  currentPeriodEnd?: string | null,
-  trialEndsAt?: string | null,
-): SubscriptionStatus {
-  const safeStatus = status as SubscriptionStatus | undefined;
-  const endDateValue = currentPeriodEnd ?? trialEndsAt ?? null;
-
-  if (
-    endDateValue &&
-    safeStatus &&
-    ["TRIALING", "ACTIVE", "PAST_DUE"].includes(safeStatus)
-  ) {
-    const endDate = new Date(endDateValue);
-
-    if (!Number.isNaN(endDate.getTime()) && endDate.getTime() <= Date.now()) {
-      return "EXPIRED";
-    }
-  }
-
-  if (
-    safeStatus &&
-    [
-      "TRIALING",
-      "ACTIVE",
-      "PAST_DUE",
-      "CANCELLED",
-      "EXPIRED",
-      "UNPAID",
-    ].includes(safeStatus)
-  ) {
-    return safeStatus;
-  }
-
-  return "EXPIRED";
-}
-
-function getStatusToneFromStatus(status: SubscriptionStatus): StatusTone {
-  switch (status) {
-    case "ACTIVE":
-      return "success";
-    case "TRIALING":
-      return "warning";
-    case "CANCELLED":
-      return "muted";
-    case "PAST_DUE":
-    case "UNPAID":
-    case "EXPIRED":
-    default:
-      return "danger";
-  }
-}
-
-function getPlanCode(plan: BillingPlan) {
-  return plan.code.toUpperCase();
-}
-
-function getAiTokenLabel(plan: BillingPlan, isArabic: boolean) {
-  switch (getPlanCode(plan)) {
-    case "PRO":
-      return isArabic ? "1M tokens / شهر" : "1M tokens / month";
-    case "BUSINESS":
-      return isArabic ? "4M tokens / شهر" : "4M tokens / month";
-    default:
-      return isArabic ? "غير متاح" : "Not available";
-  }
-}
-
-function formatStorageLimit(storageMb: number | null | undefined, locale: string) {
-  if (storageMb === null || storageMb === undefined) {
-    return locale === "ar" ? "حسب الخطة" : "Plan based";
-  }
-
-  if (storageMb >= 1024) {
-    const storageGb = storageMb / 1024;
-    const formattedGb = Number.isInteger(storageGb)
-      ? storageGb.toString()
-      : storageGb.toFixed(1);
-
-    return `${formattedGb}GB`;
-  }
-
-  return `${storageMb}MB`;
-}
-
-function getDocumentsLimitLabel(isArabic: boolean) {
-  return isArabic ? "حسب مساحة التخزين" : "Based on storage";
-}
-
-function getPlanDescription(plan: BillingPlan, isArabic: boolean) {
-  switch (getPlanCode(plan)) {
-    case "BASIC":
-      return isArabic
-        ? "كل الأساسيات لتبدأ تنظيم عملك القانوني باحترافية."
-        : "All the essentials you need to organize your legal work professionally.";
-    case "PRO":
-      return isArabic
-        ? "الخطة الأنسب لإدارة مكتبك وفريقك بكفاءة."
-        : "The ideal plan for managing your office and team efficiently.";
-    case "BUSINESS":
-      return isArabic
-        ? "حل متكامل للمكاتب التي تحتاج حدودًا أعلى ودعمًا أقوى."
-        : "A complete solution for law firms that need higher limits and stronger support.";
-    default:
-      return plan.description || "—";
-  }
-}
-
-type PlanFeatureItem = {
-  label: string;
-  included: boolean;
-};
-
-function getPlanFeatures(plan: BillingPlan, isArabic: boolean): PlanFeatureItem[] {
-  const code = getPlanCode(plan);
-  const locale = isArabic ? "ar" : "en";
-
-  const baseFeatures: PlanFeatureItem[] = [
-    {
-      label: isArabic
-        ? `حتى ${formatLimit(plan.limits.users, locale)} مستخدم`
-        : `Up to ${formatLimit(plan.limits.users, locale)} users`,
-      included: true,
-    },
-    {
-      label: isArabic
-        ? `حتى ${formatLimit(plan.limits.clients, locale)} موكل`
-        : `Up to ${formatLimit(plan.limits.clients, locale)} clients`,
-      included: true,
-    },
-    {
-      label: isArabic
-        ? `حتى ${formatLimit(plan.limits.cases, locale)} قضية`
-        : `Up to ${formatLimit(plan.limits.cases, locale)} cases`,
-      included: true,
-    },
-    {
-      label: isArabic
-        ? `تخزين ${formatStorageLimit(plan.limits.storageMb ?? null, locale)}`
-        : `${formatStorageLimit(plan.limits.storageMb ?? null, locale)} storage`,
-      included: true,
-    },
-    {
-      label: isArabic
-        ? `المستندات: ${getDocumentsLimitLabel(isArabic)}`
-        : `Documents: ${getDocumentsLimitLabel(isArabic)}`,
-      included: true,
-    },
-  ];
-
-  if (code === "BASIC") {
-    return [
-      ...baseFeatures,
-      {
-        label: isArabic ? "المساعد الذكي AI" : "AI assistant",
-        included: false,
-      },
-      {
-        label: isArabic
-          ? "تلخيص المستندات بالذكاء الاصطناعي"
-          : "AI document summarization",
-        included: false,
-      },
-      {
-        label: isArabic ? "إدارة الفريق وأدوار المستخدمين" : "Team and user roles",
-        included: false,
-      },
-      {
-        label: isArabic ? "تصدير PDF / Excel كامل" : "Full PDF / Excel export",
-        included: false,
-      },
-      {
-        label: isArabic ? "تقارير أساسية" : "Basic reports",
-        included: true,
-      },
-      {
-        label: isArabic ? "دعم عادي" : "Standard support",
-        included: true,
-      },
-    ];
-  }
-
-  if (code === "PRO") {
-    return [
-      ...baseFeatures,
-      {
-        label: isArabic
-          ? `المساعد الذكي AI: ${getAiTokenLabel(plan, isArabic)}`
-          : `AI assistant: ${getAiTokenLabel(plan, isArabic)}`,
-        included: true,
-      },
-      {
-        label: isArabic
-          ? "تلخيص المستندات بالذكاء الاصطناعي"
-          : "AI document summarization",
-        included: true,
-      },
-      {
-        label: isArabic ? "إدارة الفريق وأدوار المستخدمين" : "Team and user roles",
-        included: true,
-      },
-      {
-        label: isArabic ? "تصدير PDF / Excel كامل" : "Full PDF / Excel export",
-        included: true,
-      },
-      {
-        label: isArabic ? "دعم أسرع" : "Faster support",
-        included: true,
-      },
-    ];
-  }
-
-  return [
-    ...baseFeatures,
-    {
-      label: isArabic
-        ? `المساعد الذكي AI: ${getAiTokenLabel(plan, isArabic)}`
-        : `AI assistant: ${getAiTokenLabel(plan, isArabic)}`,
-      included: true,
-    },
-    {
-      label: isArabic
-        ? "تلخيص المستندات بالذكاء الاصطناعي"
-        : "AI document summarization",
-      included: true,
-    },
-    {
-      label: isArabic ? "إدارة الفريق وأدوار المستخدمين" : "Team and user roles",
-      included: true,
-    },
-    {
-      label: isArabic ? "تصدير PDF / Excel كامل" : "Full PDF / Excel export",
-      included: true,
-    },
-    {
-      label: isArabic ? "دعم أولوية ومخصص" : "Priority dedicated support",
-      included: true,
-    },
-  ];
-}
-
-type CheckoutReturn = { checkoutId: string | null; url: string };
-
-const CHECKOUT_POLL_INTERVAL_MS = 2_000;
-const CHECKOUT_POLL_LIMIT_MS = 30_000;
-// After that, a late webhook still unlocks the page without a refresh.
-const CHECKOUT_SLOW_POLL_INTERVAL_MS = 10_000;
-const CHECKOUT_SLOW_POLL_LIMIT_MS = 5 * 60_000;
+const POLL_TIMEOUT_MS = 30_000;
+const POLL_INTERVAL_MS = 2_000;
+const SUBSCRIPTION_SIGNATURE_KEY = "viresto_subscription_signature";
 
 /**
- * One poll of the checkout return: "active" once the office is paid (this
+ * One check of the checkout: "active" once the office is paid (this
  * checkout confirmed now, or the webhook got there first), "in_demo" when
  * this tab is a demo session (billing is closed there), else "pending".
+ * Both requests bypass the client caches.
  */
-async function checkCheckoutActivation(
-  checkoutId: string | null,
-): Promise<"active" | "pending" | "in_demo"> {
+async function checkCheckoutActivation(checkoutId: string | null): Promise<ActivationCheck> {
   if (checkoutId) {
     const res = await fetch("/api/billing/checkout/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ checkoutId }),
+      cache: "no-store",
     }).catch(() => null);
     const json = res ? await res.json().catch(() => ({})) : {};
 
-    if (res?.status === 403 && json?.details?.code === DEMO_BLOCKED_CODE) {
-      return "in_demo";
-    }
-    if (json?.data?.synced) {
-      // Banners listen for this refresh (TENANT_ACCESS_EVENT).
-      await requestTenantWriteAccess(true);
-      return "active";
-    }
+    if (res?.status === 403 && json?.details?.code === DEMO_BLOCKED_CODE) return "in_demo";
+    if (json?.data?.synced) return "active";
   }
 
   const access = await requestTenantWriteAccess(true);
   return access?.access?.state === "PAID" ? "active" : "pending";
 }
 
+function formatDate(value: string | null | undefined, locale: string) {
+  if (!value) return null;
+  return formatInZone(value, locale === "ar" ? "ar" : "en", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function isDarkTheme() {
+  return typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+}
+
+type EmbedInstance = { close: () => void };
+
 export default function BillingPage() {
   const { locale } = useLocale();
   const isArabic = locale === "ar";
   const dir = isArabic ? "rtl" : "ltr";
   const billing = translations[locale].billingPage;
-
-  const labels = {
-    monthly: isArabic ? "شهرياً" : "monthly",
-    yearly: isArabic ? "سنوياً" : "yearly",
-    subscriptionStatus: isArabic ? "حالة الاشتراك" : "Subscription status",
-    currentPeriodEnd: isArabic ? "نهاية الفترة الحالية" : "Current period end",
-    trialEndsAt: isArabic ? "نهاية التجربة" : "Trial ends at",
-    aiEnabled: isArabic ? "مفعل" : "Enabled",
-    aiDisabled: isArabic ? "غير مفعل" : "Disabled",
-    storage: isArabic ? "التخزين" : "Storage",
-    activePlan: isArabic ? "الخطة الحالية" : "Current plan",
-  };
+  const copy = useMemo(() => subscriptionCopy(isArabic), [isArabic]);
+  const router = useRouter();
 
   const usageLabels: Record<keyof BillingData["usage"], string> = {
     users: billing.users,
     clients: billing.clients,
     cases: billing.cases,
     documents: billing.documents,
-    storage: labels.storage,
+    storage: isArabic ? "التخزين" : "Storage",
     ai: isArabic ? "استهلاك الذكاء الاصطناعي" : "AI token usage",
     payments: billing.payments,
     invoices: billing.invoices,
@@ -497,275 +161,224 @@ export default function BillingPage() {
 
   const [data, setData] = useState<BillingData | null>(null);
   const [loading, setLoading] = useState(true);
-  // /api/billing is admin-only; team members get the trial/lock notice
-  // from /api/billing/access instead of the full billing page.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // /api/billing is admin-only; team members get the trial/lock notice.
   const [memberView, setMemberView] = useState(false);
-  // Billing is closed inside demo mode (src/lib/demo): explain, not "admins only".
   const [demoBlocked, setDemoBlocked] = useState(false);
   const memberAccess = useTenantAccessSummary();
-  const [checkoutPending, setCheckoutPending] = useState(false);
-  const [checkoutTimedOut, setCheckoutTimedOut] = useState(false);
-  // The ?checkout=success return, read once (undefined = not read yet).
-  const checkoutReturnRef = useRef<CheckoutReturn | null | undefined>(undefined);
-  const router = useRouter();
 
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("MONTHLY");
-  const [upgradingKey, setUpgradingKey] = useState<string | null>(null);
+  const [cycle, setCycle] = useState<CheckoutCycle>("monthly");
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [portalOpening, setPortalOpening] = useState(false);
+  const [notice, setNotice] = useState<CheckoutNotice | null>(null);
+  const [successPlan, setSuccessPlan] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const embedRef = useRef<EmbedInstance | null>(null);
+  const pollRef = useRef<AbortController | null>(null);
+  const pendingCheckoutRef = useRef<{ checkoutId: string | null; planName: string } | null>(null);
+  const returnHandledRef = useRef(false);
 
-    const res = await fetch("/api/billing");
-    const json = await res.json().catch(() => ({}));
+  const load = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      if (!options.silent) setLoading(true);
+      setLoadError(null);
 
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
+      const res = await fetch("/api/billing", { cache: "no-store" }).catch(() => null);
+      const json = res ? await res.json().catch(() => ({})) : {};
 
-    if (res.status === 403) {
-      if (json?.details?.code === DEMO_BLOCKED_CODE) setDemoBlocked(true);
-      else setMemberView(true);
+      if (res?.status === 401) {
+        window.location.href = "/login";
+        return null;
+      }
+      if (res?.status === 403) {
+        if (json?.details?.code === DEMO_BLOCKED_CODE) setDemoBlocked(true);
+        else setMemberView(true);
+        setLoading(false);
+        return null;
+      }
+      if (!res?.ok || !json.success) {
+        setLoadError(json?.message || billing.loadError);
+        setLoading(false);
+        return null;
+      }
+
+      const next = json.data as BillingData;
+      setData(next);
       setLoading(false);
-      return;
-    }
+      invalidateTenantWriteAccessCache();
 
-    if (!res.ok || !json.success) {
-      toast.error(json.message || billing.loadError);
-      setLoading(false);
-      return;
-    }
-
-    setData(json.data);
-    setLoading(false);
-    // Keep the dashboard gate and banners in step with what this page shows
-    // (e.g. right after a payment unlocks the office).
-    invalidateTenantWriteAccessCache();
-  }, [billing.loadError]);
+      // A change made outside this page (cancel or plan change in Polar's
+      // customer portal): drop cached plan figures of this user and office.
+      const signature = [
+        next.access?.state,
+        next.subscription?.status,
+        next.subscription?.plan.code,
+        next.subscription?.interval,
+        next.subscription?.cancelAtPeriodEnd,
+      ].join("|");
+      try {
+        const previous = window.sessionStorage.getItem(SUBSCRIPTION_SIGNATURE_KEY);
+        window.sessionStorage.setItem(SUBSCRIPTION_SIGNATURE_KEY, signature);
+        if (previous !== null && previous !== signature) {
+          await onSubscriptionChanged(() => requestTenantWriteAccess(true));
+        }
+      } catch {
+        // Storage blocked: the check below each activation still runs.
+      }
+      return next;
+    },
+    [billing.loadError],
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Back from Polar (?checkout=success&checkout_id=…): activate now rather
-  // than waiting for the webhook. Every 2 s for up to 30 s, ask the server
-  // to verify the checkout with Polar and sync it (the same idempotent sync
-  // as the webhook, so whichever lands first wins and the other is a
-  // no-op), and also re-read the office's access, which the webhook alone
-  // may already have unlocked. Once paid, every trial banner and the demo
-  // card re-read their state at once.
-  useEffect(() => {
-    if (checkoutReturnRef.current === undefined) {
-      const params = new URLSearchParams(window.location.search);
+  useEffect(
+    () => () => {
+      pollRef.current?.abort();
+      embedRef.current?.close();
+    },
+    [],
+  );
 
-      if (params.get("checkout") === "success") {
-        checkoutReturnRef.current = {
-          checkoutId: params.get("checkout_id"),
-          url: window.location.pathname + window.location.search,
-        };
-        params.delete("checkout");
-        params.delete("checkout_id");
-        const query = params.toString();
-        window.history.replaceState(
-          null,
-          "",
-          window.location.pathname + (query ? `?${query}` : ""),
-        );
-      } else {
-        checkoutReturnRef.current = null;
-      }
-    }
+  /** Poll the server until the subscription is active (never activates it here). */
+  const confirmActivation = useCallback(
+    async (checkoutId: string | null, planName: string, returnUrl?: string) => {
+      pollRef.current?.abort();
+      const controller = new AbortController();
+      pollRef.current = controller;
+      pendingCheckoutRef.current = { checkoutId, planName };
+      setNotice({ kind: "confirming" });
 
-    const landing = checkoutReturnRef.current;
-    if (!landing) return undefined;
+      const outcome = await waitForActivation({
+        check: () => checkCheckoutActivation(checkoutId),
+        timeoutMs: POLL_TIMEOUT_MS,
+        intervalMs: POLL_INTERVAL_MS,
+        signal: controller.signal,
+      });
 
-    setCheckoutPending(true);
-    setCheckoutTimedOut(false);
-
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const deadline = Date.now() + CHECKOUT_POLL_LIMIT_MS;
-
-    async function attempt() {
-      const outcome = await checkCheckoutActivation(landing!.checkoutId);
-      if (stopped) return;
-
+      if (outcome === "aborted") return;
       if (outcome === "in_demo") {
-        // This tab's cookie is a demo session (opened in another tab while
-        // paying), where billing is closed. Back to the real office, then
+        // This tab's cookie is a demo session: back to the real office, then
         // start over on the same return URL with the real cookie.
-        stopped = true;
-        if (await leaveDemoSession()) window.location.replace(landing!.url);
+        if (await leaveDemoSession()) window.location.replace(returnUrl ?? "/dashboard/billing");
         else window.location.replace("/dashboard");
         return;
       }
-
-      if (outcome === "active") {
-        stopped = true;
-        checkoutReturnRef.current = null;
-        setCheckoutPending(false);
-        setCheckoutTimedOut(false);
-        toast.success(
-          isArabic
-            ? "تم تفعيل اشتراكك بنجاح"
-            : "Your subscription has been activated",
-        );
-        refreshDemoMode();
-        void load();
-        router.refresh();
+      if (outcome === "timeout") {
+        setNotice({ kind: "slow" });
         return;
       }
 
-      const now = Date.now();
-      if (now >= deadline + CHECKOUT_SLOW_POLL_LIMIT_MS) {
-        stopped = true;
-        return;
-      }
-      if (now >= deadline) {
-        // Slower than usual: say so, and keep checking in the background.
-        setCheckoutPending(false);
-        setCheckoutTimedOut(true);
-      }
+      pendingCheckoutRef.current = null;
+      await onSubscriptionChanged(() => requestTenantWriteAccess(true));
+      refreshDemoMode();
+      const next = await load({ silent: true });
+      setNotice(null);
+      setSuccessPlan(next?.subscription?.plan.name ?? planName);
+      router.refresh();
+    },
+    [load, router],
+  );
 
-      timer = setTimeout(
-        () => void attempt(),
-        now >= deadline ? CHECKOUT_SLOW_POLL_INTERVAL_MS : CHECKOUT_POLL_INTERVAL_MS,
-      );
+  // Fallback when the checkout was opened as a page (no embedding):
+  // back from Polar with ?checkout=success&checkout_id=…
+  useEffect(() => {
+    if (returnHandledRef.current) return;
+    returnHandledRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+    const checkoutId = params.get("checkout_id");
+    const returnUrl = window.location.pathname + window.location.search;
+    params.delete("checkout");
+    params.delete("checkout_id");
+    const query = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+    void confirmActivation(checkoutId, "", returnUrl);
+  }, [confirmActivation]);
+
+  const openPortal = useCallback(async () => {
+    setPortalOpening(true);
+    const res = await fetch("/api/billing/portal", { method: "POST" }).catch(() => null);
+    const json = res ? await res.json().catch(() => ({})) : {};
+    if (res?.ok && json.data?.url) {
+      window.location.href = json.data.url;
+      return;
     }
+    setPortalOpening(false);
+    setNotice({ kind: "error", message: json.message || copy.networkError });
+  }, [copy.networkError]);
 
-    void attempt();
+  async function startPurchase(planCode: string, planName: string, selectedCycle: CheckoutCycle) {
+    setNotice(null);
+    setBusyKey(`${planCode}:${selectedCycle}`);
+    const result = await requestCheckout(planCode, selectedCycle);
 
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
-    // Runs on landing only; `load` and `router` are stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const trialLabel = useMemo(() => {
-    if (!data?.tenant.trialEndsAt && !data?.subscription?.trialEndsAt) {
-      return billing.noTrial;
-    }
-
-    const effectiveStatus = getEffectiveBillingStatus(
-      data.subscription?.status ?? data.tenant.subscriptionStatus,
-      data.subscription?.currentPeriodEnd ?? data.period?.currentPeriodEnd,
-      data.subscription?.trialEndsAt ??
-        data.period?.trialEndsAt ??
-        data.tenant.trialEndsAt,
-    );
-
-    if (effectiveStatus === "EXPIRED") {
-      return isArabic ? "انتهت الفترة التجريبية" : "Trial expired";
-    }
-
-    if (
-      data.tenant.trialDaysLeft === null ||
-      data.tenant.trialDaysLeft === undefined
-    ) {
-      return billing.unknownTrial;
-    }
-
-    if (data.tenant.trialDaysLeft <= 0) {
-      return isArabic ? "تنتهي اليوم" : "Ends today";
-    }
-
-    return daysPhrase(data.tenant.trialDaysLeft, isArabic);
-  }, [data, billing, isArabic]);
-
-  async function handleUpgrade(plan: BillingPlan, cycle: BillingCycle) {
-    const key = `${plan.id}:${cycle}`;
-    setUpgradingKey(key);
-
-    try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planId: plan.code,
-          billingCycle: cycle.toLowerCase(),
-        }),
-      });
-
-      const json = await res.json().catch(() => ({}));
-
-      if (res.status === 401) {
+    switch (result.kind) {
+      case "unauthorized":
         window.location.href = "/login";
         return;
-      }
-
-      // The current subscription's renewal failed: fix the card on it in
-      // Polar's customer portal instead of buying a second subscription.
-      if (res.status === 409 && json.details?.action === "portal") {
-        toast.info(
-          isArabic
-            ? "فشل تجديد اشتراكك الحالي. سننقلك لتحديث وسيلة الدفع."
-            : "Your current subscription's renewal failed. Taking you to update your payment method.",
-        );
-
-        const portal = await fetch("/api/billing/portal", { method: "POST" });
-        const portalJson = await portal.json().catch(() => ({}));
-
-        if (portal.ok && portalJson.data?.url) {
-          window.location.href = portalJson.data.url;
-          return;
-        }
-
-        toast.error(
-          portalJson.message ||
-            (isArabic
-              ? "تعذر فتح صفحة تحديث الدفع"
-              : "Could not open the payment update page"),
-        );
+      case "portal":
+        setBusyKey(null);
+        await openPortal();
         return;
-      }
-
-      if (!res.ok || !json.success) {
-        toast.error(
-          json.message ||
-            (isArabic ? "تعذر بدء عملية الترقية" : "Could not start the upgrade"),
-        );
+      case "error":
+        setBusyKey(null);
+        setNotice({
+          kind: "error",
+          message: result.code === "NETWORK" ? copy.networkError : result.message || copy.networkError,
+        });
         return;
-      }
-
-      if (json.data?.mode === "checkout" && json.data?.url) {
-        window.location.href = json.data.url;
+      case "updated":
+        setBusyKey(null);
+        await onSubscriptionChanged(() => requestTenantWriteAccess(true));
+        await load({ silent: true });
+        setNotice({ kind: "info", message: copy.planChanged });
         return;
-      }
+      case "checkout":
+        break;
+    }
 
-      if (json.data?.mode === "updated") {
-        toast.success(
-          isArabic
-            ? "تم تغيير خطتك بنجاح. سيتم تعديل رصيدك تلقائيًا حسب سياسة Polar."
-            : "Your plan has been changed. Your balance will be adjusted automatically per Polar's policy.",
-        );
-        await load();
-        return;
-      }
+    try {
+      const { PolarEmbedCheckout } = await import("@polar-sh/checkout/embed");
+      const embed = await PolarEmbedCheckout.create(result.url, { theme: isDarkTheme() ? "dark" : "light" });
+      embedRef.current = embed;
+      let succeeded = false;
 
-      toast.error(isArabic ? "استجابة غير متوقعة" : "Unexpected response");
+      embed.addEventListener("success", (event) => {
+        // Stay in the app: no redirect to the success URL.
+        event.preventDefault();
+        succeeded = true;
+        embed.close();
+        embedRef.current = null;
+        void confirmActivation(result.checkoutId, planName);
+      });
+      embed.addEventListener("close", () => {
+        embedRef.current = null;
+        // Closed by the user before paying (a failed card stays inside the
+        // checkout, which shows the error itself).
+        if (!succeeded) setNotice({ kind: "closed" });
+      });
     } catch {
-      toast.error(
-        isArabic ? "تعذر الاتصال بخدمة الدفع" : "Could not reach the payment service",
-      );
+      setNotice({ kind: "error", message: copy.networkError });
     } finally {
-      setUpgradingKey(null);
+      setBusyKey(null);
     }
   }
 
-  if (loading) {
-    return <AppLoader fullScreen={false} />;
+  function scrollToPlans() {
+    document.getElementById("billing-plans")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  if (loading) return <AppLoader fullScreen={false} />;
 
   if (demoBlocked) {
     return (
       <div className="min-w-0 space-y-4" dir={dir}>
         <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
         <div className="card p-6 text-sm font-semibold" style={{ color: "var(--muted)" }}>
-          {isArabic
-            ? DEMO_BLOCKED_MESSAGE
-            : "Billing is not available in demo mode. Go back to your office to use it."}
+          {isArabic ? DEMO_BLOCKED_MESSAGE : "Billing is not available in demo mode. Go back to your office to use it."}
         </div>
       </div>
     );
@@ -775,11 +388,7 @@ export default function BillingPage() {
     return (
       <div className="min-w-0 space-y-4" dir={dir}>
         <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
-        <TrialStatusCard
-          access={memberAccess}
-          isArabic={isArabic}
-          canSubscribe={false}
-        />
+        <TrialStatusCard access={memberAccess} isArabic={isArabic} canSubscribe={false} />
         <div className="card p-6 text-sm" style={{ color: "var(--muted)" }}>
           {billing.adminOnly}
         </div>
@@ -794,426 +403,159 @@ export default function BillingPage() {
         <div className="card p-6">
           <h2 className="mb-2 text-xl font-black">{billing.unavailableTitle}</h2>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
-            {billing.unavailableDescription}
+            {loadError ?? billing.unavailableDescription}
           </p>
         </div>
       </div>
     );
   }
 
-  const currentPlan = data.currentPlan;
+  const view = billingView({
+    accessState: data.access?.state,
+    paymentFailed: data.access?.paymentFailed,
+    subscriptionStatus: data.subscription?.status,
+  });
   const subscription = data.subscription;
-  const currentStatus = getEffectiveBillingStatus(
-    subscription?.status ?? data.tenant.subscriptionStatus,
-    subscription?.currentPeriodEnd ?? data.period?.currentPeriodEnd,
-    subscription?.trialEndsAt ??
-      data.period?.trialEndsAt ??
-      data.tenant.trialEndsAt,
-  );
+  const paidPlan = view === "active" || view === "past_due" ? subscription?.plan ?? null : null;
+  const currentCycle: CheckoutCycle | null = paidPlan ? (subscription?.interval === "YEARLY" ? "yearly" : "monthly") : null;
+  const trial = view === "trial" ? trialProgress(data.access?.trialEndsAt ?? data.tenant.trialEndsAt, TRIAL_DAYS) : null;
+  const signupPlan = isPlanCode(data.tenant.signupPlanCode) ? data.tenant.signupPlanCode : null;
+  const recommended = view === "trial" && signupPlan ? signupPlan : "PRO";
 
-  const currentTone = getStatusToneFromStatus(currentStatus);
-  // Only a paid subscription makes a plan "current". The free in-app trial
-  // runs on Pro features but is not a Pro subscription, so every plan stays
-  // purchasable (including Pro monthly) while trialling or locked.
-  const isPaid = !data.access || data.access.state === "PAID";
-  // The plan picked on the website before signing up: preselected until the
-  // office pays (the trial itself runs on Pro limits).
-  const signupPlan = isPlanCode(data.tenant.signupPlanCode)
-    ? data.tenant.signupPlanCode
-    : null;
-  const preselectedPlan = isPaid ? null : signupPlan;
-  const hasLiveSubscription =
-    isPaid && ["ACTIVE", "TRIALING"].includes(currentStatus);
-  const currentPlanTitle = isPaid
-    ? currentPlan.name
-    : data.access?.state === "TRIAL"
-      ? isArabic
-        ? "تجربة مجانية (مزايا Pro)"
-        : "Free trial (Pro features)"
-      : isArabic
-        ? "لا يوجد اشتراك فعّال"
-        : "No active subscription";
-
-  function scrollToPlans() {
-    document
-      .getElementById("billing-plans")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  const plans: PlanCardData[] = data.availablePlans.map((plan) => ({
+    code: plan.code,
+    name: plan.name,
+    subtitle: plan.subtitle ?? null,
+    description: plan.description ?? null,
+    monthly: plan.priceMonthly.formatted,
+    yearly: plan.priceYearly.formatted,
+    purchasable: plan.purchasable ?? { monthly: true, yearly: true },
+  }));
+  // The yearly option exists only when every plan has a yearly product.
+  const yearlyAvailable = plans.length > 0 && plans.every((plan) => plan.purchasable.yearly);
+  const shownCycle: CheckoutCycle = yearlyAvailable ? cycle : "monthly";
 
   return (
-    <div className="min-w-0 space-y-4" dir={dir}>
+    <div className="min-w-0 flex flex-col gap-5 stagger" dir={dir}>
       <PageHeader dir={dir} title={billing.title} description={billing.subtitle} />
 
-      {!checkoutPending && (
-        <TrialStatusCard
-          access={data.access}
-          isArabic={isArabic}
-          canSubscribe
-          onSubscribe={scrollToPlans}
-          signupPlan={signupPlan}
+      {notice && (
+        <CheckoutStatus
+          copy={copy}
+          notice={notice}
+          onDismiss={() => setNotice(null)}
+          onCheckAgain={() => {
+            const pending = pendingCheckoutRef.current;
+            void confirmActivation(pending?.checkoutId ?? null, pending?.planName ?? "");
+          }}
         />
       )}
 
-      {checkoutPending && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-100">
-          <span
-            className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-amber-500 border-t-transparent"
-            aria-hidden="true"
-          />
-          {isArabic
-            ? "جاري تفعيل اشتراكك... قد يستغرق ذلك بضع ثوانٍ."
-            : "Activating your subscription... this may take a few seconds."}
-        </div>
-      )}
+      {successPlan !== null ? (
+        <SubscriptionSuccess copy={copy} planName={successPlan} onDashboard={() => router.push("/dashboard")} />
+      ) : view === "trial" && trial ? (
+        <TrialBanner
+          copy={copy}
+          daysLeft={trial.daysLeft}
+          elapsed={trial.elapsed}
+          totalDays={TRIAL_DAYS}
+          rtl={isArabic}
+          onChoose={scrollToPlans}
+        />
+      ) : view === "active" && subscription ? (
+        <ActiveSubscriptionCard
+          copy={copy}
+          planName={subscription.plan.name}
+          cycleLabel={subscription.interval === "YEARLY" ? copy.yearly : copy.monthly}
+          // The plan price for its cycle (USD): the row amount can be 0 for an
+          // office an admin put on a plan without Polar.
+          price={subscription.interval === "YEARLY" ? subscription.plan.priceYearly.formatted : subscription.plan.priceMonthly.formatted}
+          periodEnd={formatDate(subscription.currentPeriodEnd, locale)}
+          cancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
+          managing={portalOpening}
+          onManage={() => void openPortal()}
+        />
+      ) : view === "past_due" ? (
+        <PastDueNotice copy={copy} opening={portalOpening} onUpdate={() => void openPortal()} />
+      ) : view === "expired" ? (
+        <ExpiredNotice copy={copy} onRenew={scrollToPlans} />
+      ) : null}
 
-      {checkoutTimedOut && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-100">
-          {isArabic
-            ? "الدفع تم بنجاح، لكن تفعيل الاشتراك يستغرق وقتًا أطول من المعتاد. سيتم تحديث الحالة تلقائيًا، أو يمكنك تحديث الصفحة لاحقًا."
-            : "Payment succeeded, but activation is taking longer than usual. Your status will update automatically, or refresh this page later."}
-        </div>
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="card p-5 lg:col-span-2">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p
-                className="text-sm font-bold"
-                style={{ color: "var(--muted)" }}
-              >
-                {billing.currentPlan}
-              </p>
-              <h2 className="mt-1 text-3xl font-black">{currentPlanTitle}</h2>
-              <p
-                className="mt-2 text-sm leading-7"
-                style={{ color: "var(--muted)" }}
-              >
-                {getPlanDescription(currentPlan, isArabic)}
-              </p>
-            </div>
-
-            <span
-              className={`rounded-full px-4 py-2 text-xs font-black ${statusClasses[currentTone]}`}
-            >
-              {getStatusLabel(currentStatus, isArabic)}
-            </span>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[var(--brand-border-strong)] dark:bg-[var(--brand-canvas)]">
-              <p
-                className="text-xs font-bold"
-                style={{ color: "var(--muted)" }}
-              >
-                {billing.office}
-              </p>
-              <p className="mt-1 font-black">{data.tenant.name}</p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[var(--brand-border-strong)] dark:bg-[var(--brand-canvas)]">
-              <p
-                className="text-xs font-bold"
-                style={{ color: "var(--muted)" }}
-              >
-                {billing.maxUsers}
-              </p>
-              <p className="mt-1 font-black">
-                {formatLimit(currentPlan.limits.users, locale)}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[var(--brand-border-strong)] dark:bg-[var(--brand-canvas)]">
-              <p
-                className="text-xs font-bold"
-                style={{ color: "var(--muted)" }}
-              >
-                {billing.trialPeriod}
-              </p>
-              <p className="mt-1 font-black">{trialLabel}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-5">
-          <p className="text-sm font-bold" style={{ color: "var(--muted)" }}>
-            {billing.quickSummary}
-          </p>
-
-          <div className="mt-4 space-y-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <span>{labels.subscriptionStatus}</span>
-              <b>{getStatusLabel(currentStatus, isArabic)}</b>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <span>{labels.currentPeriodEnd}</span>
-              <b>{formatDate(subscription?.currentPeriodEnd, locale)}</b>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <span>{labels.trialEndsAt}</span>
-              <b>{formatDate(subscription?.trialEndsAt, locale)}</b>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <span>{billing.aiDocuments}</span>
-              <b>
-                {currentPlan.aiEnabled ? labels.aiEnabled : labels.aiDisabled}
-              </b>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {data.warnings.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-100">
-          {billing.warning}
-        </div>
-      )}
-
-      <div className="card p-5">
-        <h2 className="mb-4 text-xl font-black">{billing.currentUsage}</h2>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {(Object.keys(data.usage) as Array<keyof BillingData["usage"]>).map(
-            (key) => {
-              const item = data.usage[key];
-              const percent = item.percent ?? 0;
-
-              return (
-                <div
-                  key={key}
-                  className="rounded-2xl border border-slate-200 bg-white/40 p-4 dark:border-[var(--brand-border-strong)] dark:bg-[var(--brand-canvas)]"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-black">{usageLabels[key]}</p>
-                    <p
-                      className="text-xs font-bold"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {item.used.toLocaleString(isArabic ? "ar-JO-u-nu-latn" : "en-US")} /{" "}
-                      {formatLimit(item.limit, locale)}
-                    </p>
-                  </div>
-
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/5 dark:bg-emerald-950/70">
-                    <div
-                      className="h-full rounded-full bg-emerald-600 transition-all"
-                      style={{
-                        width: item.limit !== null
-                          ? `${Math.min(percent, 100)}%`
-                          : "100%",
-                      }}
-                    />
-                  </div>
-
-                  <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
-                    {item.limit !== null
-                      ? `${percent}% ${billing.used}`
-                      : billing.noLimit}
-                  </p>
-                </div>
-              );
-            },
-          )}
-        </div>
-      </div>
-
-      <div id="billing-plans" className="scroll-mt-28">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-black text-emerald-600 dark:text-emerald-300">
-              {isArabic ? "خطط الاشتراك" : "Subscription plans"}
-            </p>
-            <h2 className="mt-1 text-2xl font-black">
-              {billing.availablePlans}
-            </h2>
-          </div>
-
-          <div
-            className="inline-flex items-center gap-1 self-start rounded-2xl border p-1"
-            style={{ borderColor: "var(--border)", background: "var(--input-bg)" }}
-            role="group"
-            aria-label={isArabic ? "دورة الفوترة" : "Billing cycle"}
-          >
-            <button
-              type="button"
-              onClick={() => setBillingCycle("MONTHLY")}
-              className={[
-                "rounded-xl px-4 py-2 text-sm font-black transition",
-                billingCycle === "MONTHLY"
-                  ? "bg-[var(--landing-copper)] text-[var(--landing-canvas)]"
-                  : "text-[var(--text)]",
-              ].join(" ")}
-            >
-              {labels.monthly}
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingCycle("YEARLY")}
-              className={[
-                "rounded-xl px-4 py-2 text-sm font-black transition",
-                billingCycle === "YEARLY"
-                  ? "bg-[var(--landing-copper)] text-[var(--landing-canvas)]"
-                  : "text-[var(--text)]",
-              ].join(" ")}
-            >
-              {labels.yearly}
-            </button>
-          </div>
-        </div>
-
-        <div className="grid items-stretch gap-4 lg:grid-cols-3">
-          {data.availablePlans.map((plan) => {
-            const active =
-              isPaid && (plan.isCurrent || plan.id === currentPlan.id);
-            const isCurrentSelection =
-              active && hasLiveSubscription && subscription?.interval === billingCycle;
-            const features = getPlanFeatures(plan, isArabic);
-            const price =
-              billingCycle === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
-            const code = getPlanCode(plan);
-            const preselected = preselectedPlan !== null && code === preselectedPlan;
-            const highlighted = preselectedPlan ? preselected : code === "PRO";
-            const key = `${plan.id}:${billingCycle}`;
-            const isUpgrading = upgradingKey === key;
-
+      <section
+        className="rounded-2xl border p-4 sm:p-5"
+        // Paying offices see their usage first; on trial or expired, the
+        // plans come first and the usage moves to the end of the page.
+        style={{
+          background: "var(--card)",
+          borderColor: "var(--border)",
+          order: view === "active" || view === "past_due" ? 0 : 1,
+        }}
+        data-testid="usage"
+      >
+        <h2 className="mb-4 text-lg font-black" style={{ color: "var(--text)" }}>
+          {billing.currentUsage}
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {(Object.keys(data.usage) as Array<keyof BillingData["usage"]>).map((key) => {
+            const item = data.usage[key];
+            const percent = Math.min(item.percent ?? 0, 100);
+            const tone = percent >= 90 ? "red" : percent >= 75 ? "amber" : "green";
             return (
-              <div
-                key={plan.id}
-                className={[
-                  "relative flex h-full min-h-[620px] flex-col overflow-hidden rounded-[28px] border p-5 text-white shadow-2xl shadow-emerald-950/10",
-                  "bg-[var(--landing-canvas)]",
-                  highlighted
-                    ? "border-emerald-500/55 bg-[var(--landing-shell)] ring-1 ring-emerald-400/30"
-                    : "border-white/10",
-                  active ? "ring-2 ring-emerald-300" : "",
-                ].join(" ")}
-              >
-                <div
-                  className="pointer-events-none absolute inset-0 opacity-70"
-                  style={{
-                    background:
-                      "radial-gradient(circle at 50% 0%, rgba(53, 138, 136, 0.22), transparent 42%)",
-                  }}
-                />
-
-                <div className="relative z-10 flex h-full flex-col">
-                  <div className="flex min-h-8 items-start justify-between gap-3">
-                    <div className="flex flex-wrap gap-2">
-                      {code === "PRO" && (
-                        <span className="rounded-full bg-emerald-400 px-3 py-1 text-xs font-black text-emerald-950">
-                          {billing.bestSeller}
-                        </span>
-                      )}
-
-                      {active && (
-                        <span className="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-100">
-                          {labels.activePlan}
-                        </span>
-                      )}
-
-                      {preselected && (
-                        <span
-                          data-testid="signup-plan-badge"
-                          className="rounded-full bg-[var(--landing-copper)] px-3 py-1 text-xs font-black text-[var(--landing-canvas)]"
-                        >
-                          {isArabic ? "الخطة التي اخترتها" : "The plan you picked"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-3">
-                    <h3 className="text-3xl font-black text-emerald-50">
-                      {plan.name}
-                    </h3>
-
-                    <p className="mt-4 min-h-14 text-sm font-bold leading-7 text-emerald-50/78">
-                      {getPlanDescription(plan, isArabic)}
-                    </p>
-                  </div>
-
-                  <div className="mt-6 rounded-[24px] border border-white/10 bg-black/20 p-5">
-                    <div
-                      dir="ltr"
-                      className="flex items-end justify-end gap-2 text-right"
-                    >
-                      <span className="text-5xl font-black tracking-tight text-white">
-                        {price.formatted}
-                      </span>
-                      <span className="pb-2 text-sm font-bold text-emerald-100/65">
-                        / {billingCycle === "YEARLY" ? labels.yearly : labels.monthly}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6">
-                    <p className="mb-3 text-sm font-black text-emerald-300">
-                      {isArabic ? "معلومات الخطة" : "Plan details"}
-                    </p>
-
-                    <ul className="space-y-2.5 text-sm">
-                      {features.map((feature) => (
-                        <li
-                          key={feature.label}
-                          className={[
-                            "flex gap-2 leading-7",
-                            feature.included
-                              ? "text-emerald-50"
-                              : "text-emerald-100/38",
-                          ].join(" ")}
-                        >
-                          <span
-                            className={[
-                              "mt-0.5 shrink-0 font-black",
-                              feature.included
-                                ? "text-emerald-300"
-                                : "text-emerald-100/35",
-                            ].join(" ")}
-                          >
-                            {feature.included ? "✓" : "×"}
-                          </span>
-                          <span>{feature.label}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="mt-auto pt-6">
-                    <button
-                      type="button"
-                      disabled={isCurrentSelection || isUpgrading}
-                      className={[
-                        "w-full rounded-2xl px-5 py-4 text-sm font-black transition",
-                        isCurrentSelection
-                          ? "border border-white/10 bg-white/5 text-emerald-100/60"
-                          : "bg-[var(--landing-copper)] text-[var(--landing-canvas)] shadow-lg shadow-black/20 hover:bg-[var(--landing-copper-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-copper-hover)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--landing-canvas)] disabled:cursor-not-allowed disabled:opacity-70",
-                      ].join(" ")}
-                      onClick={() => void handleUpgrade(plan, billingCycle)}
-                    >
-                      {isUpgrading
-                        ? isArabic
-                          ? "جاري المعالجة..."
-                          : "Processing..."
-                        : isCurrentSelection
-                          ? billing.currentPlanButton
-                          : active
-                            ? isArabic
-                              ? "تغيير دورة الفوترة"
-                              : "Change billing cycle"
-                            : isArabic
-                              ? "الاشتراك الآن"
-                              : "Subscribe now"}
-                    </button>
-                  </div>
+              <div key={key} className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-bold" style={{ color: "var(--text)" }}>
+                    {usageLabels[key]}
+                  </span>
+                  <bdi dir="ltr" className="text-xs font-bold" style={{ color: "var(--muted)" }}>
+                    {item.used.toLocaleString("en-US")} / {formatLimit(item.limit, locale)}
+                  </bdi>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full" style={{ background: "var(--border)" }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: item.limit !== null ? `${percent}%` : "0%", background: `var(--tone-${tone}-solid)` }}
+                  />
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
+      </section>
+
+      <section id="billing-plans" className="scroll-mt-28 space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-black" style={{ color: "var(--text)" }}>
+              {copy.plansTitle}
+            </h2>
+            <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+              {copy.plansSubtitle}
+            </p>
+          </div>
+          {yearlyAvailable && <CycleToggle copy={copy} cycle={shownCycle} onChange={setCycle} />}
+        </div>
+
+        <div className="pt-2">
+          <PlanCards
+            copy={copy}
+            plans={plans}
+            cycle={shownCycle}
+            recommended={recommended}
+            currentCode={paidPlan?.code ?? null}
+            currentCycle={currentCycle}
+            busyKey={busyKey}
+            onSelect={(code, selected) => {
+              const plan = plans.find((p) => p.code === code);
+              void startPurchase(code, plan?.name ?? code, selected);
+            }}
+          />
+        </div>
+
+        <TrustRow copy={copy} />
+      </section>
+
+      <ComparisonTable copy={copy} isArabic={isArabic} recommended={recommended} />
+      <BillingFaq copy={copy} isArabic={isArabic} trialDays={TRIAL_DAYS} />
     </div>
   );
 }

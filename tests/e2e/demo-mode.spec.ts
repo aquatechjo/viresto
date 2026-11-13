@@ -195,7 +195,7 @@ test.describe("وضع التجربة ببيانات وهمية", () => {
     // Back from Polar before the webhook has landed (no checkout_id: the
     // confirm call would reach the real Polar API).
     await page.goto("/dashboard/billing?checkout=success");
-    await expect(page.getByText("جاري تفعيل اشتراكك")).toBeVisible({ timeout: UI_TIMEOUT_MS });
+    await expect(page.getByTestId("checkout-confirming")).toBeVisible({ timeout: UI_TIMEOUT_MS });
     expect(page.url()).not.toContain("checkout=");
     // Survives only if nothing reloads the page from here on.
     await page.evaluate(() => {
@@ -205,9 +205,10 @@ test.describe("وضع التجربة ببيانات وهمية", () => {
     // The webhook lands a few seconds later; the page's poll picks it up.
     await subscribeOffice();
 
-    await expect(page.getByText("تم تفعيل اشتراكك بنجاح")).toBeVisible({ timeout: UI_TIMEOUT_MS });
-    await expect(page.getByText("جاري تفعيل اشتراكك")).toHaveCount(0);
-    await expect(page.getByTestId("trial-status-card")).toHaveCount(0);
+    await expect(page.getByTestId("subscription-success")).toBeVisible({ timeout: UI_TIMEOUT_MS });
+    await expect(page.getByText("أهلاً فيك في Viresto")).toBeVisible();
+    await expect(page.getByTestId("checkout-confirming")).toHaveCount(0);
+    await expect(page.getByTestId("trial-banner")).toHaveCount(0);
     await shot(page, "8-checkout-return-activated");
 
     // Client-side navigation: the demo state was read on the billing page
