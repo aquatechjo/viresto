@@ -9,6 +9,7 @@ import { verifySameOrigin } from "@/lib/csrf";
 import { getAppUrl, getPolarClient } from "@/lib/polar";
 import { syncSubscriptionFromPolar } from "@/lib/polar-subscription-sync";
 import { reportBillingIssue } from "@/lib/monitoring";
+import { withPolarProductIds } from "@/lib/polar-products";
 import {
   polarProductProblems,
   type BillingCycle,
@@ -30,8 +31,8 @@ const POLAR_LIVE_STATUSES = ["active", "trialing", "past_due"] as const;
 // Read by the billing page, which opens the customer portal for it.
 const PAYMENT_METHOD_UPDATE_REQUIRED = "PAYMENT_METHOD_UPDATE_REQUIRED";
 
-function findLiveSubscription(tenantId: string) {
-  return prisma.subscription.findFirst({
+async function findLiveSubscription(tenantId: string) {
+  const subscription = await prisma.subscription.findFirst({
     where: {
       tenantId,
       polarSubscriptionId: { not: null },
@@ -40,6 +41,8 @@ function findLiveSubscription(tenantId: string) {
     orderBy: { createdAt: "desc" },
     include: { plan: true },
   });
+  // Product ids as used here (sandbox override, else as stored).
+  return subscription ? { ...subscription, plan: withPolarProductIds(subscription.plan) } : null;
 }
 
 class PolarLookupError extends Error {}
@@ -54,9 +57,11 @@ async function findLiveSubscriptionInPolar(
   polar: ReturnType<typeof getPolarClient>,
   tenantId: string,
 ) {
-  const plans = await prisma.billingPlan.findMany({
-    select: { polarMonthlyProductId: true, polarYearlyProductId: true },
-  });
+  const plans = (
+    await prisma.billingPlan.findMany({
+      select: { code: true, polarMonthlyProductId: true, polarYearlyProductId: true },
+    })
+  ).map((plan) => withPolarProductIds(plan));
   const productIds = plans
     .flatMap((plan) => [plan.polarMonthlyProductId, plan.polarYearlyProductId])
     .filter((id): id is string => Boolean(id));
@@ -143,9 +148,10 @@ export async function POST(req: NextRequest) {
       return err("الخطة غير معرفة داخل إعدادات النظام", 400);
     }
 
-    const plan = await prisma.billingPlan.findFirst({
+    const storedPlan = await prisma.billingPlan.findFirst({
       where: { code: planCode, isActive: true },
     });
+    const plan = storedPlan ? withPolarProductIds(storedPlan) : null;
 
     if (!plan) {
       return err("الخطة غير موجودة أو غير مفعلة في قاعدة البيانات", 404);

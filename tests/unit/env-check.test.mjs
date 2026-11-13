@@ -155,3 +155,15 @@ test("Production builds still use the production endpoint", () => {
   };
   assert.deepEqual(validateEnvironment(env).errors, []);
 });
+
+test("POLAR_PRODUCT_IDS (sandbox product map) is refused on production, accepted on sandbox", () => {
+  const map = JSON.stringify({ PRO: { monthly: "p-m" } });
+  const sandbox = validateEnvironment({ ...validEnvironment(), POLAR_PRODUCT_IDS: map });
+  assert.deepEqual(sandbox.errors, []);
+
+  const prodPolar = validateEnvironment({ ...validEnvironment(), POLAR_ENVIRONMENT: "production", POLAR_PRODUCT_IDS: map });
+  assert.ok(prodPolar.errors.some((e) => e.includes("POLAR_PRODUCT_IDS")));
+
+  const prodVercel = validateEnvironment({ ...validEnvironment(), VERCEL_ENV: "production", POLAR_PRODUCT_IDS: map });
+  assert.ok(prodVercel.errors.some((e) => e.includes("POLAR_PRODUCT_IDS")));
+});

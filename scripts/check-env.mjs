@@ -170,6 +170,18 @@ export function validateEnvironment(env) {
     );
   }
 
+  // The sandbox product map (src/lib/polar-products.ts) is ignored when
+  // POLAR_ENVIRONMENT is "production"; refuse it there anyway, so nobody
+  // believes it is in effect on the live site.
+  if (
+    valueOf("POLAR_PRODUCT_IDS") &&
+    (valueOf("VERCEL_ENV") === "production" || polarEnvironment === "production")
+  ) {
+    errors.push(
+      "POLAR_PRODUCT_IDS is for the Polar sandbox only; production uses the BillingPlan product ids",
+    );
+  }
+
   const appUrl = valueOf("APP_URL") || valueOf("NEXT_PUBLIC_APP_URL");
   if (!appUrl) {
     errors.push("APP_URL or NEXT_PUBLIC_APP_URL is required");

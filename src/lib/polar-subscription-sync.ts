@@ -6,6 +6,7 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sandboxPlanCodeForProduct, withPolarProductIds } from "@/lib/polar-products";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
 import {
   getBillingPlanConfig,
@@ -111,6 +112,15 @@ export async function findBillingPlanForPolarProduct(
   productId: string | null | undefined,
 ) {
   if (!productId) return null;
+
+  // Sandbox only (src/lib/polar-products.ts): the ids come from
+  // POLAR_PRODUCT_IDS, not the columns. Production: undefined, as before.
+  const sandboxCode = sandboxPlanCodeForProduct(productId);
+  if (sandboxCode !== undefined) {
+    if (!sandboxCode) return null;
+    const plan = await prisma.billingPlan.findUnique({ where: { code: sandboxCode } });
+    return plan ? withPolarProductIds(plan) : null;
+  }
 
   return prisma.billingPlan.findFirst({
     where: {

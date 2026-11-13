@@ -3,6 +3,7 @@ import type { Subscription as PolarSubscription } from "@polar-sh/sdk/models/com
 import { SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPolarClient } from "@/lib/polar";
+import { withPolarProductIds } from "@/lib/polar-products";
 import { mapPolarStatus, syncSubscriptionFromPolar } from "@/lib/polar-subscription-sync";
 import { reportBillingIssue } from "@/lib/monitoring";
 
@@ -132,9 +133,11 @@ export async function reconcilePolarSubscriptions(
 ): Promise<ReconcileSummary> {
   const summary: ReconcileSummary = { checked: 0, drifted: 0, fixed: 0, failed: 0, notFound: 0 };
 
-  const plans = await prisma.billingPlan.findMany({
-    select: { id: true, polarMonthlyProductId: true, polarYearlyProductId: true },
-  });
+  const plans = (
+    await prisma.billingPlan.findMany({
+      select: { id: true, code: true, polarMonthlyProductId: true, polarYearlyProductId: true },
+    })
+  ).map((plan) => withPolarProductIds(plan));
   const planIdForProduct = new Map<string, string>();
   for (const plan of plans) {
     if (plan.polarMonthlyProductId) planIdForProduct.set(plan.polarMonthlyProductId, plan.id);
