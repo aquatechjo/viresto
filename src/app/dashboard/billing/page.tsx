@@ -26,8 +26,11 @@ import { DEMO_BLOCKED_CODE, DEMO_BLOCKED_MESSAGE } from "@/lib/demo/constants";
 import { leaveDemoSession, refreshDemoMode } from "@/lib/demo/client";
 import { formatInZone } from "@/lib/datetime";
 import {
+  EMBED_LOAD_TIMEOUT_MS,
   billingView,
+  loadWithin,
   onSubscriptionChanged,
+  removeEmbedLeftovers,
   requestCheckout,
   trialProgress,
   waitForActivation,
@@ -176,7 +179,8 @@ export default function BillingPage() {
   const embedRef = useRef<EmbedInstance | null>(null);
   const pollRef = useRef<AbortController | null>(null);
   const pendingCheckoutRef = useRef<{ checkoutId: string | null; planName: string } | null>(null);
-  const returnHandledRef = useRef(false);
+  // The ?checkout=success return, read once (undefined = not read yet).
+  const checkoutReturnRef = useRef<{ checkoutId: string | null; url: string } | null | undefined>(undefined);
 
   const load = useCallback(
     async (options: { silent?: boolean } = {}) => {
@@ -258,17 +262,17 @@ export default function BillingPage() {
         signal: controller.signal,
       });
 
-      if (outcome === "aborted") return;
+      if (outcome === "aborted") return outcome;
       if (outcome === "in_demo") {
         // This tab's cookie is a demo session: back to the real office, then
         // start over on the same return URL with the real cookie.
         if (await leaveDemoSession()) window.location.replace(returnUrl ?? "/dashboard/billing");
         else window.location.replace("/dashboard");
-        return;
+        return outcome;
       }
       if (outcome === "timeout") {
         setNotice({ kind: "slow" });
-        return;
+        return outcome;
       }
 
       pendingCheckoutRef.current = null;
@@ -278,24 +282,45 @@ export default function BillingPage() {
       setNotice(null);
       setSuccessPlan(next?.subscription?.plan.name ?? planName);
       router.refresh();
+      return outcome;
     },
     [load, router],
   );
 
   // Fallback when the checkout was opened as a page (no embedding):
   // back from Polar with ?checkout=success&checkout_id=…
+  // The URL is read once (a ref, kept across React's dev double-run of
+  // effects); the polling belongs to each run of the effect and is aborted
+  // by its cleanup, so a second run starts it again instead of finding it
+  // aborted.
   useEffect(() => {
-    if (returnHandledRef.current) return;
-    returnHandledRef.current = true;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") !== "success") return;
-    const checkoutId = params.get("checkout_id");
-    const returnUrl = window.location.pathname + window.location.search;
-    params.delete("checkout");
-    params.delete("checkout_id");
-    const query = params.toString();
-    window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
-    void confirmActivation(checkoutId, "", returnUrl);
+    if (checkoutReturnRef.current === undefined) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("checkout") === "success") {
+        checkoutReturnRef.current = {
+          checkoutId: params.get("checkout_id"),
+          url: window.location.pathname + window.location.search,
+        };
+        // Polar also appends customer_session_token: keep it out of the
+        // address bar and the history.
+        params.delete("checkout");
+        params.delete("checkout_id");
+        params.delete("customer_session_token");
+        const query = params.toString();
+        window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+      } else {
+        checkoutReturnRef.current = null;
+      }
+    }
+
+    const landing = checkoutReturnRef.current;
+    if (!landing) return undefined;
+    void confirmActivation(landing.checkoutId, "", landing.url).then((outcome) => {
+      // Finished (activated, "taking longer", demo): never again for this
+      // URL. An aborted run leaves it for the next run of this effect.
+      if (outcome !== "aborted") checkoutReturnRef.current = null;
+    });
+    return () => pollRef.current?.abort();
   }, [confirmActivation]);
 
   const openPortal = useCallback(async () => {
@@ -342,7 +367,18 @@ export default function BillingPage() {
 
     try {
       const { PolarEmbedCheckout } = await import("@polar-sh/checkout/embed");
-      const embed = await PolarEmbedCheckout.create(result.url, { theme: isDarkTheme() ? "dark" : "light" });
+      const embed = await loadWithin(
+        PolarEmbedCheckout.create(result.url, { theme: isDarkTheme() ? "dark" : "light" }),
+        EMBED_LOAD_TIMEOUT_MS,
+      );
+      if (!embed) {
+        // Polar did not let this origin embed the checkout: open it as a
+        // page. Its success URL brings the admin back here
+        // (?checkout=success&checkout_id=…), to the same confirmation.
+        removeEmbedLeftovers(result.url);
+        window.location.href = result.url;
+        return;
+      }
       embedRef.current = embed;
       let succeeded = false;
 

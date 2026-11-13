@@ -579,3 +579,41 @@ test("guard: a trial on the product does not block the checkout (allowTrial: fal
     false,
   );
 });
+
+// --- Prefilled email ------------------------------------------------------
+
+test("email: Polar rejecting the prefilled email does not block the purchase; the checkout opens without it", async () => {
+  resetMocks();
+  billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+  checkoutsCreateMock.mock.mockImplementation(async (...args: unknown[]) => {
+    const payload = args[0] as { customerEmail: string | null };
+    if (payload.customerEmail) {
+      const error = new Error('API error occurred: {"detail":[{"loc":["body","customer_email"],"msg":"value is not a valid email address"}]}') as Error & { statusCode: number };
+      error.statusCode = 422;
+      throw error;
+    }
+    return { id: "checkout_456", url: "https://polar.sh/checkout/session_456" };
+  });
+
+  const res = await POST(makeRequest({ planId: "BASIC", billingCycle: "monthly" }));
+  const json = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(json.data.checkoutId, "checkout_456");
+  assert.equal(checkoutsCreateMock.mock.callCount(), 2);
+  assert.equal((checkoutsCreateMock.mock.calls[0].arguments[0] as { customerEmail: string }).customerEmail, "admin@office.test");
+  assert.equal((checkoutsCreateMock.mock.calls[1].arguments[0] as { customerEmail: null }).customerEmail, null);
+});
+
+test("email: any other Polar error is not retried", async () => {
+  resetMocks();
+  billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());
+  checkoutsCreateMock.mock.mockImplementation(async () => {
+    const error = new Error('API error occurred: {"detail":[{"loc":["body","products"]}]}') as Error & { statusCode: number };
+    error.statusCode = 422;
+    throw error;
+  });
+
+  const res = await POST(makeRequest({ planId: "BASIC", billingCycle: "monthly" }));
+  assert.equal(res.status, 500);
+  assert.equal(checkoutsCreateMock.mock.callCount(), 1);
+});

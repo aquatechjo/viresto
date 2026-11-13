@@ -60,6 +60,43 @@ export async function requestCheckout(
   return { kind: "error", message: null, code: "UNEXPECTED" };
 }
 
+/**
+ * How long the embedded checkout may take to load before the page gives
+ * up on embedding and opens the checkout as a page instead. Polar answers
+ * frame-ancestors 'none' for an origin it does not allow to embed (seen on
+ * localhost against the sandbox, 2026-11-13); the embed's create() then
+ * never resolves and would leave a spinner over the page.
+ */
+export const EMBED_LOAD_TIMEOUT_MS = 15_000;
+
+/** Resolves with the embed once loaded, or null after `timeoutMs`. */
+export async function loadWithin<T>(load: Promise<T>, timeoutMs: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
+  try {
+    return await Promise.race([load, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Removes what @polar-sh/checkout/embed put on the page for a checkout that
+ * never loaded: its iframe, the spinner overlay, and the body scroll lock.
+ */
+export function removeEmbedLeftovers(checkoutUrl: string, doc: Document = document) {
+  const base = checkoutUrl.split("?")[0];
+  doc.querySelectorAll("iframe").forEach((frame) => {
+    if ((frame.getAttribute("src") ?? "").startsWith(base)) frame.remove();
+  });
+  doc.querySelectorAll(".polar-loader-spinner").forEach((spinner) => {
+    (spinner.parentElement ?? spinner).remove();
+  });
+  doc.body.classList.remove("polar-no-scroll");
+}
+
 export type ActivationCheck = "active" | "pending" | "in_demo";
 export type ActivationOutcome = "active" | "timeout" | "in_demo" | "aborted";
 

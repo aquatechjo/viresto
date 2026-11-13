@@ -105,6 +105,13 @@ async function checkPlanProduct(
   return problems.length ? { ok: false, reason: "mismatch", problems } : { ok: true };
 }
 
+/** A Polar 422 whose validation errors point at customer_email. */
+function isRejectedCustomerEmail(error: unknown) {
+  const status = (error as { statusCode?: unknown } | null)?.statusCode;
+  const message = error instanceof Error ? error.message : "";
+  return status === 422 && message.includes("customer_email");
+}
+
 function isBillingCycle(value: unknown): value is BillingCycle {
   return value === "monthly" || value === "yearly";
 }
@@ -271,28 +278,43 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const checkout = await polar.checkouts.create({
-      products: [productId],
-      // No trial on the Polar side: the office already had its in-app
-      // trial, and paying ends it. The products carry no trial either;
-      // this is the safety net if one is ever configured there again.
-      allowTrial: false,
-      externalCustomerId: auth.user.tenantId,
-      // Prefilled; the admin can still change it in the checkout.
-      customerEmail: auth.user.email || null,
-      // The billing page opens this checkout embedded (@polar-sh/checkout);
-      // Polar only allows embedding from this origin.
-      embedOrigin: new URL(getAppUrl()).origin,
-      // Polar fills {CHECKOUT_ID}; the billing page posts it to
-      // /api/billing/checkout/confirm for an instant, verified unlock. Used
-      // when the checkout is opened as a page instead of embedded.
-      successUrl: `${getAppUrl()}/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}`,
-      metadata: {
-        tenantId: auth.user.tenantId,
-        planCode,
-        billingCycle,
-      },
-    });
+    const createCheckout = (customerEmail: string | null) =>
+      polar.checkouts.create({
+        products: [productId],
+        // No trial on the Polar side: the office already had its in-app
+        // trial, and paying ends it. The products carry no trial either;
+        // this is the safety net if one is ever configured there again.
+        allowTrial: false,
+        externalCustomerId: auth.user!.tenantId,
+        // Prefilled; the admin can still change it in the checkout.
+        customerEmail,
+        // The billing page opens this checkout embedded (@polar-sh/checkout);
+        // Polar only allows embedding from this origin.
+        embedOrigin: new URL(getAppUrl()).origin,
+        // Polar fills {CHECKOUT_ID}; the billing page posts it to
+        // /api/billing/checkout/confirm for an instant, verified unlock. Used
+        // when the checkout is opened as a page instead of embedded.
+        successUrl: `${getAppUrl()}/dashboard/billing?checkout=success&checkout_id={CHECKOUT_ID}`,
+        metadata: {
+          tenantId: auth.user!.tenantId,
+          planCode,
+          billingCycle,
+        },
+      });
+
+    let checkout;
+    try {
+      checkout = await createCheckout(auth.user.email || null);
+    } catch (error) {
+      // Polar validates the prefilled email more strictly than we do (e.g.
+      // a reserved domain): never let the prefill block a purchase. Open the
+      // checkout without it; the admin types an email there.
+      if (!auth.user.email || !isRejectedCustomerEmail(error)) throw error;
+      console.warn(
+        `[polar-checkout] customer_email_rejected tenant=${auth.user.tenantId}; opening the checkout without a prefilled email`,
+      );
+      checkout = await createCheckout(null);
+    }
 
     // checkoutId: the page posts it to /api/billing/checkout/confirm when the
     // embedded checkout reports success.

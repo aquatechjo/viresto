@@ -157,3 +157,34 @@ test("page state: trial, active, past due (even while still paid), expired", () 
   assert.equal(billingView({ accessState: "LOCKED", paymentFailed: true }), "past_due");
   assert.equal(billingView({ accessState: "LOCKED", subscriptionStatus: "EXPIRED" }), "expired");
 });
+
+// --- embed that never loads ---------------------------------------------------
+
+import { loadWithin, removeEmbedLeftovers } from "../../src/lib/billing/checkout-flow";
+
+test("embed load: resolves with the embed when it loads, null when it never does", async () => {
+  assert.equal(await loadWithin(Promise.resolve("embed"), 1000), "embed");
+  assert.equal(await loadWithin(new Promise(() => {}), 20), null);
+});
+
+test("embed cleanup: removes this checkout's iframe, the spinner overlay and the scroll lock only", () => {
+  const removed: string[] = [];
+  const el = (name: string, src?: string, parent?: { remove: () => void }) => ({
+    getAttribute: (key: string) => (key === "src" ? src ?? null : null),
+    parentElement: parent ?? null,
+    remove: () => removed.push(name),
+  });
+  const overlay = { remove: () => removed.push("overlay") };
+  const classes = new Set(["polar-no-scroll", "other"]);
+  const doc = {
+    querySelectorAll: (selector: string) =>
+      selector === "iframe"
+        ? [el("checkout-frame", "https://sandbox.polar.sh/checkout/polar_c_1?embed=true"), el("other-frame", "https://youtube.com/x")]
+        : [el("spinner", undefined, overlay)],
+    body: { classList: { remove: (c: string) => classes.delete(c) } },
+  } as unknown as Document;
+
+  removeEmbedLeftovers("https://sandbox.polar.sh/checkout/polar_c_1", doc);
+  assert.deepEqual(removed.sort(), ["checkout-frame", "overlay"]);
+  assert.deepEqual([...classes], ["other"]);
+});
