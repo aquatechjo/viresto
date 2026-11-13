@@ -36,6 +36,7 @@ import {
   restoreRealSession,
 } from "@/lib/demo/sandbox";
 import { getClientIp } from "@/lib/client-ip";
+import { describeError } from "@/lib/safe-error-log";
 import {
   getTenantAccessCached,
   invalidateTenantAccessCache,
@@ -468,7 +469,7 @@ export async function validateSessionPayload(
         },
       })
       .catch((error) => {
-        console.error("Failed to touch session", error);
+        console.error("Failed to touch session", describeError(error));
       });
   }
 

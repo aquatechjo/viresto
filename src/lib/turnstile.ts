@@ -1,4 +1,5 @@
 import { externalFetch } from "@/lib/external-fetch"
+import { describeError } from "@/lib/safe-error-log"
 
 type TurnstileVerifyResponse = {
   success: boolean
@@ -53,7 +54,7 @@ export async function verifyTurnstileToken(
       7_000,
     )
   } catch (error) {
-    console.error("[TURNSTILE_ERROR] Verification request failed", error)
+    console.error("[TURNSTILE_ERROR] Verification request failed", describeError(error))
     return {
       success: false,
       error: "turnstile_unavailable",

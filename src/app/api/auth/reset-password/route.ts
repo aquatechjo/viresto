@@ -13,6 +13,7 @@ import { rateLimitUnavailableResponse } from "@/lib/api-handler";
 import { strongPasswordSchema } from "@/lib/validations";
 import { getClientIp } from "@/lib/client-ip";
 import { logActivity } from "@/lib/log-activity";
+import { describeError } from "@/lib/safe-error-log";
 
 export const runtime = "nodejs";
 
@@ -194,7 +195,7 @@ export async function POST(request: NextRequest) {
       return rateLimitUnavailableResponse();
     }
 
-    console.error("reset-password error:", error);
+    console.error("reset-password error:", describeError(error));
 
     return NextResponse.json(
       { success: false, message: "تعذر تغيير كلمة المرور" },

@@ -1,5 +1,6 @@
 import { NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { describeError } from "@/lib/safe-error-log";
 
 type NotificationBaseInput = {
   tenantId: string;
@@ -143,7 +144,7 @@ export async function createNotification({
       },
     });
   } catch (error) {
-    console.error("[NOTIFICATION_CREATE_ERROR]", error);
+    console.error("[NOTIFICATION_CREATE_ERROR]", describeError(error));
     return null;
   }
 }

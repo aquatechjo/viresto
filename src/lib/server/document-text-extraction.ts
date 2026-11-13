@@ -3,6 +3,7 @@ import "server-only";
 import type OpenAI from "openai";
 import JSZip from "jszip";
 import { extractText, getDocumentProxy } from "unpdf";
+import { describeError } from "@/lib/safe-error-log";
 import {
   DOCUMENT_UPLOAD_MIME_TYPES,
   validateUploadFileContent,
@@ -324,7 +325,7 @@ export async function extractDocumentText(options: {
       );
     }
   } catch (error) {
-    console.error("Document text extraction failed:", error);
+    console.error("Document text extraction failed:", describeError(error));
     return extractionFailure(
       "DOCUMENT_TEXT_EXTRACTION_FAILED",
       "تعذر استخراج نص موثوق من المستند. تأكد أن الملف غير محمي وغير تالف.",

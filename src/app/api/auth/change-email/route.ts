@@ -24,6 +24,7 @@ import {
 } from "@/lib/email";
 import { EMAIL_CHANGE_CODE_TTL_MINUTES } from "@/lib/verification-policy";
 import { normalizeEmail } from "@/lib/encryption";
+import { describeError as describeErrorForLog } from "@/lib/safe-error-log";
 import {
   describeError,
   describeSendResult,
@@ -168,7 +169,7 @@ export async function POST(req: NextRequest) {
             completedAt: null,
           },
         });
-        console.error("Failed to send old email change code:", error);
+        console.error("Failed to send old email change code:", describeErrorForLog(error));
         return err("تعذر إرسال رمز التحقق إلى البريد الحالي", 503);
       }
 
@@ -276,7 +277,7 @@ export async function POST(req: NextRequest) {
             newCodeAttempts: 0,
           },
         });
-        console.error("Failed to send new email change code:", error);
+        console.error("Failed to send new email change code:", describeErrorForLog(error));
         return err("تعذر إرسال رمز التحقق إلى البريد الجديد", 503);
       }
 

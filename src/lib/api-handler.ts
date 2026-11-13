@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { err } from '@/lib/api-response'
 import { RateLimitUnavailableError } from '@/lib/rate-limit'
 import { reportError } from '@/lib/monitoring'
+import { describeError } from '@/lib/safe-error-log'
 
 // The answer when the rate-limit store is down (production fails closed).
 // Also used by routes that handle their own errors instead of apiHandler.
@@ -18,7 +19,7 @@ export async function apiHandler(handler: () => Promise<Response>) {
       return rateLimitUnavailableResponse()
     }
 
-    console.error('[API_ERROR]', error)
+    console.error('[API_ERROR]', describeError(error))
     reportError(error, { handler: 'apiHandler' })
 
     if (error instanceof Prisma.PrismaClientInitializationError) {

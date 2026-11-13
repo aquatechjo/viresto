@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import { externalFetch } from "@/lib/external-fetch";
+import { describeError } from "@/lib/safe-error-log";
 
 export type CloudinaryResourceType = "image" | "raw" | "video";
 
@@ -111,7 +112,7 @@ export async function fetchAuthenticatedCloudinaryAsset(options: {
 
         await response.body?.cancel().catch(() => undefined);
       } catch (error) {
-        console.error("Cloudinary asset fetch failed:", error);
+        console.error("Cloudinary asset fetch failed:", describeError(error));
       }
     }
   }

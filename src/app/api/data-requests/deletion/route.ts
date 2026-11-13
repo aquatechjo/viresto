@@ -10,6 +10,7 @@ import { logActivity } from "@/lib/log-activity";
 import { createNotification } from "@/lib/notifications";
 import { sendOfficeDeletionRequestEmail } from "@/lib/email";
 import { COMPANY_CONTACT } from "@/config/contact";
+import { describeError } from "@/lib/safe-error-log";
 
 // AUDIT_REPORT.md M4: the office ADMIN asks for the office to be deleted.
 // Nothing is deleted here: the request is logged on the office and every
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
       });
     } catch (error) {
       // The request is already logged and notified in-app; do not fail it.
-      console.error(`[data-request] deletion_email_failed tenant=${tenantId}`, error);
+      console.error(`[data-request] deletion_email_failed tenant=${tenantId}`, describeError(error));
     }
 
     return ok({ requested: true, alreadyRequested: false });

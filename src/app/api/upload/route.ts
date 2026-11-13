@@ -28,6 +28,7 @@ import {
 } from "@/lib/server/upload-file-security";
 import { buildCaseAccessWhere } from "@/lib/access-control";
 import { lockTenantMutation } from "@/lib/tenant-mutation-lock";
+import { describeError } from "@/lib/safe-error-log";
 
 type StoredDocument = Awaited<ReturnType<typeof findStoredDocument>>;
 
@@ -52,7 +53,7 @@ async function cleanupUploadedAsset(
       invalidate: true,
     });
   } catch (error) {
-    console.error("Cloudinary cleanup failed after document upload:", error);
+    console.error("Cloudinary cleanup failed after document upload:", describeError(error));
   }
 }
 

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getLocationFromHeaders } from '@/lib/geo'
 import { getClientIp } from '@/lib/client-ip'
+import { describeError } from '@/lib/safe-error-log'
 
 type LogActivityInput = {
   req?: NextRequest
@@ -40,6 +41,6 @@ export async function logActivity(input: LogActivityInput) {
       },
     })
   } catch (error) {
-    console.error('Activity log failed:', error)
+    console.error('Activity log failed:', describeError(error))
   }
 }

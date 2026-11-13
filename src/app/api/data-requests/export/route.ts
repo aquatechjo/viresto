@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/log-activity";
 import { streamOfficeDataExport } from "@/lib/office-data-export";
 import { toDateKey } from "@/lib/datetime";
+import { describeError } from "@/lib/safe-error-log";
 
 // AUDIT_REPORT.md M4: the office ADMIN downloads all office data as one
 // JSON file. Reachable while the office is locked (isSubscriptionExemptPath),
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
           else controller.enqueue(encoder.encode(next.value));
         } catch (error) {
           // Abort rather than end: a cut-off file must not look complete.
-          console.error(`[office-export] failed tenant=${tenantId}`, error);
+          console.error(`[office-export] failed tenant=${tenantId}`, describeError(error));
           controller.error(error);
         }
       },
