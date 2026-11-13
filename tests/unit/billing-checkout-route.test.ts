@@ -565,6 +565,34 @@ test("guard: a correct yearly product (interval year, yearly price) opens the ch
   );
 });
 
+test("guard: the price is the configured USD price, not the row's (production rows hold old JOD fils)", async () => {
+  // Production, 2026-11-13: PRO row priceMonthly 40000 (40 JOD in fils),
+  // Polar product 5900 cents ($59, what the page shows) -> every checkout
+  // was refused with "price is 5900 cents, expected 40000".
+  for (const [code, cycle, legacy] of [
+    ["BASIC", "monthly", 25000],
+    ["PRO", "monthly", 40000],
+    ["BUSINESS", "monthly", 80000],
+    ["PRO", "yearly", 440000],
+  ] as const) {
+    resetMocks();
+    const lower = code.toLowerCase();
+    billingPlanFindFirstMock.mock.mockImplementation(async () =>
+      billingPlanRow({
+        code,
+        priceMonthly: legacy,
+        priceYearly: legacy,
+        polarMonthlyProductId: `${lower}_monthly`,
+        polarYearlyProductId: `${lower}_yearly`,
+      }),
+    );
+
+    const res = await POST(makeRequest({ planId: code, billingCycle: cycle }));
+    assert.equal(res.status, 200, `${code} ${cycle}`);
+    assert.equal(checkoutsCreateMock.mock.callCount(), 1, `${code} ${cycle}`);
+  }
+});
+
 test("guard: a trial on the product does not block the checkout (allowTrial: false disables it)", async () => {
   resetMocks();
   billingPlanFindFirstMock.mock.mockImplementation(async () => billingPlanRow());

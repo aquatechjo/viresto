@@ -172,6 +172,25 @@ export function getYearlyPrice(plan: PlanConfig) {
   return plan.priceYearlyUsd;
 }
 
+/**
+ * What a plan costs per cycle in USD cents: the price the pages show and
+ * the Polar products charge. Null for a code not configured here.
+ *
+ * Use this, not BillingPlan.priceMonthly/priceYearly: production rows still
+ * hold the old JOD prices in fils (Pro 40000 = 40 JOD), which blocked every
+ * checkout on 2026-11-13 ("price is 5900 cents, expected 40000").
+ */
+export function planPriceCents(
+  code: string | null | undefined,
+  cycle: "monthly" | "yearly",
+): number | null {
+  const normalized = code?.trim().toUpperCase();
+  const plan = PLANS.find((item) => item.code === normalized);
+  if (!plan) return null;
+  const major = cycle === "yearly" ? getYearlyPrice(plan) : getDisplayPrice(plan);
+  return major * PLAN_CURRENCY_MINOR_UNITS;
+}
+
 /** Whole months saved by paying yearly instead of 12 × monthly. */
 export function getYearlySavingsMonths(plan: PlanConfig) {
   return Math.round(12 - plan.priceYearlyUsd / plan.priceUsd);

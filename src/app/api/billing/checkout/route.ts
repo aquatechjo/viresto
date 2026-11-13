@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { SubscriptionStatus } from "@prisma/client";
-import { PLANS, type PlanCode } from "@/config/plans";
+import { PLANS, planPriceCents, type PlanCode } from "@/config/plans";
 import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api-response";
 import { requirePermission } from "@/lib/api-auth";
@@ -226,7 +226,11 @@ export async function POST(req: NextRequest) {
     // or a plan change. Fails closed.
     const productCheck = await checkPlanProduct(polar, productId, {
       cycle: billingCycle,
-      amountCents: billingCycle === "yearly" ? plan.priceYearly : plan.priceMonthly,
+      // The configured USD price (what the page shows), not the row's
+      // priceMonthly/priceYearly: production rows hold old JOD fils.
+      amountCents:
+        planPriceCents(planCode, billingCycle) ??
+        (billingCycle === "yearly" ? plan.priceYearly : plan.priceMonthly),
       // allowTrial: false below already disables any trial on the product.
       requireNoTrial: false,
     });
