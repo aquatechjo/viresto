@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DEMO_ENDED_HEADER } from "@/lib/demo/constants";
+import { clearCacheScope } from "@/lib/client-cache-scope";
 
 // Client side of demo mode (src/lib/demo): the state for the dashboard
 // card and banner, and the enter/exit/reset calls. The server decides
@@ -64,6 +65,7 @@ export function useDemoMode() {
 export async function leaveDemoSession(): Promise<boolean> {
   const res = await fetch("/api/demo/exit", { method: "POST" }).catch(() => null);
   cached = null;
+  clearCacheScope(); // the office changed
   return !!res?.ok;
 }
 
@@ -83,6 +85,7 @@ export async function runDemoAction(action: DemoAction): Promise<string | null> 
   }
 
   cached = null;
+  clearCacheScope(); // the office changed
   window.location.assign((body?.data?.redirect as string | undefined) ?? "/dashboard");
   return null;
 }
@@ -105,6 +108,7 @@ function installDemoEndedWatcher() {
     if (!fired && res.headers.get(DEMO_ENDED_HEADER)) {
       fired = true;
       cached = null;
+      clearCacheScope(); // back to the real office
       try {
         window.sessionStorage.setItem(ENDED_FLAG, "1");
       } catch {

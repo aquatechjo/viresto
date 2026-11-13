@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { clearCacheScope } from "@/lib/client-cache-scope";
 
 function VerifyEmailContent() {
   const router = useRouter();
@@ -60,6 +61,8 @@ function VerifyEmailContent() {
       setTimeout(() => {
         if (next === "DASHBOARD") {
           localStorage.setItem("viresto_last_activity", String(Date.now()));
+          // Signed in: no tab serves cached data until its /me answers.
+          clearCacheScope();
 
           window.location.href = "/dashboard";
           return;

@@ -11,6 +11,7 @@ import Image from "next/image";
 import FormField from "@/components/ui/FormField";
 import { useRouter } from "next/navigation";
 import PasswordInput from "@/components/ui/PasswordInput";
+import { clearCacheScope } from "@/lib/client-cache-scope";
 
 type Locale = "ar" | "en";
 
@@ -406,6 +407,8 @@ export default function LoginPage() {
 
       if (data.success) {
         localStorage.setItem("viresto_last_activity", String(Date.now()));
+        // New session: no tab serves cached data until its /me answers.
+        clearCacheScope();
 
         toast.success(copy.toast.loginSuccess);
 

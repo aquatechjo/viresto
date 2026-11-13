@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  cacheScopeOf,
+  clearCacheScope,
+  setCacheScope,
+} from "@/lib/client-cache-scope";
+
 export type CurrentUserRole = "ADMIN" | "LAWYER" | "STAFF";
 
 export interface CurrentUser {
@@ -48,6 +54,11 @@ async function requestCurrentUser(): Promise<CurrentUserResult> {
       ? (body.data as CurrentUser)
       : null;
 
+  // The server's answer about the current cookie decides whose data the
+  // client caches may serve (client-cache-scope.ts). Signed out or any
+  // other failure: none.
+  setCacheScope(cacheScopeOf(user));
+
   return {
     ok: Boolean(user),
     status: response.status,
@@ -82,6 +93,8 @@ export function getCurrentUser(): Promise<CurrentUserResult> {
   return requestInFlight;
 }
 
+/** On sign-out: forget the user, and serve no cached data from now on. */
 export function invalidateCurrentUser() {
   cachedResult = null;
+  clearCacheScope();
 }

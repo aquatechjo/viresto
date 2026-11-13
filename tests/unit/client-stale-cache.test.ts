@@ -8,8 +8,20 @@ import {
   readStaleJson,
   rememberStaleJson,
 } from "../../src/lib/client-query-cache";
+import { setCacheScope } from "../../src/lib/client-cache-scope";
 
-// The pages' stale-while-revalidate cache (speed item 2).
+// The pages' stale-while-revalidate cache (speed item 2). Every entry is
+// under the signed-in user and office; see client-cache-scope.test.ts for
+// the scope itself.
+
+// localStorage, shared by every tab in a browser (one store here).
+const storage = new Map<string, string>();
+(globalThis as any).window = globalThis;
+(globalThis as any).localStorage = {
+  getItem: (k: string) => storage.get(k) ?? null,
+  setItem: (k: string, v: string) => void storage.set(k, String(v)),
+  removeItem: (k: string) => void storage.delete(k),
+};
 
 const calls: string[] = [];
 let nextStatus = 200;
@@ -22,6 +34,8 @@ globalThis.fetch = (async (url: string) => {
 
 beforeEach(() => {
   invalidateClientQueryCache();
+  storage.clear();
+  setCacheScope("user-a:office-1");
   calls.length = 0;
   nextStatus = 200;
   nextBody = {};
