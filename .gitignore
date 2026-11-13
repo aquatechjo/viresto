@@ -56,6 +56,9 @@ tsconfig.tsbuildinfo
 # impeccable design-hook settings (local only)
 /.impeccable/
 
+# Claude Code per-machine settings (local only)
+/.claude/settings.local.json
+
 # Report samples and local working files (never committed): rendered
 # report samples served from public/, scratch scripts, and PDFs dropped
 # in the project root for review.
