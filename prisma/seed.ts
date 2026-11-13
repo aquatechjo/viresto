@@ -7,6 +7,18 @@ import {
 
 const prisma = new PrismaClient();
 
+// Production Polar products. The yearly ids are the products created on
+// 2026-11-13 (interval "year"); scripts/update-polar-yearly-products.ts
+// checks them against Polar and maps each by name and price before it
+// writes them, so run that script, not this seed, to change them. The ids
+// below must match what it wrote, or a later seed would put back other
+// products. The old yearly ids (replaced): BASIC a770f639-4c85-4a63-8959-
+// 8740fe86fc5b, PRO 8c63d1fa-7f37-4335-a3fa-799a680b6f91, BUSINESS
+// 4258aeba-fd71-488f-a1d7-302979b51ce9.
+//
+// Which new id is which plan is not known here (the user sent them in no
+// particular order): they are filled in from the script's dry-run output,
+// before its --apply. Until then the seed keeps the old ids.
 const POLAR_PRODUCT_IDS: Record<
   string,
   { monthly: string; yearly: string }
